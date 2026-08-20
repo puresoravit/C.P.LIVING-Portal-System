@@ -19,6 +19,7 @@ export type PreviewLineItem = {
   productTypeId: string;
   productTypeCode: string;
   productTypeName: string;
+  size: string | null;
   quantity: Decimal;
   unit: string;
   unitPrice: Decimal;
@@ -66,6 +67,7 @@ export async function buildPreviewLineItems(orderId: string): Promise<PreviewLin
       productTypeId: item.product.productTypeId,
       productTypeCode: item.product.productType.code,
       productTypeName: item.product.productType.name,
+      size: item.product.size,
       quantity: item.quantity,
       unit: item.product.unit,
       unitPrice: price,

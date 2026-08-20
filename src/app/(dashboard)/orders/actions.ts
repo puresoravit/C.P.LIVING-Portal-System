@@ -270,6 +270,7 @@ export async function confirmOrder(orderId: string) {
                   skuSnapshot: item.sku,
                   productNameSnapshot: item.productName,
                   productTypeSnapshot: item.productTypeName,
+                  sizeSnapshot: item.size,
                   quantity: item.quantity,
                   unitSnapshot: item.unit,
                   unitPriceSnapshot: item.unitPrice,

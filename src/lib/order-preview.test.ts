@@ -11,6 +11,7 @@ function line(over: Partial<PreviewLineItem>): PreviewLineItem {
     productTypeId: "A",
     productTypeCode: "A",
     productTypeName: "TYPE A",
+    size: null,
     quantity: new Decimal(1),
     unit: "หลัง",
     unitPrice: new Decimal(0),
@@ -106,5 +107,16 @@ describe("groupByTypeAndApplyDiscount — Golden Test Case (ข้อ 66)", () =
     expect(groups[0].discountPct.toString()).toBe("0");
     expect(groups[0].discountAmount.toString()).toBe("0");
     expect(groups[0].netAmount.toString()).toBe("1000");
+  });
+
+  // Phase C: Size Snapshot — size ต้องผ่าน grouping ไปเฉยๆ ไม่กระทบการคำนวณใดๆ
+  it("size ของแต่ละ line ผ่านเข้า-ออก grouping โดยไม่ถูกแตะ (ไม่มีผลต่อ discount/net)", () => {
+    const lines: PreviewLineItem[] = [
+      line({ orderItemId: "1", productTypeId: "A", productTypeCode: "A", size: "5 ฟุต", grossAmount: new Decimal(1000) }),
+      line({ orderItemId: "2", productTypeId: "A", productTypeCode: "A", size: null, grossAmount: new Decimal(500) }),
+    ];
+    const groups = groupByTypeAndApplyDiscount(lines, {});
+    expect(groups[0].items.map((i) => i.size)).toEqual(["5 ฟุต", null]);
+    expect(groups[0].grossAmount.toString()).toBe("1500");
   });
 });

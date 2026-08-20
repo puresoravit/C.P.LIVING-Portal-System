@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 
-type ManualItem = { description: string; quantity: number; unit: string; unitPrice: number };
+type ManualItem = { description: string; size: string; quantity: number; unit: string; unitPrice: number };
 
 export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (formData: FormData) => void }) {
   const [items, setItems] = useState<ManualItem[]>([]);
-  const [draft, setDraft] = useState<ManualItem>({ description: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
+  const [draft, setDraft] = useState<ManualItem>({ description: "", size: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
   const [err, setErr] = useState("");
 
   function addItem() {
@@ -20,7 +20,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
     }
     setErr("");
     setItems((prev) => [...prev, draft]);
-    setDraft({ description: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
+    setDraft({ description: "", size: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
   }
 
   function removeItem(idx: number) {
@@ -33,16 +33,25 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
     <div>
       <div className="bg-white border rounded-lg p-3 mb-3">
         <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-5">
+          <div className="col-span-4">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              placeholder="เช่น ที่นอนสปริง GT-David ขนาด 5 ฟุต"
+              placeholder="เช่น ที่นอนสปริง GT-David"
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
           <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">ขนาด</label>
+            <input
+              value={draft.size}
+              onChange={(e) => setDraft({ ...draft, size: e.target.value })}
+              placeholder="เช่น 5 ฟุต"
+              className="w-full border rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
             <input
               type="number"
@@ -88,6 +97,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">รายการ</th>
+              <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2 font-medium text-right">ราคา/หน่วย</th>
@@ -99,6 +109,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
             {items.map((item, idx) => (
               <tr key={idx} className="border-t">
                 <td className="px-4 py-2">{item.description}</td>
+                <td className="px-4 py-2">{item.size}</td>
                 <td className="px-4 py-2 text-right">{item.quantity}</td>
                 <td className="px-4 py-2">{item.unit}</td>
                 <td className="px-4 py-2 text-right">{item.unitPrice.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
@@ -114,7 +125,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
                   ยังไม่มีรายการ
                 </td>
               </tr>
@@ -123,7 +134,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
           {items.length > 0 && (
             <tfoot>
               <tr className="border-t font-medium">
-                <td colSpan={4} className="px-4 py-2 text-right">
+                <td colSpan={5} className="px-4 py-2 text-right">
                   รวม (VAT-inclusive)
                 </td>
                 <td className="px-4 py-2 text-right">{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
