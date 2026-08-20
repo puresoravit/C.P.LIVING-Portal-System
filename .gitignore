@@ -8,3 +8,4 @@ logs/*.log
 !backups/.gitkeep
 !logs/.gitkeep
 .DS_Store
+*.tsbuildinfo
