@@ -1,0 +1,116 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+
+type ProductResult = { id: string; sku: string; name: string; unit: string; productTypeName: string };
+
+export function OrderItemEntryForm({ addAction }: { addAction: (formData: FormData) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ProductResult[]>([]);
+  const [selected, setSelected] = useState<ProductResult | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const qtyRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!query || selected) {
+      setResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setResults(data);
+        setHighlightIndex(0);
+      } catch {
+        setResults([]);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query, selected]);
+
+  function pick(p: ProductResult) {
+    setSelected(p);
+    setQuery(`${p.sku} — ${p.name}`);
+    setResults([]);
+    setTimeout(() => qtyRef.current?.focus(), 0);
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent) {
+    if (results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      pick(results[highlightIndex]);
+    }
+  }
+
+  return (
+    // key ที่ parent ใส่ไว้ (จำนวนรายการปัจจุบัน) จะทำให้ component นี้ remount
+    // ทั้งชุดหลังเพิ่มรายการสำเร็จ ล้างฟอร์มให้อัตโนมัติ พร้อมคีย์รายการถัดไปทันที
+    <form action={addAction} className="flex gap-2 items-end bg-white border rounded-lg p-3">
+      <input type="hidden" name="productId" value={selected?.id ?? ""} />
+      <div className="relative flex-1">
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          ค้นหาสินค้า (SKU หรือชื่อ) — เลือกด้วยลูกศร/Enter
+        </label>
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelected(null);
+          }}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="เช่น M001 หรือ ที่นอนสปริง"
+          autoFocus
+          autoComplete="off"
+          className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {results.length > 0 && (
+          <ul className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-56 overflow-auto">
+            {results.map((p, i) => (
+              <li
+                key={p.id}
+                onMouseDown={() => pick(p)}
+                className={`px-3 py-1.5 text-sm cursor-pointer ${i === highlightIndex ? "bg-blue-50" : ""}`}
+              >
+                <span className="font-mono">{p.sku}</span> — {p.name}
+                <span className="text-gray-400 ml-2 text-xs">({p.productTypeName})</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="w-28">
+        <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
+        <input
+          ref={qtyRef}
+          name="quantity"
+          type="number"
+          step="0.01"
+          min="0.01"
+          required
+          className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div className="w-44">
+        <label className="block text-xs font-medium text-gray-600 mb-1">รายละเอียดเพิ่มเติม (ถ้ามี)</label>
+        <input name="descriptionOverride" className="w-full border rounded px-3 py-1.5 text-sm" />
+      </div>
+      <button
+        type="submit"
+        disabled={!selected}
+        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 h-[34px]"
+      >
+        + เพิ่มรายการ
+      </button>
+    </form>
+  );
+}

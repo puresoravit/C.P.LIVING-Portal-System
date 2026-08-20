@@ -1,0 +1,469 @@
+// ==========================================================
+// BILL SYSTEM — Database Schema
+// อ้างอิงจาก Requirement ข้อ 1-80 (ดู /docs/REQUIREMENTS.md)
+// Phase 1 (Foundation) จะ implement เต็มเฉพาะ:
+//   User, Role, Customer, Branch, ProductType, Product
+// ตารางอื่น (Price/Discount/Order/Invoice/...) สร้างโครงไว้ก่อน
+// เพื่อไม่ให้ต้อง migrate ทับใหญ่ตอน Phase 2-4 (ตามข้อ 73 Future Expansion)
+// ==========================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Phase 1: AUTH / USER / ROLE ----------
+
+enum Role {
+  OWNER_ADMIN   // ข้อ 3.1 — ทำได้ทุกอย่าง
+  BILLING_STAFF // ข้อ 3.2 — สร้าง/แก้ Order, Print, ค้นหา — แก้ Price/Discount Master ไม่ได้
+  VIEWER        // ข้อ 3.3 — ดู Dashboard/Report/Export เท่านั้น
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String?  @unique
+  passwordHash  String   // bcrypt — ห้ามเก็บ plain text (ข้อ 51)
+  displayName   String
+  role          Role
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// ---------- Phase 1: CUSTOMER / BRANCH ----------
+
+enum CreditTerm {
+  CASH     // เงินสด (ปัจจุบันลูกค้าทุกรายใช้แบบนี้ — ตาม clarification ข้อ 8)
+  NET30
+  NET60
+  NET90
+}
+
+model Customer {
+  id           String     @id @default(cuid())
+  code         String     @unique // Customer Code เช่น PN02 (ข้อ 4)
+  companyName  String
+  taxId        String?
+  phone        String?
+  email        String?
+  creditTerm   CreditTerm @default(CASH)
+  note         String?
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  branches       Branch[]
+  priceRules     PriceRule[]
+  discountRules  DiscountRule[]
+  orders         Order[]
+  invoices       Invoice[]
+  taxInvoices    TaxInvoice[]
+  billingNotes   BillingNote[]
+  repairReturnNotes RepairReturnNote[]
+
+  @@map("customers")
+}
+
+model Branch {
+  id             String   @id @default(cuid())
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id])
+  code           String   // Branch Code
+  name           String   // Branch Name
+  taxBranchCode  String?  // เช่น 00000 / 00001 (ข้อ 5)
+  address        String?
+  province       String?
+  postalCode     String?
+  phone          String?
+  contactPerson  String?
+  note           String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  priceRules     PriceRule[]
+  discountRules  DiscountRule[]
+  orders         Order[]
+  invoices       Invoice[]
+  taxInvoices    TaxInvoice[]
+  repairReturnNotes RepairReturnNote[]
+
+  @@unique([customerId, code]) // ข้อ 61: Branch Code ซ้ำภายใต้ Customer เดียวกันห้าม
+  @@map("branches")
+}
+
+// ---------- Phase 1: PRODUCT TYPE / PRODUCT ----------
+
+model ProductType {
+  id          String   @id @default(cuid())
+  code        String   @unique // ข้อ 6: TYPE A / TYPE B / TYPE C ... (ขยายได้ไม่ hardcode)
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products       Product[]
+  discountRules  DiscountRule[]
+
+  @@map("product_types")
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  sku            String      @unique // ข้อ 7
+  name           String
+  productTypeId  String
+  productType    ProductType @relation(fields: [productTypeId], references: [id])
+  size           String?
+  unit           String      // เช่น หลัง, ใบ
+  standardPrice  Decimal     @db.Decimal(12, 2) // ราคารวม VAT แล้ว (VAT-inclusive) — ยืนยันแล้ว
+  description    String?
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  priceRules   PriceRule[]
+  orderItems   OrderItem[]
+  invoiceItems InvoiceItem[]
+
+  @@map("products")
+}
+
+// ---------- Phase 2 (โครงไว้ก่อน): PRICE / DISCOUNT / VAT ----------
+
+// ราคาตั้งต้นก่อนหักส่วนลด (ข้อ 8-13) — ผูกได้ทั้งระดับ Product / Customer / Branch
+// scope: ถ้า customerId=null,branchId=null = fallback มาจาก Product.standardPrice แทน (ไม่ต้องมี record)
+// ถ้า customerId!=null,branchId=null = Customer Special Price (ข้อ 10)
+// ถ้า customerId!=null,branchId!=null = Branch Special Price (ข้อ 11, priority สูงสุด — ข้อ 12)
+model PriceRule {
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id])
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  branchId       String?
+  branch         Branch?   @relation(fields: [branchId], references: [id])
+  price          Decimal   @db.Decimal(12, 2) // ราคาตั้งต้นก่อนหักส่วนลด, รวม VAT แล้ว
+  effectiveFrom  DateTime
+  effectiveTo    DateTime? // null = ไม่มีวันหมดอายุ
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([productId, customerId, branchId])
+  @@map("price_rules")
+}
+
+// ส่วนลด % ตาม Customer/Branch × Product Type (ข้อ 14-15)
+model DiscountRule {
+  id             String       @id @default(cuid())
+  customerId     String
+  customer       Customer     @relation(fields: [customerId], references: [id])
+  branchId       String?      // null = apply ทุกสาขาของ Customer นี้ (ข้อ 14)
+  branch         Branch?      @relation(fields: [branchId], references: [id])
+  productTypeId  String
+  productType    ProductType  @relation(fields: [productTypeId], references: [id])
+  discountPct    Decimal      @db.Decimal(5, 2) // เช่น 10.00 = 10%
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([customerId, branchId, productTypeId])
+  @@map("discount_rules")
+}
+
+model VatRate {
+  id             String    @id @default(cuid())
+  ratePct        Decimal   @db.Decimal(5, 2) @default(7.00)
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("vat_rates")
+}
+
+// ---------- Phase 3-4 (โครงไว้ก่อน): ORDER / INVOICE ----------
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique // ORDER-YYYYMM-##### (ข้อ 22, 30)
+  customerId   String
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  branchId     String
+  branch       Branch      @relation(fields: [branchId], references: [id])
+  orderDate    DateTime
+  reference    String?
+  note         String?
+  placeToDelivery String? // สถานที่ส่งสินค้า — แยกจาก Branch Address ได้ (ตามฟอร์มจริง, แก้ไขได้อิสระ)
+  status       OrderStatus @default(DRAFT)
+  createdById  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  items     OrderItem[]
+  invoices  Invoice[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Decimal  @db.Decimal(12, 2)
+  // รายละเอียดที่แสดงบนเอกสาร: default ดึงจาก Product.name แต่ override ได้ (ข้อ "หมายเหตุก่อนข้อ11" — ไซส์พิเศษ)
+  descriptionOverride String?
+
+  @@map("order_items")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  CONFIRMED
+  PRINTED
+  CANCELLED
+  // PAID — จะเพิ่มใน Phase Payment ในอนาคต (ข้อ 28, 74)
+}
+
+// Invoice ที่แตกจาก Order ตาม Product Type (ข้อ 19, 22-27)
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique // INV-{Type}-YYYYMM-#### (ข้อ 22, 30)
+  parentOrderId   String        // ข้อ 23: Parent Order Relation
+  order           Order         @relation(fields: [parentOrderId], references: [id])
+  invoiceDate     DateTime
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  productTypeCode String        // snapshot ชื่อ Type ตอนแตกบิล (ไม่ join ทีหลัง)
+
+  // --- Snapshot fields (ข้อ 27) — ห้ามอ้างอิง Master Data สด ---
+  customerNameSnapshot String
+  taxIdSnapshot        String?
+  branchNameSnapshot   String
+  addressSnapshot      String?
+  placeToDelivery      String? // จุดสีเหลือง #4 — เพิ่มตาม form จริง
+
+  grossAmount     Decimal @db.Decimal(14, 2)
+  discountPct     Decimal @db.Decimal(5, 2)
+  discountAmount  Decimal @db.Decimal(14, 2)
+  netBeforeVat    Decimal @db.Decimal(14, 2)
+  vatPct          Decimal @db.Decimal(5, 2)
+  vatAmount       Decimal @db.Decimal(14, 2)
+  grandTotal      Decimal @db.Decimal(14, 2)
+
+  status      InvoiceStatus @default(DRAFT)
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  items InvoiceItem[]
+  taxInvoices TaxInvoice[]
+  billingNoteId String?      // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล
+  billingNote   BillingNote? @relation(fields: [billingNoteId], references: [id])
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                  String   @id @default(cuid())
+  invoiceId           String
+  invoice             Invoice  @relation(fields: [invoiceId], references: [id])
+  productId           String
+  product              Product @relation(fields: [productId], references: [id])
+  skuSnapshot         String
+  productNameSnapshot String   // override ได้ตอนคีย์ (ไซส์พิเศษ)
+  productTypeSnapshot String
+  quantity            Decimal  @db.Decimal(12, 2)
+  unitSnapshot        String
+  unitPriceSnapshot   Decimal  @db.Decimal(12, 2)
+  grossAmount         Decimal  @db.Decimal(14, 2)
+  discountAmount      Decimal  @db.Decimal(14, 2)
+  netAmount           Decimal  @db.Decimal(14, 2)
+  vatAmount           Decimal  @db.Decimal(14, 2)
+  totalAmount         Decimal  @db.Decimal(14, 2)
+
+  @@map("invoice_items")
+}
+
+// ---------- Phase 5: TAX INVOICE (แยกจาก Invoice — ไม่ผูก 1:1 เสมอไป) ----------
+// ตามที่ยืนยันในการหารือ: ลูกค้าส่วนใหญ่แจ้งรายการ/ยอดเองว่าต้องการใบกำกับ
+// ภาษีเท่าไร (พนักงานเลือกรายการ/ยอดเอง = Manual) ส่วนลูกค้าที่ขอ VAT 100%
+// เต็มยอด generate จาก Invoice ได้เลย (Auto) — referenceInvoiceId เป็น
+// null ได้ถ้าเป็น Manual mode ล้วนๆ ไม่ได้อิง Invoice ใบไหนโดยตรง
+
+enum TaxInvoiceStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model TaxInvoice {
+  id                  String            @id @default(cuid())
+  taxInvoiceNumber    String            @unique // TX-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  taxInvoiceDate      DateTime
+  customerId          String
+  customer            Customer          @relation(fields: [customerId], references: [id])
+  branchId            String
+  branch              Branch            @relation(fields: [branchId], references: [id])
+  referenceInvoiceId  String?           // ถ้าสร้างแบบ Auto จาก Invoice ใบเดียว — Manual mode ปล่อยว่างได้
+  referenceInvoice    Invoice?          @relation(fields: [referenceInvoiceId], references: [id])
+
+  customerNameSnapshot String
+  taxIdSnapshot        String?
+  branchNameSnapshot   String
+  addressSnapshot      String?
+  placeToDelivery      String?
+
+  valueAmount Decimal @db.Decimal(14, 2) // มูลค่าสินค้าก่อน VAT
+  vatPct      Decimal @db.Decimal(5, 2)
+  vatAmount   Decimal @db.Decimal(14, 2)
+  netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive)
+
+  status      TaxInvoiceStatus @default(CONFIRMED)
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  items TaxInvoiceItem[]
+
+  @@map("tax_invoices")
+}
+
+model TaxInvoiceItem {
+  id           String     @id @default(cuid())
+  taxInvoiceId String
+  taxInvoice   TaxInvoice @relation(fields: [taxInvoiceId], references: [id])
+  description  String     // ข้อความอิสระ — ไม่ผูกกับ Product Master เสมอไป (Manual mode พิมพ์เองได้)
+  quantity     Decimal    @db.Decimal(12, 2)
+  unit         String
+  unitPrice    Decimal    @db.Decimal(12, 2) // ราคารวม VAT ต่อหน่วย
+  amount       Decimal    @db.Decimal(14, 2) // quantity × unitPrice
+
+  @@map("tax_invoice_items")
+}
+
+// ---------- Phase 5: BILLING NOTE (ใบวางบิล — สรุปหลาย Invoice ที่ครบกำหนด) ----------
+// ตามตัวอย่างเอกสารจริง: รวม Invoice หลายใบของลูกค้า 1 ราย ที่ยังไม่เคย
+// ถูกวางบิลมาก่อน (Invoice.billingNoteId = null) เป็นเอกสารเดียว
+enum BillingNoteStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model BillingNote {
+  id                   String            @id @default(cuid())
+  billingNoteNumber    String            @unique // BI-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  billingNoteDate      DateTime
+  customerId           String
+  customer             Customer          @relation(fields: [customerId], references: [id])
+  customerNameSnapshot String
+  taxIdSnapshot        String?
+  addressSnapshot      String?
+  totalAmount          Decimal           @db.Decimal(14, 2)
+  status               BillingNoteStatus @default(CONFIRMED)
+  createdById          String
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  invoices Invoice[]
+
+  @@map("billing_notes")
+}
+
+// ---------- Phase 5: REPAIR RETURN NOTE (ใบส่งคืนสินค้าฝากซ่อม) ----------
+// เอกสารอิสระ ไม่ผูกกับ Order/Invoice/ราคา (ไม่ใช่การขาย) — แค่บันทึกว่า
+// ส่งของที่ซ่อมเสร็จแล้วคืนลูกค้า อาจอ้างอิงถึงเอกสารอื่นได้ในหมายเหตุ
+enum RepairReturnStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model RepairReturnNote {
+  id                   String             @id @default(cuid())
+  noteNumber           String             @unique // DEP-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  noteDate             DateTime
+  customerId           String
+  customer             Customer           @relation(fields: [customerId], references: [id])
+  branchId             String
+  branch               Branch             @relation(fields: [branchId], references: [id])
+  customerNameSnapshot String
+  addressSnapshot      String?
+  placeToDelivery      String?
+  reference            String?
+  remark               String?
+  status               RepairReturnStatus @default(CONFIRMED)
+  createdById          String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  items RepairReturnNoteItem[]
+
+  @@map("repair_return_notes")
+}
+
+model RepairReturnNoteItem {
+  id                 String           @id @default(cuid())
+  repairReturnNoteId String
+  repairReturnNote   RepairReturnNote @relation(fields: [repairReturnNoteId], references: [id])
+  description        String           // ข้อความอิสระ ไม่ผูก Product Master
+  quantity           Decimal          @db.Decimal(12, 2)
+  unit               String
+
+  @@map("repair_return_note_items")
+}
+
+// ---------- Phase infra: RUNNING NUMBER / AUDIT / SETTINGS ----------
+
+// Running Number แบบ concurrency-safe (ข้อ 30, 52) — ใช้ atomic increment ผ่าน DB transaction
+model DocumentSequence {
+  id       String @id @default(cuid())
+  docType  String // เช่น "ORDER", "INV-A", "INV-B", "INV-C", "DEP", "TX", "BI"
+  period   String // เช่น "202608" — รีเซ็ตทุกเดือน (ยืนยันแล้ว)
+  lastSeq  Int    @default(0)
+
+  @@unique([docType, period])
+  @@map("document_sequences")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String   // CREATE / UPDATE / DELETE / CANCEL / LOGIN ...
+  module     String   // Price / Discount / Product / Customer / Order / Invoice / Permission
+  recordId   String
+  oldValue   Json?
+  newValue   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([module, recordId])
+  @@map("audit_logs")
+}
+
+model AppSetting {
+  key   String @id
+  value String
+
+  @@map("app_settings")
+}

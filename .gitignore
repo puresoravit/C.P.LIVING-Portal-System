@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env
+.env.local
+*.log
+backups/*.dump
+logs/*.log
+!backups/.gitkeep
+!logs/.gitkeep
+.DS_Store

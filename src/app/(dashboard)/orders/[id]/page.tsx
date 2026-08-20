@@ -1,0 +1,203 @@
+import { db } from "@/lib/db";
+import { notFound } from "next/navigation";
+import { addOrderItem, removeOrderItem, confirmOrder, cancelOrder, duplicateOrder } from "../actions";
+import { computeOrderPreview } from "@/lib/order-preview";
+import { OrderItemEntryForm } from "@/components/order-item-entry-form";
+
+const STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
+  CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
+  CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
+};
+
+function money(n: unknown) {
+  return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
+}
+
+export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+  const order = await db.order.findUnique({
+    where: { id: params.id },
+    include: {
+      customer: true,
+      branch: true,
+      items: { include: { product: { include: { productType: true } } } },
+      invoices: true,
+    },
+  });
+  if (!order) notFound();
+
+  const isDraft = order.status === "DRAFT";
+  const preview = order.items.length > 0 ? await computeOrderPreview(order.id) : null;
+  const status = STATUS_LABEL[order.status];
+
+  const addItemAction = addOrderItem.bind(null, order.id);
+  const confirmAction = confirmOrder.bind(null, order.id);
+  const cancelAction = cancelOrder.bind(null, order.id);
+
+  return (
+    <div className="max-w-4xl">
+      <a href="/orders" className="text-sm text-blue-600 hover:underline">
+        ← กลับไปรายการออเดอร์
+      </a>
+
+      <div className="flex items-center justify-between mt-2 mb-1">
+        <h1 className="text-lg font-semibold font-mono">{order.orderNumber}</h1>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        {order.customer.companyName} / {order.branch.name} · {order.orderDate.toLocaleDateString("th-TH")}
+        {order.reference && <> · อ้างอิง: {order.reference}</>}
+        {order.placeToDelivery && (
+          <>
+            <br />
+            สถานที่ส่งสินค้า: {order.placeToDelivery}
+          </>
+        )}
+      </p>
+
+      {isDraft && (
+        <div className="mb-4">
+          <OrderItemEntryForm key={order.items.length} addAction={addItemAction} />
+        </div>
+      )}
+
+      <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600 text-left">
+            <tr>
+              <th className="px-4 py-2 font-medium">SKU</th>
+              <th className="px-4 py-2 font-medium">รายการ</th>
+              <th className="px-4 py-2 font-medium">ประเภท</th>
+              <th className="px-4 py-2 font-medium text-right">จำนวน</th>
+              <th className="px-4 py-2 font-medium">หน่วย</th>
+              {isDraft && <th className="px-4 py-2"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((item) => (
+              <tr key={item.id} className="border-t">
+                <td className="px-4 py-2 font-mono">{item.product.sku}</td>
+                <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
+                <td className="px-4 py-2">{item.product.productType.name}</td>
+                <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
+                <td className="px-4 py-2">{item.product.unit}</td>
+                {isDraft && (
+                  <td className="px-4 py-2 text-right">
+                    <form action={removeOrderItem.bind(null, order.id, item.id)}>
+                      <button className="text-xs text-gray-500 hover:text-red-600">ลบ</button>
+                    </form>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {order.items.length === 0 && (
+              <tr>
+                <td colSpan={isDraft ? 6 : 5} className="px-4 py-8 text-center text-gray-400">
+                  ยังไม่มีรายการสินค้า
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {preview && (
+        <div className="bg-white border rounded-lg p-4 mb-4">
+          <h2 className="font-medium text-sm mb-3">
+            สรุปแยกตามประเภทสินค้า (Preview) — จะแตกเป็น Invoice แยกใบตามนี้
+          </h2>
+          <div className="space-y-3">
+            {preview.groups.map((g) => (
+              <div key={g.productTypeId} className="border rounded p-3">
+                <div className="font-medium text-sm mb-1">{g.productTypeName}</div>
+                <ul className="text-xs text-gray-500 mb-2">
+                  {g.items.map((i) => (
+                    <li key={i.orderItemId}>
+                      {i.sku} × {Number(i.quantity)} {i.unit} @ {money(i.unitPrice)} = {money(i.grossAmount)}
+                    </li>
+                  ))}
+                </ul>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    Gross: <b>{money(g.grossAmount)}</b>
+                  </div>
+                  <div>
+                    ส่วนลด {Number(g.discountPct)}%: <b>{money(g.discountAmount)}</b>
+                  </div>
+                  <div>
+                    Net: <b>{money(g.netAmount)}</b>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t mt-3 pt-3 grid grid-cols-3 gap-2 text-sm font-medium">
+            <div>
+              รวม Gross: <b>{money(preview.grandGross)}</b>
+            </div>
+            <div>
+              รวมส่วนลด: <b>{money(preview.grandDiscount)}</b>
+            </div>
+            <div>
+              รวม Net: <b>{money(preview.grandNet)}</b>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <a
+          href={`/orders/${order.id}/print`}
+          className="text-sm text-gray-700 hover:text-gray-900 border rounded px-4 py-2"
+        >
+          พิมพ์ Sales Order (เอกสารภายใน)
+        </a>
+        {isDraft && (
+          <form action={confirmAction}>
+            <button
+              disabled={order.items.length === 0}
+              className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
+            >
+              ✓ Confirm ออเดอร์ (สร้างบิลแยกตามประเภท)
+            </button>
+          </form>
+        )}
+        {order.status !== "CANCELLED" && (
+          <form action={cancelAction}>
+            <button className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2">
+              ยกเลิกออเดอร์
+            </button>
+          </form>
+        )}
+      </div>
+
+      {order.invoices.length > 0 && (
+        <div className="bg-white border rounded-lg p-4 mt-4">
+          <h2 className="font-medium text-sm mb-2">Invoice ที่แตกจาก Order นี้</h2>
+          <ul className="text-sm space-y-1">
+            {order.invoices.map((inv) => (
+              <li key={inv.id} className="flex justify-between">
+                <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
+                  {inv.invoiceNumber}
+                </a>
+                <span>
+                  {inv.productTypeCode} · {money(inv.grandTotal)} บาท ·{" "}
+                  <span className={inv.status === "CANCELLED" ? "text-gray-400" : "text-green-600"}>
+                    {inv.status === "CANCELLED" ? "ยกเลิกแล้ว" : "ใช้งานอยู่"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="bg-white border rounded-lg p-3 mt-4 flex items-center gap-2">
+        <span className="text-sm text-gray-600">คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่ (ราคา/ส่วนลดจะคำนวณใหม่ตามวันที่ที่เลือก):</span>
+        <form action={duplicateOrder.bind(null, order.id)} className="flex gap-2">
+          <input type="date" name="newOrderDate" defaultValue={new Date().toISOString().slice(0, 10)} required className="border rounded px-2 py-1 text-sm" />
+          <button className="text-sm bg-gray-800 hover:bg-gray-900 text-white rounded px-3 py-1">คัดลอก</button>
+        </form>
+      </div>
+    </div>
+  );
+}

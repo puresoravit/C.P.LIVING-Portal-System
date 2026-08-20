@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ฟอนต์ไทยสำหรับ UI — ใช้ system font ที่รองรับไทยครบ ไม่ต้องพึ่ง web font ภายนอก
+   (ลด dependency ภายนอก, โหลดเร็ว — ตรงกับหลัก Speed ข้อ 79) */
+body {
+  font-family: "Sarabun", "Segoe UI", "Tahoma", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* คีย์ Enter เพื่อไปช่องถัดไปแบบฟอร์มบิล (ข้อ 60 Keyboard Friendly) */
+.enter-next {
+  scroll-margin-top: 100px;
+}

@@ -1,0 +1,142 @@
+import { db } from "@/lib/db";
+import { createDiscountRule, deleteDiscountRule } from "./actions";
+
+export default async function DiscountsPage() {
+  const [discountRules, customers, branches, productTypes] = await Promise.all([
+    db.discountRule.findMany({
+      include: { customer: true, branch: true, productType: true },
+      orderBy: [{ customerId: "asc" }, { effectiveFrom: "desc" }],
+    }),
+    db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } }),
+    db.branch.findMany({ where: { active: true }, include: { customer: true }, orderBy: { code: "asc" } }),
+    db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+  ]);
+
+  return (
+    <div className="max-w-6xl">
+      <h1 className="text-lg font-semibold mb-1">ส่วนลด (Discount Rule)</h1>
+      <p className="text-sm text-gray-500 mb-4">
+        ตั้ง % ส่วนลดตามลูกค้า/สาขา × ประเภทสินค้า — คำนวณแยกจากราคาพิเศษ (Price
+        Rule) เป็นคนละชั้น จะหักออกจากราคาตั้งต้นเสมอ ลำดับการใช้ส่วนลด:{" "}
+        <b>สาขา+ประเภท → ลูกค้า+ประเภท → 0%</b>
+      </p>
+
+      <details className="mb-6 bg-white border rounded-lg">
+        <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งส่วนลดใหม่</summary>
+        <form action={createDiscountRule} className="px-4 pb-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
+            <select name="customerId" required className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled selected>
+                เลือกลูกค้า
+              </option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.companyName} ({c.code})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              สาขา (เว้นว่าง = ใช้ทุกสาขาของลูกค้ารายนี้)
+            </label>
+            <select name="branchId" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="">— ทุกสาขา —</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.customer.companyName} / {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
+            <select name="productTypeId" required className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled selected>
+                เลือกประเภท
+              </option>
+              {productTypes.map((pt) => (
+                <option key={pt.id} value={pt.id}>
+                  {pt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ส่วนลด (%) *</label>
+            <input
+              name="discountPct"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              required
+              className="w-full border rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลตั้งแต่ *</label>
+            <input
+              name="effectiveFrom"
+              type="date"
+              required
+              className="w-full border rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)</label>
+            <input name="effectiveTo" type="date" className="w-full border rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div className="col-span-2">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
+              บันทึกส่วนลด
+            </button>
+          </div>
+        </form>
+      </details>
+
+      <div className="bg-white border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600 text-left">
+            <tr>
+              <th className="px-4 py-2 font-medium">ลูกค้า</th>
+              <th className="px-4 py-2 font-medium">สาขา</th>
+              <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
+              <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>
+              <th className="px-4 py-2 font-medium">มีผลตั้งแต่</th>
+              <th className="px-4 py-2 font-medium">มีผลถึง</th>
+              <th className="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {discountRules.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="px-4 py-2">{r.customer.companyName}</td>
+                <td className="px-4 py-2">{r.branch ? r.branch.name : <span className="text-gray-400">ทุกสาขา</span>}</td>
+                <td className="px-4 py-2">{r.productType.name}</td>
+                <td className="px-4 py-2 text-right">{Number(r.discountPct)}%</td>
+                <td className="px-4 py-2">{r.effectiveFrom.toLocaleDateString("th-TH")}</td>
+                <td className="px-4 py-2">
+                  {r.effectiveTo ? r.effectiveTo.toLocaleDateString("th-TH") : <span className="text-gray-400">ไม่มีกำหนด</span>}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  <form action={deleteDiscountRule.bind(null, r.id)}>
+                    <button className="text-xs text-gray-500 hover:text-red-600">ลบ</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+            {discountRules.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  ยังไม่มีส่วนลด — ระบบจะใช้ 0% เป็นค่าเริ่มต้น
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
