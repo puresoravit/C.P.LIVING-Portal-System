@@ -57,6 +57,8 @@ describe("allocateProportionally (แก้ Rounding Drift — ข้อ 26)", (
     expect(allocateProportionally([], new Decimal(10))).toEqual([]);
   });
 });
+
+describe("dateRangesOverlap (กันช่วง Effective Date ซ้อนกัน — ข้อ 3)", () => {
   it("ช่วงวันที่ไม่ทับกันเลย -> false", () => {
     const overlap = dateRangesOverlap(
       new Date("2026-01-01"),
