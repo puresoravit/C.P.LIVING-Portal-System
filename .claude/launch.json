@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "bill-system-prod",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-l", "-c", "export PATH=\"/Users/soravit/.nvm/versions/node/v24.19.0/bin:$PATH\" && npm run start"],
+      "port": 3000
+    },
+    {
       "name": "bill-system-dev",
       "runtimeExecutable": "/bin/zsh",
       "runtimeArgs": ["-l", "-c", "export PATH=\"/Users/soravit/.nvm/versions/node/v24.19.0/bin:$PATH\" && npm run dev"],
