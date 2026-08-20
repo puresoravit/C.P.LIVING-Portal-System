@@ -13,7 +13,11 @@ export default async function SystemLogsPage() {
   return (
     <div className="max-w-5xl">
       <h1 className="text-lg font-semibold mb-1">System Logs</h1>
-      <p className="text-sm text-gray-500 mb-4">Error Log ล่าสุด 200 รายการ (ไม่แสดงรหัสผ่านหรือข้อมูลอ่อนไหว)</p>
+      <p className="text-sm text-gray-500 mb-1">Error Log ล่าสุด 200 รายการ (ไม่แสดงรหัสผ่านหรือข้อมูลอ่อนไหว)</p>
+      <p className="text-xs text-gray-400 mb-4">
+        หน้านี้อ่านจากไฟล์ในเครื่อง server — ถ้า deploy บน Cloud ที่ local disk เป็นแบบ ephemeral
+        (หายเมื่อ restart/redeploy) รายการที่เห็นอาจไม่ครบ ให้ดู log เต็มจาก log viewer ของ hosting platform แทน
+      </p>
 
       <div className="bg-white border rounded-lg overflow-hidden">
         {logs.length === 0 ? (
