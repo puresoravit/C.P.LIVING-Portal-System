@@ -41,7 +41,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 bg-white border-r flex flex-col">
+      {/* ข้อ 7/10 (Print System): Sidebar ต้องไม่ติดไปกับ Print Preview/เอกสารที่พิมพ์ */}
+      <aside className="w-56 bg-white border-r flex flex-col print:hidden">
         <div className="px-4 py-4 border-b">
           <div className="font-semibold">ระบบออกบิล</div>
           <div className="text-xs text-gray-500 mt-0.5">
@@ -63,7 +64,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <SignOutButton />
         </div>
       </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-6 print:p-0">{children}</main>
     </div>
   );
 }

@@ -12,3 +12,44 @@ body {
 .enter-next {
   scroll-margin-top: 100px;
 }
+
+/* ==========================================================================
+   Print System (Phase D) — กติการ่วมของทุกหน้า print ทั้ง 5 ประเภทเอกสาร
+   @page size/margin ตัวจริงถูกฉีดต่อหน้าโดย src/components/print/print-page.tsx
+   (server default) + print-profile-selector.tsx (client, override ตาม
+   Profile ที่เลือก) — ที่นี่มีแค่กติกา layout/pagination ที่ใช้ร่วมกัน
+   ========================================================================== */
+
+/* ความสูงพื้นที่พิมพ์จริงต่อ Print Profile — PrintProfileSelector ตั้งค่านี้ให้
+   ตรงกับ Profile ที่เลือกไว้ (มม.) ค่า default ตรงกับ DEFAULT_PRINT_PROFILE
+   (continuous 9x11) ใน src/lib/print-settings.ts */
+:root {
+  --print-content-height: 267.4mm;
+}
+
+@media print {
+  /* เอกสาร print ต้องเห็นเฉพาะตัวเอกสาร — ซ่อน Sidebar/ปุ่ม/Control ของระบบทั้งหมด
+     (เพิ่ม print:hidden ที่ตัว Sidebar ใน (dashboard)/layout.tsx คู่กับกฎนี้) */
+  .print-page-fill {
+    min-height: var(--print-content-height);
+  }
+
+  /* กัน Row ของ Item Table ถูกตัดครึ่งเวลาขึ้นหน้าใหม่ */
+  table.print-table tr {
+    break-inside: avoid;
+  }
+
+  /* Header ตารางซ้ำทุกหน้าเมื่อเนื้อหายาวเกิน 1 หน้า */
+  table.print-table thead {
+    display: table-header-group;
+  }
+
+  table.print-table tfoot {
+    display: table-footer-group;
+  }
+
+  /* กัน Summary/Amount in Words/Signature ถูกตัดแยกหน้าโดยไม่ตั้งใจ */
+  .print-keep-together {
+    break-inside: avoid;
+  }
+}
