@@ -116,15 +116,17 @@ PostgreSQL อยู่แล้ว — ถ้าติดตั้ง PostgreSQ
 1. เปิด Task Scheduler → Create Basic Task
 2. ตั้งให้รันทุกวัน (เช่น ตี 2)
 3. Action: Start a program → `curl.exe`
-4. Arguments: `"http://localhost:3000/api/backup/auto?secret=YOUR_BACKUP_SECRET"`
+4. Arguments: `-H "Authorization: Bearer YOUR_BACKUP_SECRET" "http://localhost:3000/api/backup/auto"`
 
 ### Linux/Mac (cron)
 
 ```bash
 crontab -e
 # เพิ่มบรรทัดนี้ (รันทุกวันตี 2)
-0 2 * * * curl -s "http://localhost:3000/api/backup/auto?secret=YOUR_BACKUP_SECRET" >> /var/log/bill-system-backup.log 2>&1
+0 2 * * * curl -s -H "Authorization: Bearer YOUR_BACKUP_SECRET" "http://localhost:3000/api/backup/auto" >> /var/log/bill-system-backup.log 2>&1
 ```
+
+**หมายเหตุ**: secret ส่งผ่าน `Authorization` header ไม่ใช่ query string (`?secret=...`) เพื่อไม่ให้หลุดผ่าน server access log/browser history เวลาเปิดใช้งานผ่าน internet
 
 ไฟล์ backup จะถูกเก็บไว้ที่โฟลเดอร์ `backups/` ในโปรเจกต์ — ดูรายการและดาวน์โหลด
 ได้ที่หน้า "สำรอง/กู้คืนข้อมูล" ในเมนู (ต้องเป็น OWNER_ADMIN)

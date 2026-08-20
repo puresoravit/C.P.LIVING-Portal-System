@@ -3,10 +3,12 @@ import { createBackup } from "@/lib/backup";
 import { logError } from "@/lib/logger";
 
 // ข้อ 49: Automatic Backup — ตั้ง Windows Task Scheduler หรือ cron ให้เรียก
-// endpoint นี้ทุกวัน (ดูวิธีตั้งค่าใน README) ป้องกันด้วย secret token
-// เพื่อไม่ให้ใครก็ได้สั่ง backup ผ่านอินเทอร์เน็ต
+// endpoint นี้ทุกวัน (ดูวิธีตั้งค่าใน README) ป้องกันด้วย secret token ผ่าน
+// Authorization header (ไม่ใช่ query string — กัน secret รั่วผ่าน server
+// access log / browser history / referrer เวลาเปิดใช้งานผ่าน internet จริง)
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret");
+  const authHeader = req.headers.get("authorization");
+  const secret = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!process.env.BACKUP_SECRET || secret !== process.env.BACKUP_SECRET) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
