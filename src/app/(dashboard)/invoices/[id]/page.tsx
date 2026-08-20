@@ -1,7 +1,10 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cancelInvoice } from "../actions";
 import { createTaxInvoiceFromInvoice } from "../../tax-invoices/actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -15,6 +18,9 @@ function money(n: unknown) {
 }
 
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "invoice.create")) redirect("/");
+
   const invoice = await db.invoice.findUnique({
     where: { id: params.id },
     include: { items: true, order: true },

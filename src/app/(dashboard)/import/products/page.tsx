@@ -1,7 +1,14 @@
 import { ImportFlow } from "@/components/import-flow";
 import { validateProductImport, commitProductImport } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
-export default function ImportProductsPage() {
+export default async function ImportProductsPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "product.edit")) redirect("/");
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-lg font-semibold mb-1">นำเข้าข้อมูลสินค้า</h1>

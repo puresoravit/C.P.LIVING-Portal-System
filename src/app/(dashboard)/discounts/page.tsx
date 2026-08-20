@@ -1,7 +1,14 @@
 import { db } from "@/lib/db";
 import { createDiscountRule, deleteDiscountRule } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 export default async function DiscountsPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "discount.view")) redirect("/");
+
   const [discountRules, customers, branches, productTypes] = await Promise.all([
     db.discountRule.findMany({
       include: { customer: true, branch: true, productType: true },

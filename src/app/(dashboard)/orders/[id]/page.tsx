@@ -1,8 +1,11 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { addOrderItem, removeOrderItem, confirmOrder, cancelOrder, duplicateOrder } from "../actions";
 import { computeOrderPreview } from "@/lib/order-preview";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -15,6 +18,9 @@ function money(n: unknown) {
 }
 
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "order.create")) redirect("/");
+
   const order = await db.order.findUnique({
     where: { id: params.id },
     include: {

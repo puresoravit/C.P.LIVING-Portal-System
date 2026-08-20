@@ -1,3 +1,8 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
+
 const TYPES = [
   { href: "/import/customers", label: "ลูกค้า" },
   { href: "/import/branches", label: "สาขา" },
@@ -6,7 +11,10 @@ const TYPES = [
   { href: "/import/discounts", label: "ส่วนลด" },
 ];
 
-export default function ImportIndexPage() {
+export default async function ImportIndexPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "customer.edit")) redirect("/");
+
   return (
     <div className="max-w-2xl">
       <h1 className="text-lg font-semibold mb-1">นำเข้าข้อมูล (Excel Import)</h1>

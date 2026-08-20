@@ -1,7 +1,14 @@
 import { ImportFlow } from "@/components/import-flow";
 import { validateCustomerImport, commitCustomerImport } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
-export default function ImportCustomersPage() {
+export default async function ImportCustomersPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "customer.edit")) redirect("/");
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-lg font-semibold mb-1">นำเข้าข้อมูลลูกค้า</h1>

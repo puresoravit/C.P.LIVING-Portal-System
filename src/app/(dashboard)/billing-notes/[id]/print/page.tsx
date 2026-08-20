@@ -1,9 +1,12 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
 import { PrintButton } from "@/components/print-button";
 import { printPageStyle } from "@/lib/print-settings";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
 
@@ -18,6 +21,9 @@ function addDays(date: Date, days: number): Date {
 }
 
 export default async function BillingNotePrintPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
+
   const [note, company] = await Promise.all([
     db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true, customer: true } }),
     getCompanySettings(),

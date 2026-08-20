@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -7,6 +11,9 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export default async function OrdersPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "order.create")) redirect("/");
+
   const orders = await db.order.findMany({
     include: { customer: true, branch: true, _count: { select: { items: true } } },
     orderBy: { createdAt: "desc" },

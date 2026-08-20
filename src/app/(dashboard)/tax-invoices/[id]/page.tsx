@@ -1,7 +1,10 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cancelTaxInvoice } from "../actions";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -13,6 +16,9 @@ function money(n: unknown) {
 }
 
 export default async function TaxInvoiceDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "taxInvoice.create")) redirect("/");
+
   const taxInvoice = await db.taxInvoice.findUnique({
     where: { id: params.id },
     include: { items: true, referenceInvoice: true },

@@ -1,15 +1,21 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { computeOrderPreview } from "@/lib/order-preview";
 import { PrintButton } from "@/components/print-button";
 import { printPageStyle } from "@/lib/print-settings";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
 export default async function OrderPrintPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "order.create")) redirect("/");
+
   const [order, company] = await Promise.all([
     db.order.findUnique({
       where: { id: params.id },

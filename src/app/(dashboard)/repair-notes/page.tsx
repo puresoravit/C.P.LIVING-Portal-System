@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -6,6 +10,9 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export default async function RepairNotesPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "repairNote.create")) redirect("/");
+
   const notes = await db.repairReturnNote.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,

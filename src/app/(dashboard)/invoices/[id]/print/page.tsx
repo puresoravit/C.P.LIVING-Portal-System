@@ -1,16 +1,22 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
 import { PrintButton } from "@/components/print-button";
 import { markInvoicePrinted } from "../../actions";
 import { printPageStyle } from "@/lib/print-settings";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
 export default async function InvoicePrintPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "invoice.create")) redirect("/");
+
   const [invoice, company] = await Promise.all([
     db.invoice.findUnique({ where: { id: params.id }, include: { items: true, customer: true } }),
     getCompanySettings(),

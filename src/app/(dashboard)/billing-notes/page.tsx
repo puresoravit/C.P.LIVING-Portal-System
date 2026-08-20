@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -10,6 +14,9 @@ function money(n: unknown) {
 }
 
 export default async function BillingNotesPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
+
   const notes = await db.billingNote.findMany({
     include: { _count: { select: { invoices: true } } },
     orderBy: { createdAt: "desc" },

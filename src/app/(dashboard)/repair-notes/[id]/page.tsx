@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cancelRepairReturnNote } from "../actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -8,6 +11,9 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export default async function RepairNoteDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "repairNote.create")) redirect("/");
+
   const note = await db.repairReturnNote.findUnique({ where: { id: params.id }, include: { items: true } });
   if (!note) notFound();
 

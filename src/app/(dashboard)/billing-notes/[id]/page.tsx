@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cancelBillingNote } from "../actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -20,6 +23,9 @@ function addDays(date: Date, days: number): Date {
 }
 
 export default async function BillingNoteDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
+
   const note = await db.billingNote.findUnique({
     where: { id: params.id },
     include: { invoices: true, customer: true },

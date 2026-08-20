@@ -1,11 +1,18 @@
 import { db } from "@/lib/db";
 import { createPriceRule, deletePriceRule } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 export default async function PricesPage({
   searchParams,
 }: {
   searchParams: { customerId?: string };
 }) {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "price.view")) redirect("/");
+
   const [priceRules, products, customers, branches] = await Promise.all([
     db.priceRule.findMany({
       where: searchParams.customerId ? { customerId: searchParams.customerId } : undefined,

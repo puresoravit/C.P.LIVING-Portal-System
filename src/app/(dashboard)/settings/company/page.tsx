@@ -1,7 +1,14 @@
 import { getCompanySettings } from "@/lib/company-settings";
 import { updateCompanySettings } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 export default async function CompanySettingsPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "user.manage")) redirect("/");
+
   const company = await getCompanySettings();
 
   return (

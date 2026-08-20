@@ -1,7 +1,14 @@
 import { db } from "@/lib/db";
 import { createVatRate } from "./actions";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 export default async function VatSettingsPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "price.edit")) redirect("/");
+
   const vatRates = await db.vatRate.findMany({ orderBy: { effectiveFrom: "desc" } });
 
   return (

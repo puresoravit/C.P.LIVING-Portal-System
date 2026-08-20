@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -12,6 +16,9 @@ function money(n: unknown) {
 }
 
 export default async function InvoicesPage() {
+  const session = await getServerSession(authOptions);
+  if (!can((session?.user as any)?.role, "invoice.create")) redirect("/");
+
   const invoices = await db.invoice.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,
