@@ -9,7 +9,7 @@ export function buildTemplateBuffer(headers: string[], exampleRow: Record<string
 }
 
 export function excelFileResponse(buffer: Buffer, filename: string) {
-  return new Response(buffer, {
+  return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,

@@ -118,7 +118,13 @@ export default async function PricesPage({
                 <td className="px-4 py-2">
                   {r.product.sku} — {r.product.name}
                 </td>
-                <td className="px-4 py-2">{r.customer.companyName}</td>
+                <td className="px-4 py-2">
+                  {r.customer ? (
+                    r.customer.companyName
+                  ) : (
+                    <span className="text-gray-400">ทุกลูกค้า</span>
+                  )}
+                </td>
                 <td className="px-4 py-2">
                   {r.branch ? (
                     r.branch.name
