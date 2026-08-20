@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateBranch } from "../actions";
 
-export default async function EditBranchPage({ params }: { params: { id: string } }) {
+export default async function EditBranchPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const [branch, customers] = await Promise.all([
     db.branch.findUnique({ where: { id: params.id } }),
     db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } }),

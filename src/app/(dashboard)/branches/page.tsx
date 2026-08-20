@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { createBranch, toggleBranchActive } from "./actions";
 
-export default async function BranchesPage({
-  searchParams,
-}: {
-  searchParams: { customerId?: string };
-}) {
+export default async function BranchesPage(
+  props: {
+    searchParams: Promise<{ customerId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const [branches, customers] = await Promise.all([
     db.branch.findMany({
       where: searchParams.customerId ? { customerId: searchParams.customerId } : undefined,

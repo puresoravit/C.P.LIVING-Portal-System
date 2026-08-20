@@ -8,11 +8,12 @@ function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
-export default async function BranchReportPage({
-  searchParams,
-}: {
-  searchParams: { dateFrom?: string; dateTo?: string };
-}) {
+export default async function BranchReportPage(
+  props: {
+    searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "report.view")) redirect("/");
 

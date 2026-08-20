@@ -10,7 +10,8 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
 };
 
-export default async function RepairNoteDetailPage({ params }: { params: { id: string } }) {
+export default async function RepairNoteDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "repairNote.create")) redirect("/");
 

@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { createProduct, toggleProductActive } from "./actions";
 
-export default async function ProductsPage({ searchParams }: { searchParams: { q?: string } }) {
+export default async function ProductsPage(props: { searchParams: Promise<{ q?: string }> }) {
+  const searchParams = await props.searchParams;
   const q = searchParams.q?.trim();
 
   const [products, productTypes] = await Promise.all([

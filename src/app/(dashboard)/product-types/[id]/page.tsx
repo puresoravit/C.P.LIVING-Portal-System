@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProductType } from "../actions";
 
-export default async function EditProductTypePage({ params }: { params: { id: string } }) {
+export default async function EditProductTypePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const productType = await db.productType.findUnique({ where: { id: params.id } });
   if (!productType) notFound();
 

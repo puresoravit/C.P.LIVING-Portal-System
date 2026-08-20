@@ -27,7 +27,8 @@ type SearchParams = {
   sort?: string;
 };
 
-export default async function ReportsPage({ searchParams }: { searchParams: SearchParams }) {
+export default async function ReportsPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "report.view")) redirect("/");
 

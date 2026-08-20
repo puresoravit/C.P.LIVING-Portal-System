@@ -5,11 +5,12 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 
-export default async function PricesPage({
-  searchParams,
-}: {
-  searchParams: { customerId?: string };
-}) {
+export default async function PricesPage(
+  props: {
+    searchParams: Promise<{ customerId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "price.view")) redirect("/");
 

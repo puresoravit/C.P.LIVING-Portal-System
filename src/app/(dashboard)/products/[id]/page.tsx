@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProduct } from "../actions";
 
-export default async function EditProductPage({ params }: { params: { id: string } }) {
+export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const [product, productTypes] = await Promise.all([
     db.product.findUnique({ where: { id: params.id } }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
