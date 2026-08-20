@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import { rowsToXlsxBuffer, excelFileResponse } from "@/lib/excel-template";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -42,15 +42,6 @@ export async function GET(req: NextRequest) {
     Total: g.metrics.total,
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-  return new NextResponse(buffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": 'attachment; filename="sales_summary.xlsx"',
-    },
-  });
+  const buffer = await rowsToXlsxBuffer(rows, "Summary");
+  return excelFileResponse(buffer, "sales_summary.xlsx");
 }

@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const buffer = buildTemplateBuffer(
+  const buffer = await buildTemplateBuffer(
     ["customerCode", "code", "name", "taxBranchCode", "address", "province", "postalCode", "phone", "contactPerson", "note"],
     {
       customerCode: "C001",

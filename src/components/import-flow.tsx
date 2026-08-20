@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { worksheetToRows } from "@/lib/excel-import";
 
 export type ValidationRow = { row: number; valid: boolean; error?: string; data?: any };
 
@@ -30,9 +31,10 @@ export function ImportFlow({
 
     try {
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array", cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.worksheets[0];
+      const rawRows = worksheet ? worksheetToRows(worksheet) : [];
 
       if (rawRows.length === 0) {
         setFileError("ไม่พบข้อมูลในไฟล์ (ตรวจสอบว่ามีแถวข้อมูลใต้หัวตารางหรือไม่)");
