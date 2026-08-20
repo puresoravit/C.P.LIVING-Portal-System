@@ -51,6 +51,16 @@ export function OrderItemEntryForm({ addAction }: { addAction: (formData: FormDa
     }
   }
 
+  function handleQtyKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // ฟอร์มนี้มีช่อง text หลายช่อง (ค้นหา/จำนวน/รายละเอียด) ทำให้ browser
+    // ปิดการ submit-ด้วย-Enter-อัตโนมัติตาม HTML spec — ต้องดักเองเพื่อให้
+    // ตรงตามที่ label ระบุไว้ "เลือกด้วยลูกศร/Enter" (ข้อ 60)
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  }
+
   return (
     // key ที่ parent ใส่ไว้ (จำนวนรายการปัจจุบัน) จะทำให้ component นี้ remount
     // ทั้งชุดหลังเพิ่มรายการสำเร็จ ล้างฟอร์มให้อัตโนมัติ พร้อมคีย์รายการถัดไปทันที
@@ -97,6 +107,7 @@ export function OrderItemEntryForm({ addAction }: { addAction: (formData: FormDa
           step="0.01"
           min="0.01"
           required
+          onKeyDown={handleQtyKeyDown}
           className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
