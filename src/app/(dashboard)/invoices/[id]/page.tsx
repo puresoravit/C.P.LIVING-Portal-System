@@ -153,10 +153,6 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           พิมพ์เอกสาร (Invoice นี้ถูกยกเลิกแล้ว)
         </a>
       )}
-
-      <p className="text-xs text-gray-400 mt-4">
-        การพิมพ์เอกสาร (PDF / กระดาษต่อเนื่อง) และใบกำกับภาษีแยกต่างหาก จะเพิ่มใน Phase 5
-      </p>
     </div>
   );
 }

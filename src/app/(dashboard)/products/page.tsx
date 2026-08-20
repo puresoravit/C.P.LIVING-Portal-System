@@ -28,8 +28,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: { q
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-            <select name="productTypeId" required className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled selected>
+            <select name="productTypeId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled>
                 เลือกประเภท
               </option>
               {productTypes.map((pt) => (

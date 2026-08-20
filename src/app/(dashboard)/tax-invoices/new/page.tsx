@@ -31,9 +31,10 @@ export default async function NewTaxInvoicePage() {
             form="taxInvoiceForm"
             id="customerSelect"
             required
+            defaultValue=""
             className="w-full border rounded px-3 py-1.5 text-sm"
           >
-            <option value="" disabled selected>
+            <option value="" disabled>
               เลือกลูกค้า
             </option>
             {customers.map((c) => (
@@ -50,9 +51,10 @@ export default async function NewTaxInvoicePage() {
             form="taxInvoiceForm"
             id="branchSelect"
             required
+            defaultValue=""
             className="w-full border rounded px-3 py-1.5 text-sm"
           >
-            <option value="" disabled selected>
+            <option value="" disabled>
               — เลือกลูกค้าก่อน —
             </option>
           </select>

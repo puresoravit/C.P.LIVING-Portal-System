@@ -38,8 +38,8 @@ export default async function PricesPage({
         <form action={createPriceRule} className="px-4 pb-4 grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า *</label>
-            <select name="productId" required className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled selected>
+            <select name="productId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled>
                 เลือกสินค้า
               </option>
               {products.map((p) => (
@@ -51,8 +51,8 @@ export default async function PricesPage({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-            <select name="customerId" required className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled selected>
+            <select name="customerId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled>
                 เลือกลูกค้า
               </option>
               {customers.map((c) => (

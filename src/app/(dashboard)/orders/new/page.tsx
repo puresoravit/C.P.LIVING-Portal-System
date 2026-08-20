@@ -26,9 +26,10 @@ export default async function NewOrderPage() {
             id="customerSelect"
             required
             autoFocus
+            defaultValue=""
             className="w-full border rounded px-3 py-1.5 text-sm"
           >
-            <option value="" disabled selected>
+            <option value="" disabled>
               เลือกลูกค้า
             </option>
             {customers.map((c) => (
@@ -40,8 +41,14 @@ export default async function NewOrderPage() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">สาขา *</label>
-          <select name="branchId" id="branchSelect" required className="w-full border rounded px-3 py-1.5 text-sm">
-            <option value="" disabled selected>
+          <select
+            name="branchId"
+            id="branchSelect"
+            required
+            defaultValue=""
+            className="w-full border rounded px-3 py-1.5 text-sm"
+          >
+            <option value="" disabled>
               — เลือกลูกค้าก่อน —
             </option>
           </select>

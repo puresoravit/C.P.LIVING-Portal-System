@@ -16,9 +16,12 @@ export function PrintButton({ markPrintedAction }: { markPrintedAction?: (formDa
           </button>
         </form>
       )}
-      <a href="javascript:history.back()" className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2">
+      <button
+        onClick={() => window.history.back()}
+        className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2"
+      >
         ← กลับ
-      </a>
+      </button>
     </div>
   );
 }

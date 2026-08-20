@@ -33,8 +33,8 @@ export default async function DiscountsPage() {
         <form action={createDiscountRule} className="px-4 pb-4 grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-            <select name="customerId" required className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled selected>
+            <select name="customerId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled>
                 เลือกลูกค้า
               </option>
               {customers.map((c) => (
@@ -59,8 +59,8 @@ export default async function DiscountsPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-            <select name="productTypeId" required className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled selected>
+            <select name="productTypeId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
+              <option value="" disabled>
                 เลือกประเภท
               </option>
               {productTypes.map((pt) => (
