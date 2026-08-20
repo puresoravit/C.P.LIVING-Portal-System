@@ -68,6 +68,7 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
         items: {
           create: invoice.items.map((item) => ({
             description: item.productNameSnapshot,
+            size: item.sizeSnapshot,
             quantity: item.quantity,
             unit: item.unitSnapshot,
             unitPrice: item.unitPriceSnapshot,
@@ -100,6 +101,7 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
 // ==========================================================================
 const manualItemSchema = z.object({
   description: z.string().min(1),
+  size: z.string().optional(),
   quantity: z.coerce.number().positive(),
   unit: z.string().min(1),
   unitPrice: z.coerce.number().min(0),

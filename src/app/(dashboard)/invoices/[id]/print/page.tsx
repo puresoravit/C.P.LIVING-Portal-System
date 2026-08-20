@@ -77,6 +77,7 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
           <thead>
             <tr className="border-b">
               <th className="text-left py-1">รายการ</th>
+              <th className="text-left py-1">ขนาด</th>
               <th className="text-right py-1">จำนวน</th>
               <th className="text-right py-1">ราคา/หน่วย</th>
               <th className="text-right py-1">ส่วนลด</th>
@@ -87,6 +88,7 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
             {invoice.items.map((item) => (
               <tr key={item.id} className="border-b border-dashed">
                 <td className="py-1">{item.productNameSnapshot}</td>
+                <td className="py-1">{item.sizeSnapshot ?? ""}</td>
                 <td className="text-right py-1">
                   {Number(item.quantity)} {item.unitSnapshot}
                 </td>

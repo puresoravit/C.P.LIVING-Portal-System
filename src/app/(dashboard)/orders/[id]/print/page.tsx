@@ -74,6 +74,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
               <th className="text-left py-1">SKU</th>
               <th className="text-left py-1">รายการ</th>
               <th className="text-left py-1">ประเภท</th>
+              <th className="text-left py-1">ขนาด</th>
               <th className="text-right py-1">จำนวน</th>
             </tr>
           </thead>
@@ -83,6 +84,11 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
                 <td className="py-1 font-mono">{item.product.sku}</td>
                 <td className="py-1">{item.descriptionOverride || item.product.name}</td>
                 <td className="py-1">{item.product.productType.name}</td>
+                {/* Order เป็นเอกสารภายในที่พิมพ์วันเดียวกับที่ขาย — ตามที่อนุมัติไว้ใน
+                    Phase C ให้ดึง Size สดจาก Product Master ได้เลย ไม่ต้อง snapshot
+                    เหมือน Invoice (ต่างจาก InvoiceItem.sizeSnapshot ที่เป็นเอกสารลูกค้า
+                    ต้องคงสภาพย้อนหลัง) */}
+                <td className="py-1">{item.product.size ?? ""}</td>
                 <td className="text-right py-1">
                   {Number(item.quantity)} {item.product.unit}
                 </td>
