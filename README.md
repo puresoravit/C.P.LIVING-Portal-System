@@ -106,7 +106,20 @@ Maintainability > UI Appearance**
 ดูรายละเอียดที่ `docs/PHASES.md` — ขั้นต่อไปคือ **Phase 2: Business Rule**
 (Price Master, Price History, Effective Date, Discount Rules, VAT Setting)
 
-## Backup อัตโนมัติ (ข้อ 49)
+## Backup Strategy (ข้อ 49)
+
+**บน Managed Cloud PostgreSQL (Railway/Supabase/Neon/RDS ฯลฯ)**: ให้ถือว่า
+**Automated Backup ของผู้ให้บริการเป็นระบบสำรองหลัก** (point-in-time
+recovery / daily snapshot ที่ provider ทำให้อัตโนมัติ) — กลไก `pg_dump`
+ด้านล่างนี้เป็นแค่เครื่องมือสำรอง/กู้คืนแบบ manual เสริม (เช่น ก่อนทำการ
+เปลี่ยนแปลงข้อมูลครั้งใหญ่ หรือย้ายข้อมูลออกไปเก็บที่อื่น) เพราะไฟล์ที่
+เขียนไว้ในโฟลเดอร์ `backups/` เป็น local disk ของ server ที่รันแอปอยู่ —
+ถ้า deploy บน platform ที่ไม่มี persistent disk (serverless/ephemeral
+container) ไฟล์เหล่านี้จะหายเมื่อ restart/redeploy ไม่ควรพึ่งเป็นระบบ
+สำรองหลักตอนอยู่บน cloud
+
+**บนเครื่อง PC เดียว (deployment เดิม)**: กลไก `pg_dump` นี้ยังคงเป็น
+ระบบสำรองหลักได้ตามปกติ เพราะ disk ของเครื่องนั้น persist อยู่แล้ว
 
 ต้องติดตั้ง `pg_dump` และ `pg_restore` ให้อยู่ใน PATH ของเครื่อง (มากับการติดตั้ง
 PostgreSQL อยู่แล้ว — ถ้าติดตั้ง PostgreSQL ในเครื่องนี้แล้วไม่ต้องทำอะไรเพิ่ม)

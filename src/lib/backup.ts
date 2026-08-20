@@ -10,6 +10,18 @@ function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
+/**
+ * Prisma's DATABASE_URL ใช้ query param บางตัว (เช่น `schema=`) ที่เป็นแค่
+ * convention ของ Prisma เอง ไม่ใช่ query param มาตรฐานของ libpq — ส่งตรงๆ
+ * เข้า pg_dump/pg_restore จะ error "invalid URI query parameter" ต้องตัดออก
+ * ก่อนเสมอ (pg_dump ไม่ต้องรู้ schema อยู่แล้ว เพราะ dump ทั้ง database ให้)
+ */
+export function toPgToolsUrl(databaseUrl: string): string {
+  const url = new URL(databaseUrl);
+  url.searchParams.delete("schema");
+  return url.toString();
+}
+
 export function backupDir(): string {
   ensureBackupDir();
   return BACKUP_DIR;
@@ -29,7 +41,7 @@ export async function createBackup(): Promise<{ filename: string }> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("ไม่พบ DATABASE_URL ใน environment");
 
-  await execFileAsync("pg_dump", [databaseUrl, "-F", "c", "-f", filepath]);
+  await execFileAsync("pg_dump", [toPgToolsUrl(databaseUrl), "-F", "c", "-f", filepath]);
   return { filename };
 }
 
@@ -53,5 +65,5 @@ export async function restoreBackup(filepath: string): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("ไม่พบ DATABASE_URL ใน environment");
 
-  await execFileAsync("pg_restore", ["--clean", "--if-exists", "-d", databaseUrl, filepath]);
+  await execFileAsync("pg_restore", ["--clean", "--if-exists", "-d", toPgToolsUrl(databaseUrl), filepath]);
 }

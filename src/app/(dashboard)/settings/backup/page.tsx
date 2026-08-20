@@ -19,9 +19,15 @@ export default async function BackupPage() {
   return (
     <div className="max-w-3xl">
       <h1 className="text-lg font-semibold mb-1">สำรอง/กู้คืนข้อมูล</h1>
-      <p className="text-sm text-gray-500 mb-4">
-        สำรองฐานข้อมูลทั้งหมดเป็นไฟล์ .dump — สำหรับตั้งค่าให้สำรองอัตโนมัติทุกวัน ดูวิธีตั้งค่าใน README
-        (`/api/backup/auto`)
+      <p className="text-sm text-gray-500 mb-2">
+        สำรองฐานข้อมูลทั้งหมดเป็นไฟล์ .dump ดาวน์โหลดเก็บไว้เองได้ — สำหรับตั้งค่าให้สำรองอัตโนมัติทุกวัน
+        ดูวิธีตั้งค่าใน README (`/api/backup/auto`)
+      </p>
+      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+        ⚠️ ถ้า Database รันอยู่บน Managed Cloud (เช่น Railway/Supabase/Neon) ให้ถือว่า
+        <b> Automated Backup ของผู้ให้บริการนั้นเป็นระบบสำรองหลัก</b> — หน้านี้เป็นเครื่องมือสำรอง/กู้คืนแบบ manual
+        เสริมเท่านั้น (เช่น ก่อนทำการเปลี่ยนแปลงข้อมูลครั้งใหญ่) ไม่ใช่ safety net หลักของระบบเมื่อรันบน cloud
+        เพราะไฟล์ที่สำรองไว้ในโฟลเดอร์นี้อาจไม่ persist ถ้า deploy บน platform ที่ไม่มี persistent disk
       </p>
 
       <form action={triggerBackup} className="mb-6">
