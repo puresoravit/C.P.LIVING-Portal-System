@@ -5,7 +5,8 @@ function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
-export default async function NewBillingNotePage({ searchParams }: { searchParams: { customerId?: string } }) {
+export default async function NewBillingNotePage(props: { searchParams: Promise<{ customerId?: string }> }) {
+  const searchParams = await props.searchParams;
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
 
   const selectedCustomerId = searchParams.customerId;

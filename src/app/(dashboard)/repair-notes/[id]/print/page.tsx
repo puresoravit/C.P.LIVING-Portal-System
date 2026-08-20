@@ -7,7 +7,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
-export default async function RepairNotePrintPage({ params }: { params: { id: string } }) {
+export default async function RepairNotePrintPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "repairNote.create")) redirect("/");
 

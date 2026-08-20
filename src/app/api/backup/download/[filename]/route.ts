@@ -6,7 +6,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
-export async function GET(req: NextRequest, { params }: { params: { filename: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ filename: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!session || !can((session.user as any).role, "user.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

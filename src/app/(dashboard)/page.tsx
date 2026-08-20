@@ -19,11 +19,12 @@ function endOfToday(): string {
 // ข้อ 3.2: Billing Staff ไม่มีสิทธิ์ "ดู Dashboard/ดู Report" ตาม Permission
 // Matrix (มีแค่ OWNER_ADMIN และ VIEWER) — งั้นหน้าแรกของ Billing Staff
 // ต้องเป็นทางลัดใช้งานประจำวันแทน ไม่ใช่ Dashboard ยอดขาย
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: { dateFrom?: string; dateTo?: string };
-}) {
+export default async function HomePage(
+  props: {
+    searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
 

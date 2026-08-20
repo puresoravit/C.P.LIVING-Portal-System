@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateCustomer } from "../actions";
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
+export default async function EditCustomerPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const customer = await db.customer.findUnique({ where: { id: params.id } });
   if (!customer) notFound();
 

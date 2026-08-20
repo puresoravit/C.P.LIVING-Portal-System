@@ -24,11 +24,12 @@ const ACTION_COLOR: Record<string, string> = {
   DEACTIVATE: "bg-gray-100 text-gray-600",
 };
 
-export default async function AuditLogPage({
-  searchParams,
-}: {
-  searchParams: { module?: string; userId?: string; dateFrom?: string; dateTo?: string };
-}) {
+export default async function AuditLogPage(
+  props: {
+    searchParams: Promise<{ module?: string; userId?: string; dateFrom?: string; dateTo?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "auditLog.view")) redirect("/");
 
