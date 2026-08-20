@@ -380,6 +380,7 @@ model BillingNote {
   customerNameSnapshot String
   taxIdSnapshot        String?
   addressSnapshot      String?
+  creditTermSnapshot   String            @default("CASH") // ข้อ 6 Document Snapshot — กันวันครบกำหนดขยับย้อนหลังถ้าลูกค้าเปลี่ยน credit term ทีหลัง
   totalAmount          Decimal           @db.Decimal(14, 2)
   status               BillingNoteStatus @default(CONFIRMED)
   createdById          String

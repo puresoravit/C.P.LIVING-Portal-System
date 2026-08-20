@@ -54,6 +54,7 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
         customerNameSnapshot: customer.companyName,
         taxIdSnapshot: customer.taxId,
         addressSnapshot: null,
+        creditTermSnapshot: customer.creditTerm,
         totalAmount,
         status: "CONFIRMED",
         createdById: user.id,

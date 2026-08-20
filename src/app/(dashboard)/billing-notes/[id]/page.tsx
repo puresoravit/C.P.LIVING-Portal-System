@@ -28,11 +28,11 @@ export default async function BillingNoteDetailPage({ params }: { params: { id: 
 
   const note = await db.billingNote.findUnique({
     where: { id: params.id },
-    include: { invoices: true, customer: true },
+    include: { invoices: true },
   });
   if (!note) notFound();
 
-  const creditDays = CREDIT_DAYS[note.customer.creditTerm] ?? 0;
+  const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
   const status = STATUS_LABEL[note.status];
   const cancelAction = cancelBillingNote.bind(null, note.id);
 

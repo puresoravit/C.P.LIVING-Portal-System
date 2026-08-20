@@ -25,12 +25,12 @@ export default async function BillingNotePrintPage({ params }: { params: { id: s
   if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
 
   const [note, company] = await Promise.all([
-    db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true, customer: true } }),
+    db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true } }),
     getCompanySettings(),
   ]);
   if (!note) notFound();
 
-  const creditDays = CREDIT_DAYS[note.customer.creditTerm] ?? 0;
+  const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
 
   return (
     <div className="max-w-3xl mx-auto">
