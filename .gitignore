@@ -1,7 +1,15 @@
 node_modules/
 .next/
+# ทุกไฟล์ .env จริง (มีค่าจริง) ต้องไม่ commit เด็ดขาด — เหลือแค่ *.example
+# ที่เป็น template (ไม่มี secret จริง) ให้ commit ได้
 .env
 .env.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.test
+.env.test.local
 *.log
 backups/*.dump
 logs/*.log

@@ -69,6 +69,30 @@ npm run dev
 npm test
 ```
 
+## Environment Variables (Development vs Production)
+
+โปรเจกต์นี้มีไฟล์ template สอง — ไม่มี secret จริงในทั้งคู่ commit ได้ปลอดภัย:
+
+- **`.env.example`** — ค่าเริ่มต้นสำหรับ local development (`DATABASE_URL`
+  ชี้ไป localhost, `NEXTAUTH_URL` เป็น `http://localhost:3000`)
+- **`.env.production.example`** — ตัวอย่างค่าที่ต้องใช้ตอน deploy จริง
+  (`DATABASE_URL` ต้องเป็น Managed PostgreSQL, `NEXTAUTH_URL` ต้องเป็น
+  `https://` domain จริง, secrets ต้องสุ่มใหม่แยกจาก dev เสมอ)
+
+ไฟล์ค่าจริง (`.env`, `.env.production`, `.env.local` ฯลฯ) ทั้งหมดอยู่ใน
+`.gitignore` แล้ว — **ห้าม commit ไฟล์ที่มีค่าจริงเด็ดขาด** ไม่ว่าจะเป็น
+environment ไหน
+
+**กฎสำคัญที่ต้องทำตอน deploy จริง (ไม่ใช่แค่ copy ค่าจาก dev)**:
+1. `NEXTAUTH_SECRET` และ `BACKUP_SECRET` ต้องสุ่มใหม่ **แยกจากค่าที่ใช้ตอน
+   dev เสมอ** — ห้ามใช้ค่าเดียวกันข้าม environment
+2. `NEXTAUTH_URL` ต้องเป็น `https://` (ไม่ใช่ `http://`) — โค้ดใน
+   `src/lib/auth.ts` เช็ค `NODE_ENV === "production"` เพื่อเปิด secure
+   cookie โดยอัตโนมัติ (ไม่ได้พึ่ง URL string อย่างเดียว) แต่ NEXTAUTH_URL
+   เองก็ยังต้องตรงกับ domain จริงเพื่อให้ callback/redirect ทำงานถูกต้อง
+3. `DATABASE_URL` ชี้ไป Managed PostgreSQL ที่เลือกไว้ (ดูหัวข้อ Backup
+   Strategy ด้านล่างประกอบ)
+
 ## โครงสร้างโปรเจกต์
 
 ```
