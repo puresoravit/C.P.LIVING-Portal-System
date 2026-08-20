@@ -9,8 +9,15 @@ import { isRateLimited, recordFailedAttempt, resetAttempts } from "@/lib/rate-li
 // - Password เก็บเป็น bcrypt hash เท่านั้น ห้าม plain text
 // - Session เก็บ role ไว้ตรวจสอบสิทธิ์ในทุกหน้า/ทุก API route
 // ---------------------------------------------------------------
+const isProduction = process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 }, // 30 วัน — ค่า default ของ NextAuth ระบุชัดเจนไว้ในโค้ดแทนการพึ่ง default โดยไม่รู้ตัว
+  // บังคับ secure cookie (ต้องส่งผ่าน HTTPS เท่านั้น, ชื่อ cookie ขึ้นต้น __Secure-)
+  // ตาม NODE_ENV แทนที่จะพึ่งแค่การ parse NEXTAUTH_URL อัตโนมัติของ NextAuth —
+  // กันกรณีตั้ง NEXTAUTH_URL ผิดพลาดตอน deploy จริงแล้ว cookie หลุดไม่ secure
+  // โดยไม่มีใครสังเกตเห็น
+  useSecureCookies: isProduction,
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({
