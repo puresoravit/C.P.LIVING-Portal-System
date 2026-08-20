@@ -21,8 +21,21 @@ export async function cancelInvoice(invoiceId: string) {
   const user = await requireUser();
   if (!can(user.role, "invoice.cancel")) throw new Error("FORBIDDEN");
 
-  const invoice = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  const invoice = await db.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: { billingNote: true },
+  });
   if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกไปแล้ว");
+
+  // กันไม่ให้ Invoice ที่อยู่ในใบวางบิลแล้วถูกยกเลิกลอยๆ — ต้องยกเลิกใบวางบิล
+  // ก่อน (ซึ่งจะปลด billingNoteId ของ Invoice ทุกใบในนั้นให้เองอัตโนมัติ)
+  // ไม่ Cascade อัตโนมัติจากตรงนี้ — ตรงกับหลักการเดียวกับ cancelOrder ที่
+  // block เมื่อมี Invoice ที่ยังไม่ Cancel แทนการ cascade เอง
+  if (invoice.billingNoteId) {
+    throw new Error(
+      `Invoice นี้อยู่ในใบวางบิล ${invoice.billingNote?.billingNoteNumber ?? ""} แล้ว ต้องยกเลิกใบวางบิลนั้นก่อนถึงจะยกเลิก Invoice ใบนี้ได้`
+    );
+  }
 
   const beforeStatus = invoice.status;
   await db.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
