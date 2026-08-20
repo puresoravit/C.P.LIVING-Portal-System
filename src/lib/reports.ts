@@ -99,6 +99,14 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
   const rows = await fetchRows(filters);
   const map = new Map<string, GroupResult>();
 
+  // ชื่อ ProductType ต้องดึงจาก Master ปัจจุบันเสมอ ไม่ hardcode "TYPE X" — ต่างจาก
+  // Invoice/InvoiceItem ที่ snapshot ไว้ตอนออกบิล เพราะ report/dashboard เป็นมุมมอง
+  // สรุปข้อมูลปัจจุบัน ไม่ใช่เอกสารที่ต้องคงสภาพย้อนหลังแบบ Invoice/Tax Invoice
+  const typeNameByCode =
+    groupBy === "productType"
+      ? new Map((await db.productType.findMany({ select: { code: true, name: true } })).map((t) => [t.code, t.name]))
+      : null;
+
   for (const row of rows) {
     let key: string;
     let label: string;
@@ -119,7 +127,7 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
         break;
       case "productType":
         key = row.productTypeCode;
-        label = `TYPE ${row.productTypeCode}`;
+        label = typeNameByCode?.get(row.productTypeCode) ?? row.productTypeCode;
         break;
       case "sku":
         key = row.sku;
@@ -159,15 +167,27 @@ export async function getBranchProductMix(filters: ReportFilters) {
     .sort((a, b) => a.branchName.localeCompare(b.branchName));
 }
 
-/** ข้อ 41: Dashboard — สรุปยอด + Top 5 Customer/Product */
+/** ข้อ 41: Dashboard — สรุปยอด + Top 10 Customer/Product */
 export async function getDashboard(filters: ReportFilters) {
   const summary = await getSalesSummary(filters);
-  const byType = await getSalesByGroup(filters, "productType");
+  const salesByType = await getSalesByGroup(filters, "productType");
   const byCustomer = await getSalesByGroup(filters, "customer");
   const byProduct = await getSalesByGroup(filters, "sku");
 
-  const topCustomers = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 5);
-  const topProducts = [...byProduct].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 5);
+  // Dashboard ต้องแสดงทุก ProductType ที่ Active อยู่ใน Master แม้ยอดขายช่วงนั้นเป็น 0
+  // (ไม่ใช่แค่ Type ที่มียอดขายจริงเหมือน getSalesByGroup ทั่วไป) เรียงตาม sortOrder —
+  // ต่างจาก /reports ทั่วไปที่ควรโชว์เฉพาะที่มีข้อมูลจริงเท่านั้น จึงไม่แก้พฤติกรรม
+  // ของ getSalesByGroup เอง แต่ประกอบ list นี้แยกเฉพาะที่นี่
+  const activeTypes = await db.productType.findMany({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+    select: { code: true, name: true },
+  });
+  const salesByTypeCode = new Map(salesByType.map((g) => [g.key, g]));
+  const byType: GroupResult[] = activeTypes.map((t) => salesByTypeCode.get(t.code) ?? { key: t.code, label: t.name, metrics: emptyMetrics() });
+
+  const topCustomers = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
+  const topProducts = [...byProduct].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
 
   return { summary, byType, topCustomers, topProducts };
 }

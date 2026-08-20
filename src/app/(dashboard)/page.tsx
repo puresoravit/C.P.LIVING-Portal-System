@@ -2,18 +2,16 @@ import { getDashboard } from "@/lib/reports";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { CustomerHoverCard } from "@/components/customer-hover-card";
+import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
 
 function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
-function startOfMonth(): string {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function endOfToday(): string {
-  return new Date().toISOString().slice(0, 10);
+function toDisplayDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 // ข้อ 3.2: Billing Staff ไม่มีสิทธิ์ "ดู Dashboard/ดู Report" ตาม Permission
@@ -55,7 +53,7 @@ export default async function HomePage(
   }
 
   const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfToday();
+  const dateTo = searchParams.dateTo || endOfCurrentMonth();
 
   const { summary, byType, topCustomers, topProducts } = await getDashboard({
     dateFrom: new Date(dateFrom),
@@ -89,38 +87,50 @@ export default async function HomePage(
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* ข้อ 2 (Dashboard Requirement): จำนวน Card ต้องรองรับ ProductType เพิ่ม/ลดได้
+          โดยไม่ทำหน้าแตก จึงใช้ responsive grid แทน grid-cols-3 ตายตัวเดิม */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
         {byType.map((t) => (
           <div key={t.key} className="bg-white border rounded-lg p-4">
-            <div className="text-xs text-gray-500 mb-1">{t.label} Sales</div>
+            <div className="text-xs text-gray-500 mb-1">{t.label}</div>
             <div className="text-lg font-medium">{money(t.metrics.net)}</div>
             <div className="text-xs text-gray-400">{t.metrics.quantity.toLocaleString("th-TH")} หน่วย</div>
           </div>
         ))}
         {byType.length === 0 && (
-          <div className="col-span-3 bg-white border rounded-lg p-4 text-center text-gray-400 text-sm">
-            ยังไม่มียอดขายในช่วงเวลานี้
+          <div className="col-span-full bg-white border rounded-lg p-4 text-center text-gray-400 text-sm">
+            ยังไม่มีประเภทสินค้าที่เปิดใช้งาน
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="font-medium text-sm mb-2">Top 5 ลูกค้า</h2>
+          <h2 className="font-medium text-sm mb-2">Top 10 ลูกค้า</h2>
           <ul className="text-sm space-y-1">
             {topCustomers.map((c, i) => (
-              <li key={c.key} className="flex justify-between">
+              <CustomerHoverCard
+                key={c.key}
+                label={c.label}
+                dateRangeLabel={`${toDisplayDate(dateFrom)} – ${toDisplayDate(dateTo)}`}
+                metrics={{
+                  gross: c.metrics.gross,
+                  discount: c.metrics.discount,
+                  net: c.metrics.net,
+                  quantity: c.metrics.quantity,
+                }}
+              >
                 <span>
                   {i + 1}. {c.label}
                 </span>
                 <span className="text-gray-500">{money(c.metrics.net)}</span>
-              </li>
+              </CustomerHoverCard>
             ))}
             {topCustomers.length === 0 && <li className="text-gray-400">ไม่มีข้อมูล</li>}
           </ul>
         </div>
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="font-medium text-sm mb-2">Top 5 สินค้า</h2>
+          <h2 className="font-medium text-sm mb-2">Top 10 สินค้า</h2>
           <ul className="text-sm space-y-1">
             {topProducts.map((p, i) => (
               <li key={p.key} className="flex justify-between">
