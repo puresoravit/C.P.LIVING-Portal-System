@@ -46,18 +46,36 @@ export function QuotationPrintBody({
   grandTotal: unknown;
 }) {
   const [showDiscount, setShowDiscount] = useState(true);
+  // Phase R1 — showVatBreakdown: Toggle การแสดงผลล้วนๆ (print-time, ไม่ persist ลง DB)
+  // แยกอิสระจาก showDiscount เดิมโดยสิ้นเชิง ค่าเริ่มต้น = แสดง (true) เพื่อรักษา
+  // พฤติกรรมเดิมของเอกสารทุกใบ ปิด/เปิด Toggle นี้ไม่มีผลต่อ Grand Total ที่แสดงเลย
+  // (ซ่อนแค่ 2 แถวรายละเอียด "มูลค่าก่อน VAT"/"VAT %") ใช้ได้เฉพาะตอน hasVat เท่านั้น
+  const [showVatBreakdown, setShowVatBreakdown] = useState(true);
   const hasVat = vatMode === "STANDARD";
 
   return (
     <>
-      <div className="print:hidden flex items-center gap-1.5 mb-2 text-sm">
-        <input
-          id="show-discount"
-          type="checkbox"
-          checked={showDiscount}
-          onChange={(e) => setShowDiscount(e.target.checked)}
-        />
-        <label htmlFor="show-discount">แสดงส่วนลดในเอกสาร</label>
+      <div className="print:hidden flex items-center gap-4 mb-2 text-sm">
+        <div className="flex items-center gap-1.5">
+          <input
+            id="show-discount"
+            type="checkbox"
+            checked={showDiscount}
+            onChange={(e) => setShowDiscount(e.target.checked)}
+          />
+          <label htmlFor="show-discount">แสดงส่วนลดในเอกสาร</label>
+        </div>
+        {hasVat && (
+          <div className="flex items-center gap-1.5">
+            <input
+              id="show-vat-breakdown"
+              type="checkbox"
+              checked={showVatBreakdown}
+              onChange={(e) => setShowVatBreakdown(e.target.checked)}
+            />
+            <label htmlFor="show-vat-breakdown">แสดงรายละเอียด VAT</label>
+          </div>
+        )}
       </div>
 
       <table className="print-table w-full mb-1.5 text-xs">
@@ -105,7 +123,7 @@ export function QuotationPrintBody({
                 <span>{money(discountAmount)}</span>
               </div>
             )}
-            {hasVat && (
+            {hasVat && showVatBreakdown && (
               <>
                 <div className="flex justify-between">
                   <span>มูลค่าก่อน VAT</span>

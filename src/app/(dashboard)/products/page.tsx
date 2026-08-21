@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { createProduct, toggleProductActive } from "./actions";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { SizeSelect } from "@/components/size-select";
 
 export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string }> }) {
   const searchParams = await props.searchParams;
@@ -68,7 +69,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               <option value="">— ยังไม่ระบุ —</option>
             </select>
           </div>
-          <Field label="ไซส์" name="size" />
+          <SizeSelect />
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           <div className="col-span-3">

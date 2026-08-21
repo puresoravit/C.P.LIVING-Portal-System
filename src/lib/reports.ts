@@ -142,6 +142,35 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
+// Phase R1 — Monthly Sales Chart: เติมเดือนที่ไม่มีข้อมูล (getSalesByGroup คืนมาแค่เดือน
+// ที่มียอดจริงเท่านั้น) ให้ครบ ม.ค.-ธ.ค. เสมอ ด้วยยอด 0 — Pure Function ไม่แตะ DB
+// เพื่อ unit test ได้ตรงๆ, Reuse getSalesByGroup(..., "month") เดิม ไม่มี Query ใหม่
+export const THAI_MONTH_LABELS = [
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+];
+
+export type MonthlySalesPoint = { month: number; label: string; net: number };
+
+export function fillYearMonths(year: number, groups: GroupResult[]): MonthlySalesPoint[] {
+  const byKey = new Map(groups.map((g) => [g.key, g]));
+  return Array.from({ length: 12 }, (_, i) => {
+    const monthNum = i + 1;
+    const key = `${year}-${String(monthNum).padStart(2, "0")}`;
+    return { month: monthNum, label: THAI_MONTH_LABELS[i], net: byKey.get(key)?.metrics.net ?? 0 };
+  });
+}
+
+/** ปี (ค.ศ.) ที่มีเอกสารอยู่จริงอย่างน้อย 1 ใบ — ใช้ประกอบ Year Selector เสมอรวมปีปัจจุบัน */
+export async function getAvailableSalesYears(): Promise<number[]> {
+  const agg = await db.invoice.aggregate({ _min: { invoiceDate: true } });
+  const currentYear = new Date().getFullYear();
+  const earliestYear = agg._min.invoiceDate?.getFullYear() ?? currentYear;
+  const years: number[] = [];
+  for (let y = currentYear; y >= Math.min(earliestYear, currentYear); y--) years.push(y);
+  return years;
+}
+
 // ==========================================================================
 // Phase B: Top Products ระดับ Model (ข้อ 4-5)
 // แยกจาก fetchRows/getSalesByGroup เดิมเพราะต้อง join Product→ProductModel และ

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProduct } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { SizeSelect } from "@/components/size-select";
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -62,7 +63,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             ))}
           </select>
         </div>
-        <Field label="ไซส์" name="size" defaultValue={product.size ?? ""} />
+        <SizeSelect defaultValue={product.size ?? ""} />
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         <Field
           label="ราคาตั้งต้น (รวม VAT) *"

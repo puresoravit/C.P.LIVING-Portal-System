@@ -1,9 +1,12 @@
-import { getDashboard } from "@/lib/reports";
+import { getDashboard, getSalesByGroup, fillYearMonths, getAvailableSalesYears } from "@/lib/reports";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CustomerHoverCard } from "@/components/customer-hover-card";
+import { MonthlySalesChart } from "@/components/monthly-sales-chart";
 import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+
+const BUDDHIST_YEAR_OFFSET = 543;
 
 function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -19,7 +22,7 @@ function toDisplayDate(iso: string): string {
 // ต้องเป็นทางลัดใช้งานประจำวันแทน ไม่ใช่ Dashboard ยอดขาย
 export default async function HomePage(
   props: {
-    searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
+    searchParams: Promise<{ dateFrom?: string; dateTo?: string; year?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -55,10 +58,23 @@ export default async function HomePage(
   const dateFrom = searchParams.dateFrom || startOfMonth();
   const dateTo = searchParams.dateTo || endOfCurrentMonth();
 
-  const { summary, byType, topCustomers, topProducts } = await getDashboard({
-    dateFrom: new Date(dateFrom),
-    dateTo: new Date(dateTo),
-  });
+  // Phase R1 — Monthly Sales Chart: ปี (ค.ศ.) ใช้กรองข้อมูลจริง, แสดงผลเป็น พ.ศ. ตาม
+  // ตัวอย่างที่อนุมัติ ("ปี: [2569 ▼]") — Reuse getSalesByGroup(..., "month") เดิม ไม่มี
+  // Query ใหม่ ไม่แตะ Sales SOT
+  const currentGregorianYear = new Date().getFullYear();
+  const selectedYear = Number(searchParams.year) || currentGregorianYear;
+  const [{ summary, byType, topCustomers, topProducts }, availableYears, monthlyGroups] = await Promise.all([
+    getDashboard({ dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }),
+    getAvailableSalesYears(),
+    getSalesByGroup(
+      { dateFrom: new Date(selectedYear, 0, 1), dateTo: new Date(selectedYear, 11, 31) },
+      "month"
+    ),
+  ]);
+  const monthlyData = fillYearMonths(selectedYear, monthlyGroups);
+  // กันกรณี selectedYear (มาจาก URL) อยู่นอก Range ที่คำนวณได้ (เช่น พิมพ์ URL เอง) —
+  // Dropdown ต้องมี Option ของปีที่กำลังเลือกอยู่เสมอ
+  const yearOptions = [...new Set([selectedYear, ...availableYears])].sort((a, b) => b - a);
 
   return (
     <div className="max-w-5xl">
@@ -102,6 +118,24 @@ export default async function HomePage(
             ยังไม่มีประเภทสินค้าที่เปิดใช้งาน
           </div>
         )}
+      </div>
+
+      <div className="bg-white border rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium text-sm">ยอดขายรายเดือน (ยอดสุทธิ)</h2>
+          <form className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">ปี:</span>
+            <select name="year" defaultValue={selectedYear} className="border rounded px-2 py-1 text-sm">
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y + BUDDHIST_YEAR_OFFSET}
+                </option>
+              ))}
+            </select>
+            <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1">ดู</button>
+          </form>
+        </div>
+        <MonthlySalesChart data={monthlyData} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
