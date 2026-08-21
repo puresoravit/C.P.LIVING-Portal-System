@@ -7,6 +7,8 @@ import { can } from "@/lib/permissions";
 import { dateRangesOverlap } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
+import type { ActionResult } from "@/lib/action-result";
 
 const priceRuleSchema = z.object({
   productId: z.string().min(1, "กรุณาเลือกสินค้า"),
@@ -26,11 +28,11 @@ async function requireUser() {
   };
 }
 
-export async function createPriceRule(formData: FormData) {
+export async function createPriceRule(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "price.edit")) throw new Error("FORBIDDEN");
 
-  const raw = priceRuleSchema.parse({
+  const rawParse = priceRuleSchema.safeParse({
     productId: formData.get("productId"),
     customerId: formData.get("customerId"),
     branchId: formData.get("branchId") || undefined,
@@ -38,6 +40,10 @@ export async function createPriceRule(formData: FormData) {
     effectiveFrom: formData.get("effectiveFrom"),
     effectiveTo: formData.get("effectiveTo") || undefined,
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const raw = rawParse.data;
 
   const branchId = raw.branchId || null;
   const effectiveTo = raw.effectiveTo ? new Date(raw.effectiveTo) : null;
@@ -51,9 +57,9 @@ export async function createPriceRule(formData: FormData) {
     dateRangesOverlap(raw.effectiveFrom, effectiveTo, r.effectiveFrom, r.effectiveTo)
   );
   if (hasOverlap) {
-    throw new Error(
-      "ช่วงวันที่มีผล (Effective Date) ซ้อนกับราคาที่ตั้งไว้แล้วสำหรับสินค้า/ลูกค้า/สาขานี้ — กรุณาปรับช่วงวันที่"
-    );
+    const error =
+      "ช่วงวันที่มีผล (Effective Date) ซ้อนกับราคาที่ตั้งไว้แล้วสำหรับสินค้า/ลูกค้า/สาขานี้ — กรุณาปรับช่วงวันที่";
+    return { success: false, error, fieldErrors: { effectiveFrom: error } };
   }
 
   const priceRule = await db.priceRule.create({
@@ -78,6 +84,7 @@ export async function createPriceRule(formData: FormData) {
   });
 
   revalidatePath("/prices");
+  return { success: true };
 }
 
 export async function deletePriceRule(id: string) {

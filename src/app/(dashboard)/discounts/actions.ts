@@ -7,6 +7,8 @@ import { can } from "@/lib/permissions";
 import { dateRangesOverlap } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
+import type { ActionResult } from "@/lib/action-result";
 
 const discountRuleSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
@@ -26,11 +28,11 @@ async function requireUser() {
   };
 }
 
-export async function createDiscountRule(formData: FormData) {
+export async function createDiscountRule(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "discount.edit")) throw new Error("FORBIDDEN");
 
-  const raw = discountRuleSchema.parse({
+  const rawParse = discountRuleSchema.safeParse({
     customerId: formData.get("customerId"),
     branchId: formData.get("branchId") || undefined,
     productTypeId: formData.get("productTypeId"),
@@ -38,6 +40,10 @@ export async function createDiscountRule(formData: FormData) {
     effectiveFrom: formData.get("effectiveFrom"),
     effectiveTo: formData.get("effectiveTo") || undefined,
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const raw = rawParse.data;
 
   const branchId = raw.branchId || null;
   const effectiveTo = raw.effectiveTo ? new Date(raw.effectiveTo) : null;
@@ -51,9 +57,8 @@ export async function createDiscountRule(formData: FormData) {
     dateRangesOverlap(raw.effectiveFrom, effectiveTo, r.effectiveFrom, r.effectiveTo)
   );
   if (hasOverlap) {
-    throw new Error(
-      "ช่วงวันที่มีผล (Effective Date) ซ้อนกับส่วนลดที่ตั้งไว้แล้วสำหรับลูกค้า/สาขา/ประเภทสินค้านี้"
-    );
+    const error = "ช่วงวันที่มีผล (Effective Date) ซ้อนกับส่วนลดที่ตั้งไว้แล้วสำหรับลูกค้า/สาขา/ประเภทสินค้านี้";
+    return { success: false, error, fieldErrors: { effectiveFrom: error } };
   }
 
   const discountRule = await db.discountRule.create({
@@ -78,6 +83,7 @@ export async function createDiscountRule(formData: FormData) {
   });
 
   revalidatePath("/discounts");
+  return { success: true };
 }
 
 export async function deleteDiscountRule(id: string) {

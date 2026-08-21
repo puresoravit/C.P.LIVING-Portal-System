@@ -24,6 +24,8 @@ export function Field({
   required = false,
   autoFocus = false,
   step,
+  min,
+  max,
 }: {
   label: string;
   name: string;
@@ -32,6 +34,8 @@ export function Field({
   required?: boolean;
   autoFocus?: boolean;
   step?: string;
+  min?: string | number;
+  max?: string | number;
 }) {
   const { fieldErrors, clearFieldError, isPending } = useFieldErrorsContext();
   const error = fieldErrors[name];
@@ -47,6 +51,8 @@ export function Field({
         name={name}
         type={type}
         step={step ?? (type === "number" ? "0.01" : undefined)}
+        min={min}
+        max={max}
         defaultValue={defaultValue}
         required={required}
         autoFocus={autoFocus}

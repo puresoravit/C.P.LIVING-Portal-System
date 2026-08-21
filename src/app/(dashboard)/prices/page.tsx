@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function PricesPage(
   props: {
@@ -36,75 +38,42 @@ export default async function PricesPage(
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งราคาพิเศษใหม่</summary>
-        <form action={createPriceRule} className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า *</label>
-            <select name="productId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled>
-                เลือกสินค้า
+        <ActionForm action={createPriceRule} successMessage="บันทึกราคาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+          <SelectField label="สินค้า *" name="productId" required defaultValue="">
+            <option value="" disabled>
+              เลือกสินค้า
+            </option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.sku} — {p.name}
               </option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-            <select name="customerId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled>
-                เลือกลูกค้า
+            ))}
+          </SelectField>
+          <SelectField label="ลูกค้า *" name="customerId" required defaultValue="">
+            <option value="" disabled>
+              เลือกลูกค้า
+            </option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.companyName} ({c.code})
               </option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.companyName} ({c.code})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              สาขา (เว้นว่าง = ใช้ทุกสาขาของลูกค้ารายนี้)
-            </label>
-            <select name="branchId" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="">— ทุกสาขา (Customer Price) —</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.customer.companyName} / {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ราคา (รวม VAT) *</label>
-            <input
-              name="price"
-              type="number"
-              step="0.01"
-              required
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลตั้งแต่ *</label>
-            <input
-              name="effectiveFrom"
-              type="date"
-              required
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)</label>
-            <input name="effectiveTo" type="date" className="w-full border rounded px-3 py-1.5 text-sm" />
-          </div>
+            ))}
+          </SelectField>
+          <SelectField label="สาขา (เว้นว่าง = ใช้ทุกสาขาของลูกค้ารายนี้)" name="branchId" defaultValue="">
+            <option value="">— ทุกสาขา (Customer Price) —</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.customer.companyName} / {b.name}
+              </option>
+            ))}
+          </SelectField>
+          <Field label="ราคา (รวม VAT) *" name="price" type="number" required />
+          <Field label="มีผลตั้งแต่ *" name="effectiveFrom" type="date" required />
+          <Field label="มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)" name="effectiveTo" type="date" />
           <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกราคา
-            </button>
+            <SubmitButton>บันทึกราคา</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">

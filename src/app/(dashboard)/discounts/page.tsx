@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function DiscountsPage() {
   const session = await getServerSession(authOptions);
@@ -30,77 +32,42 @@ export default async function DiscountsPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งส่วนลดใหม่</summary>
-        <form action={createDiscountRule} className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-            <select name="customerId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled>
-                เลือกลูกค้า
+        <ActionForm action={createDiscountRule} successMessage="บันทึกส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+          <SelectField label="ลูกค้า *" name="customerId" required defaultValue="">
+            <option value="" disabled>
+              เลือกลูกค้า
+            </option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.companyName} ({c.code})
               </option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.companyName} ({c.code})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              สาขา (เว้นว่าง = ใช้ทุกสาขาของลูกค้ารายนี้)
-            </label>
-            <select name="branchId" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="">— ทุกสาขา —</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.customer.companyName} / {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-            <select name="productTypeId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled>
-                เลือกประเภท
+            ))}
+          </SelectField>
+          <SelectField label="สาขา (เว้นว่าง = ใช้ทุกสาขาของลูกค้ารายนี้)" name="branchId" defaultValue="">
+            <option value="">— ทุกสาขา —</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.customer.companyName} / {b.name}
               </option>
-              {productTypes.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ส่วนลด (%) *</label>
-            <input
-              name="discountPct"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              required
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลตั้งแต่ *</label>
-            <input
-              name="effectiveFrom"
-              type="date"
-              required
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)</label>
-            <input name="effectiveTo" type="date" className="w-full border rounded px-3 py-1.5 text-sm" />
-          </div>
+            ))}
+          </SelectField>
+          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
+            <option value="" disabled>
+              เลือกประเภท
+            </option>
+            {productTypes.map((pt) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
+              </option>
+            ))}
+          </SelectField>
+          <Field label="ส่วนลด (%) *" name="discountPct" type="number" min="0" max="100" required />
+          <Field label="มีผลตั้งแต่ *" name="effectiveFrom" type="date" required />
+          <Field label="มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)" name="effectiveTo" type="date" />
           <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกส่วนลด
-            </button>
+            <SubmitButton>บันทึกส่วนลด</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
