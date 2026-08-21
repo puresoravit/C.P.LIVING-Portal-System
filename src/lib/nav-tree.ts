@@ -22,6 +22,7 @@ export const NAV_TREE: NavNode[] = [
     type: "group",
     label: "สร้างเอกสาร / Create Document",
     items: [
+      { type: "link", href: "/quotations/new", label: "ใบเสนอราคา / Quotation", perm: "quotation.create" },
       { type: "link", href: "/orders/new", label: "ใบส่งของชั่วคราว", perm: "order.create" },
       {
         type: "group",
@@ -37,6 +38,7 @@ export const NAV_TREE: NavNode[] = [
         type: "group",
         label: "แก้ไข / Edit Form",
         items: [
+          { type: "link", href: "/quotations", label: "ใบเสนอราคา / Quotation", perm: "quotation.view" },
           { type: "link", href: "/orders", label: "ใบส่งของชั่วคราว", perm: "order.create" },
           { type: "link", href: "#", label: "ใบกำกับภาษี", perm: "taxInvoice.create", disabled: true },
           { type: "link", href: "#", label: "ใบวางบิล", perm: "billingNote.create", disabled: true },

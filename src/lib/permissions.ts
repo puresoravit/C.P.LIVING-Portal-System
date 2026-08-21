@@ -14,6 +14,7 @@ export type Permission =
   | "price.view" | "price.edit"
   | "discount.view" | "discount.edit"
   | "order.create" | "order.editDraft" | "order.confirm" | "order.cancel"
+  | "quotation.view" | "quotation.create" | "quotation.edit" | "quotation.confirm" | "quotation.cancel" | "quotation.print"
   | "invoice.create" | "invoice.cancel" | "invoice.print"
   | "taxInvoice.create" | "taxInvoice.cancel" | "taxInvoice.print"
   | "billingNote.create" | "billingNote.cancel" | "billingNote.print"
@@ -31,6 +32,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "price.view", "price.edit",
     "discount.view", "discount.edit",
     "order.create", "order.editDraft", "order.confirm", "order.cancel",
+    "quotation.view", "quotation.create", "quotation.edit", "quotation.confirm", "quotation.cancel", "quotation.print",
     "invoice.create", "invoice.cancel", "invoice.print",
     "taxInvoice.create", "taxInvoice.cancel", "taxInvoice.print",
     "billingNote.create", "billingNote.cancel", "billingNote.print",
@@ -45,6 +47,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "product.view",
     "productType.view",
     "order.create", "order.editDraft", "order.confirm", "order.cancel", // ข้อ 9 clarification: ยกเลิกเองได้ไม่ต้องขอ
+    "quotation.view", "quotation.create", "quotation.edit", "quotation.confirm", "quotation.cancel", "quotation.print",
     "invoice.create", "invoice.cancel", "invoice.print",
     "taxInvoice.create", "taxInvoice.cancel", "taxInvoice.print",
     "billingNote.create", "billingNote.cancel", "billingNote.print",
