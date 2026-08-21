@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
+import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -346,5 +347,197 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
+  return { success: true };
+}
+
+const editItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.coerce.number().positive(),
+  descriptionOverride: z.string().optional(),
+});
+const editItemsSchema = z.array(editItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการสินค้า");
+
+const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
+  "tax-invoice": "ใบกำกับภาษี",
+  "billing-note": "ใบวางบิล",
+};
+
+// E3 — แก้ไข Order ที่ Confirmed ไปแล้ว (Case A เท่านั้น: ยังไม่มีเอกสารอ้างอิงต่อ)
+// ยกเลิก Invoice เดิมทั้งหมดของ Order นี้ (คงไว้เป็น CANCELLED ห้าม delete/reuse เลข)
+// แล้วแตก Invoice ใหม่ด้วยรายการที่แก้ไข ในทรานแซคชันเดียวกันทั้งหมด (atomic เหมือน
+// confirmOrder) — Order.status คงเป็น CONFIRMED ตลอด ไม่มี Status ใหม่ระหว่างทาง
+// (ตามที่อนุมัติ ไม่เพิ่ม EDITING status)
+export async function editConfirmedOrder(orderId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "order.confirm")) throw new Error("FORBIDDEN");
+  if (!can(user.role, "invoice.cancel")) throw new Error("FORBIDDEN");
+  if (!can(user.role, "invoice.create")) throw new Error("FORBIDDEN");
+
+  const itemsRaw = JSON.parse(String(formData.get("itemsJson") || "[]"));
+  const parsedItems = editItemsSchema.parse(itemsRaw);
+  const acknowledgePrinted = formData.get("acknowledgePrinted") === "1";
+
+  const guard = await fetchOrderEditGuard(orderId);
+  if (guard.kind === "not-applicable") {
+    return { success: false, error: "Order นี้ไม่ใช่สถานะที่แก้ไขได้ (ต้องเป็นสถานะยืนยันแล้วเท่านั้น)" };
+  }
+  if (guard.kind === "no-active-invoices") {
+    return {
+      success: false,
+      error:
+        "Order นี้ไม่มี Invoice ที่ Active เหลืออยู่เลย (สถานะผิดปกติ) ระบบไม่สร้าง Invoice ใหม่ให้เองโดยเดา กรุณาติดต่อผู้ดูแลระบบ/เจ้าของระบบ",
+    };
+  }
+  if (guard.kind === "locked") {
+    const reasonText = guard.reasons.map((r) => LOCKED_REASON_LABEL[r]).join("และ");
+    return {
+      success: false,
+      error: `ไม่สามารถแก้ไข Order นี้ได้ เนื่องจากมี${reasonText}อ้างอิงอยู่แล้ว — กรุณาใช้ "คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่" แทน`,
+    };
+  }
+  if (guard.requiresPrintedAck && !acknowledgePrinted) {
+    return {
+      success: false,
+      error: "กรุณายืนยันว่ารับทราบว่าเอกสารที่เคยพิมพ์แล้วจะถูกยกเลิก ก่อนดำเนินการแก้ไขต่อ",
+    };
+  }
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { customer: true, branch: true } });
+  const period = currentPeriod(order.orderDate);
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Race-condition re-check สดๆ ภายใน transaction (เหมือน confirmOrder)
+      const freshGuard = await fetchOrderEditGuard(orderId, tx);
+      if (freshGuard.kind !== "editable") {
+        throw new Error("สถานะ Order เปลี่ยนไประหว่างดำเนินการ (อาจถูกแก้ไข/อ้างอิงโดยผู้อื่นพร้อมกัน) กรุณาลองใหม่");
+      }
+
+      const freshOrder = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
+      const activeInvoices = freshOrder.invoices.filter((i) => i.status !== "CANCELLED");
+
+      for (const inv of activeInvoices) {
+        await tx.invoice.update({ where: { id: inv.id }, data: { status: "CANCELLED" } });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CANCEL",
+            module: "Invoice",
+            recordId: inv.id,
+            oldValue: { status: inv.status },
+            newValue: { status: "CANCELLED", reason: "แก้ไข Order ต้นทาง (E3 Edit Confirmed Order)" },
+          },
+        });
+      }
+
+      const oldItems = await tx.orderItem.findMany({ where: { orderId } });
+      await tx.orderItem.deleteMany({ where: { orderId } });
+      await tx.orderItem.createMany({
+        data: parsedItems.map((i) => ({
+          orderId,
+          productId: i.productId,
+          quantity: i.quantity,
+          descriptionOverride: i.descriptionOverride,
+        })),
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "Order",
+          recordId: orderId,
+          oldValue: { items: oldItems.map((i) => ({ productId: i.productId, quantity: i.quantity.toString() })) },
+          newValue: { items: parsedItems },
+        },
+      });
+
+      // อ่าน Preview จาก tx (ไม่ใช่ db เฉยๆ) เพราะต้องเห็น OrderItem ที่เพิ่ง insert
+      // ข้างบนซึ่งยังไม่ commit — ราคาคิดตาม order.orderDate เดิมอัตโนมัติ (ไม่ใช่วันนี้)
+      const preview = await computeOrderPreview(orderId, tx);
+
+      for (const group of preview.groups) {
+        const docType = `INV-${group.productTypeCode}`;
+        const seq = await getNextSeq(docType, period, tx);
+        const invoiceNumber = formatDocNumber(docType, period, seq, 4);
+
+        const invoice = await tx.invoice.create({
+          data: {
+            invoiceNumber,
+            parentOrderId: order.id,
+            invoiceDate: order.orderDate,
+            customerId: order.customerId,
+            branchId: order.branchId,
+            productTypeCode: group.productTypeCode,
+            customerNameSnapshot: order.customer.companyName,
+            taxIdSnapshot: order.customer.taxId,
+            branchNameSnapshot: order.branch.name,
+            addressSnapshot: order.branch.address,
+            placeToDelivery: order.placeToDelivery,
+            grossAmount: group.grossAmount,
+            discountPct: group.discountPct,
+            discountAmount: group.discountAmount,
+            netBeforeVat: group.netAmount,
+            vatPct: new Decimal(0),
+            vatAmount: new Decimal(0),
+            grandTotal: group.netAmount,
+            status: "CONFIRMED",
+            createdById: user.id,
+            items: {
+              create: (() => {
+                const grossAmounts = group.items.map((item) => item.grossAmount);
+                const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
+
+                return group.items.map((item, idx) => {
+                  const lineDiscount = allocatedDiscounts[idx];
+                  const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
+                  return {
+                    productId: item.productId,
+                    skuSnapshot: item.sku,
+                    productNameSnapshot: item.productName,
+                    productTypeSnapshot: item.productTypeName,
+                    sizeSnapshot: item.size,
+                    quantity: item.quantity,
+                    unitSnapshot: item.unit,
+                    unitPriceSnapshot: item.unitPrice,
+                    grossAmount: item.grossAmount,
+                    discountAmount: lineDiscount,
+                    netAmount: lineNet,
+                    vatAmount: new Decimal(0),
+                    totalAmount: lineNet,
+                  };
+                });
+              })(),
+            },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CREATE",
+            module: "Invoice",
+            recordId: invoice.id,
+            newValue: {
+              invoiceNumber,
+              parentOrderId: order.id,
+              productTypeCode: group.productTypeCode,
+              note: "สร้างจากการแก้ไข Order ที่ Confirmed แล้ว (E3)",
+            },
+          },
+        });
+      }
+    });
+  } catch (err) {
+    logError("edit-confirmed-order", err, { orderId });
+    return {
+      success: false,
+      error:
+        "แก้ไข Order ไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น (ระบบยกเลิกทุกอย่างที่ทำไปแล้วอัตโนมัติ) กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ",
+    };
+  }
+
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath("/orders");
+  revalidatePath("/invoices");
   return { success: true };
 }

@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, roundMoney } from "@/lib/pricing";
 
@@ -44,9 +45,17 @@ export type OrderPreview = {
   grandNet: Decimal;
 };
 
-/** ดึงรายการสินค้าในออเดอร์พร้อมราคา ณ ตอนนี้ (เรียก Pricing Engine ทีละรายการ ตาม Order Date) */
-export async function buildPreviewLineItems(orderId: string): Promise<PreviewLineItem[]> {
-  const order = await db.order.findUniqueOrThrow({
+/**
+ * ดึงรายการสินค้าในออเดอร์พร้อมราคา ณ ตอนนี้ (เรียก Pricing Engine ทีละรายการ ตาม Order Date)
+ * รับ `client` เป็น Prisma Transaction Client ได้ (เหมือน getNextSeq) — จำเป็นสำหรับ
+ * E3 Edit Confirmed Order ที่ต้อง insert OrderItem ใหม่แล้วอ่าน preview จากของที่เพิ่ง
+ * insert ภายใน transaction เดียวกัน (อ่านผ่าน `db` เฉยๆ จะไม่เห็นข้อมูลที่ยังไม่ commit)
+ */
+export async function buildPreviewLineItems(
+  orderId: string,
+  client: Prisma.TransactionClient | typeof db = db
+): Promise<PreviewLineItem[]> {
+  const order = await client.order.findUniqueOrThrow({
     where: { id: orderId },
     include: { items: { include: { product: { include: { productType: true } } } } },
   });
@@ -115,9 +124,12 @@ export function groupByTypeAndApplyDiscount(
 }
 
 /** เรียกรวมทุกอย่าง: ดึงราคา + หา discount ทุก Type ที่เกี่ยวข้อง + จัดกลุ่ม + สรุปยอดรวม */
-export async function computeOrderPreview(orderId: string): Promise<OrderPreview> {
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  const lines = await buildPreviewLineItems(orderId);
+export async function computeOrderPreview(
+  orderId: string,
+  client: Prisma.TransactionClient | typeof db = db
+): Promise<OrderPreview> {
+  const order = await client.order.findUniqueOrThrow({ where: { id: orderId } });
+  const lines = await buildPreviewLineItems(orderId, client);
 
   const typeIds = [...new Set(lines.map((l) => l.productTypeId))];
   const discountByTypeId: Record<string, Decimal> = {};

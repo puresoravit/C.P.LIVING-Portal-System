@@ -1,12 +1,19 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
-import { addOrderItem, removeOrderItem, confirmOrder, cancelOrder, duplicateOrder } from "../actions";
+import { addOrderItem, removeOrderItem, confirmOrder, cancelOrder, duplicateOrder, editConfirmedOrder } from "../actions";
 import { computeOrderPreview } from "@/lib/order-preview";
+import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
+import { OrderEditModal } from "@/components/order-edit-modal";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+
+const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
+  "tax-invoice": "ใบกำกับภาษี",
+  "billing-note": "ใบวางบิล",
+};
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -41,6 +48,21 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const addItemAction = addOrderItem.bind(null, order.id);
   const confirmAction = confirmOrder.bind(null, order.id);
   const cancelAction = cancelOrder.bind(null, order.id);
+  const editAction = editConfirmedOrder.bind(null, order.id);
+
+  // E3 — Edit Confirmed Order: เช็คว่าแก้ไขได้หรือไม่เฉพาะตอน Order Confirmed แล้วเท่านั้น
+  const editGuard = order.status === "CONFIRMED" ? await fetchOrderEditGuard(order.id) : null;
+  const activeInvoiceCount = order.invoices.filter((inv) => inv.status !== "CANCELLED").length;
+  const initialEditItems = order.items.map((item) => ({
+    key: item.id,
+    productId: item.productId,
+    sku: item.product.sku,
+    name: item.descriptionOverride || item.product.name,
+    unit: item.product.unit,
+    productTypeName: item.product.productType.name,
+    quantity: Number(item.quantity),
+    descriptionOverride: item.descriptionOverride ?? "",
+  }));
 
   return (
     <div className="max-w-4xl">
@@ -178,7 +200,28 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             successMessage="ยกเลิกออเดอร์สำเร็จ"
           />
         )}
+        {editGuard?.kind === "editable" && (
+          <OrderEditModal
+            orderNumber={order.orderNumber}
+            initialItems={initialEditItems}
+            requiresPrintedAck={editGuard.requiresPrintedAck}
+            activeInvoiceCount={activeInvoiceCount}
+            action={editAction}
+          />
+        )}
       </div>
+
+      {editGuard?.kind === "locked" && (
+        <p className="text-xs text-gray-500 mt-2">
+          Order นี้แก้ไขไม่ได้แล้ว เนื่องจากมี{editGuard.reasons.map((r) => LOCKED_REASON_LABEL[r]).join("และ")}
+          อ้างอิงอยู่ — ใช้ &quot;คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่&quot; ด้านล่างแทน
+        </p>
+      )}
+      {editGuard?.kind === "no-active-invoices" && (
+        <p className="text-xs text-red-600 mt-2">
+          Order นี้ไม่มี Invoice ที่ Active เหลืออยู่เลย (สถานะผิดปกติ) — กรุณาติดต่อผู้ดูแลระบบ/เจ้าของระบบ
+        </p>
+      )}
 
       {order.invoices.length > 0 && (
         <div className="bg-white border rounded-lg p-4 mt-4">
