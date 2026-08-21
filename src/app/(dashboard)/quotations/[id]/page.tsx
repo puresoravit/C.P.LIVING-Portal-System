@@ -18,6 +18,7 @@ import { CancelButton } from "@/components/cancel-button";
 import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { SelectField } from "@/components/form/fields";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -83,8 +84,9 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
       </a>
 
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-lg font-semibold font-mono">
+        <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">
           {quotation.quotationNumber}
+          <CopyDocumentNumber value={quotation.quotationNumber} />
           {quotation.revisionNo > 0 && <span className="text-sm text-gray-400 ml-2">Rev.{quotation.revisionNo}</span>}
         </h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>

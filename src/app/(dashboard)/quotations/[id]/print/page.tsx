@@ -9,6 +9,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 
@@ -38,7 +39,15 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
           { label: "ที่อยู่", value: quotation.addressSnapshot ?? "-" },
         ]}
         right={[
-          { label: "เลขที่", value: quotation.quotationNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {quotation.quotationNumber}
+                <CopyDocumentNumber value={quotation.quotationNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: quotation.quotationDate.toLocaleDateString("th-TH") },
           { label: "รหัสลูกค้า", value: quotation.customer.code },
           ...(quotation.customerTaxIdSnapshot ? [{ label: "เลขผู้เสียภาษี", value: quotation.customerTaxIdSnapshot }] : []),

@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -39,7 +40,10 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
       </a>
 
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-lg font-semibold font-mono">{invoice.invoiceNumber}</h1>
+        <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">
+          {invoice.invoiceNumber}
+          <CopyDocumentNumber value={invoice.invoiceNumber} />
+        </h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">

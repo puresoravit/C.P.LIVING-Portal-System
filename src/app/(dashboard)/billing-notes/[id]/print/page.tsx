@@ -9,6 +9,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
@@ -49,7 +50,15 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
           { label: "เลขประจำตัวผู้เสียภาษี", value: note.taxIdSnapshot ?? "-" },
         ]}
         right={[
-          { label: "เลขที่", value: note.billingNoteNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {note.billingNoteNumber}
+                <CopyDocumentNumber value={note.billingNoteNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: note.billingNoteDate.toLocaleDateString("th-TH") },
         ]}
       />

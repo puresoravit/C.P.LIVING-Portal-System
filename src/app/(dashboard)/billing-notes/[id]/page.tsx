@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -45,7 +46,10 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
       </a>
 
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-lg font-semibold font-mono">{note.billingNoteNumber}</h1>
+        <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">
+          {note.billingNoteNumber}
+          <CopyDocumentNumber value={note.billingNoteNumber} />
+        </h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">

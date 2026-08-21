@@ -8,6 +8,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 
 // Repair/Return Note ไม่มีราคา/VAT เลย (ไม่ใช่เอกสารขาย) — ไม่มี Size column เพราะ
@@ -36,7 +37,15 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
           { label: "ที่อยู่", value: note.addressSnapshot ?? "-" },
         ]}
         right={[
-          { label: "เลขที่", value: note.noteNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {note.noteNumber}
+                <CopyDocumentNumber value={note.noteNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: note.noteDate.toLocaleDateString("th-TH") },
           { label: "รหัสลูกค้า", value: note.customer.code },
           ...(note.reference ? [{ label: "อ้างถึง", value: note.reference }] : []),

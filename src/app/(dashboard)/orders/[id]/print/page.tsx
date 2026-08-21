@@ -9,6 +9,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -44,7 +45,15 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
           { label: "สาขา", value: order.branch.name },
         ]}
         right={[
-          { label: "เลขที่", value: order.orderNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {order.orderNumber}
+                <CopyDocumentNumber value={order.orderNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: order.orderDate.toLocaleDateString("th-TH") },
           ...(order.reference ? [{ label: "อ้างอิง", value: order.reference }] : []),
         ]}

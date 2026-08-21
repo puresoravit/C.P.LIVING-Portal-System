@@ -9,6 +9,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintAmountWordsRemark } from "@/components/print/print-amount-words-remark";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 
@@ -41,7 +42,15 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
           { label: "ที่อยู่", value: taxInvoice.addressSnapshot ?? "-" },
         ]}
         right={[
-          { label: "เลขที่", value: taxInvoice.taxInvoiceNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {taxInvoice.taxInvoiceNumber}
+                <CopyDocumentNumber value={taxInvoice.taxInvoiceNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH") },
           { label: "รหัสลูกค้า", value: taxInvoice.customer.code },
         ]}

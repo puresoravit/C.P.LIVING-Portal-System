@@ -12,6 +12,7 @@ import { CancelButton } from "@/components/cancel-button";
 import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -74,7 +75,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       </a>
 
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-lg font-semibold font-mono">{order.orderNumber}</h1>
+        <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">
+          {order.orderNumber}
+          <CopyDocumentNumber value={order.orderNumber} />
+        </h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">

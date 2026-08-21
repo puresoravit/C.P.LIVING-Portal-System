@@ -10,6 +10,7 @@ import { PrintPage } from "@/components/print/print-page";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
+import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintAmountWordsRemark } from "@/components/print/print-amount-words-remark";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 
@@ -44,7 +45,15 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
           { label: "ที่อยู่", value: invoice.addressSnapshot ?? "-" },
         ]}
         right={[
-          { label: "เลขที่", value: invoice.invoiceNumber },
+          {
+            label: "เลขที่",
+            value: (
+              <span className="inline-flex items-center gap-1">
+                {invoice.invoiceNumber}
+                <CopyDocumentNumber value={invoice.invoiceNumber} />
+              </span>
+            ),
+          },
           { label: "วันที่", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
           { label: "รหัสลูกค้า", value: invoice.customer.code },
         ]}
