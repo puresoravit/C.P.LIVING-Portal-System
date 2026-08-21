@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "ระบบออกบิล",
+  title: "C.P. LIVING Billing",
   description: "ระบบจัดการลูกค้า สินค้า ราคา ส่วนลด และออกบิล",
 };
 

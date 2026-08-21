@@ -1,32 +1,12 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { SignOutButton } from "@/components/sign-out-button";
 import { can, type Permission } from "@/lib/permissions";
+import { NAV_TREE, filterNav } from "@/lib/nav-tree";
+import { SidebarNav } from "@/components/sidebar-nav";
+import { SidebarShell } from "@/components/sidebar-shell";
 
-const NAV: { href: string; label: string; perm: Permission | null }[] = [
-  { href: "/", label: "แดชบอร์ด", perm: "report.view" },
-  { href: "/orders", label: "ออเดอร์ขาย", perm: "order.create" },
-  { href: "/invoices", label: "ใบส่งของ/บิล", perm: "invoice.create" },
-  { href: "/tax-invoices", label: "ใบกำกับภาษี", perm: "taxInvoice.create" },
-  { href: "/billing-notes", label: "ใบวางบิล", perm: "billingNote.create" },
-  { href: "/repair-notes", label: "ส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create" },
-  { href: "/reports", label: "รายงานยอดขาย", perm: "report.view" },
-  { href: "/customers", label: "ลูกค้า", perm: "customer.view" },
-  { href: "/branches", label: "สาขา", perm: "branch.view" },
-  { href: "/product-types", label: "ประเภทสินค้า", perm: "productType.view" },
-  { href: "/products", label: "สินค้า", perm: "product.view" },
-  { href: "/product-models", label: "รุ่นสินค้า", perm: "product.view" },
-  { href: "/prices", label: "ราคา", perm: "price.view" },
-  { href: "/discounts", label: "ส่วนลด", perm: "discount.view" },
-  { href: "/import", label: "นำเข้าข้อมูล (Excel)", perm: "user.manage" },
-  { href: "/audit-log", label: "Audit Log", perm: "auditLog.view" },
-  { href: "/settings/vat", label: "ตั้งค่า VAT", perm: "user.manage" },
-  { href: "/settings/company", label: "ข้อมูลบริษัท", perm: "user.manage" },
-  { href: "/settings/permissions", label: "สิทธิ์การใช้งาน", perm: "user.manage" },
-  { href: "/settings/backup", label: "สำรอง/กู้คืนข้อมูล", perm: "user.manage" },
-  { href: "/settings/logs", label: "System Logs", perm: "user.manage" },
-];
+const BRAND = "C.P. LIVING Billing";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -38,33 +18,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     BILLING_STAFF: "พนักงานออกบิล",
     VIEWER: "ผู้ดูรายงาน",
   };
-  const visibleNav = NAV.filter((item) => !item.perm || can(role as any, item.perm));
+  // Phase Nav-1 — กรอง Nav Tree ด้วย can() ตัวเดียวกับทุกหน้าที่ใช้อยู่แล้ว
+  // (ไม่มี Permission Logic ใหม่ ไม่ hardcode visibility ข้าม Permission Matrix เดิม)
+  const visibleTree = filterNav(NAV_TREE, (perm: Permission) => can(role as any, perm));
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       {/* ข้อ 7/10 (Print System): Sidebar ต้องไม่ติดไปกับ Print Preview/เอกสารที่พิมพ์ */}
-      <aside className="w-56 bg-white border-r flex flex-col print:hidden">
-        <div className="px-4 py-4 border-b">
-          <div className="font-semibold">ระบบออกบิล</div>
-          <div className="text-xs text-gray-500 mt-0.5">
+      <SidebarShell
+        brand={BRAND}
+        userInfo={
+          <>
             {session.user?.name} · {roleLabel[role] ?? role}
-          </div>
-        </div>
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {visibleNav.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-100"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="px-2 py-3 border-t">
-          <SignOutButton />
-        </div>
-      </aside>
+          </>
+        }
+      >
+        <SidebarNav tree={visibleTree} />
+      </SidebarShell>
       <main className="flex-1 p-6 print:p-0">{children}</main>
     </div>
   );

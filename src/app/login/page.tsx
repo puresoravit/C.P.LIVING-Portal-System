@@ -38,7 +38,7 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="bg-white shadow-sm border rounded-lg p-8 w-full max-w-sm"
       >
-        <h1 className="text-xl font-semibold mb-1">ระบบออกบิล</h1>
+        <h1 className="text-xl font-semibold mb-1">C.P. LIVING Billing</h1>
         <p className="text-sm text-gray-500 mb-6">เข้าสู่ระบบเพื่อใช้งาน</p>
 
         {error && (
