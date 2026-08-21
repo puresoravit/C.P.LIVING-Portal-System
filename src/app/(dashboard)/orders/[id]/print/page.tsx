@@ -88,13 +88,13 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
               <div key={g.productTypeId} className="flex justify-between bg-gray-50 rounded px-3 py-1.5">
                 <span>{g.productTypeName}</span>
                 <span>
-                  Gross {money(g.grossAmount)} · ส่วนลด {money(g.discountAmount)} · Net {money(g.netAmount)}
+                  จำนวนเงิน {money(g.grossAmount)} · ส่วนลด {money(g.discountAmount)} · Net {money(g.netAmount)}
                 </span>
               </div>
             ))}
             <div className="flex justify-between font-medium pt-1.5 border-t">
               <span>รวมสุทธิ (จะแยกเป็น {preview.groups.length} บิลตามประเภทสินค้า)</span>
-              <span>{money(preview.grandNet)}</span>
+              <span>{money(preview.grandNet)} บาท</span>
             </div>
           </div>
         )}

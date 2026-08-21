@@ -5,6 +5,7 @@ import { toThaiBahtText } from "@/lib/thai-baht-text";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { CancelButton } from "@/components/cancel-button";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -119,11 +120,12 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
           พิมพ์เอกสาร
         </a>
         {taxInvoice.status !== "CANCELLED" && (
-          <form action={cancelAction}>
-            <button className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2">
-              ยกเลิกใบกำกับภาษี
-            </button>
-          </form>
+          <CancelButton
+            action={cancelAction}
+            confirmMessage="ยืนยันยกเลิกใบกำกับภาษีนี้?"
+            label="ยกเลิกใบกำกับภาษี"
+            successMessage="ยกเลิกใบกำกับภาษีสำเร็จ"
+          />
         )}
       </div>
     </div>

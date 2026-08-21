@@ -37,8 +37,8 @@ export function CustomerHoverCard({
           <div className="font-medium mb-0.5">{label}</div>
           <div className="text-gray-400 mb-2">{dateRangeLabel}</div>
           <div className="flex justify-between py-0.5">
-            <span className="text-gray-500">Gross Sales</span>
-            <span>{money(metrics.gross)}</span>
+            <span className="text-gray-500">จำนวนเงิน / Amount</span>
+            <span>{money(metrics.gross)} บาท</span>
           </div>
           <div className="flex justify-between py-0.5">
             <span className="text-gray-500">Discount</span>

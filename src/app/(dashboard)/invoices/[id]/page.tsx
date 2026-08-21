@@ -5,6 +5,7 @@ import { createTaxInvoiceFromInvoice } from "../../tax-invoices/actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { CancelButton } from "@/components/cancel-button";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -82,7 +83,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               <th className="px-4 py-2 font-medium">รายการ</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium text-right">ราคา/หน่วย</th>
-              <th className="px-4 py-2 font-medium text-right">Gross</th>
+              <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
               <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">สุทธิ</th>
             </tr>
@@ -107,7 +108,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm ml-auto max-w-xs space-y-1">
         <div className="flex justify-between">
-          <span className="text-gray-500">รวม (Gross)</span>
+          <span className="text-gray-500">รวม (จำนวนเงิน)</span>
           <span>{money(invoice.grossAmount)}</span>
         </div>
         <div className="flex justify-between">
@@ -122,7 +123,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         )}
         <div className="flex justify-between font-medium border-t pt-1">
           <span>สุทธิ</span>
-          <span>{money(invoice.grandTotal)}</span>
+          <span>{money(invoice.grandTotal)} บาท</span>
         </div>
       </div>
 
@@ -139,11 +140,12 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               สร้างใบกำกับภาษีจากใบนี้ (VAT 100%)
             </button>
           </form>
-          <form action={cancelAction}>
-            <button className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2">
-              ยกเลิก Invoice ใบนี้
-            </button>
-          </form>
+          <CancelButton
+            action={cancelAction}
+            confirmMessage="ยืนยันยกเลิก Invoice ใบนี้?"
+            label="ยกเลิก Invoice ใบนี้"
+            successMessage="ยกเลิก Invoice สำเร็จ"
+          />
         </div>
       )}
       {invoice.status === "CANCELLED" && (

@@ -74,12 +74,12 @@ export default async function HomePage(
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-white border rounded-lg p-4">
-          <div className="text-xs text-gray-500 mb-1">ยอดขาย (Gross)</div>
-          <div className="text-2xl font-medium">{money(summary.gross)}</div>
+          <div className="text-xs text-gray-500 mb-1">ยอดขาย (จำนวนเงิน)</div>
+          <div className="text-2xl font-medium">{money(summary.gross)} บาท</div>
         </div>
         <div className="bg-blue-50 rounded-lg p-4">
           <div className="text-xs text-gray-500 mb-1">ยอดสุทธิ (Net)</div>
-          <div className="text-2xl font-medium text-blue-700">{money(summary.net)}</div>
+          <div className="text-2xl font-medium text-blue-700">{money(summary.net)} บาท</div>
         </div>
         <div className="bg-white border rounded-lg p-4">
           <div className="text-xs text-gray-500 mb-1">จำนวนสินค้าที่ขาย</div>

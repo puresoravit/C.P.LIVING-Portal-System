@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -308,17 +309,25 @@ export async function confirmOrder(orderId: string) {
 }
 
 // Clarification #11: ไม่ Cascade Cancel Invoice อัตโนมัติ — Block ถ้ามี Invoice ที่ยังไม่ Cancel
-export async function cancelOrder(orderId: string) {
+export async function cancelOrder(orderId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.cancel")) throw new Error("FORBIDDEN");
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
 
+  // Phase E1 — เพิ่ม guard นี้ให้ตรงกับ cancel action อื่นอีก 4 ประเภท (Invoice/
+  // TaxInvoice/BillingNote/RepairReturnNote ทุกตัวเช็ค "ถูกยกเลิกไปแล้ว" อยู่แล้ว
+  // มีแค่ cancelOrder ที่ไม่มี) กัน Audit Log ซ้ำซ้อนจากการกดยกเลิกซ้ำ ไม่ได้เปลี่ยน
+  // ผลลัพธ์ปลายทาง (ยังเป็น CANCELLED เหมือนเดิม) และ return แทน throw สำหรับ
+  // Validation Error ที่คาดไว้แล้วทั้งคู่ (ดู src/lib/action-result.ts)
+  if (order.status === "CANCELLED") return { success: false, error: "Order นี้ถูกยกเลิกไปแล้ว" };
+
   const activeInvoices = order.invoices.filter((inv) => inv.status !== "CANCELLED");
   if (activeInvoices.length > 0) {
-    throw new Error(
-      `ยกเลิก Order นี้ไม่ได้ เพราะมี Invoice ที่ยังไม่ถูกยกเลิกอยู่ ${activeInvoices.length} ใบ — กรุณายกเลิก Invoice ที่เกี่ยวข้องให้ครบก่อน แล้วค่อยยกเลิก Order`
-    );
+    return {
+      success: false,
+      error: `ยกเลิก Order นี้ไม่ได้ เพราะมี Invoice ที่ยังไม่ถูกยกเลิกอยู่ ${activeInvoices.length} ใบ — กรุณายกเลิก Invoice ที่เกี่ยวข้องให้ครบก่อน แล้วค่อยยกเลิก Order`,
+    };
   }
 
   const beforeStatus = order.status;
@@ -337,4 +346,5 @@ export async function cancelOrder(orderId: string) {
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
+  return { success: true };
 }

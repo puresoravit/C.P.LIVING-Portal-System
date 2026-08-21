@@ -6,6 +6,7 @@ import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { CancelButton } from "@/components/cancel-button";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -126,7 +127,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 </ul>
                 <div className="grid grid-cols-3 gap-2 text-sm">
                   <div>
-                    Gross: <b>{money(g.grossAmount)}</b>
+                    จำนวนเงิน: <b>{money(g.grossAmount)}</b>
                   </div>
                   <div>
                     ส่วนลด {Number(g.discountPct)}%: <b>{money(g.discountAmount)}</b>
@@ -140,13 +141,13 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </div>
           <div className="border-t mt-3 pt-3 grid grid-cols-3 gap-2 text-sm font-medium">
             <div>
-              รวม Gross: <b>{money(preview.grandGross)}</b>
+              รวมจำนวนเงิน: <b>{money(preview.grandGross)} บาท</b>
             </div>
             <div>
-              รวมส่วนลด: <b>{money(preview.grandDiscount)}</b>
+              รวมส่วนลด: <b>{money(preview.grandDiscount)} บาท</b>
             </div>
             <div>
-              รวม Net: <b>{money(preview.grandNet)}</b>
+              รวม Net: <b>{money(preview.grandNet)} บาท</b>
             </div>
           </div>
         </div>
@@ -170,11 +171,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </form>
         )}
         {order.status !== "CANCELLED" && (
-          <form action={cancelAction}>
-            <button className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2">
-              ยกเลิกออเดอร์
-            </button>
-          </form>
+          <CancelButton
+            action={cancelAction}
+            confirmMessage="ยืนยันยกเลิกออเดอร์นี้?"
+            label="ยกเลิกออเดอร์"
+            successMessage="ยกเลิกออเดอร์สำเร็จ"
+          />
         )}
       </div>
 

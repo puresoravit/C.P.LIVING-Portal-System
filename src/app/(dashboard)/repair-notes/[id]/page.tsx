@@ -4,6 +4,7 @@ import { cancelRepairReturnNote } from "../actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { CancelButton } from "@/components/cancel-button";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -67,9 +68,12 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
           พิมพ์เอกสาร
         </a>
         {note.status !== "CANCELLED" && (
-          <form action={cancelAction}>
-            <button className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2">ยกเลิก</button>
-          </form>
+          <CancelButton
+            action={cancelAction}
+            confirmMessage="ยืนยันยกเลิกเอกสารนี้?"
+            label="ยกเลิก"
+            successMessage="ยกเลิกเอกสารสำเร็จ"
+          />
         )}
       </div>
     </div>

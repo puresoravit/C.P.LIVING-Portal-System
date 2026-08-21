@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Decimal } from "@prisma/client/runtime/library";
 import { z } from "zod";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -187,12 +188,14 @@ export async function createManualTaxInvoice(formData: FormData) {
   redirect(`/tax-invoices/${taxInvoice.id}`);
 }
 
-export async function cancelTaxInvoice(taxInvoiceId: string) {
+export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "taxInvoice.cancel")) throw new Error("FORBIDDEN");
 
   const taxInvoice = await db.taxInvoice.findUniqueOrThrow({ where: { id: taxInvoiceId } });
-  if (taxInvoice.status === "CANCELLED") throw new Error("ใบกำกับภาษีนี้ถูกยกเลิกไปแล้ว");
+  // Phase E1 — return แทน throw สำหรับ Validation Error ที่คาดไว้แล้ว (ดู
+  // src/lib/action-result.ts สำหรับ root cause)
+  if (taxInvoice.status === "CANCELLED") return { success: false, error: "ใบกำกับภาษีนี้ถูกยกเลิกไปแล้ว" };
 
   const beforeStatus = taxInvoice.status;
   await db.taxInvoice.update({ where: { id: taxInvoiceId }, data: { status: "CANCELLED" } });
@@ -210,4 +213,5 @@ export async function cancelTaxInvoice(taxInvoiceId: string) {
 
   revalidatePath(`/tax-invoices/${taxInvoiceId}`);
   revalidatePath("/tax-invoices");
+  return { success: true };
 }

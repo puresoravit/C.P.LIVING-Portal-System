@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -17,7 +18,7 @@ async function requireUser() {
 
 // ข้อ 28-29: Cancel เปลี่ยนแค่ status ห้าม Hard Delete — ประวัติต้องค้นหา/ตรวจสอบได้เสมอ
 // Clarification: Billing Staff ยกเลิกเองได้เลย ไม่ต้องขอ Approve จาก Supervisor
-export async function cancelInvoice(invoiceId: string) {
+export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "invoice.cancel")) throw new Error("FORBIDDEN");
 
@@ -25,16 +26,23 @@ export async function cancelInvoice(invoiceId: string) {
     where: { id: invoiceId },
     include: { billingNote: true },
   });
-  if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกไปแล้ว");
+  // Phase E1 — Validation Error ที่คาดไว้แล้ว (ผู้ใช้ควรเห็นเหตุผลจริง) ให้ return
+  // แทนการ throw เพราะ Next.js production build redact ข้อความของ Error ที่ throw
+  // ออกจาก Server Action เหลือแค่ข้อความทั่วไป ทำให้ผู้ใช้เห็นแต่ "เกิดข้อผิดพลาด
+  // บางอย่าง" ไม่รู้สาเหตุจริง (root cause ของปัญหา Cancel ที่ "บางครั้ง Error" —
+  // ดู src/lib/action-result.ts) — Business Logic/เงื่อนไขการ block เดิมทุกอย่าง
+  // ไม่เปลี่ยนแปลง เปลี่ยนแค่วิธีส่งข้อความกลับ
+  if (invoice.status === "CANCELLED") return { success: false, error: "Invoice นี้ถูกยกเลิกไปแล้ว" };
 
   // กันไม่ให้ Invoice ที่อยู่ในใบวางบิลแล้วถูกยกเลิกลอยๆ — ต้องยกเลิกใบวางบิล
   // ก่อน (ซึ่งจะปลด billingNoteId ของ Invoice ทุกใบในนั้นให้เองอัตโนมัติ)
   // ไม่ Cascade อัตโนมัติจากตรงนี้ — ตรงกับหลักการเดียวกับ cancelOrder ที่
   // block เมื่อมี Invoice ที่ยังไม่ Cancel แทนการ cascade เอง
   if (invoice.billingNoteId) {
-    throw new Error(
-      `Invoice นี้อยู่ในใบวางบิล ${invoice.billingNote?.billingNoteNumber ?? ""} แล้ว ต้องยกเลิกใบวางบิลนั้นก่อนถึงจะยกเลิก Invoice ใบนี้ได้`
-    );
+    return {
+      success: false,
+      error: `Invoice นี้อยู่ในใบวางบิล ${invoice.billingNote?.billingNoteNumber ?? ""} แล้ว ต้องยกเลิกใบวางบิลนั้นก่อนถึงจะยกเลิก Invoice ใบนี้ได้`,
+    };
   }
 
   const beforeStatus = invoice.status;
@@ -54,6 +62,7 @@ export async function cancelInvoice(invoiceId: string) {
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
   revalidatePath(`/orders/${invoice.parentOrderId}`);
+  return { success: true };
 }
 
 // ข้อ 28: PRINTED เป็นสถานะที่บอกว่าเคยพิมพ์แล้ว — เตรียมไว้ก่อนสำหรับ Phase 5

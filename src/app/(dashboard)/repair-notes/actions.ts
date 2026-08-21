@@ -8,6 +8,7 @@ import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -91,12 +92,14 @@ export async function createRepairReturnNote(formData: FormData) {
   redirect(`/repair-notes/${note.id}`);
 }
 
-export async function cancelRepairReturnNote(id: string) {
+export async function cancelRepairReturnNote(id: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "repairNote.cancel")) throw new Error("FORBIDDEN");
 
   const note = await db.repairReturnNote.findUniqueOrThrow({ where: { id } });
-  if (note.status === "CANCELLED") throw new Error("เอกสารนี้ถูกยกเลิกไปแล้ว");
+  // Phase E1 — return แทน throw สำหรับ Validation Error ที่คาดไว้แล้ว (ดู
+  // src/lib/action-result.ts สำหรับ root cause)
+  if (note.status === "CANCELLED") return { success: false, error: "เอกสารนี้ถูกยกเลิกไปแล้ว" };
 
   const before = note.status;
   await db.repairReturnNote.update({ where: { id }, data: { status: "CANCELLED" } });
@@ -114,4 +117,5 @@ export async function cancelRepairReturnNote(id: string) {
 
   revalidatePath(`/repair-notes/${id}`);
   revalidatePath("/repair-notes");
+  return { success: true };
 }

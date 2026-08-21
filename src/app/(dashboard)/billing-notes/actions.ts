@@ -9,6 +9,7 @@ import { roundMoney } from "@/lib/pricing";
 import { Decimal } from "@prisma/client/runtime/library";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -87,12 +88,14 @@ export async function createBillingNoteAction(formData: FormData) {
 }
 
 // ยกเลิกใบวางบิล — ปลด Invoice กลับไปเป็น "ยังไม่ถูกวางบิล" เพื่อวางบิลใหม่ได้
-export async function cancelBillingNote(id: string) {
+export async function cancelBillingNote(id: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "billingNote.cancel")) throw new Error("FORBIDDEN");
 
   const billingNote = await db.billingNote.findUniqueOrThrow({ where: { id }, include: { invoices: true } });
-  if (billingNote.status === "CANCELLED") throw new Error("ใบวางบิลนี้ถูกยกเลิกไปแล้ว");
+  // Phase E1 — return แทน throw สำหรับ Validation Error ที่คาดไว้แล้ว (ดู
+  // src/lib/action-result.ts สำหรับ root cause)
+  if (billingNote.status === "CANCELLED") return { success: false, error: "ใบวางบิลนี้ถูกยกเลิกไปแล้ว" };
 
   await db.$transaction(async (tx) => {
     await tx.invoice.updateMany({
@@ -115,4 +118,5 @@ export async function cancelBillingNote(id: string) {
   revalidatePath(`/billing-notes/${id}`);
   revalidatePath("/billing-notes");
   revalidatePath("/invoices");
+  return { success: true };
 }

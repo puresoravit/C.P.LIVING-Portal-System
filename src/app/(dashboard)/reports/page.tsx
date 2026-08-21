@@ -113,9 +113,9 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
 
       <div className="grid grid-cols-4 gap-3 mb-4">
         <SummaryCard label="จำนวนที่ขาย" value={summary.quantity.toLocaleString("th-TH")} />
-        <SummaryCard label="ยอดขาย (Gross)" value={money(summary.gross)} />
-        <SummaryCard label="ส่วนลดรวม" value={money(summary.discount)} />
-        <SummaryCard label="ยอดสุทธิ (Net)" value={money(summary.net)} highlight />
+        <SummaryCard label="ยอดขาย (จำนวนเงิน)" value={`${money(summary.gross)} บาท`} />
+        <SummaryCard label="ส่วนลดรวม" value={`${money(summary.discount)} บาท`} />
+        <SummaryCard label="ยอดสุทธิ (Net)" value={`${money(summary.net)} บาท`} highlight />
       </div>
 
       <div className="flex gap-1 mb-3 border-b">
@@ -150,7 +150,7 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
             <tr>
               <th className="px-4 py-2 font-medium">{GROUP_TABS.find((t) => t.key === groupBy)?.label}</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
-              <th className="px-4 py-2 font-medium text-right">Gross</th>
+              <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
               <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">Net</th>
               <th className="px-4 py-2 font-medium text-right">VAT</th>
