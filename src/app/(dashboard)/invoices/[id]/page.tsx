@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { displayProductTypeCode } from "@/lib/order-preview";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -51,7 +52,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         <a href={`/orders/${invoice.order.id}`} className="text-blue-600 hover:underline font-mono">
           {invoice.order.orderNumber}
         </a>{" "}
-        · {invoice.invoiceDate.toLocaleDateString("th-TH")} · ประเภท {invoice.productTypeCode}
+        · {invoice.invoiceDate.toLocaleDateString("th-TH")} · ประเภท {displayProductTypeCode(invoice.productTypeCode)}
       </p>
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">

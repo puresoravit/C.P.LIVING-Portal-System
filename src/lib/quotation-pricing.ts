@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, getEffectiveVatRate, extractVat, roundMoney } from "@/lib/pricing";
+import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 
 export type QuotationVatModeValue = "NONE" | "STANDARD";
 
@@ -102,16 +103,20 @@ export async function computeQuotationCalc(
     });
     // R3 — applyDiscount=false ข้าม getEffectiveDiscountPct ไปเลย (ไม่ query DiscountRule)
     // แล้วบังคับ discountPct=0 ที่ต้นทาง แทนที่จะ Query แล้วค่อย Override ทีหลัง
-    const discountPct = params.applyDiscount
-      ? (
-          await getEffectiveDiscountPct({
-            customerId: params.customerId,
-            branchId: params.branchId,
-            productTypeId: product.productTypeId,
-            orderDate: params.quotationDate,
-          })
-        ).discountPct
-      : new Decimal(0);
+    // R4 — product.productTypeId=null (ไม่ระบุประเภท) ก็ข้ามเช่นกัน เพราะ DiscountRule.
+    // productTypeId ยัง required เสมอ ไม่มีทาง Match ได้จริงอยู่แล้ว (ข้อเท็จจริงเชิง
+    // โครงสร้าง ไม่ใช่ Policy)
+    const discountPct =
+      params.applyDiscount && product.productTypeId
+        ? (
+            await getEffectiveDiscountPct({
+              customerId: params.customerId,
+              branchId: params.branchId,
+              productTypeId: product.productTypeId,
+              orderDate: params.quotationDate,
+            })
+          ).discountPct
+        : new Decimal(0);
     const grossAmount = roundMoney(quantity.mul(price));
     const discountAmount = roundMoney(grossAmount.mul(discountPct).div(100));
     const netAmount = roundMoney(grossAmount.sub(discountAmount));
@@ -122,7 +127,7 @@ export async function computeQuotationCalc(
       descriptionOverride: raw.descriptionOverride ?? null,
       skuSnapshot: product.sku,
       productNameSnapshot: raw.descriptionOverride || product.name,
-      productTypeSnapshot: product.productType.name,
+      productTypeSnapshot: product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
       sizeSnapshot: product.size,
       unitSnapshot: product.unit,
       unitPriceSnapshot: price,

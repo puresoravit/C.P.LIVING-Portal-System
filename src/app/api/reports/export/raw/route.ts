@@ -4,6 +4,7 @@ import { rowsToXlsxBuffer, excelFileResponse } from "@/lib/excel-template";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { displayProductTypeCode } from "@/lib/order-preview";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
     "Customer Code": item.invoice.customer.code,
     "Customer Name": item.invoice.customerNameSnapshot,
     Branch: item.invoice.branchNameSnapshot,
-    "Product Type": item.invoice.productTypeCode,
+    "Product Type": displayProductTypeCode(item.invoice.productTypeCode),
     SKU: item.skuSnapshot,
     "Product Name": item.productNameSnapshot,
     Quantity: Number(item.quantity),

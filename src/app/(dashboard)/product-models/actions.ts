@@ -8,6 +8,8 @@ import { productModelSchema } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
+import { generateNextSku } from "@/lib/sku-sequence";
+import { z } from "zod";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -156,6 +158,84 @@ export async function bulkAssignProductModel(formData: FormData): Promise<Action
     },
   });
 
+  revalidatePath("/products");
+  return { success: true };
+}
+
+const batchSizeItemSchema = z.object({
+  size: z.string(),
+  price: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ"),
+});
+
+// R4 — Size Architecture Path A: "รุ่นสินค้า → เพิ่ม/จัดการ Size" — สร้าง Product
+// Variant หลาย Size พร้อมกันในครั้งเดียว (Owner/Staff มองเป็น "รุ่นเดียว + หลาย Size"
+// ไม่ต้องสร้าง Product ทีละตัวด้วยมือ) — ยังคงเป็น Product จริงด้านหลังทุกประการ
+// (Pricing/Snapshot/Reports ไม่ต้องแก้อะไรเลย) แค่ automate การสร้างให้เร็วขึ้น —
+// ต้องใช้สิทธิ์ product.edit เหมือน Create Product ปกติทุกประการ (Billing Staff ที่ไม่มี
+// สิทธิ์นี้จะสร้าง Variant เองไม่ได้ — ตามที่อนุมัติไว้ชัดเจนว่าห้าม Auto-create จาก
+// Billing Staff ตอนคีย์ Order/Quotation)
+export async function batchCreateProductVariants(modelId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+
+  const model = await db.productModel.findUniqueOrThrow({ where: { id: modelId } });
+
+  const unit = String(formData.get("unit") || "").trim();
+  if (!unit) {
+    return { success: false, error: "กรุณากรอกหน่วยนับ", fieldErrors: { unit: "กรุณากรอกหน่วยนับ" } };
+  }
+
+  let sizesRaw: unknown;
+  try {
+    sizesRaw = JSON.parse(String(formData.get("sizesJson") || "[]"));
+  } catch {
+    return { success: false, error: "ข้อมูลไซส์ไม่ถูกต้อง" };
+  }
+  const parsed = z.array(batchSizeItemSchema).safeParse(sizesRaw);
+  if (!parsed.success || parsed.data.length === 0) {
+    return { success: false, error: "กรุณาเลือกอย่างน้อย 1 ไซส์พร้อมราคา" };
+  }
+
+  // กันสร้างซ้ำกับ Size ที่มีอยู่แล้วของรุ่นนี้ (UI กรองไม่ให้เลือกซ้ำอยู่แล้ว แต่เช็คซ้ำ
+  // ฝั่ง Server เป็น Safety Net เผื่อเปิดหลายแท็บพร้อมกัน)
+  const existing = await db.product.findMany({ where: { modelId }, select: { size: true } });
+  const existingSizes = new Set(existing.map((p) => p.size ?? ""));
+
+  let created = 0;
+  for (const item of parsed.data) {
+    const sizeValue = item.size || null; // "" → null ("ไม่มีขนาด")
+    if (existingSizes.has(sizeValue ?? "")) continue;
+
+    const sku = await generateNextSku();
+    const displayName = sizeValue ? `${model.name} ${sizeValue}` : model.name;
+    const product = await db.product.create({
+      data: {
+        sku,
+        name: displayName,
+        productTypeId: model.productTypeId,
+        modelId,
+        size: sizeValue,
+        unit,
+        standardPrice: item.price,
+      },
+    });
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "CREATE",
+        module: "Product",
+        recordId: product.id,
+        newValue: { sku, name: displayName, size: sizeValue, standardPrice: item.price, modelId, source: "BatchSizeCreate" },
+      },
+    });
+    created++;
+  }
+
+  if (created === 0) {
+    return { success: false, error: "ไม่มีไซส์ใหม่ที่สร้างได้ (ไซส์ที่เลือกไว้ถูกสร้างไปแล้วทั้งหมด)" };
+  }
+
+  revalidatePath(`/product-models/${modelId}`);
   revalidatePath("/products");
   return { success: true };
 }

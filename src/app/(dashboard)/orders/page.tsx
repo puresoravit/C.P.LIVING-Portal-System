@@ -7,6 +7,7 @@ import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
 import { toQueryObject } from "@/lib/search-params";
 import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { sumActiveInvoiceTotal } from "@/lib/order-doc-center";
+import { displayProductTypeCode } from "@/lib/order-preview";
 import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
@@ -186,7 +187,7 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                           {inv.invoiceNumber}
                         </a>
                         <div className="flex items-center justify-between sm:justify-end sm:gap-4 text-xs sm:text-sm">
-                          <span className="text-gray-500">{inv.productTypeCode}</span>
+                          <span className="text-gray-500">{displayProductTypeCode(inv.productTypeCode)}</span>
                           <span className="text-gray-700">{money(inv.grandTotal)} บาท</span>
                           <StatusBadge status={inv.status} config={INVOICE_STATUS_LABEL} />
                         </div>

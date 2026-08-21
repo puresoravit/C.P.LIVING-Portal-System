@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
-import { computeOrderPreview } from "@/lib/order-preview";
+import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -75,7 +75,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
             <tr key={item.id} className="border-b border-dashed">
               <td className="py-1 font-mono">{item.product.sku}</td>
               <td className="py-1">{item.descriptionOverride || item.product.name}</td>
-              <td className="py-1">{item.product.productType.name}</td>
+              <td className="py-1">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
               {/* ดึง Size สดจาก Product Master ได้เลย (ไม่ snapshot) ตามที่อนุมัติใน Phase C
                   — Order เป็นเอกสารภายในพิมพ์วันเดียวกับที่ขาย ต่างจาก Invoice ที่ต้อง
                   คงสภาพย้อนหลัง */}

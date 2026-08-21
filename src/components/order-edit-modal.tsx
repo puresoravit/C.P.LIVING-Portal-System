@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
+import { ProductSearchPicker, type PickedProduct } from "@/components/product-search-picker";
 
-type ProductResult = { id: string; sku: string; name: string; unit: string; productTypeName: string };
 type EditItem = {
   key: string;
   productId: string;
@@ -42,10 +42,11 @@ export function OrderEditModal({
   // false→true) — Invoice เดิมถูก Cancel + Invoice ใหม่คำนวณตามค่านี้เสมอ (ไม่แตะ History เดิม)
   const [applyDiscount, setApplyDiscount] = useState(initialApplyDiscount);
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ProductResult[]>([]);
   const [qty, setQty] = useState("1");
-  const [selected, setSelected] = useState<ProductResult | null>(null);
+  const [selected, setSelected] = useState<PickedProduct | null>(null);
+  // R4 — ตัว Modal นี้ไม่ remount ProductSearchPicker ระหว่างเพิ่มรายการหลายรายการ
+  // (ต่างจากหน้า Draft ที่ remount ด้วย key) จึงต้องสั่งล้าง Search ภายในเองผ่าน resetToken
+  const [pickerResetToken, setPickerResetToken] = useState(0);
 
   const { showSuccess, showError } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -55,27 +56,10 @@ export function OrderEditModal({
     setItems(initialItems);
     setAcknowledgePrinted(false);
     setApplyDiscount(initialApplyDiscount);
-    setQuery("");
-    setResults([]);
     setSelected(null);
     setQty("1");
+    setPickerResetToken((t) => t + 1);
   }, [isOpen, initialItems, initialApplyDiscount]);
-
-  useEffect(() => {
-    if (!query || selected) {
-      setResults([]);
-      return;
-    }
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}`);
-        setResults(await res.json());
-      } catch {
-        setResults([]);
-      }
-    }, 200);
-    return () => clearTimeout(t);
-  }, [query, selected]);
 
   function addItem() {
     if (!selected) return;
@@ -95,8 +79,8 @@ export function OrderEditModal({
       },
     ]);
     setSelected(null);
-    setQuery("");
     setQty("1");
+    setPickerResetToken((t) => t + 1);
   }
 
   function removeItem(key: string) {
@@ -210,36 +194,15 @@ export function OrderEditModal({
               </div>
 
               <div className="flex gap-2 items-end bg-gray-50 border rounded-lg p-3 relative">
-                <div className="flex-1 relative">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">ค้นหาสินค้า (SKU หรือชื่อ)</label>
-                  <input
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setSelected(null);
-                    }}
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, SKU หรือชื่อ)
+                  </label>
+                  <ProductSearchPicker
+                    onPick={setSelected}
                     placeholder="เช่น M001 หรือ ที่นอนสปริง"
-                    autoComplete="off"
-                    className="w-full border rounded px-3 py-1.5 text-sm"
+                    resetToken={pickerResetToken}
                   />
-                  {results.length > 0 && (
-                    <ul className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-48 overflow-auto">
-                      {results.map((p) => (
-                        <li
-                          key={p.id}
-                          onMouseDown={() => {
-                            setSelected(p);
-                            setQuery(`${p.sku} — ${p.name}`);
-                            setResults([]);
-                          }}
-                          className="px-3 py-1.5 text-sm cursor-pointer hover:bg-blue-50"
-                        >
-                          <span className="font-mono">{p.sku}</span> — {p.name}
-                          <span className="text-gray-400 ml-2 text-xs">({p.productTypeName})</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
                 <div className="w-24">
                   <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>

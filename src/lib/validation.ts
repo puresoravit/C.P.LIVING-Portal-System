@@ -30,10 +30,12 @@ export const productTypeSchema = z.object({
   sortOrder: z.coerce.number().default(0),
 });
 
+// R4 — sku ว่างได้แล้ว (Auto-generate ที่ Server Action ถ้าไม่กรอก) และ productTypeId
+// ว่างได้เช่นกัน (null = ไม่ระบุประเภท ตามที่อนุมัติ) — ทั้งคู่เปลี่ยนจาก required เดิม
 export const productSchema = z.object({
-  sku: z.string().min(1, "กรุณากรอก SKU"),
+  sku: z.string().optional(),
   name: z.string().min(1, "กรุณากรอกชื่อสินค้า"),
-  productTypeId: z.string().min(1, "กรุณาเลือกประเภทสินค้า"),
+  productTypeId: z.string().optional(),
   modelId: z.string().nullable().optional(), // Phase B — ไม่บังคับกรอก, null = ยังไม่ระบุ/ยกเลิกการผูก Model, Product ไม่มี Model ใช้งานได้ปกติ
   size: z.string().optional(),
   unit: z.string().min(1, "กรุณากรอกหน่วยนับ"),

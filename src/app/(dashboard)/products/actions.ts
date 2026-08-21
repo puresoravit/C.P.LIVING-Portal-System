@@ -8,6 +8,7 @@ import { productSchema } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
+import { generateNextSku } from "@/lib/sku-sequence";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -23,9 +24,11 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
   const raw = productSchema.safeParse({
-    sku: formData.get("sku"),
+    sku: formData.get("sku") || undefined,
     name: formData.get("name"),
-    productTypeId: formData.get("productTypeId"),
+    // R4 — ประเภทสินค้าว่างได้ (= "ไม่ระบุประเภท") ต้องแปลง "" จาก Select เป็น
+    // undefined ก่อนเข้า Prisma ไม่งั้นจะพยายามผูก FK กับ Empty String
+    productTypeId: formData.get("productTypeId") || undefined,
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
@@ -37,17 +40,21 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
   const parsed = raw.data;
 
+  // R4 — SKU เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน ProductSkuSequence
+  // (Atomic, ไม่ผูกกับ ProductType เพราะ nullable แล้ว) ถ้ากรอกเอง ใช้ค่าที่กรอกตามเดิม
+  const sku = parsed.sku || (await generateNextSku());
+
   // ข้อ 61: SKU ห้ามซ้ำ
-  const existing = await db.product.findUnique({ where: { sku: parsed.sku } });
+  const existing = await db.product.findUnique({ where: { sku } });
   if (existing) {
-    const error = `SKU "${parsed.sku}" มีอยู่แล้วในระบบ`;
+    const error = `SKU "${sku}" มีอยู่แล้วในระบบ`;
     return { success: false, error, fieldErrors: { sku: error } };
   }
 
-  const product = await db.product.create({ data: parsed });
+  const product = await db.product.create({ data: { ...parsed, sku } });
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: parsed },
+    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku } },
   });
 
   revalidatePath("/products");
@@ -59,9 +66,9 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
   const raw = productSchema.safeParse({
-    sku: formData.get("sku"),
+    sku: formData.get("sku") || undefined,
     name: formData.get("name"),
-    productTypeId: formData.get("productTypeId"),
+    productTypeId: formData.get("productTypeId") || undefined,
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
@@ -72,6 +79,9 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
   }
   const parsed = raw.data;
+  if (!parsed.sku) {
+    return { success: false, error: "กรุณากรอก SKU", fieldErrors: { sku: "กรุณากรอก SKU" } };
+  }
 
   const existing = await db.product.findUnique({ where: { sku: parsed.sku } });
   if (existing && existing.id !== id) {
@@ -80,7 +90,10 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   }
 
   const before = await db.product.findUnique({ where: { id } });
-  const product = await db.product.update({ where: { id }, data: parsed });
+  const product = await db.product.update({
+    where: { id },
+    data: { ...parsed, productTypeId: parsed.productTypeId ?? null },
+  });
 
   await db.auditLog.create({
     data: {

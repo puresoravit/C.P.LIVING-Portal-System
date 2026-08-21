@@ -148,8 +148,13 @@ model Product {
   id             String        @id @default(cuid())
   sku            String        @unique // ข้อ 7
   name           String
-  productTypeId  String
-  productType    ProductType   @relation(fields: [productTypeId], references: [id])
+  // R4 — nullable: สินค้าที่ไม่มีประเภทจริงๆ (เช่นอุปกรณ์เบ็ดเตล็ด) ขายได้ปกติ ใช้
+  // Standard/Customer-specific Price ตามเดิม แต่ไม่มี Type-specific Discount (0% เสมอ
+  // เพราะ DiscountRule.productTypeId ยัง required) — จัดกลุ่มเป็น "GEN" (Internal Code)
+  // / "ไม่ระบุประเภท" (User-facing) ตอน Auto-Split Invoice — ไม่แตะ ProductModel/
+  // DiscountRule.productTypeId เพราะทั้งคู่ยังต้องผูก Type เสมอตาม Design เดิม
+  productTypeId  String?
+  productType    ProductType?  @relation(fields: [productTypeId], references: [id])
   modelId        String?       // Phase B — nullable ถาวร: Product ที่ยังไม่ได้ assign
                                 // Model (หรือไม่มี Model ที่มีความหมาย เช่นสินค้าตัวเดียว
                                 // ไม่มี Size variant) ยังใช้งาน/ขายได้ปกติทุกอย่าง — ห้าม
@@ -572,6 +577,17 @@ model DocumentSequence {
 
   @@unique([docType, period])
   @@map("document_sequences")
+}
+
+// R4 — SKU Auto-generate: แยกจาก DocumentSequence เด็ดขาด เพราะ SKU เป็น Product
+// Identity ถาวร ห้าม Reset ตามเดือนเหมือนเลขเอกสาร (DocumentSequence ผูก period ที่
+// รีเซ็ตทุกเดือนโดยตั้งใจ ใช้ผิด concept กันไม่ได้) — Atomic Increment แบบเดียวกับ
+// getNextSeq ทุกประการ (upsert กัน Race Condition) แถวเดียวคงที่ (id=1) นับต่อเนื่องไม่รีเซ็ต
+model ProductSkuSequence {
+  id      Int @id @default(1)
+  lastSeq Int @default(0)
+
+  @@map("product_sku_sequence")
 }
 
 model AuditLog {

@@ -40,14 +40,12 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสินค้าใหม่</summary>
         <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-3 gap-3">
-          <Field label="SKU *" name="sku" required />
+          <Field label="SKU (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
           <div className="col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
-          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
-            <option value="" disabled>
-              เลือกประเภท
-            </option>
+          <SelectField label="ประเภทสินค้า" name="productTypeId" defaultValue="">
+            <option value="">— ไม่ระบุประเภท —</option>
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
                 {pt.name}
@@ -139,7 +137,9 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 )}
                 <td className="px-4 py-2 font-mono">{p.sku}</td>
                 <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2">{p.productType.name}</td>
+                <td className="px-4 py-2">
+                  {p.productType ? p.productType.name : <span className="text-gray-400">ไม่ระบุประเภท</span>}
+                </td>
                 <td className="px-4 py-2">
                   {p.model ? p.model.name : <span className="text-gray-400">— ยังไม่ระบุ —</span>}
                 </td>

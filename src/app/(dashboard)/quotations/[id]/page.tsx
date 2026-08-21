@@ -9,6 +9,7 @@ import {
   editConfirmedQuotation,
 } from "../actions";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
+import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { QuotationEditModal } from "@/components/quotation-edit-modal";
 import { getServerSession } from "next-auth";
@@ -78,7 +79,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     sku: item.product.sku,
     name: item.descriptionOverride || item.product.name,
     unit: item.product.unit,
-    productTypeName: item.product.productType.name,
+    productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
   }));
@@ -142,7 +143,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
               <tr key={item.id} className="border-t">
                 <td className="px-4 py-2 font-mono">{item.product.sku}</td>
                 <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
-                <td className="px-4 py-2">{item.product.productType.name}</td>
+                <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
                 <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
                 <td className="px-4 py-2">{item.product.unit}</td>
                 {isDraft && (

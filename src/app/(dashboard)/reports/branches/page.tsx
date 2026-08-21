@@ -54,7 +54,7 @@ export default async function BranchReportPage(
             <div className="grid grid-cols-3 gap-2">
               {b.byType.map((t) => (
                 <div key={t.code} className="bg-gray-50 rounded px-3 py-2 text-xs">
-                  <div className="font-medium mb-1">TYPE {t.code}</div>
+                  <div className="font-medium mb-1">{t.code === "GEN" ? "ไม่ระบุประเภท" : `TYPE ${t.code}`}</div>
                   <div>จำนวน: {t.metrics.quantity.toLocaleString("th-TH")}</div>
                   <div>Net: {money(t.metrics.net)}</div>
                 </div>

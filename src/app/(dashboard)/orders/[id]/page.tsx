@@ -9,7 +9,7 @@ import {
   editConfirmedOrder,
   updateOrderApplyDiscount,
 } from "../actions";
-import { computeOrderPreview } from "@/lib/order-preview";
+import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL, displayProductTypeCode } from "@/lib/order-preview";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { OrderEditModal } from "@/components/order-edit-modal";
@@ -72,7 +72,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     sku: item.product.sku,
     name: item.descriptionOverride || item.product.name,
     unit: item.product.unit,
-    productTypeName: item.product.productType.name,
+    productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
   }));
@@ -137,7 +137,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <tr key={item.id} className="border-t">
                 <td className="px-4 py-2 font-mono">{item.product.sku}</td>
                 <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
-                <td className="px-4 py-2">{item.product.productType.name}</td>
+                <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
                 <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
                 <td className="px-4 py-2">{item.product.unit}</td>
                 {isDraft && (
@@ -267,7 +267,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   {inv.invoiceNumber}
                 </a>
                 <span>
-                  {inv.productTypeCode} · {money(inv.grandTotal)} บาท ·{" "}
+                  {displayProductTypeCode(inv.productTypeCode)} · {money(inv.grandTotal)} บาท ·{" "}
                   <span className={inv.status === "CANCELLED" ? "text-gray-400" : "text-green-600"}>
                     {inv.status === "CANCELLED" ? "ยกเลิกแล้ว" : "ใช้งานอยู่"}
                   </span>

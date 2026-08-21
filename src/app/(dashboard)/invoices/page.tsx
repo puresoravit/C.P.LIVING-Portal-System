@@ -9,6 +9,7 @@ import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
+import { displayProductTypeCode } from "@/lib/order-preview";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -125,7 +126,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
                 </td>
                 <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
                 <td className="px-4 py-2">{inv.customerNameSnapshot}</td>
-                <td className="px-4 py-2">{inv.productTypeCode}</td>
+                <td className="px-4 py-2">{displayProductTypeCode(inv.productTypeCode)}</td>
                 <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={inv.status} config={STATUS_LABEL} />

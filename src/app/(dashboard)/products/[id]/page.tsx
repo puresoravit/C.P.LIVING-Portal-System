@@ -40,7 +40,8 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         <div className="col-span-2">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>
-        <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue={product.productTypeId}>
+        <SelectField label="ประเภทสินค้า" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
+          <option value="">— ไม่ระบุประเภท —</option>
           {productTypes.map((pt) => (
             <option key={pt.id} value={pt.id}>
               {pt.name}

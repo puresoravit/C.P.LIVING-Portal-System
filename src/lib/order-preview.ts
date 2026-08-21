@@ -12,6 +12,20 @@ import { getEffectivePrice, getEffectiveDiscountPct, roundMoney } from "@/lib/pr
 // (VAT จะคำนวณตอนออกใบกำกับภาษีแยกต่างหากใน Phase 4-5)
 // ==========================================================================
 
+// R4 — Sentinel สำหรับสินค้าที่ productTypeId=null (Internal Code ตามที่อนุมัติ) — ใช้
+// เป็น Grouping Key ภายในเท่านั้น ไม่เคยถูกเขียนเป็น FK ที่ไหนเลย (Invoice.productTypeCode
+// เป็น plain String อยู่แล้ว ไม่ผูก ProductType) จึงปลอดภัยที่จะ normalize ตรงนี้จุดเดียว
+// แล้วให้โค้ดส่วนอื่น (groupByTypeAndApplyDiscount ฯลฯ) ไม่ต้องรู้เรื่อง null เลย
+export const UNSPECIFIED_TYPE_CODE = "GEN";
+export const UNSPECIFIED_TYPE_LABEL = "ไม่ระบุประเภท";
+
+// R4 — ทุกจุดที่แสดง Invoice.productTypeCode/InvoiceItem.productTypeSnapshot (String
+// ล้วนๆ ไม่ใช่ FK) ให้ User เห็น ต้องผ่านฟังก์ชันนี้เสมอ — ห้ามโชว์ "GEN" ดิบๆ ที่ไหนเลย
+// ตามที่อนุมัติไว้ชัดเจน (ต่างจาก Type ปกติที่ตั้งใจโชว์ Code ตัวเดียวแบบย่อ เช่น A/B/C)
+export function displayProductTypeCode(code: string): string {
+  return code === UNSPECIFIED_TYPE_CODE ? UNSPECIFIED_TYPE_LABEL : code;
+}
+
 export type PreviewLineItem = {
   orderItemId: string;
   productId: string;
@@ -73,9 +87,10 @@ export async function buildPreviewLineItems(
       productId: item.productId,
       sku: item.product.sku,
       productName: item.descriptionOverride || item.product.name,
-      productTypeId: item.product.productTypeId,
-      productTypeCode: item.product.productType.code,
-      productTypeName: item.product.productType.name,
+      // R4 — productTypeId=null (ไม่ระบุประเภท) → normalize เป็น Sentinel ตรงนี้จุดเดียว
+      productTypeId: item.product.productTypeId ?? UNSPECIFIED_TYPE_CODE,
+      productTypeCode: item.product.productType?.code ?? UNSPECIFIED_TYPE_CODE,
+      productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
       size: item.product.size,
       quantity: item.quantity,
       unit: item.product.unit,
@@ -145,6 +160,10 @@ export async function computeOrderPreview(
   const discountByTypeId: Record<string, Decimal> = {};
   if (order.applyDiscount) {
     for (const typeId of typeIds) {
+      // R4 — สินค้า "ไม่ระบุประเภท" ไม่มี DiscountRule ที่ Match ได้จริง (DiscountRule.
+      // productTypeId ยัง required เสมอ) เป็นข้อเท็จจริงเชิงโครงสร้าง ไม่ใช่ Policy ที่ต้อง
+      // เลือก — ข้าม Query ไปเลยเหมือน applyDiscount=false เพื่อไม่ต้อง Query ที่รู้ผลอยู่แล้ว
+      if (typeId === UNSPECIFIED_TYPE_CODE) continue;
       const { discountPct } = await getEffectiveDiscountPct({
         customerId: order.customerId,
         branchId: order.branchId,

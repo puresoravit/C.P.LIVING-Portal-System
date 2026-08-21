@@ -39,11 +39,21 @@ export async function validateProductImport(rows: any[]) {
     if (existingSkus.has(sku)) return { row: rowNum, valid: false, error: `SKU "${sku}" ซ้ำกับที่มีอยู่แล้วในระบบ` };
     if (seenInBatch.has(sku)) return { row: rowNum, valid: false, error: `SKU "${sku}" ซ้ำกันเองในไฟล์` };
     if (!name) return { row: rowNum, valid: false, error: "ไม่มีชื่อสินค้า (name)" };
-    if (!productTypeCode) return { row: rowNum, valid: false, error: "ไม่มีรหัสประเภทสินค้า (productTypeCode)" };
-    const productTypeId = typeByCode.get(productTypeCode);
-    if (!productTypeId) return { row: rowNum, valid: false, error: `ไม่พบประเภทสินค้ารหัส "${productTypeCode}"` };
+    // R4 — productTypeCode ว่างได้แล้ว (= ไม่ระบุประเภท) แต่ถ้ากรอกมาต้องมีจริงใน Master
+    // เท่านั้น (กัน Typo เงียบๆ กลายเป็น "ไม่ระบุประเภท" โดยไม่ตั้งใจ)
+    let productTypeId: string | undefined;
+    if (productTypeCode) {
+      productTypeId = typeByCode.get(productTypeCode);
+      if (!productTypeId) return { row: rowNum, valid: false, error: `ไม่พบประเภทสินค้ารหัส "${productTypeCode}"` };
+    }
     if (!unit) return { row: rowNum, valid: false, error: "ไม่มีหน่วย (unit)" };
     if (isNaN(standardPrice) || standardPrice < 0) return { row: rowNum, valid: false, error: `ราคา "${raw.standardPrice}" ไม่ถูกต้อง` };
+    // R4 — Model ต้องผูกกับ ProductType เสมอ (ProductModel.productTypeId ยัง required) —
+    // แถวที่ระบุ modelName แต่ productTypeCode ว่างจึงไม่สมเหตุสมผล ต้อง Error ชัดเจน
+    // แทนที่จะเดา/ปล่อยผ่านเงียบๆ
+    if (raw.modelName && !productTypeId) {
+      return { row: rowNum, valid: false, error: "ระบุรุ่นสินค้า (modelName) ได้ก็ต่อเมื่อมีรหัสประเภทสินค้า (productTypeCode) เท่านั้น" };
+    }
 
     seenInBatch.add(sku);
     return {

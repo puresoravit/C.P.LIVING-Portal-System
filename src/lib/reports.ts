@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { UNSPECIFIED_TYPE_CODE, UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 
 // ==========================================================================
 // REPORTS ENGINE (ข้อ 35-41)
@@ -127,7 +128,12 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
         break;
       case "productType":
         key = row.productTypeCode;
-        label = typeNameByCode?.get(row.productTypeCode) ?? row.productTypeCode;
+        // R4 — "GEN" (สินค้าไม่ระบุประเภท) ไม่มี ProductType Master รองรับจริง ต้อง Label
+        // เป็น "ไม่ระบุประเภท" เสมอ ไม่ใช่โชว์ Internal Code ดิบๆ ให้ผู้ใช้เห็น
+        label =
+          row.productTypeCode === UNSPECIFIED_TYPE_CODE
+            ? UNSPECIFIED_TYPE_LABEL
+            : (typeNameByCode?.get(row.productTypeCode) ?? row.productTypeCode);
         break;
       case "sku":
         key = row.sku;
@@ -325,6 +331,12 @@ export async function getDashboard(filters: ReportFilters) {
   });
   const salesByTypeCode = new Map(salesByType.map((g) => [g.key, g]));
   const byType: GroupResult[] = activeTypes.map((t) => salesByTypeCode.get(t.code) ?? { key: t.code, label: t.name, metrics: emptyMetrics() });
+
+  // R4 — "GEN" (ไม่ระบุประเภท) ไม่ใช่ ProductType Master จริง จึงไม่อยู่ใน activeTypes
+  // ข้างบน — ต่างจาก Type จริงตรงที่ "ไม่ต้องโชว์การ์ดค้างไว้ตอนยอด 0" (ไม่มี Master ให้
+  // อ้างอิงว่า "ควรมีอยู่เสมอ") แต่ถ้ามียอดขายจริงในช่วงนี้ ต้องไม่หายไปจาก Dashboard เงียบๆ
+  const genGroup = salesByTypeCode.get(UNSPECIFIED_TYPE_CODE);
+  if (genGroup) byType.push(genGroup);
 
   const topCustomers = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
   const topProducts = await getTopProductModels(filters, 10);
