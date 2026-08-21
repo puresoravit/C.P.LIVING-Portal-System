@@ -77,7 +77,13 @@ export function aggregateQuotationTotals(
  */
 export async function computeQuotationCalc(
   rawItems: { productId: string; quantity: Decimal | number; descriptionOverride?: string | null }[],
-  params: { customerId: string; branchId: string; quotationDate: Date; vatMode: QuotationVatModeValue },
+  params: {
+    customerId: string;
+    branchId: string;
+    quotationDate: Date;
+    vatMode: QuotationVatModeValue;
+    applyDiscount: boolean;
+  },
   client: Prisma.TransactionClient | typeof db = db
 ): Promise<QuotationCalc> {
   const items: QuotationItemCalc[] = [];
@@ -94,12 +100,18 @@ export async function computeQuotationCalc(
       branchId: params.branchId,
       orderDate: params.quotationDate,
     });
-    const { discountPct } = await getEffectiveDiscountPct({
-      customerId: params.customerId,
-      branchId: params.branchId,
-      productTypeId: product.productTypeId,
-      orderDate: params.quotationDate,
-    });
+    // R3 — applyDiscount=false ข้าม getEffectiveDiscountPct ไปเลย (ไม่ query DiscountRule)
+    // แล้วบังคับ discountPct=0 ที่ต้นทาง แทนที่จะ Query แล้วค่อย Override ทีหลัง
+    const discountPct = params.applyDiscount
+      ? (
+          await getEffectiveDiscountPct({
+            customerId: params.customerId,
+            branchId: params.branchId,
+            productTypeId: product.productTypeId,
+            orderDate: params.quotationDate,
+          })
+        ).discountPct
+      : new Decimal(0);
     const grossAmount = roundMoney(quantity.mul(price));
     const discountAmount = roundMoney(grossAmount.mul(discountPct).div(100));
     const netAmount = roundMoney(grossAmount.sub(discountAmount));

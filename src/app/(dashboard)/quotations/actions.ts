@@ -69,6 +69,8 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
         note: parsed.note,
         placeToDelivery: parsed.placeToDelivery,
         vatMode: parsed.vatMode as QuotationVatModeValue,
+        // R3 — applyDiscount ตั้งค่าหลังสร้างที่หน้า Detail (ตาม Requirement ที่ไม่ให้
+        // ตัดสินใจ VAT/ส่วนลดตั้งแต่หน้า Create) จึงใช้ Default true ของ Schema เสมอตอนสร้าง
         status: "DRAFT",
         createdById: user.id,
       },
@@ -132,20 +134,28 @@ export async function removeQuotationItem(quotationId: string, itemId: string): 
   return { success: true };
 }
 
-export async function updateQuotationVatMode(quotationId: string, formData: FormData): Promise<ActionResult> {
+// R3 — รวม VAT Mode + applyDiscount เป็น Action เดียว/ปุ่มเดียว (แทน updateQuotationVatMode
+// เดิมที่มีแค่ VAT) เพื่อให้ UI หน้า Draft สะอาด ไม่ต้องมี 2 แถว 2 ปุ่มแยกกัน — Semantic ของ
+// vatMode เดิมไม่เปลี่ยนเลย (NONE/STANDARD, ราคาสินค้า VAT-inclusive เหมือนเดิมทุกประการ)
+export async function updateQuotationDraftSettings(quotationId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.edit")) throw new Error("FORBIDDEN");
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
   if (quotation.status !== "DRAFT") {
-    return { success: false, error: "แก้ไข VAT Mode ได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
+    return { success: false, error: "แก้ไขการตั้งค่าได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
   }
 
   const vatModeParse = z.enum(["NONE", "STANDARD"]).safeParse(formData.get("vatMode"));
   if (!vatModeParse.success) {
     return { success: false, error: "VAT Mode ไม่ถูกต้อง" };
   }
-  await db.quotation.update({ where: { id: quotationId }, data: { vatMode: vatModeParse.data } });
+  const applyDiscount = formData.has("applyDiscount");
+
+  await db.quotation.update({
+    where: { id: quotationId },
+    data: { vatMode: vatModeParse.data, applyDiscount },
+  });
   revalidatePath(`/quotations/${quotationId}`);
   return { success: true };
 }
@@ -166,7 +176,13 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
 
   const calc = await computeQuotationCalc(
     quotation.items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
-    { customerId: quotation.customerId, branchId: quotation.branchId, quotationDate: quotation.quotationDate, vatMode: quotation.vatMode as QuotationVatModeValue }
+    {
+      customerId: quotation.customerId,
+      branchId: quotation.branchId,
+      quotationDate: quotation.quotationDate,
+      vatMode: quotation.vatMode as QuotationVatModeValue,
+      applyDiscount: quotation.applyDiscount,
+    }
   );
 
   try {
@@ -183,6 +199,9 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
           addressSnapshot: quotation.branch.address,
           grossAmount: calc.grossAmount,
           discountAmount: calc.discountAmount,
+          // R3 — Snapshot ค่า applyDiscount ที่ใช้จริงตอน Confirm (ตอนนี้เท่ากับ
+          // quotation.applyDiscount อยู่แล้ว แต่เขียนซ้ำชัดๆ ให้เห็นว่านี่คือ Snapshot)
+          applyDiscount: quotation.applyDiscount,
           vatRateSnapshot: calc.vatRateSnapshot,
           netBeforeVat: calc.netBeforeVat,
           vatAmount: calc.vatAmount,
@@ -256,6 +275,9 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
   const itemsRaw = JSON.parse(String(formData.get("itemsJson") || "[]"));
   const parsedItems = editItemsSchema.parse(itemsRaw);
   const vatMode = z.enum(["NONE", "STANDARD"]).parse(formData.get("vatMode"));
+  // R3 — QuotationEditModal เป็น Client Component สร้าง FormData เอง ใช้ Convention "1"/"0"
+  // เดียวกับ Order E3 (OrderEditModal)
+  const applyDiscount = formData.get("applyDiscount") === "1";
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId }, include: { items: true, customer: true, branch: true } });
   if (quotation.status === "CANCELLED") {
@@ -267,6 +289,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
 
   const beforeSnapshot = {
     vatMode: quotation.vatMode,
+    applyDiscount: quotation.applyDiscount,
     grossAmount: quotation.grossAmount?.toString(),
     discountAmount: quotation.discountAmount?.toString(),
     vatRateSnapshot: quotation.vatRateSnapshot?.toString(),
@@ -278,7 +301,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
 
   const calc = await computeQuotationCalc(
     parsedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
-    { customerId: quotation.customerId, branchId: quotation.branchId, quotationDate: quotation.quotationDate, vatMode }
+    { customerId: quotation.customerId, branchId: quotation.branchId, quotationDate: quotation.quotationDate, vatMode, applyDiscount }
   );
 
   try {
@@ -311,6 +334,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
         where: { id: quotationId },
         data: {
           vatMode,
+          applyDiscount,
           grossAmount: calc.grossAmount,
           discountAmount: calc.discountAmount,
           vatRateSnapshot: calc.vatRateSnapshot,
@@ -330,6 +354,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
           oldValue: beforeSnapshot,
           newValue: {
             vatMode,
+            applyDiscount,
             grossAmount: calc.grossAmount.toString(),
             discountAmount: calc.discountAmount.toString(),
             vatRateSnapshot: calc.vatRateSnapshot.toString(),

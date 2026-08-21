@@ -37,10 +37,6 @@ export default async function NewQuotationPage() {
           </option>
         </SelectField>
         <Field label="วันที่เอกสาร *" name="quotationDate" type="date" defaultValue={today} required />
-        <SelectField label="VAT" name="vatMode" defaultValue="NONE">
-          <option value="NONE">ไม่คิด VAT</option>
-          <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
-        </SelectField>
         <Field label="อ้างอิง" name="reference" />
         <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
         <div className="col-span-2">

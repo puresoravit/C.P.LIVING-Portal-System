@@ -1,6 +1,14 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
-import { addOrderItem, removeOrderItem, confirmOrder, cancelOrder, duplicateOrder, editConfirmedOrder } from "../actions";
+import {
+  addOrderItem,
+  removeOrderItem,
+  confirmOrder,
+  cancelOrder,
+  duplicateOrder,
+  editConfirmedOrder,
+  updateOrderApplyDiscount,
+} from "../actions";
 import { computeOrderPreview } from "@/lib/order-preview";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
@@ -53,6 +61,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const confirmAction = confirmOrder.bind(null, order.id);
   const cancelAction = cancelOrder.bind(null, order.id);
   const editAction = editConfirmedOrder.bind(null, order.id);
+  const applyDiscountAction = updateOrderApplyDiscount.bind(null, order.id);
 
   // E3 — Edit Confirmed Order: เช็คว่าแก้ไขได้หรือไม่เฉพาะตอน Order Confirmed แล้วเท่านั้น
   const editGuard = order.status === "CONFIRMED" ? await fetchOrderEditGuard(order.id) : null;
@@ -93,9 +102,22 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       </p>
 
       {isDraft && (
-        <div className="mb-4">
-          <OrderItemEntryForm key={order.items.length} addAction={addItemAction} />
-        </div>
+        <>
+          <div className="bg-white border rounded-lg p-4 mb-4 flex items-center gap-3">
+            <ActionForm action={applyDiscountAction} successMessage="บันทึกการตั้งค่าส่วนลดสำเร็จ" className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-sm">
+                <input id="applyDiscount" type="checkbox" name="applyDiscount" defaultChecked={order.applyDiscount} />
+                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+              </label>
+              <SubmitButton pendingLabel="กำลังบันทึก..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
+                บันทึกการตั้งค่า
+              </SubmitButton>
+            </ActionForm>
+          </div>
+          <div className="mb-4">
+            <OrderItemEntryForm key={order.items.length} addAction={addItemAction} />
+          </div>
+        </>
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
@@ -217,6 +239,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             initialItems={initialEditItems}
             requiresPrintedAck={editGuard.requiresPrintedAck}
             activeInvoiceCount={activeInvoiceCount}
+            initialApplyDiscount={order.applyDiscount}
             action={editAction}
           />
         )}

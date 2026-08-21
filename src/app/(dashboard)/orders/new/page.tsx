@@ -44,6 +44,10 @@ export default async function NewOrderPage() {
         <div className="col-span-2">
           <TextareaField label="หมายเหตุ" name="note" />
         </div>
+        <div className="col-span-2 flex items-center gap-1.5 text-sm">
+          <input id="applyDiscount" type="checkbox" name="applyDiscount" defaultChecked />
+          <label htmlFor="applyDiscount">ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)</label>
+        </div>
         <div className="col-span-2">
           <SubmitButton pendingLabel="กำลังสร้าง...">สร้างออเดอร์ → ไปคีย์รายการสินค้า</SubmitButton>
         </div>

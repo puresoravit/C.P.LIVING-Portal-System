@@ -25,17 +25,22 @@ export function OrderEditModal({
   initialItems,
   requiresPrintedAck,
   activeInvoiceCount,
+  initialApplyDiscount,
   action,
 }: {
   orderNumber: string;
   initialItems: EditItem[];
   requiresPrintedAck: boolean;
   activeInvoiceCount: number;
+  initialApplyDiscount: boolean;
   action: (formData: FormData) => Promise<ActionResult>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
   const [acknowledgePrinted, setAcknowledgePrinted] = useState(false);
+  // R3 — เปลี่ยนการใช้ส่วนลดได้ระหว่างแก้ไข Order ที่ Confirmed แล้ว (true→false หรือ
+  // false→true) — Invoice เดิมถูก Cancel + Invoice ใหม่คำนวณตามค่านี้เสมอ (ไม่แตะ History เดิม)
+  const [applyDiscount, setApplyDiscount] = useState(initialApplyDiscount);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
@@ -49,11 +54,12 @@ export function OrderEditModal({
     if (!isOpen) return;
     setItems(initialItems);
     setAcknowledgePrinted(false);
+    setApplyDiscount(initialApplyDiscount);
     setQuery("");
     setResults([]);
     setSelected(null);
     setQty("1");
-  }, [isOpen, initialItems]);
+  }, [isOpen, initialItems, initialApplyDiscount]);
 
   useEffect(() => {
     if (!query || selected) {
@@ -107,6 +113,7 @@ export function OrderEditModal({
       JSON.stringify(items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride || undefined })))
     );
     formData.set("acknowledgePrinted", acknowledgePrinted ? "1" : "0");
+    formData.set("applyDiscount", applyDiscount ? "1" : "0");
     startTransition(async () => {
       const result = await action(formData);
       if (result.success) {
@@ -143,6 +150,11 @@ export function OrderEditModal({
                 ของ Order นี้ (เลขที่เอกสารเดิมจะคงอยู่เป็นสถานะยกเลิกถาวร ไม่ลบ ไม่นำกลับมาใช้ซ้ำ) แล้วสร้าง Invoice
                 ใหม่ด้วยเลขที่เอกสารใหม่หลังบันทึกสำเร็จ
               </div>
+
+              <label className="flex items-center gap-2 text-sm bg-gray-50 border rounded-lg p-3">
+                <input type="checkbox" checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />
+                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+              </label>
 
               {requiresPrintedAck && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 space-y-2">

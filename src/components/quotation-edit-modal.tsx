@@ -23,16 +23,20 @@ export function QuotationEditModal({
   quotationNumber,
   initialItems,
   initialVatMode,
+  initialApplyDiscount,
   action,
 }: {
   quotationNumber: string;
   initialItems: EditItem[];
   initialVatMode: string;
+  initialApplyDiscount: boolean;
   action: (formData: FormData) => Promise<ActionResult>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
   const [vatMode, setVatMode] = useState(initialVatMode);
+  // R3 — เปลี่ยนการใช้ส่วนลดได้ตอน Revision เช่นเดียวกับ VAT Mode ที่เปลี่ยนได้อยู่แล้ว
+  const [applyDiscount, setApplyDiscount] = useState(initialApplyDiscount);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
@@ -46,11 +50,12 @@ export function QuotationEditModal({
     if (!isOpen) return;
     setItems(initialItems);
     setVatMode(initialVatMode);
+    setApplyDiscount(initialApplyDiscount);
     setQuery("");
     setResults([]);
     setSelected(null);
     setQty("1");
-  }, [isOpen, initialItems, initialVatMode]);
+  }, [isOpen, initialItems, initialVatMode, initialApplyDiscount]);
 
   useEffect(() => {
     if (!query || selected) {
@@ -104,6 +109,7 @@ export function QuotationEditModal({
       JSON.stringify(items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride || undefined })))
     );
     formData.set("vatMode", vatMode);
+    formData.set("applyDiscount", applyDiscount ? "1" : "0");
     startTransition(async () => {
       const result = await action(formData);
       if (result.success) {
@@ -140,12 +146,18 @@ export function QuotationEditModal({
                 จะถูกคำนวณใหม่ทั้งหมดตามรายการที่แก้ไข
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">VAT</label>
-                <select value={vatMode} onChange={(e) => setVatMode(e.target.value)} className="border rounded px-3 py-1.5 text-sm">
-                  <option value="NONE">ไม่คิด VAT</option>
-                  <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
-                </select>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">VAT ในเอกสาร</label>
+                  <select value={vatMode} onChange={(e) => setVatMode(e.target.value)} className="border rounded px-3 py-1.5 text-sm">
+                    <option value="NONE">ไม่แยกแสดง VAT</option>
+                    <option value="STANDARD">แยกแสดง VAT (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-1.5 text-sm pb-2">
+                  <input type="checkbox" checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />
+                  ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+                </label>
               </div>
 
               <div className="border rounded-lg overflow-hidden">

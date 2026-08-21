@@ -123,7 +123,17 @@ export function groupByTypeAndApplyDiscount(
   return groups.sort((a, b) => a.productTypeCode.localeCompare(b.productTypeCode));
 }
 
-/** เรียกรวมทุกอย่าง: ดึงราคา + หา discount ทุก Type ที่เกี่ยวข้อง + จัดกลุ่ม + สรุปยอดรวม */
+/**
+ * เรียกรวมทุกอย่าง: ดึงราคา + หา discount ทุก Type ที่เกี่ยวข้อง + จัดกลุ่ม + สรุปยอดรวม
+ *
+ * R3 — applyDiscount อ่านจาก order.applyDiscount ที่เพิ่ง findUniqueOrThrow มาเอง (ไม่ต้อง
+ * เพิ่ม Parameter ใหม่ให้ Caller ทั้ง 4 จุดต้องแก้) — ถ้า false จะ "ข้าม" การ Query
+ * DiscountRule ไปเลยทั้งหมด (ไม่ใช่แค่ Override ผลลัพธ์เป็น 0 ทีหลัง) แล้วปล่อยให้
+ * groupByTypeAndApplyDiscount ใช้ fallback เดิมของมันเอง (`discountByTypeId[typeId] ?? 0`)
+ * ทำให้ discountPct/discountAmount ทุกกลุ่มเป็น 0 จริงที่ต้นทาง — สำหรับ E3 ที่ต้องการ
+ * เปลี่ยนค่า applyDiscount ระหว่างแก้ไข ให้ tx.order.update({ applyDiscount }) ก่อนเรียก
+ * ฟังก์ชันนี้ภายใน Transaction เดียวกัน จะเห็นค่าใหม่ทันทีเพราะ self-fetch จาก client เดียวกัน
+ */
 export async function computeOrderPreview(
   orderId: string,
   client: Prisma.TransactionClient | typeof db = db
@@ -133,14 +143,16 @@ export async function computeOrderPreview(
 
   const typeIds = [...new Set(lines.map((l) => l.productTypeId))];
   const discountByTypeId: Record<string, Decimal> = {};
-  for (const typeId of typeIds) {
-    const { discountPct } = await getEffectiveDiscountPct({
-      customerId: order.customerId,
-      branchId: order.branchId,
-      productTypeId: typeId,
-      orderDate: order.orderDate,
-    });
-    discountByTypeId[typeId] = discountPct;
+  if (order.applyDiscount) {
+    for (const typeId of typeIds) {
+      const { discountPct } = await getEffectiveDiscountPct({
+        customerId: order.customerId,
+        branchId: order.branchId,
+        productTypeId: typeId,
+        orderDate: order.orderDate,
+      });
+      discountByTypeId[typeId] = discountPct;
+    }
   }
 
   const groups = groupByTypeAndApplyDiscount(lines, discountByTypeId);

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   addQuotationItem,
   removeQuotationItem,
-  updateQuotationVatMode,
+  updateQuotationDraftSettings,
   confirmQuotation,
   cancelQuotation,
   editConfirmedQuotation,
@@ -51,7 +51,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   const status = STATUS_LABEL[quotation.status];
 
   const addItemAction = addQuotationItem.bind(null, quotation.id);
-  const updateVatModeAction = updateQuotationVatMode.bind(null, quotation.id);
+  const updateDraftSettingsAction = updateQuotationDraftSettings.bind(null, quotation.id);
   const confirmAction = confirmQuotation.bind(null, quotation.id);
   const cancelAction = cancelQuotation.bind(null, quotation.id);
   const editAction = editConfirmedQuotation.bind(null, quotation.id);
@@ -62,7 +62,13 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     isDraft && quotation.items.length > 0
       ? await computeQuotationCalc(
           quotation.items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
-          { customerId: quotation.customerId, branchId: quotation.branchId, quotationDate: quotation.quotationDate, vatMode: quotation.vatMode as QuotationVatModeValue }
+          {
+            customerId: quotation.customerId,
+            branchId: quotation.branchId,
+            quotationDate: quotation.quotationDate,
+            vatMode: quotation.vatMode as QuotationVatModeValue,
+            applyDiscount: quotation.applyDiscount,
+          }
         )
       : null;
 
@@ -98,14 +104,18 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
 
       {isDraft && (
         <>
-          <div className="bg-white border rounded-lg p-4 mb-4 flex items-end gap-3">
-            <ActionForm action={updateVatModeAction} successMessage="เปลี่ยน VAT สำเร็จ" className="flex items-end gap-2">
-              <SelectField label="VAT" name="vatMode" defaultValue={quotation.vatMode}>
-                <option value="NONE">ไม่คิด VAT</option>
-                <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
+          <div className="bg-white border rounded-lg p-4 mb-4">
+            <ActionForm action={updateDraftSettingsAction} successMessage="บันทึกการตั้งค่าสำเร็จ" className="flex flex-wrap items-end gap-3">
+              <SelectField label="VAT ในเอกสาร" name="vatMode" defaultValue={quotation.vatMode}>
+                <option value="NONE">ไม่แยกแสดง VAT</option>
+                <option value="STANDARD">แยกแสดง VAT (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
               </SelectField>
-              <SubmitButton pendingLabel="กำลังเปลี่ยน..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
-                เปลี่ยน VAT
+              <label className="flex items-center gap-1.5 text-sm pb-2">
+                <input type="checkbox" name="applyDiscount" defaultChecked={quotation.applyDiscount} />
+                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+              </label>
+              <SubmitButton pendingLabel="กำลังบันทึก..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
+                บันทึกการตั้งค่า
               </SubmitButton>
             </ActionForm>
           </div>
@@ -220,6 +230,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             quotationNumber={quotation.quotationNumber}
             initialItems={initialEditItems}
             initialVatMode={quotation.vatMode}
+            initialApplyDiscount={quotation.applyDiscount}
             action={editAction}
           />
         )}

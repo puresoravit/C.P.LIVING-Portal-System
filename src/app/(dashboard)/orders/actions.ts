@@ -50,6 +50,9 @@ export async function createDraftOrder(formData: FormData): Promise<ActionResult
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
   }
   const parsed = rawParse.data;
+  // R3 — Checkbox ธรรมดา (ไม่ใช่ JS-constructed FormData) : unchecked จะไม่ส่ง key
+  // นี้มาเลยตาม HTML spec จึงเช็คแค่ formData.has() พอ ไม่ต้องสนใจ value string
+  const applyDiscount = formData.has("applyDiscount");
 
   const period = currentPeriod(parsed.orderDate);
 
@@ -66,6 +69,7 @@ export async function createDraftOrder(formData: FormData): Promise<ActionResult
         reference: parsed.reference,
         note: parsed.note,
         placeToDelivery: parsed.placeToDelivery,
+        applyDiscount,
         status: "DRAFT",
         createdById: user.id,
       },
@@ -73,7 +77,7 @@ export async function createDraftOrder(formData: FormData): Promise<ActionResult
   });
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "CREATE", module: "Order", recordId: order.id, newValue: parsed },
+    data: { userId: user.id, action: "CREATE", module: "Order", recordId: order.id, newValue: { ...parsed, applyDiscount } },
   });
 
   revalidatePath("/orders");
@@ -195,6 +199,24 @@ export async function removeOrderItem(orderId: string, itemId: string): Promise<
   return { success: true };
 }
 
+// R3 — เปลี่ยนการใช้ส่วนลด (Calculation Toggle จริง) ได้เฉพาะตอน DRAFT เท่านั้น
+// (mirror ของ updateQuotationVatMode) — หลัง Confirm ต้องใช้ E3 Edit แทนเพื่อให้
+// Invoice เก่า/ใหม่ยังคงหลักการ Cancel-then-Reissue เดิม
+export async function updateOrderApplyDiscount(orderId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "order.editDraft")) throw new Error("FORBIDDEN");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "เปลี่ยนการใช้ส่วนลดได้เฉพาะ Order สถานะ Draft เท่านั้น" };
+  }
+
+  const applyDiscount = formData.has("applyDiscount");
+  await db.order.update({ where: { id: orderId }, data: { applyDiscount } });
+  revalidatePath(`/orders/${orderId}`);
+  return { success: true };
+}
+
 // ข้อ 21: ต้อง Preview แล้วพนักงานตรวจสอบก่อน Confirm — หน้าจอบังคับให้ผ่าน Preview
 // ก่อนกดปุ่มนี้อยู่แล้ว (ปุ่ม Confirm อยู่ใต้ Preview panel ในหน้าเดียวกัน)
 //
@@ -269,6 +291,9 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
           grossAmount: group.grossAmount,
           discountPct: group.discountPct,
           discountAmount: group.discountAmount,
+          // R3 — Snapshot ค่า applyDiscount ของ Order ณ ตอน Confirm เพื่อแยกความหมาย
+          // "ไม่มี Discount Rule จริง" ออกจาก "มี Rule แต่ตั้งใจไม่ใช้" ตอน Audit ย้อนหลัง
+          applyDiscount: order.applyDiscount,
           netBeforeVat: group.netAmount,
           vatPct: new Decimal(0),
           vatAmount: new Decimal(0),
@@ -402,6 +427,9 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
   const itemsRaw = JSON.parse(String(formData.get("itemsJson") || "[]"));
   const parsedItems = editItemsSchema.parse(itemsRaw);
   const acknowledgePrinted = formData.get("acknowledgePrinted") === "1";
+  // R3 — OrderEditModal เป็น Client Component ที่สร้าง FormData เองผ่าน JS (ไม่ใช่ Native
+  // Checkbox) จึงใช้ Convention เดียวกับ acknowledgePrinted ("1"/"0") ไม่ใช่ formData.has()
+  const applyDiscount = formData.get("applyDiscount") === "1";
 
   const guard = await fetchOrderEditGuard(orderId);
   if (guard.kind === "not-applicable") {
@@ -466,14 +494,21 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
           descriptionOverride: i.descriptionOverride,
         })),
       });
+      // R3 — ต้อง update Order.applyDiscount ก่อนเรียก computeOrderPreview เสมอ เพราะ
+      // ฟังก์ชันนั้น self-fetch order จาก client เดียวกัน (tx) จะเห็นค่าใหม่ทันทีถ้า
+      // update ไปก่อนในทรานแซคชันเดียวกันนี้
+      await tx.order.update({ where: { id: orderId }, data: { applyDiscount } });
       await tx.auditLog.create({
         data: {
           userId: user.id,
           action: "UPDATE",
           module: "Order",
           recordId: orderId,
-          oldValue: { items: oldItems.map((i) => ({ productId: i.productId, quantity: i.quantity.toString() })) },
-          newValue: { items: parsedItems },
+          oldValue: {
+            items: oldItems.map((i) => ({ productId: i.productId, quantity: i.quantity.toString() })),
+            applyDiscount: freshOrder.applyDiscount,
+          },
+          newValue: { items: parsedItems, applyDiscount },
         },
       });
 
@@ -502,6 +537,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
             grossAmount: group.grossAmount,
             discountPct: group.discountPct,
             discountAmount: group.discountAmount,
+            applyDiscount,
             netBeforeVat: group.netAmount,
             vatPct: new Decimal(0),
             vatAmount: new Decimal(0),

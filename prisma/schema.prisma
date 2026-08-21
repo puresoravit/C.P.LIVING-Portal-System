@@ -244,6 +244,10 @@ model Order {
   note         String?
   placeToDelivery String? // สถานที่ส่งสินค้า — แยกจาก Branch Address ได้ (ตามฟอร์มจริง, แก้ไขได้อิสระ)
   status       OrderStatus @default(DRAFT)
+  // R3 — Calculation Toggle จริง (ไม่ใช่ Presentation): false = ข้าม DiscountRule
+  // lookup ไปเลย บังคับ discountPct/discountAmount = 0 ที่ต้นทางใน computeOrderPreview()
+  // default true = พฤติกรรมเดิมของระบบทุกประการ (Backward Compatible กับเอกสารเก่า)
+  applyDiscount Boolean    @default(true)
   createdById  String
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -298,6 +302,10 @@ model Invoice {
   grossAmount     Decimal @db.Decimal(14, 2)
   discountPct     Decimal @db.Decimal(5, 2)
   discountAmount  Decimal @db.Decimal(14, 2)
+  // R3 — Snapshot ของ Order.applyDiscount ณ ตอน Confirm/E3-Reissue เพื่อแยกความหมาย
+  // "ไม่มี Discount Rule จริง (discountPct=0 ตามกฎ)" ออกจาก "มี Rule แต่ผู้ใช้ตั้งใจ
+  // เลือกไม่ใช้ส่วนลด (applyDiscount=false)" ให้ตรวจสอบย้อนหลังได้ชัดเจน
+  applyDiscount   Boolean @default(true)
   netBeforeVat    Decimal @db.Decimal(14, 2)
   vatPct          Decimal @db.Decimal(5, 2)
   vatAmount       Decimal @db.Decimal(14, 2)
@@ -499,6 +507,9 @@ model Quotation {
   note            String?
   placeToDelivery String?
   vatMode         QuotationVatMode @default(NONE)
+  // R3 — Calculation Toggle จริง (เหมือน Order.applyDiscount ทุกประการ) — เปลี่ยนได้ทั้ง
+  // ตอน DRAFT และตอน Revision (mirror ของ vatMode ที่เปลี่ยนได้ตอน Revision อยู่แล้ว)
+  applyDiscount   Boolean          @default(true)
 
   // --- Snapshot fields — null ตอน DRAFT, เติมค่าตอน Confirm/Revision เท่านั้น
   // ห้าม Print อ่าน Master สดหลัง Confirm แล้วเด็ดขาด ---
