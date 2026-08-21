@@ -54,6 +54,10 @@ export async function validateProductImport(rows: any[]) {
         name,
         productTypeCode, // แสดง preview เท่านั้น
         productTypeId,
+        // modelName เป็น optional — ถ้ากรอกมาจะ find-or-create ProductModel ให้ตอน
+        // commit (ไม่ auto-derive จากชื่อสินค้าใดๆ ผู้ใช้พิมพ์ระบุเองตรงๆ ในไฟล์)
+        // เว้นว่าง = Product เข้าคิว "ยังไม่ระบุรุ่นสินค้า" ให้ backfill ทีหลังในหน้า /products
+        modelName: raw.modelName ? String(raw.modelName).trim() : undefined,
         size: raw.size ? String(raw.size) : undefined,
         unit,
         standardPrice,
@@ -69,14 +73,32 @@ export async function commitProductImport(rows: any[]) {
 
   let imported = 0;
   for (const row of rows) {
-    const { productTypeCode, ...data } = row;
-    const product = await db.product.create({ data });
+    const { productTypeCode, modelName, ...data } = row;
+
+    let modelId: string | undefined;
+    if (modelName) {
+      const existingModel = await db.productModel.findFirst({
+        where: { productTypeId: data.productTypeId, name: modelName },
+      });
+      modelId = existingModel
+        ? existingModel.id
+        : (await db.productModel.create({ data: { productTypeId: data.productTypeId, name: modelName } })).id;
+    }
+
+    const product = await db.product.create({ data: { ...data, modelId } });
     await db.auditLog.create({
-      data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...data, source: "ExcelImport" } },
+      data: {
+        userId: user.id,
+        action: "CREATE",
+        module: "Product",
+        recordId: product.id,
+        newValue: { ...data, modelName, modelId, source: "ExcelImport" },
+      },
     });
     imported++;
   }
 
   revalidatePath("/products");
+  revalidatePath("/product-models");
   return { imported };
 }

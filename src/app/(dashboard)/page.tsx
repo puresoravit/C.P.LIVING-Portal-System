@@ -135,7 +135,17 @@ export default async function HomePage(
             {topProducts.map((p, i) => (
               <li key={p.key} className="flex justify-between">
                 <span>
-                  {i + 1}. {p.label}
+                  {i + 1}.{" "}
+                  {p.isModel ? (
+                    <a
+                      href={`/products/model/${p.key}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {p.label}
+                    </a>
+                  ) : (
+                    p.label
+                  )}
                 </span>
                 <span className="text-gray-500">{money(p.metrics.net)}</span>
               </li>

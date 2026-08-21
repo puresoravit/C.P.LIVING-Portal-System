@@ -142,6 +142,118 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
+// ==========================================================================
+// Phase B: Top Products ระดับ Model (ข้อ 4-5)
+// แยกจาก fetchRows/getSalesByGroup เดิมเพราะต้อง join Product→ProductModel และ
+// carry productId/modelId/size ที่ fetchRows เดิมไม่มี — ไม่แก้ fetchRows เดิมเพื่อ
+// ไม่กระทบ /reports หน้าทั่วไปที่ใช้อยู่แล้ว
+// ==========================================================================
+
+export type ProductModelGroupResult = {
+  key: string; // modelId ถ้า assign แล้ว, ไม่งั้น `product:${productId}` (standalone fallback)
+  label: string;
+  isModel: boolean;
+  metrics: Metrics;
+};
+
+type ProductRow = {
+  quantity: number;
+  gross: number;
+  discount: number;
+  net: number;
+  vat: number;
+  total: number;
+  productId: string;
+  modelId: string | null;
+  modelName: string | null;
+  productName: string;
+  // Size ที่ใช้ report/drill-down: เอา sizeSnapshot (ค่า ณ วันที่ขาย) ก่อนเสมอถ้ามี
+  // เอกสารเก่าก่อน Phase C ที่ snapshot เป็น null ถึงจะ fallback ไปใช้ Product.size
+  // ปัจจุบันแทน (เป็นมุมมองสรุปรายงาน ไม่ใช่เอกสารที่ต้องคงสภาพย้อนหลัง)
+  size: string | null;
+};
+
+async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
+  const items = await db.invoiceItem.findMany({
+    where: {
+      skuSnapshot: filters.sku,
+      invoice: {
+        status: { not: "CANCELLED" },
+        invoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
+        customerId: filters.customerId,
+        branchId: filters.branchId,
+        productTypeCode: filters.productTypeCode,
+      },
+    },
+    include: { product: { include: { model: true } } },
+  });
+
+  return items.map((item) => ({
+    quantity: Number(item.quantity),
+    gross: Number(item.grossAmount),
+    discount: Number(item.discountAmount),
+    net: Number(item.netAmount),
+    vat: Number(item.vatAmount),
+    total: Number(item.totalAmount),
+    productId: item.productId,
+    modelId: item.product.modelId,
+    modelName: item.product.model?.name ?? null,
+    productName: item.productNameSnapshot,
+    size: item.sizeSnapshot ?? item.product.size ?? null,
+  }));
+}
+
+function addMetrics(
+  m: Metrics,
+  row: { quantity: number; gross: number; discount: number; net: number; vat: number; total: number }
+): Metrics {
+  return {
+    quantity: m.quantity + row.quantity,
+    gross: m.gross + row.gross,
+    discount: m.discount + row.discount,
+    net: m.net + row.net,
+    vat: m.vat + row.vat,
+    total: m.total + row.total,
+  };
+}
+
+/** ข้อ 4: Top Products ระดับ Model — รวม SKU/Size ทุกตัวของ Model เดียวกันเข้าด้วยกัน
+ * Product ที่ยังไม่ได้ assign Model จะแยกเป็นรายการของตัวเอง (standalone fallback)
+ * ตามที่อนุมัติ ไม่ error ไม่หายไปจาก Dashboard — ห้าม string-parse ชื่อสินค้าเพื่อเดา
+ * Model เด็ดขาด ใช้ Product.modelId ที่เป็น Human-assigned เท่านั้น */
+export async function getTopProductModels(filters: ReportFilters, limit = 10): Promise<ProductModelGroupResult[]> {
+  const rows = await fetchProductRows(filters);
+  const map = new Map<string, ProductModelGroupResult>();
+
+  for (const row of rows) {
+    const key = row.modelId ?? `product:${row.productId}`;
+    const label = row.modelName ?? row.productName;
+    const entry = map.get(key) ?? { key, label, isModel: !!row.modelId, metrics: emptyMetrics() };
+    entry.metrics = addMetrics(entry.metrics, row);
+    map.set(key, entry);
+  }
+
+  return [...map.values()].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, limit);
+}
+
+/** ข้อ 5: Drill-down ของ 1 Model แยกยอดตาม Size — ใช้ Date Filter เดียวกับ Dashboard
+ * เสมอ (รับ filters ตรงจาก caller ไม่มี default เป็น All-time) */
+export async function getProductModelSizeBreakdown(filters: ReportFilters, modelId: string) {
+  const rows = await fetchProductRows(filters);
+  const relevant = rows.filter((r) => r.modelId === modelId);
+
+  const map = new Map<string, Metrics>();
+  for (const row of relevant) {
+    const sizeKey = row.size ?? "ไม่ระบุขนาด";
+    map.set(sizeKey, addMetrics(map.get(sizeKey) ?? emptyMetrics(), row));
+  }
+
+  const bySize = [...map.entries()].map(([size, metrics]) => ({ size, metrics })).sort((a, b) => b.metrics.net - a.metrics.net);
+  const total = relevant.reduce((m, r) => addMetrics(m, r), emptyMetrics());
+
+  return { bySize, total };
+}
+
 /** ข้อ 40: Branch Report — Product Mix แยกตาม Type ในแต่ละสาขา */
 export async function getBranchProductMix(filters: ReportFilters) {
   const rows = await fetchRows(filters);
@@ -172,7 +284,6 @@ export async function getDashboard(filters: ReportFilters) {
   const summary = await getSalesSummary(filters);
   const salesByType = await getSalesByGroup(filters, "productType");
   const byCustomer = await getSalesByGroup(filters, "customer");
-  const byProduct = await getSalesByGroup(filters, "sku");
 
   // Dashboard ต้องแสดงทุก ProductType ที่ Active อยู่ใน Master แม้ยอดขายช่วงนั้นเป็น 0
   // (ไม่ใช่แค่ Type ที่มียอดขายจริงเหมือน getSalesByGroup ทั่วไป) เรียงตาม sortOrder —
@@ -187,7 +298,7 @@ export async function getDashboard(filters: ReportFilters) {
   const byType: GroupResult[] = activeTypes.map((t) => salesByTypeCode.get(t.code) ?? { key: t.code, label: t.name, metrics: emptyMetrics() });
 
   const topCustomers = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
-  const topProducts = [...byProduct].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
+  const topProducts = await getTopProductModels(filters, 10);
 
   return { summary, byType, topCustomers, topProducts };
 }

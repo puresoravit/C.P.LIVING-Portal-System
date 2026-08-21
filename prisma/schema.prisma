@@ -115,24 +115,51 @@ model ProductType {
   updatedAt   DateTime @updatedAt
 
   products       Product[]
+  productModels  ProductModel[]
   discountRules  DiscountRule[]
 
   @@map("product_types")
 }
 
+// Phase B — Master สำหรับ "รุ่นสินค้า" (เช่น GT-David) ที่ครอบคลุมหลาย SKU/Size
+// ของ Product เดียวกัน ใช้สำหรับ Group ยอดขายใน Dashboard/Report ระดับ Model แทนการ
+// แยกราย SKU — ตั้งใจแยกเป็นตารางจริง (ไม่ใช่ free-text field บน Product) เพื่อกัน
+// พิมพ์ชื่อ Model ไม่ตรงกันระหว่าง SKU ที่ควรเป็นรุ่นเดียวกัน (เช่น "GT-David" vs
+// "gt david") ตามที่ตัดสินใจไว้ (ทางเลือก B)
+model ProductModel {
+  id            String      @id @default(cuid())
+  productTypeId String
+  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  name          String      // เช่น "GT-David"
+  active        Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  products Product[]
+
+  @@unique([productTypeId, name]) // กัน Model ชื่อซ้ำเป๊ะภายใน Type เดียวกัน
+  @@map("product_models")
+}
+
 model Product {
-  id             String      @id @default(cuid())
-  sku            String      @unique // ข้อ 7
+  id             String        @id @default(cuid())
+  sku            String        @unique // ข้อ 7
   name           String
   productTypeId  String
-  productType    ProductType @relation(fields: [productTypeId], references: [id])
+  productType    ProductType   @relation(fields: [productTypeId], references: [id])
+  modelId        String?       // Phase B — nullable ถาวร: Product ที่ยังไม่ได้ assign
+                                // Model (หรือไม่มี Model ที่มีความหมาย เช่นสินค้าตัวเดียว
+                                // ไม่มี Size variant) ยังใช้งาน/ขายได้ปกติทุกอย่าง — ห้าม
+                                // auto-derive จากชื่อ ต้องให้คนกำหนดเอง (Human-reviewed)
+  model          ProductModel? @relation(fields: [modelId], references: [id])
   size           String?
-  unit           String      // เช่น หลัง, ใบ
-  standardPrice  Decimal     @db.Decimal(12, 2) // ราคารวม VAT แล้ว (VAT-inclusive) — ยืนยันแล้ว
+  unit           String        // เช่น หลัง, ใบ
+  standardPrice  Decimal       @db.Decimal(12, 2) // ราคารวม VAT แล้ว (VAT-inclusive) — ยืนยันแล้ว
   description    String?
-  active         Boolean     @default(true)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   priceRules   PriceRule[]
   orderItems   OrderItem[]

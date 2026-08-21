@@ -1,16 +1,20 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProduct } from "../actions";
+import { safeJsonForScript } from "@/lib/safe-json-script";
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, productTypes] = await Promise.all([
+  const [product, productTypes, productModels] = await Promise.all([
     db.product.findUnique({ where: { id: params.id } }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
   ]);
   if (!product) notFound();
 
   const updateWithId = updateProduct.bind(null, product.id);
+  const modelsByType = productModels.map((m) => ({ id: m.id, name: m.name, productTypeId: m.productTypeId }));
+  const modelsForCurrentType = productModels.filter((m) => m.productTypeId === product.productTypeId);
 
   return (
     <div className="max-w-2xl">
@@ -33,6 +37,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
           <select
             name="productTypeId"
+            id="productTypeSelect"
             required
             defaultValue={product.productTypeId}
             className="w-full border rounded px-3 py-1.5 text-sm"
@@ -40,6 +45,19 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
                 {pt.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)
+          </label>
+          <select name="modelId" id="modelSelect" defaultValue={product.modelId ?? ""} className="w-full border rounded px-3 py-1.5 text-sm">
+            <option value="">— ยังไม่ระบุ —</option>
+            {modelsForCurrentType.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
               </option>
             ))}
           </select>
@@ -65,6 +83,29 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           </a>
         </div>
       </form>
+
+      {/* Type→Model dependent dropdown — ถ้าเปลี่ยน Type ระหว่างแก้ไข ให้กรอง Model
+          ใหม่ตาม Type ที่เลือก (Model เดิมของ Type เก่าจะไม่ตรงกันอีกต่อไป) */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            const modelsByType = ${safeJsonForScript(modelsByType)};
+            const productTypeSelect = document.getElementById('productTypeSelect');
+            const modelSelect = document.getElementById('modelSelect');
+            function updateModels() {
+              const typeId = productTypeSelect.value;
+              modelSelect.innerHTML = '<option value="">— ยังไม่ระบุ —</option>';
+              modelsByType.filter(m => m.productTypeId === typeId).forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name;
+                modelSelect.appendChild(opt);
+              });
+            }
+            productTypeSelect.addEventListener('change', updateModels);
+          `,
+        }}
+      />
     </div>
   );
 }

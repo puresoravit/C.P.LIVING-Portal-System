@@ -34,8 +34,16 @@ export const productSchema = z.object({
   sku: z.string().min(1, "กรุณากรอก SKU"),
   name: z.string().min(1, "กรุณากรอกชื่อสินค้า"),
   productTypeId: z.string().min(1, "กรุณาเลือกประเภทสินค้า"),
+  modelId: z.string().nullable().optional(), // Phase B — ไม่บังคับกรอก, null = ยังไม่ระบุ/ยกเลิกการผูก Model, Product ไม่มี Model ใช้งานได้ปกติ
   size: z.string().optional(),
   unit: z.string().min(1, "กรุณากรอกหน่วยนับ"),
   standardPrice: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ"),
   description: z.string().optional(),
+});
+
+// Phase B — Master รุ่นสินค้า (ProductModel) ผูกกับ ProductType เดียว
+export const productModelSchema = z.object({
+  productTypeId: z.string().min(1, "กรุณาเลือกประเภทสินค้า"),
+  name: z.string().min(1, "กรุณากรอกชื่อรุ่นสินค้า"),
+  sortOrder: z.coerce.number().default(0),
 });

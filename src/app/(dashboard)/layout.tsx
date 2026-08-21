@@ -16,6 +16,7 @@ const NAV: { href: string; label: string; perm: Permission | null }[] = [
   { href: "/branches", label: "สาขา", perm: "branch.view" },
   { href: "/product-types", label: "ประเภทสินค้า", perm: "productType.view" },
   { href: "/products", label: "สินค้า", perm: "product.view" },
+  { href: "/product-models", label: "รุ่นสินค้า", perm: "product.view" },
   { href: "/prices", label: "ราคา", perm: "price.view" },
   { href: "/discounts", label: "ส่วนลด", perm: "discount.view" },
   { href: "/import", label: "นำเข้าข้อมูล (Excel)", perm: "user.manage" },
