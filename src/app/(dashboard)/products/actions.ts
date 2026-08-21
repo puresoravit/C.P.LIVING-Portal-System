@@ -40,14 +40,14 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
   const parsed = raw.data;
 
-  // R4 — SKU เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน ProductSkuSequence
-  // (Atomic, ไม่ผูกกับ ProductType เพราะ nullable แล้ว) ถ้ากรอกเอง ใช้ค่าที่กรอกตามเดิม
+  // R4 — รหัสสินค้า (Product.sku) เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน
+  // ProductSkuSequence (Atomic, ไม่ผูกกับ ProductType เพราะ nullable แล้ว) ถ้ากรอกเอง ใช้ค่าที่กรอกตามเดิม
   const sku = parsed.sku || (await generateNextSku());
 
-  // ข้อ 61: SKU ห้ามซ้ำ
+  // ข้อ 61: รหัสสินค้าห้ามซ้ำ
   const existing = await db.product.findUnique({ where: { sku } });
   if (existing) {
-    const error = `SKU "${sku}" มีอยู่แล้วในระบบ`;
+    const error = `รหัสสินค้า "${sku}" ถูกใช้งานแล้ว กรุณาใช้รหัสอื่น`;
     return { success: false, error, fieldErrors: { sku: error } };
   }
 
@@ -80,12 +80,12 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   }
   const parsed = raw.data;
   if (!parsed.sku) {
-    return { success: false, error: "กรุณากรอก SKU", fieldErrors: { sku: "กรุณากรอก SKU" } };
+    return { success: false, error: "กรุณากรอกรหัสสินค้า", fieldErrors: { sku: "กรุณากรอกรหัสสินค้า" } };
   }
 
   const existing = await db.product.findUnique({ where: { sku: parsed.sku } });
   if (existing && existing.id !== id) {
-    const error = `SKU "${parsed.sku}" มีอยู่แล้วในระบบ`;
+    const error = `รหัสสินค้า "${parsed.sku}" ถูกใช้งานแล้ว กรุณาใช้รหัสอื่น`;
     return { success: false, error, fieldErrors: { sku: error } };
   }
 

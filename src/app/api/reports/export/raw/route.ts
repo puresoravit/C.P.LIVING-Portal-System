@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     "Customer Name": item.invoice.customerNameSnapshot,
     Branch: item.invoice.branchNameSnapshot,
     "Product Type": displayProductTypeCode(item.invoice.productTypeCode),
-    SKU: item.skuSnapshot,
+    "Product Code": item.skuSnapshot,
     "Product Name": item.productNameSnapshot,
     Quantity: Number(item.quantity),
     "Unit Price": Number(item.unitPriceSnapshot),

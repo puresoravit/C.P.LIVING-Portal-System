@@ -14,7 +14,7 @@ const GROUP_TABS: { key: GroupKey; label: string }[] = [
   { key: "customer", label: "ตามลูกค้า" },
   { key: "branch", label: "ตามสาขา" },
   { key: "productType", label: "ตามประเภทสินค้า" },
-  { key: "sku", label: "ตามสินค้า (SKU)" },
+  { key: "sku", label: "ตามสินค้า (รหัสสินค้า)" },
 ];
 
 type SearchParams = {

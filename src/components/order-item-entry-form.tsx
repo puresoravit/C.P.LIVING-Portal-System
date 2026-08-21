@@ -64,7 +64,7 @@ export function OrderItemEntryForm({ addAction }: { addAction: (formData: FormDa
       <input type="hidden" name="productId" value={selected?.id ?? ""} />
       <div className="flex-1">
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, SKU หรือชื่อ) — เลือกด้วยลูกศร/Enter
+          ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ) — เลือกด้วยลูกศร/Enter
         </label>
         <ProductSearchPicker onPick={pick} autoFocus placeholder="เช่น M001 หรือ ที่นอนสปริง" />
       </div>

@@ -40,7 +40,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสินค้าใหม่</summary>
         <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-3 gap-3">
-          <Field label="SKU (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
+          <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
           <div className="col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
@@ -72,7 +72,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <input
             name="q"
             defaultValue={q}
-            placeholder="ค้นหาด้วย SKU หรือชื่อสินค้า..."
+            placeholder="ค้นหาด้วยรหัสสินค้าหรือชื่อสินค้า..."
             className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </form>
@@ -117,7 +117,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
               {unassignedOnly && <th className="px-4 py-2 w-8"></th>}
-              <th className="px-4 py-2 font-medium">SKU</th>
+              <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
               <th className="px-4 py-2 font-medium">ประเภท</th>
               <th className="px-4 py-2 font-medium">รุ่นสินค้า</th>

@@ -47,9 +47,9 @@ export async function validatePriceImport(rows: any[]) {
     const effectiveFrom = excelDateToJs(raw.effectiveFrom);
     const effectiveTo = raw.effectiveTo ? excelDateToJs(raw.effectiveTo) : null;
 
-    if (!sku) return { row: rowNum, valid: false, error: "ไม่มี SKU" };
+    if (!sku) return { row: rowNum, valid: false, error: "ไม่มีรหัสสินค้า (sku)" };
     const productId = productBySku.get(sku);
-    if (!productId) return { row: rowNum, valid: false, error: `ไม่พบสินค้า SKU "${sku}"` };
+    if (!productId) return { row: rowNum, valid: false, error: `ไม่พบสินค้ารหัส "${sku}"` };
     if (!customerCode) return { row: rowNum, valid: false, error: "ไม่มีรหัสลูกค้า (customerCode)" };
     const customerId = customerByCode.get(customerCode);
     if (!customerId) return { row: rowNum, valid: false, error: `ไม่พบลูกค้ารหัส "${customerCode}"` };

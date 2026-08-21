@@ -161,7 +161,7 @@ export function OrderEditModal({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600 text-left">
                     <tr>
-                      <th className="px-3 py-2 font-medium">SKU</th>
+                      <th className="px-3 py-2 font-medium">รหัสสินค้า</th>
                       <th className="px-3 py-2 font-medium">รายการ</th>
                       <th className="px-3 py-2 font-medium text-right">จำนวน</th>
                       <th className="px-3 py-2 font-medium">หน่วย</th>
@@ -196,7 +196,7 @@ export function OrderEditModal({
               <div className="flex gap-2 items-end bg-gray-50 border rounded-lg p-3 relative">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, SKU หรือชื่อ)
+                    ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ)
                   </label>
                   <ProductSearchPicker
                     onPick={setSelected}

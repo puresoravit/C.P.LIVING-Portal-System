@@ -35,9 +35,9 @@ export async function validateProductImport(rows: any[]) {
     const unit = String(raw.unit ?? "").trim();
     const standardPrice = Number(raw.standardPrice);
 
-    if (!sku) return { row: rowNum, valid: false, error: "ไม่มี SKU" };
-    if (existingSkus.has(sku)) return { row: rowNum, valid: false, error: `SKU "${sku}" ซ้ำกับที่มีอยู่แล้วในระบบ` };
-    if (seenInBatch.has(sku)) return { row: rowNum, valid: false, error: `SKU "${sku}" ซ้ำกันเองในไฟล์` };
+    if (!sku) return { row: rowNum, valid: false, error: "ไม่มีรหัสสินค้า (sku)" };
+    if (existingSkus.has(sku)) return { row: rowNum, valid: false, error: `รหัสสินค้า "${sku}" ถูกใช้งานแล้ว กรุณาใช้รหัสอื่น` };
+    if (seenInBatch.has(sku)) return { row: rowNum, valid: false, error: `รหัสสินค้า "${sku}" ซ้ำกันเองในไฟล์ กรุณาใช้รหัสอื่น` };
     if (!name) return { row: rowNum, valid: false, error: "ไม่มีชื่อสินค้า (name)" };
     // R4 — productTypeCode ว่างได้แล้ว (= ไม่ระบุประเภท) แต่ถ้ากรอกมาต้องมีจริงใน Master
     // เท่านั้น (กัน Typo เงียบๆ กลายเป็น "ไม่ระบุประเภท" โดยไม่ตั้งใจ)

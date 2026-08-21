@@ -36,7 +36,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         successMessage="บันทึกการแก้ไขสำเร็จ"
         className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3"
       >
-        <Field label="SKU *" name="sku" defaultValue={product.sku} required autoFocus />
+        <Field label="รหัสสินค้า / Code *" name="sku" defaultValue={product.sku} required autoFocus />
         <div className="col-span-2">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>

@@ -48,7 +48,7 @@ export default async function ProductTypesPage() {
               <tr key={pt.id} className="border-t">
                 <td className="px-4 py-2 font-mono">{pt.code}</td>
                 <td className="px-4 py-2">{pt.name}</td>
-                <td className="px-4 py-2">{pt._count.products} SKU</td>
+                <td className="px-4 py-2">{pt._count.products} รหัสสินค้า</td>
                 <td className="px-4 py-2">
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full ${

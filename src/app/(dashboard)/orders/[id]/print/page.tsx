@@ -63,7 +63,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
       <table className="print-table w-full mb-1.5 text-xs">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-1 font-mono w-16">SKU</th>
+            <th className="text-left py-1 font-mono w-16">รหัส</th>
             <th className="text-left py-1">รายการ</th>
             <th className="text-left py-1">ประเภท</th>
             <th className="text-left py-1">ขนาด</th>

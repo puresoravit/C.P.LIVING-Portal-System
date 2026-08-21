@@ -130,7 +130,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
-              <th className="px-4 py-2 font-medium">SKU</th>
+              <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">รายการ</th>
               <th className="px-4 py-2 font-medium">ประเภท</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>

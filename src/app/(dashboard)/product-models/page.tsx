@@ -47,7 +47,7 @@ export default async function ProductModelsPage() {
             <tr>
               <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อรุ่น</th>
-              <th className="px-4 py-2 font-medium">จำนวน SKU</th>
+              <th className="px-4 py-2 font-medium">จำนวนรหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -57,7 +57,7 @@ export default async function ProductModelsPage() {
               <tr key={m.id} className="border-t">
                 <td className="px-4 py-2">{m.productType.name}</td>
                 <td className="px-4 py-2">{m.name}</td>
-                <td className="px-4 py-2">{m._count.products} SKU</td>
+                <td className="px-4 py-2">{m._count.products} รหัสสินค้า</td>
                 <td className="px-4 py-2">
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full ${

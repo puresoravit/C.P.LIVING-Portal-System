@@ -65,7 +65,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-left">
                 <tr>
-                  <th className="px-3 py-2 font-medium">SKU</th>
+                  <th className="px-3 py-2 font-medium">รหัสสินค้า</th>
                   <th className="px-3 py-2 font-medium">ไซส์</th>
                   <th className="px-3 py-2 font-medium text-right">ราคา</th>
                   <th className="px-3 py-2 font-medium">สถานะ</th>
