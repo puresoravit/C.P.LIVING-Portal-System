@@ -84,9 +84,11 @@ export function SelectField({
 
   return (
     <div>
-      <label htmlFor={name} className="block text-xs font-medium text-gray-600 mb-1">
-        {label}
-      </label>
+      {label && (
+        <label htmlFor={name} className="block text-xs font-medium text-gray-600 mb-1">
+          {label}
+        </label>
+      )}
       <select
         id={name}
         name={name}

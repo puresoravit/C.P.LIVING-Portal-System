@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProductType } from "../actions";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field } from "@/components/form/fields";
 
 export default async function EditProductTypePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -16,7 +18,11 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขประเภทสินค้า: {productType.name}</h1>
 
-      <form action={updateWithId} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
+      <ActionForm
+        action={updateWithId}
+        successMessage="บันทึกการแก้ไขสำเร็จ"
+        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+      >
         <Field label="รหัสประเภท *" name="code" defaultValue={productType.code} required autoFocus />
         <Field label="ชื่อประเภท *" name="name" defaultValue={productType.name} required />
         <div className="col-span-2">
@@ -24,44 +30,12 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
         </div>
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(productType.sortOrder)} />
         <div className="col-span-2 flex gap-2">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-            บันทึกการแก้ไข
-          </button>
+          <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/product-types" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก
           </a>
         </div>
-      </form>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  type = "text",
-  required = false,
-  autoFocus = false,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  type?: string;
-  required?: boolean;
-  autoFocus?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        required={required}
-        autoFocus={autoFocus}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+      </ActionForm>
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { createProduct, toggleProductActive } from "./actions";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { SizeSelect } from "@/components/size-select";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string }> }) {
   const searchParams = await props.searchParams;
@@ -37,38 +39,24 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสินค้าใหม่</summary>
-        <form action={createProduct} className="px-4 pb-4 grid grid-cols-3 gap-3">
+        <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-3 gap-3">
           <Field label="SKU *" name="sku" required />
           <div className="col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-            <select
-              name="productTypeId"
-              id="productTypeSelect"
-              required
-              defaultValue=""
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            >
-              <option value="" disabled>
-                เลือกประเภท
+          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
+            <option value="" disabled>
+              เลือกประเภท
+            </option>
+            {productTypes.map((pt) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
               </option>
-              {productTypes.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)
-            </label>
-            <select name="modelId" id="modelSelect" defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="">— ยังไม่ระบุ —</option>
-            </select>
-          </div>
+            ))}
+          </SelectField>
+          <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue="">
+            <option value="">— ยังไม่ระบุ —</option>
+          </SelectField>
           <SizeSelect />
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
@@ -76,11 +64,9 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             <Field label="คำอธิบาย" name="description" />
           </div>
           <div className="col-span-3">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกสินค้า
-            </button>
+            <SubmitButton>บันทึกสินค้า</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="flex items-center justify-between mb-3 gap-3">
@@ -103,26 +89,29 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
       </div>
 
       {unassignedOnly && productModels.length > 0 && (
-        <form
+        <ActionForm
           id="bulkAssignForm"
-          action={bulkAssignProductModelForm}
+          action={bulkAssignProductModel}
+          successMessage="กำหนดรุ่นสินค้าสำเร็จ"
           className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 flex items-center gap-2 text-sm"
         >
-          <span className="text-gray-600">กำหนดรุ่นสินค้าให้รายการที่เลือกไว้ทั้งหมดเป็น:</span>
-          <select name="modelId" required defaultValue="" className="border rounded px-2 py-1 text-sm">
-            <option value="" disabled>
-              เลือกรุ่นสินค้า
-            </option>
-            {productModels.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
+          <span className="text-gray-600 shrink-0">กำหนดรุ่นสินค้าให้รายการที่เลือกไว้ทั้งหมดเป็น:</span>
+          <div className="flex-1">
+            <SelectField label="" name="modelId" required defaultValue="">
+              <option value="" disabled>
+                เลือกรุ่นสินค้า
               </option>
-            ))}
-          </select>
-          <button className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded px-3 py-1.5">
+              {productModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+          <SubmitButton className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded px-3 py-1.5">
             กำหนดรุ่น
-          </button>
-        </form>
+          </SubmitButton>
+        </ActionForm>
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden">
@@ -196,8 +185,8 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
         dangerouslySetInnerHTML={{
           __html: `
             const modelsByType = ${safeJsonForScript(modelsByType)};
-            const productTypeSelect = document.getElementById('productTypeSelect');
-            const modelSelect = document.getElementById('modelSelect');
+            const productTypeSelect = document.querySelector('#createProductForm select[name="productTypeId"]');
+            const modelSelect = document.querySelector('#createProductForm select[name="modelId"]');
             function updateModels() {
               const typeId = productTypeSelect.value;
               modelSelect.innerHTML = '<option value="">— ยังไม่ระบุ —</option>';
@@ -211,38 +200,6 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             productTypeSelect.addEventListener('change', updateModels);
           `,
         }}
-      />
-    </div>
-  );
-}
-
-async function bulkAssignProductModelForm(formData: FormData) {
-  "use server";
-  const productIds = formData.getAll("productId").map(String);
-  const modelId = String(formData.get("modelId"));
-  await bulkAssignProductModel(productIds, modelId);
-}
-
-function Field({
-  label,
-  name,
-  required = false,
-  type = "text",
-}: {
-  label: string;
-  name: string;
-  required?: boolean;
-  type?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        type={type}
-        step={type === "number" ? "0.01" : undefined}
-        required={required}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
   );

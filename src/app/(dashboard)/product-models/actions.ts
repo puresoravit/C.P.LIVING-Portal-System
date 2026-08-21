@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { productModelSchema } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -18,20 +20,27 @@ async function requireUser() {
 
 // Phase B — CRUD สำหรับ ProductModel (รุ่นสินค้า) ใช้ permission product.view/
 // product.edit เดิม ตามที่อนุมัติ ไม่เพิ่ม Permission Key ใหม่
-export async function createProductModel(formData: FormData) {
+export async function createProductModel(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productModelSchema.parse({
+  const raw = productModelSchema.safeParse({
     productTypeId: formData.get("productTypeId"),
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
 
   const existing = await db.productModel.findFirst({
     where: { productTypeId: parsed.productTypeId, name: parsed.name },
   });
-  if (existing) throw new Error(`รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในประเภทสินค้านี้`);
+  if (existing) {
+    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในประเภทสินค้านี้`;
+    return { success: false, error, fieldErrors: { name: error } };
+  }
 
   const model = await db.productModel.create({ data: parsed });
 
@@ -41,17 +50,30 @@ export async function createProductModel(formData: FormData) {
 
   revalidatePath("/product-models");
   revalidatePath("/products");
+  return { success: true };
 }
 
-export async function updateProductModel(id: string, formData: FormData) {
+export async function updateProductModel(id: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productModelSchema.parse({
+  const raw = productModelSchema.safeParse({
     productTypeId: formData.get("productTypeId"),
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
+
+  const existing = await db.productModel.findFirst({
+    where: { productTypeId: parsed.productTypeId, name: parsed.name },
+  });
+  if (existing && existing.id !== id) {
+    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในประเภทสินค้านี้`;
+    return { success: false, error, fieldErrors: { name: error } };
+  }
 
   const before = await db.productModel.findUnique({ where: { id } });
   const model = await db.productModel.update({ where: { id }, data: parsed });
@@ -69,6 +91,7 @@ export async function updateProductModel(id: string, formData: FormData) {
 
   revalidatePath("/product-models");
   revalidatePath("/products");
+  return { success: true };
 }
 
 export async function toggleProductModelActive(id: string) {
@@ -95,10 +118,19 @@ export async function toggleProductModelActive(id: string) {
 
 // Backfill workflow (Human-reviewed ตามที่อนุมัติ) — กำหนด Model ให้ Product หลายตัว
 // พร้อมกันในครั้งเดียว จากหน้า /products (bulk assign) ไม่ auto-derive จากชื่อใดๆ
-export async function bulkAssignProductModel(productIds: string[], modelId: string) {
+export async function bulkAssignProductModel(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
-  if (productIds.length === 0) throw new Error("กรุณาเลือกสินค้าอย่างน้อย 1 รายการ");
+
+  const productIds = formData.getAll("productId").map(String);
+  const modelId = String(formData.get("modelId") || "");
+
+  if (!modelId) {
+    return { success: false, error: "กรุณาเลือกรุ่นสินค้า", fieldErrors: { modelId: "กรุณาเลือกรุ่นสินค้า" } };
+  }
+  if (productIds.length === 0) {
+    return { success: false, error: "กรุณาเลือกสินค้าอย่างน้อย 1 รายการ" };
+  }
 
   const model = await db.productModel.findUniqueOrThrow({ where: { id: modelId } });
   // ProductModel ผูกกับ ProductType เดียว — ห้ามให้ Product ต่างประเภทสินค้ากันมาอยู่
@@ -108,9 +140,8 @@ export async function bulkAssignProductModel(productIds: string[], modelId: stri
     select: { sku: true },
   });
   if (mismatched.length > 0) {
-    throw new Error(
-      `สินค้า ${mismatched.map((p) => p.sku).join(", ")} คนละประเภทสินค้ากับรุ่น "${model.name}" (${model.productTypeId}) — กำหนดรุ่นไม่ได้`
-    );
+    const error = `สินค้า ${mismatched.map((p) => p.sku).join(", ")} คนละประเภทสินค้ากับรุ่น "${model.name}" — กำหนดรุ่นไม่ได้`;
+    return { success: false, error, fieldErrors: { modelId: error } };
   }
 
   await db.product.updateMany({ where: { id: { in: productIds } }, data: { modelId } });
@@ -126,4 +157,5 @@ export async function bulkAssignProductModel(productIds: string[], modelId: stri
   });
 
   revalidatePath("/products");
+  return { success: true };
 }

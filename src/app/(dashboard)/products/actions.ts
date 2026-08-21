@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { productSchema } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -16,11 +18,11 @@ async function requireUser() {
   };
 }
 
-export async function createProduct(formData: FormData) {
+export async function createProduct(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productSchema.parse({
+  const raw = productSchema.safeParse({
     sku: formData.get("sku"),
     name: formData.get("name"),
     productTypeId: formData.get("productTypeId"),
@@ -30,10 +32,17 @@ export async function createProduct(formData: FormData) {
     standardPrice: formData.get("standardPrice"),
     description: formData.get("description") || undefined,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
 
   // ข้อ 61: SKU ห้ามซ้ำ
   const existing = await db.product.findUnique({ where: { sku: parsed.sku } });
-  if (existing) throw new Error(`SKU "${parsed.sku}" มีอยู่แล้วในระบบ`);
+  if (existing) {
+    const error = `SKU "${parsed.sku}" มีอยู่แล้วในระบบ`;
+    return { success: false, error, fieldErrors: { sku: error } };
+  }
 
   const product = await db.product.create({ data: parsed });
 
@@ -42,13 +51,14 @@ export async function createProduct(formData: FormData) {
   });
 
   revalidatePath("/products");
+  return { success: true };
 }
 
-export async function updateProduct(id: string, formData: FormData) {
+export async function updateProduct(id: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productSchema.parse({
+  const raw = productSchema.safeParse({
     sku: formData.get("sku"),
     name: formData.get("name"),
     productTypeId: formData.get("productTypeId"),
@@ -58,6 +68,16 @@ export async function updateProduct(id: string, formData: FormData) {
     standardPrice: formData.get("standardPrice"),
     description: formData.get("description") || undefined,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
+
+  const existing = await db.product.findUnique({ where: { sku: parsed.sku } });
+  if (existing && existing.id !== id) {
+    const error = `SKU "${parsed.sku}" มีอยู่แล้วในระบบ`;
+    return { success: false, error, fieldErrors: { sku: error } };
+  }
 
   const before = await db.product.findUnique({ where: { id } });
   const product = await db.product.update({ where: { id }, data: parsed });
@@ -74,6 +94,7 @@ export async function updateProduct(id: string, formData: FormData) {
   });
 
   revalidatePath("/products");
+  return { success: true };
 }
 
 export async function toggleProductActive(id: string) {

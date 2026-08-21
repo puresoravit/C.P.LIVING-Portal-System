@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { createProductType, toggleProductTypeActive } from "./actions";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field } from "@/components/form/fields";
 
 export default async function ProductTypesPage() {
   const productTypes = await db.productType.findMany({
@@ -17,7 +19,7 @@ export default async function ProductTypesPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มประเภทสินค้าใหม่</summary>
-        <form action={createProductType} className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createProductType} successMessage="เพิ่มประเภทสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
           <Field label="รหัสประเภท * (เช่น D)" name="code" required />
           <Field label="ชื่อประเภท * (เช่น TYPE D)" name="name" required />
           <div className="col-span-2">
@@ -25,11 +27,9 @@ export default async function ProductTypesPage() {
           </div>
           <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
           <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกประเภทสินค้า
-            </button>
+            <SubmitButton>บันทึกประเภทสินค้า</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
@@ -73,30 +73,6 @@ export default async function ProductTypesPage() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  required = false,
-  type = "text",
-}: {
-  label: string;
-  name: string;
-  required?: boolean;
-  type?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        type={type}
-        required={required}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
     </div>
   );
 }

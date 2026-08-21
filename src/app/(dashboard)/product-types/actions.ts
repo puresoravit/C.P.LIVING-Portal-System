@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { productTypeSchema } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
+import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -17,19 +19,26 @@ async function requireUser() {
 }
 
 // ข้อ 6: Admin ต้องเพิ่ม Product Type ใหม่ได้เองจากหน้านี้ โดยไม่ต้องแก้ Source Code เลย
-export async function createProductType(formData: FormData) {
+export async function createProductType(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "productType.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productTypeSchema.parse({
+  const raw = productTypeSchema.safeParse({
     code: formData.get("code"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     sortOrder: formData.get("sortOrder") || 0,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
 
   const existing = await db.productType.findUnique({ where: { code: parsed.code } });
-  if (existing) throw new Error(`รหัสประเภทสินค้า "${parsed.code}" มีอยู่แล้ว`);
+  if (existing) {
+    const error = `รหัสประเภทสินค้า "${parsed.code}" มีอยู่แล้ว`;
+    return { success: false, error, fieldErrors: { code: error } };
+  }
 
   const productType = await db.productType.create({ data: parsed });
 
@@ -38,18 +47,29 @@ export async function createProductType(formData: FormData) {
   });
 
   revalidatePath("/product-types");
+  return { success: true };
 }
 
-export async function updateProductType(id: string, formData: FormData) {
+export async function updateProductType(id: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "productType.edit")) throw new Error("FORBIDDEN");
 
-  const parsed = productTypeSchema.parse({
+  const raw = productTypeSchema.safeParse({
     code: formData.get("code"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     sortOrder: formData.get("sortOrder") || 0,
   });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const parsed = raw.data;
+
+  const existing = await db.productType.findUnique({ where: { code: parsed.code } });
+  if (existing && existing.id !== id) {
+    const error = `รหัสประเภทสินค้า "${parsed.code}" มีอยู่แล้ว`;
+    return { success: false, error, fieldErrors: { code: error } };
+  }
 
   const before = await db.productType.findUnique({ where: { id } });
   const productType = await db.productType.update({ where: { id }, data: parsed });
@@ -66,6 +86,7 @@ export async function updateProductType(id: string, formData: FormData) {
   });
 
   revalidatePath("/product-types");
+  return { success: true };
 }
 
 export async function toggleProductTypeActive(id: string) {

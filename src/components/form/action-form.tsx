@@ -24,6 +24,7 @@ export function ActionForm({
   resetOnSuccess = false,
   onSuccess,
   className,
+  id,
   children,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
@@ -31,6 +32,7 @@ export function ActionForm({
   resetOnSuccess?: boolean;
   onSuccess?: () => void;
   className?: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -86,7 +88,7 @@ export function ActionForm({
 
   return (
     <FieldErrorsContext.Provider value={{ fieldErrors, clearFieldError, isPending }}>
-      <form ref={formRef} onSubmit={handleSubmit} className={className} noValidate={false}>
+      <form ref={formRef} id={id} onSubmit={handleSubmit} className={className}>
         {children}
       </form>
     </FieldErrorsContext.Provider>

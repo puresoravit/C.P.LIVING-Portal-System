@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { updateProduct } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { SizeSelect } from "@/components/size-select";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -29,40 +31,30 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         &quot;ราคา&quot; แทน (Phase 2 Price Rule)
       </p>
 
-      <form action={updateWithId} className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3">
+      <ActionForm
+        action={updateWithId}
+        successMessage="บันทึกการแก้ไขสำเร็จ"
+        className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3"
+      >
         <Field label="SKU *" name="sku" defaultValue={product.sku} required autoFocus />
         <div className="col-span-2">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-          <select
-            name="productTypeId"
-            id="productTypeSelect"
-            required
-            defaultValue={product.productTypeId}
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          >
-            {productTypes.map((pt) => (
-              <option key={pt.id} value={pt.id}>
-                {pt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)
-          </label>
-          <select name="modelId" id="modelSelect" defaultValue={product.modelId ?? ""} className="w-full border rounded px-3 py-1.5 text-sm">
-            <option value="">— ยังไม่ระบุ —</option>
-            {modelsForCurrentType.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue={product.productTypeId}>
+          {productTypes.map((pt) => (
+            <option key={pt.id} value={pt.id}>
+              {pt.name}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue={product.modelId ?? ""}>
+          <option value="">— ยังไม่ระบุ —</option>
+          {modelsForCurrentType.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </SelectField>
         <SizeSelect defaultValue={product.size ?? ""} />
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         <Field
@@ -76,14 +68,12 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           <Field label="คำอธิบาย" name="description" defaultValue={product.description ?? ""} />
         </div>
         <div className="col-span-3 flex gap-2">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-            บันทึกการแก้ไข
-          </button>
+          <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/products" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก
           </a>
         </div>
-      </form>
+      </ActionForm>
 
       {/* Type→Model dependent dropdown — ถ้าเปลี่ยน Type ระหว่างแก้ไข ให้กรอง Model
           ใหม่ตาม Type ที่เลือก (Model เดิมของ Type เก่าจะไม่ตรงกันอีกต่อไป) */}
@@ -91,8 +81,8 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         dangerouslySetInnerHTML={{
           __html: `
             const modelsByType = ${safeJsonForScript(modelsByType)};
-            const productTypeSelect = document.getElementById('productTypeSelect');
-            const modelSelect = document.getElementById('modelSelect');
+            const productTypeSelect = document.querySelector('select[name="productTypeId"]');
+            const modelSelect = document.querySelector('select[name="modelId"]');
             function updateModels() {
               const typeId = productTypeSelect.value;
               modelSelect.innerHTML = '<option value="">— ยังไม่ระบุ —</option>';
@@ -106,37 +96,6 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             productTypeSelect.addEventListener('change', updateModels);
           `,
         }}
-      />
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  type = "text",
-  required = false,
-  autoFocus = false,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  type?: string;
-  required?: boolean;
-  autoFocus?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        type={type}
-        step={type === "number" ? "0.01" : undefined}
-        defaultValue={defaultValue}
-        required={required}
-        autoFocus={autoFocus}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
   );

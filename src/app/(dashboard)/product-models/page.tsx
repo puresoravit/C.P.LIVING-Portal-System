@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { createProductModel, toggleProductModelActive } from "./actions";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function ProductModelsPage() {
   const [models, productTypes] = await Promise.all([
@@ -20,34 +22,23 @@ export default async function ProductModelsPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มรุ่นสินค้าใหม่</summary>
-        <form action={createProductModel} className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า *</label>
-            <select name="productTypeId" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="" disabled>
-                เลือกประเภทสินค้า
+        <ActionForm action={createProductModel} successMessage="เพิ่มรุ่นสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
+            <option value="" disabled>
+              เลือกประเภทสินค้า
+            </option>
+            {productTypes.map((pt) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
               </option>
-              {productTypes.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อรุ่นสินค้า * (เช่น GT-David)</label>
-            <input name="name" required className="w-full border rounded px-3 py-1.5 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">ลำดับการแสดงผล</label>
-            <input name="sortOrder" type="number" className="w-full border rounded px-3 py-1.5 text-sm" />
-          </div>
+            ))}
+          </SelectField>
+          <Field label="ชื่อรุ่นสินค้า * (เช่น GT-David)" name="name" required />
+          <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
           <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกรุ่นสินค้า
-            </button>
+            <SubmitButton>บันทึกรุ่นสินค้า</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
