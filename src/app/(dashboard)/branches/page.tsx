@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { createBranch, toggleBranchActive } from "./actions";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField } from "@/components/form/fields";
 
 export default async function BranchesPage(
   props: {
@@ -32,15 +34,9 @@ export default async function BranchesPage(
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสาขาใหม่</summary>
-        <form action={createBranch} className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createBranch} successMessage="เพิ่มสาขาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-            <select
-              name="customerId"
-              required
-              defaultValue={searchParams.customerId ?? ""}
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            >
+            <SelectField label="ลูกค้า *" name="customerId" required defaultValue={searchParams.customerId ?? ""}>
               <option value="" disabled>
                 เลือกลูกค้า
               </option>
@@ -49,7 +45,7 @@ export default async function BranchesPage(
                   {c.companyName} ({c.code})
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <Field label="รหัสสาขา *" name="code" required />
           <Field label="ชื่อสาขา *" name="name" required />
@@ -62,11 +58,9 @@ export default async function BranchesPage(
           <Field label="รหัสไปรษณีย์" name="postalCode" />
           <Field label="ผู้ติดต่อ" name="contactPerson" />
           <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกสาขา
-            </button>
+            <SubmitButton>บันทึกสาขา</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
@@ -119,19 +113,6 @@ export default async function BranchesPage(
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, name, required = false }: { label: string; name: string; required?: boolean }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        required={required}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
     </div>
   );
 }

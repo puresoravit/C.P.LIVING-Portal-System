@@ -10,4 +10,11 @@
 // คือให้ Action คืนค่าแบบนี้แทนการ throw สำหรับ "Validation Error ที่คาดไว้แล้ว"
 // (ผู้ใช้ควรเห็นเหตุผล) ส่วน error ที่ไม่คาดคิดจริงๆ (เช่น permission/DB down) ยัง throw
 // ตามเดิมได้ตามปกติ — ไม่กระทบ Business Logic ใดๆ เปลี่ยนแค่วิธีส่งข้อความ error กลับ
-export type ActionResult = { success: true } | { success: false; error: string };
+//
+// Phase R2 — เพิ่ม fieldErrors (optional) สำหรับ Error ที่ผูกกับ Field เฉพาะเจาะจง
+// (เช่น "รหัสลูกค้าซ้ำ" ควร Highlight ที่ช่อง code โดยตรง ไม่ใช่แค่ Toast ลอยๆ) —
+// key ต้องตรงกับ name ของ Field นั้น, error (Toast message) ยังคงส่งมาคู่กันเสมอ
+// เผื่อกรณี fieldErrors ว่างหรือ Error ไม่ผูกกับ Field ใดเป็นพิเศษ
+export type ActionResult =
+  | { success: true }
+  | { success: false; error: string; fieldErrors?: Record<string, string> };

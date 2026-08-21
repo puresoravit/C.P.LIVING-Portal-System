@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { createCustomer, toggleCustomerActive } from "./actions";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField, TextareaField } from "@/components/form/fields";
 
 const CREDIT_TERM_LABEL: Record<string, string> = {
   CASH: "เงินสด",
@@ -22,31 +24,25 @@ export default async function CustomersPage() {
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">
           + เพิ่มลูกค้าใหม่
         </summary>
-        <form action={createCustomer} className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createCustomer} successMessage="เพิ่มลูกค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
           <Field label="รหัสลูกค้า *" name="code" required autoFocus />
           <Field label="ชื่อบริษัท *" name="companyName" required />
           <Field label="เลขประจำตัวผู้เสียภาษี" name="taxId" />
           <Field label="เบอร์โทร" name="phone" />
           <Field label="อีเมล" name="email" type="email" />
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">เงื่อนไขเครดิต</label>
-            <select name="creditTerm" defaultValue="CASH" className="w-full border rounded px-3 py-1.5 text-sm">
-              <option value="CASH">เงินสด</option>
-              <option value="NET30">เครดิต 30 วัน</option>
-              <option value="NET60">เครดิต 60 วัน</option>
-              <option value="NET90">เครดิต 90 วัน</option>
-            </select>
+          <SelectField label="เงื่อนไขเครดิต" name="creditTerm" defaultValue="CASH">
+            <option value="CASH">เงินสด</option>
+            <option value="NET30">เครดิต 30 วัน</option>
+            <option value="NET60">เครดิต 60 วัน</option>
+            <option value="NET90">เครดิต 90 วัน</option>
+          </SelectField>
+          <div className="col-span-2">
+            <TextareaField label="หมายเหตุ" name="note" />
           </div>
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
-            <textarea name="note" rows={2} className="w-full border rounded px-3 py-1.5 text-sm" />
+            <SubmitButton>บันทึกลูกค้า</SubmitButton>
           </div>
-          <div className="col-span-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-              บันทึกลูกค้า
-            </button>
-          </div>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
@@ -103,33 +99,6 @@ export default async function CustomersPage() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  type = "text",
-  required = false,
-  autoFocus = false,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-  autoFocus?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        name={name}
-        type={type}
-        required={required}
-        autoFocus={autoFocus}
-        className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
     </div>
   );
 }
