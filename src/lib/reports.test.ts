@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fillYearMonths } from "./reports";
+import { fillYearMonths, computeSalesGrowth, type MonthlySalesPoint } from "./reports";
 
 // หมายเหตุ: ฟังก์ชันหลักของ reports.ts (getSalesByGroup, getDashboard ฯลฯ)
 // ต้องต่อ Database จริงจึง unit test ตรงๆ ไม่ได้ในนี้ — ครอบคลุมด้วย
@@ -43,5 +43,53 @@ describe("fillYearMonths", () => {
     ];
     const result = fillYearMonths(2026, groups);
     expect(result[7].net).toBe(0);
+  });
+});
+
+describe("computeSalesGrowth", () => {
+  function point(month: number, net: number): MonthlySalesPoint {
+    return { month, label: `M${month}`, net };
+  }
+
+  it("คำนวณ % ปกติ (บวก) จากเดือนก่อนหน้าในปีเดียวกัน", () => {
+    const data = [point(1, 1000), point(2, 1500), ...Array.from({ length: 10 }, (_, i) => point(i + 3, 0))];
+    const result = computeSalesGrowth(data, 0);
+    expect(result[1]).toEqual({ month: 2, label: "M2", kind: "pct", value: 50 });
+  });
+
+  it("คำนวณ % ปกติ (ลบ) เมื่อยอดลดลงจากเดือนก่อน", () => {
+    const data = [point(1, 1000), point(2, 500), ...Array.from({ length: 10 }, (_, i) => point(i + 3, 0))];
+    const result = computeSalesGrowth(data, 0);
+    expect(result[1]).toEqual({ month: 2, label: "M2", kind: "pct", value: -50 });
+  });
+
+  it("เดือนก่อน=0 และเดือนนี้=0 → kind flat (ไม่ใช่ pct 0)", () => {
+    const data = Array.from({ length: 12 }, (_, i) => point(i + 1, 0));
+    const result = computeSalesGrowth(data, 0);
+    expect(result[5]).toEqual({ month: 6, label: "M6", kind: "flat" });
+  });
+
+  it("เดือนก่อน=0 แต่เดือนนี้>0 → kind new (ห้ามหาร 0/Infinity)", () => {
+    const data = [point(1, 0), point(2, 800), ...Array.from({ length: 10 }, (_, i) => point(i + 3, 0))];
+    const result = computeSalesGrowth(data, 0);
+    expect(result[1]).toEqual({ month: 2, label: "M2", kind: "new" });
+  });
+
+  it("ม.ค. เทียบ ธ.ค. ปีก่อน (previousDecemberNet) เมื่อมีข้อมูลจริง", () => {
+    const data = [point(1, 500), ...Array.from({ length: 11 }, (_, i) => point(i + 2, 0))];
+    const result = computeSalesGrowth(data, 1000);
+    expect(result[0]).toEqual({ month: 1, label: "M1", kind: "pct", value: -50 });
+  });
+
+  it("ม.ค. เมื่อ ธ.ค. ปีก่อน=0 และ ม.ค.=0 → flat", () => {
+    const data = Array.from({ length: 12 }, (_, i) => point(i + 1, 0));
+    const result = computeSalesGrowth(data, 0);
+    expect(result[0]).toEqual({ month: 1, label: "M1", kind: "flat" });
+  });
+
+  it("ม.ค. เมื่อ ธ.ค. ปีก่อน=0 แต่ ม.ค.>0 → new (ปีแรกที่มีข้อมูลในระบบ)", () => {
+    const data = [point(1, 300), ...Array.from({ length: 11 }, (_, i) => point(i + 2, 0))];
+    const result = computeSalesGrowth(data, 0);
+    expect(result[0]).toEqual({ month: 1, label: "M1", kind: "new" });
   });
 });

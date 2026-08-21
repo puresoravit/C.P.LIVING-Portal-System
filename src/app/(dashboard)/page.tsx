@@ -1,9 +1,17 @@
-import { getDashboard, getSalesByGroup, fillYearMonths, getAvailableSalesYears } from "@/lib/reports";
+import {
+  getDashboard,
+  getSalesByGroup,
+  fillYearMonths,
+  getAvailableSalesYears,
+  getPreviousDecemberNet,
+  computeSalesGrowth,
+} from "@/lib/reports";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CustomerHoverCard } from "@/components/customer-hover-card";
 import { MonthlySalesChart } from "@/components/monthly-sales-chart";
+import { SalesGrowthChart } from "@/components/sales-growth-chart";
 import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
 
 const BUDDHIST_YEAR_OFFSET = 543;
@@ -63,15 +71,17 @@ export default async function HomePage(
   // Query ใหม่ ไม่แตะ Sales SOT
   const currentGregorianYear = new Date().getFullYear();
   const selectedYear = Number(searchParams.year) || currentGregorianYear;
-  const [{ summary, byType, topCustomers, topProducts }, availableYears, monthlyGroups] = await Promise.all([
+  const [{ summary, byType, topCustomers, topProducts }, availableYears, monthlyGroups, previousDecemberNet] = await Promise.all([
     getDashboard({ dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }),
     getAvailableSalesYears(),
     getSalesByGroup(
       { dateFrom: new Date(selectedYear, 0, 1), dateTo: new Date(selectedYear, 11, 31) },
       "month"
     ),
+    getPreviousDecemberNet(selectedYear),
   ]);
   const monthlyData = fillYearMonths(selectedYear, monthlyGroups);
+  const salesGrowthData = computeSalesGrowth(monthlyData, previousDecemberNet);
   // กันกรณี selectedYear (มาจาก URL) อยู่นอก Range ที่คำนวณได้ (เช่น พิมพ์ URL เอง) —
   // Dropdown ต้องมี Option ของปีที่กำลังเลือกอยู่เสมอ
   const yearOptions = [...new Set([selectedYear, ...availableYears])].sort((a, b) => b - a);
@@ -120,25 +130,7 @@ export default async function HomePage(
         )}
       </div>
 
-      <div className="bg-white border rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-sm">ยอดขายรายเดือน (ยอดสุทธิ)</h2>
-          <form className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500">ปี:</span>
-            <select name="year" defaultValue={selectedYear} className="border rounded px-2 py-1 text-sm">
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y + BUDDHIST_YEAR_OFFSET}
-                </option>
-              ))}
-            </select>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1">ดู</button>
-          </form>
-        </div>
-        <MonthlySalesChart data={monthlyData} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="bg-white border rounded-lg p-4">
           <h2 className="font-medium text-sm mb-2">Top 10 ลูกค้า</h2>
           <ul className="text-sm space-y-1">
@@ -186,6 +178,33 @@ export default async function HomePage(
             ))}
             {topProducts.length === 0 && <li className="text-gray-400">ไม่มีข้อมูล</li>}
           </ul>
+        </div>
+      </div>
+
+      {/* Dashboard Chart Redesign — ย้ายมาล่างสุดของหน้า, Desktop วางคู่ 50/50,
+          Mobile Stack 1 Column — ปีเดียวกันคุมทั้ง 2 กราฟ (Query/Year Selector เดิม
+          จาก R1 ตัวเดียว ไม่ซ้ำปุ่ม) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-white border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium text-sm">ยอดขายรายเดือน (ยอดสุทธิ)</h2>
+            <form className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">ปี:</span>
+              <select name="year" defaultValue={selectedYear} className="border rounded px-2 py-1 text-sm">
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y + BUDDHIST_YEAR_OFFSET}
+                  </option>
+                ))}
+              </select>
+              <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1">ดู</button>
+            </form>
+          </div>
+          <MonthlySalesChart data={monthlyData} />
+        </div>
+        <div className="bg-white border rounded-lg p-4">
+          <h2 className="font-medium text-sm mb-3">การเติบโตของยอดขาย (เทียบเดือนก่อนหน้า)</h2>
+          <SalesGrowthChart data={salesGrowthData} />
         </div>
       </div>
 

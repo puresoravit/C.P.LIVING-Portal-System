@@ -178,6 +178,48 @@ export async function getAvailableSalesYears(): Promise<number[]> {
 }
 
 // ==========================================================================
+// Dashboard Chart Redesign — Sales Growth (MoM %) — Reuse getSalesByGroup(..., "month")
+// เดิมทุกประการ ไม่มี Query/Sales SOT ใหม่ — เพิ่มแค่ Query เดียวเพื่อดึงยอด ธ.ค. ปีก่อน
+// (สำหรับเทียบ ม.ค. ของปีที่เลือก) โดย Reuse getSalesByGroup ตัวเดิมเป๊ะ
+// ==========================================================================
+
+/** ยอดขาย (Net) เดือน ธ.ค. ของปีก่อนหน้า (year - 1) — ใช้เป็นฐานเทียบ ม.ค. ของปีที่เลือก
+ * เท่านั้น ไม่มี Endpoint/Query ใหม่ — Reuse getSalesByGroup เดิม, คืน 0 ถ้าไม่มีข้อมูล
+ * (เช่น ปีที่เลือกเป็นปีแรกที่มีข้อมูลในระบบ) */
+export async function getPreviousDecemberNet(year: number): Promise<number> {
+  const groups = await getSalesByGroup(
+    { dateFrom: new Date(year - 1, 11, 1), dateTo: new Date(year - 1, 11, 31) },
+    "month"
+  );
+  return groups[0]?.metrics.net ?? 0;
+}
+
+// Pure Function ล้วนๆ (ไม่แตะ DB) — คำนวณ MoM % จาก MonthlySalesPoint[] ที่มีอยู่แล้ว
+// (fillYearMonths) + ยอด ธ.ค. ปีก่อนสำหรับ ม.ค. — Unit Test ได้ตรงๆ ไม่ต้องพึ่ง DB
+// สูตร ((เดือนนี้-เดือนก่อน)/เดือนก่อน)×100 — Edge Case ตามที่อนุมัติ:
+//  - เดือนก่อน=0 และเดือนนี้=0 → kind "flat", 0%
+//  - เดือนก่อน=0 แต่เดือนนี้>0 → ห้ามหาร 0/Infinity → kind "new" (ไม่มีค่า % ที่มีความหมาย)
+//  - อื่นๆ → kind "pct" คำนวณปกติ (positive/negative ตามเครื่องหมาย)
+export type SalesGrowthPoint =
+  | { month: number; label: string; kind: "pct"; value: number }
+  | { month: number; label: string; kind: "flat" }
+  | { month: number; label: string; kind: "new" };
+
+export function computeSalesGrowth(monthlyData: MonthlySalesPoint[], previousDecemberNet: number): SalesGrowthPoint[] {
+  return monthlyData.map((point, i) => {
+    const prevNet = i === 0 ? previousDecemberNet : monthlyData[i - 1].net;
+    const currNet = point.net;
+    if (prevNet === 0 && currNet === 0) {
+      return { month: point.month, label: point.label, kind: "flat" };
+    }
+    if (prevNet === 0) {
+      return { month: point.month, label: point.label, kind: "new" };
+    }
+    return { month: point.month, label: point.label, kind: "pct", value: ((currNet - prevNet) / prevNet) * 100 };
+  });
+}
+
+// ==========================================================================
 // Phase B: Top Products ระดับ Model (ข้อ 4-5)
 // แยกจาก fetchRows/getSalesByGroup เดิมเพราะต้อง join Product→ProductModel และ
 // carry productId/modelId/size ที่ fetchRows เดิมไม่มี — ไม่แก้ fetchRows เดิมเพื่อ
