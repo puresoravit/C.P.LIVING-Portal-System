@@ -1,6 +1,7 @@
 import { printPageStyleFor, DEFAULT_PRINT_PROFILE } from "@/lib/print-settings";
 import { PrintProfileSelector } from "./print-profile-selector";
 import { PrintButton } from "@/components/print-button";
+import { buildPrintCssVars, type OverridableTemplateSettings } from "@/lib/print-template-settings";
 
 // Shared print page shell — ใช้ร่วมกันทุกประเภทเอกสาร (ข้อ 11) มีแค่ส่วน "โครง"
 // (พื้นที่พิมพ์/ปุ่มพิมพ์/เลือก Print Profile/ซ่อน Sidebar ผ่าน layout.tsx) — เนื้อหา
@@ -14,10 +15,17 @@ import { PrintButton } from "@/components/print-button";
 export function PrintPage({
   children,
   markPrintedAction,
+  templateSettings,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
+  // R5 — ค่าที่ Resolve แล้ว (Global + Override ของเอกสารนี้) ฉีดเป็น CSS Var ที่จุด
+  // เดียวนี้ ให้ Shared Print Component ที่เหลือทั้งหมด Inherit ผ่าน Tailwind Arbitrary
+  // Value (เช่น text-[length:var(--print-body-size)]) โดยไม่ต้องรับ Prop ซ้ำเอง —
+  // Optional เพื่อไม่ Break หน้าอื่นที่อาจยังไม่ได้ส่งมา (Fallback ไป Default ใน globals.css)
+  templateSettings?: OverridableTemplateSettings;
 }) {
+  const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
     <div className="max-w-3xl mx-auto">
       <style
@@ -28,7 +36,10 @@ export function PrintPage({
         <PrintButton markPrintedAction={markPrintedAction} />
         <PrintProfileSelector />
       </div>
-      <div className="print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 print:p-0 text-sm flex flex-col">
+      <div
+        className="print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm flex flex-col"
+        style={cssVars as React.CSSProperties}
+      >
         {children}
       </div>
     </div>

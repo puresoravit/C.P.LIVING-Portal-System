@@ -25,13 +25,34 @@ body {
    (continuous 9x11) ใน src/lib/print-settings.ts */
 :root {
   --print-content-height: 267.4mm;
+
+  /* R5 — Document Template Settings V1: Default ทุกตัวตรงกับ Hardcode เดิมของ
+     Shared Print Component เป๊ะ (ดู src/lib/print-template-settings.ts) — เผื่อกรณี
+     print-page.tsx ไม่ได้ฉีด Inline Style มา (ไม่ควรเกิดขึ้นจริง แต่กันไว้เป็น
+     Fallback ชั้นสุดท้ายไม่ให้ Font-size/Padding หายไปเฉยๆ) */
+  --print-font-family: "Sarabun", "Segoe UI", "Tahoma", ui-sans-serif, system-ui, sans-serif;
+  --print-body-size: 12px;
+  --print-heading-size: 14px;
+  --print-row-padding: 4px;
+  --print-block-gap: 6px;
+  --print-content-padding: 0mm;
+}
+
+/* R5 — Font Family ใช้ทั้งจอ Preview และตอน Print จริง (ไม่ Gate ไว้แค่ @media print)
+   ให้ Owner เห็นตรงกับที่จะพิมพ์จริงตั้งแต่หน้า Preview — ต่างจาก min-height/padding
+   ด้านล่างที่เกี่ยวกับขนาดกระดาษจริงเท่านั้น จึงยัง Gate ไว้แค่ตอน Print */
+.print-page-fill {
+  font-family: var(--print-font-family);
 }
 
 @media print {
   /* เอกสาร print ต้องเห็นเฉพาะตัวเอกสาร — ซ่อน Sidebar/ปุ่ม/Control ของระบบทั้งหมด
-     (เพิ่ม print:hidden ที่ตัว Sidebar ใน (dashboard)/layout.tsx คู่กับกฎนี้) */
+     (เพิ่ม print:hidden ที่ตัว Sidebar ใน (dashboard)/layout.tsx คู่กับกฎนี้)
+     R5 — หัก --print-content-padding (Default 0mm = ไม่กระทบเลย) ออกทั้ง 2 ด้าน กัน
+     Signature Block ดันล้นหน้าเมื่อ Owner ตั้งค่า Content Padding เพิ่ม */
   .print-page-fill {
-    min-height: var(--print-content-height);
+    min-height: calc(var(--print-content-height) - (var(--print-content-padding) * 2));
+    padding: var(--print-content-padding);
   }
 
   /* กัน Row ของ Item Table ถูกตัดครึ่งเวลาขึ้นหน้าใหม่ */

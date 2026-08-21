@@ -12,6 +12,7 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintAmountWordsRemark } from "@/components/print/print-amount-words-remark";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
+import { getPrintTemplateSettings } from "@/lib/print-template-settings";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -24,15 +25,23 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "taxInvoice.create")) redirect("/");
 
-  const [taxInvoice, company] = await Promise.all([
+  const [taxInvoice, company, template] = await Promise.all([
     db.taxInvoice.findUnique({ where: { id: params.id }, include: { items: true, customer: true } }),
     getCompanySettings(),
+    getPrintTemplateSettings("TAX_INVOICE"),
   ]);
   if (!taxInvoice) notFound();
 
   return (
-    <PrintPage>
-      <PrintDocumentHeader company={company} />
+    <PrintPage templateSettings={template}>
+      <PrintDocumentHeader
+        company={company}
+        logo={template.logo}
+        logoSize={template.logoSize}
+        showAddress={template.showAddress}
+        showPhone={template.showPhone}
+        showTaxId={template.showTaxId}
+      />
       <PrintDocumentTitle titleTh="ใบกำกับภาษี / ใบเสร็จรับเงิน" titleEn="TAX INVOICE / RECEIPT" />
 
       <PrintCustomerInfo
@@ -57,28 +66,28 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
         shippingAddress={taxInvoice.placeToDelivery}
       />
 
-      <table className="print-table w-full mb-1.5 text-xs">
+      <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-1 w-8">No.</th>
-            <th className="text-left py-1">รายการ</th>
-            <th className="text-left py-1">ขนาด</th>
-            <th className="text-right py-1">จำนวน</th>
-            <th className="text-right py-1">ราคา/หน่วย</th>
-            <th className="text-right py-1">จำนวนเงิน</th>
+            <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">ราคา/หน่วย</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
           </tr>
         </thead>
         <tbody>
           {taxInvoice.items.map((item, i) => (
             <tr key={item.id} className="border-b border-dashed">
-              <td className="py-1">{i + 1}</td>
-              <td className="py-1">{item.description}</td>
-              <td className="py-1">{item.size ?? ""}</td>
-              <td className="text-right py-1">
+              <td className="py-[length:var(--print-row-padding)]">{i + 1}</td>
+              <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
+              <td className="py-[length:var(--print-row-padding)]">{item.size ?? ""}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">
                 {Number(item.quantity)} {item.unit}
               </td>
-              <td className="text-right py-1">{money(item.unitPrice)}</td>
-              <td className="text-right py-1">{money(item.amount)}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.unitPrice)}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -87,9 +96,9 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
       <div className="flex-1" />
 
       <div className="print-keep-together">
-        <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-1.5">
+        <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-[length:var(--print-block-gap)]">
           <PrintAmountWordsRemark amountInWords={toThaiBahtText(taxInvoice.netAmount)} />
-          <div className="text-xs space-y-1">
+          <div className="text-[length:var(--print-body-size)] space-y-1">
             <div className="flex justify-between">
               <span>มูลค่าสินค้า / Value Amount</span>
               <span>{money(taxInvoice.valueAmount)}</span>
@@ -105,7 +114,7 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
           </div>
         </div>
 
-        <PrintSignatureBlock />
+        <PrintSignatureBlock footerNote={template.footerNote} />
       </div>
     </PrintPage>
   );

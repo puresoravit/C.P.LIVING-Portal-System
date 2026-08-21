@@ -11,6 +11,7 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
+import { getPrintTemplateSettings } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
 
@@ -31,17 +32,25 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
 
-  const [note, company] = await Promise.all([
+  const [note, company, template] = await Promise.all([
     db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true } }),
     getCompanySettings(),
+    getPrintTemplateSettings("BILLING_NOTE"),
   ]);
   if (!note) notFound();
 
   const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
 
   return (
-    <PrintPage>
-      <PrintDocumentHeader company={company} />
+    <PrintPage templateSettings={template}>
+      <PrintDocumentHeader
+        company={company}
+        logo={template.logo}
+        logoSize={template.logoSize}
+        showAddress={template.showAddress}
+        showPhone={template.showPhone}
+        showTaxId={template.showTaxId}
+      />
       <PrintDocumentTitle titleTh="ใบวางบิล" titleEn="BILLING NOTE" />
 
       <PrintCustomerInfo
@@ -63,33 +72,33 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
         ]}
       />
 
-      <p className="text-xs mb-1.5">บริษัทฯ ขอแจ้งรายละเอียดใบกำกับที่ครบกำหนดชำระแล้ว ดังต่อไปนี้</p>
+      <p className="text-[length:var(--print-body-size)] mb-[length:var(--print-block-gap)]">บริษัทฯ ขอแจ้งรายละเอียดใบกำกับที่ครบกำหนดชำระแล้ว ดังต่อไปนี้</p>
 
-      <table className="print-table w-full mb-1.5 text-xs">
+      <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-1">เลขที่ใบกำกับ</th>
-            <th className="text-left py-1">วันที่</th>
-            <th className="text-left py-1">วันครบกำหนด</th>
-            <th className="text-right py-1">จำนวนเงิน</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">เลขที่ใบกำกับ</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">วันที่</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">วันครบกำหนด</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
           </tr>
         </thead>
         <tbody>
           {note.invoices.map((inv) => (
             <tr key={inv.id} className="border-b border-dashed">
-              <td className="py-1">{inv.invoiceNumber}</td>
-              <td className="py-1">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
-              <td className="py-1">{addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH")}</td>
-              <td className="text-right py-1">{money(inv.grandTotal)}</td>
+              <td className="py-[length:var(--print-row-padding)]">{inv.invoiceNumber}</td>
+              <td className="py-[length:var(--print-row-padding)]">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
+              <td className="py-[length:var(--print-row-padding)]">{addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH")}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(inv.grandTotal)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t font-medium">
-            <td colSpan={3} className="py-1 text-right">
+            <td colSpan={3} className="py-[length:var(--print-row-padding)] text-right">
               รวม / Total
             </td>
-            <td className="text-right py-1">{money(note.totalAmount)}</td>
+            <td className="text-right py-[length:var(--print-row-padding)]">{money(note.totalAmount)}</td>
           </tr>
         </tfoot>
       </table>
@@ -97,8 +106,11 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
       <div className="flex-1" />
 
       <div className="print-keep-together">
-        <div className="text-xs mb-2">({toThaiBahtText(note.totalAmount)})</div>
-        <PrintSignatureBlock fields={["ผู้รับวางบิล / Received By", "ผู้ส่งวางบิล / Delivery By"]} />
+        <div className="text-[length:var(--print-body-size)] mb-2">({toThaiBahtText(note.totalAmount)})</div>
+        <PrintSignatureBlock
+          fields={["ผู้รับวางบิล / Received By", "ผู้ส่งวางบิล / Delivery By"]}
+          footerNote={template.footerNote}
+        />
       </div>
     </PrintPage>
   );

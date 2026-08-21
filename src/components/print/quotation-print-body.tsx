@@ -78,30 +78,30 @@ export function QuotationPrintBody({
         )}
       </div>
 
-      <table className="print-table w-full mb-1.5 text-xs">
+      <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-1 w-8">No.</th>
-            <th className="text-left py-1">รายการ</th>
-            <th className="text-left py-1">ขนาด</th>
-            <th className="text-right py-1">จำนวน</th>
-            <th className="text-right py-1">ราคา/หน่วย</th>
-            {showDiscount && <th className="text-right py-1">ส่วนลด</th>}
-            <th className="text-right py-1">จำนวนเงิน</th>
+            <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
+            <th className="text-right py-[length:var(--print-row-padding)]">ราคา/หน่วย</th>
+            {showDiscount && <th className="text-right py-[length:var(--print-row-padding)]">ส่วนลด</th>}
+            <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, i) => (
             <tr key={item.id} className="border-b border-dashed">
-              <td className="py-1">{i + 1}</td>
-              <td className="py-1">{item.productNameSnapshot}</td>
-              <td className="py-1">{item.sizeSnapshot ?? ""}</td>
-              <td className="text-right py-1">
+              <td className="py-[length:var(--print-row-padding)]">{i + 1}</td>
+              <td className="py-[length:var(--print-row-padding)]">{item.productNameSnapshot}</td>
+              <td className="py-[length:var(--print-row-padding)]">{item.sizeSnapshot ?? ""}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">
                 {Number(item.quantity)} {item.unitSnapshot}
               </td>
-              <td className="text-right py-1">{money(item.unitPriceSnapshot)}</td>
-              {showDiscount && <td className="text-right py-1">{money(item.discountAmount)}</td>}
-              <td className="text-right py-1">{money(item.netAmount)}</td>
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.unitPriceSnapshot)}</td>
+              {showDiscount && <td className="text-right py-[length:var(--print-row-padding)]">{money(item.discountAmount)}</td>}
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.netAmount)}</td>
             </tr>
           ))}
         </tbody>
@@ -110,9 +110,9 @@ export function QuotationPrintBody({
       <div className="flex-1" />
 
       <div className="print-keep-together">
-        <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-1.5">
+        <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-[length:var(--print-block-gap)]">
           <PrintAmountWordsRemark amountInWords={amountInWords} remark={note} />
-          <div className="text-xs space-y-1">
+          <div className="text-[length:var(--print-body-size)] space-y-1">
             <div className="flex justify-between">
               <span>รวม / Total</span>
               <span>{money(grossAmount)}</span>

@@ -12,7 +12,7 @@ export function PrintCustomerInfo({
   shippingAddress?: string | null;
 }) {
   return (
-    <div className="border-t border-b py-1.5 mb-1.5 text-xs">
+    <div className="border-t border-b py-1.5 mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-0.5">
           {left.map((row, i) => (

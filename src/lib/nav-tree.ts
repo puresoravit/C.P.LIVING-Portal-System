@@ -76,6 +76,7 @@ export const NAV_TREE: NavNode[] = [
     label: "ตั้งค่า / Settings",
     items: [
       { type: "link", href: "/settings/company", label: "ข้อมูลบริษัท", perm: "user.manage" },
+      { type: "link", href: "/settings/print-template", label: "รูปแบบเอกสาร / Print Template", perm: "user.manage" },
       { type: "link", href: "/settings/permissions", label: "สิทธิการใช้งาน", perm: "user.manage" },
       { type: "link", href: "/settings/backup", label: "สำรอง/กู้คืนข้อมูล", perm: "user.manage" },
       { type: "link", href: "/settings/logs", label: "System Logs", perm: "user.manage" },

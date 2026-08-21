@@ -3,7 +3,12 @@
 // อนุมัติ") "mt-auto" ดันลงไปชิดล่างเมื่ออยู่ใน container ที่เป็น flex column
 // พร้อม min-height ตาม print profile (ดู globals.css .print-page-fill) — เป็นการ
 // ประมาณด้วย CSS ยังต้องตรวจกับกระดาษจริงอีกครั้ง (Manual UAT)
-export function PrintSignatureBlock({ fields }: { fields?: string[] }) {
+//
+// R5 — ขนาด/ระยะห่างของ Section นี้ตรึงไว้คงเดิมทั้งหมด **ไม่ผูก** กับ
+// bodyFontSize/headingFontSize/spacingDensity ใหม่โดยเจตนา เพราะเป็นจุดที่ชิดขอบ
+// ล่างสุดของหน้ากระดาษ เสี่ยง Pagination สูงสุดถ้าโตขึ้น — เปิดให้ปรับได้แค่ข้อความ
+// Footer ผ่าน footerNote (จำกัด 200 ตัวอักษรที่ฝั่ง Server) ไม่ใช่ขนาด/ระยะ
+export function PrintSignatureBlock({ fields, footerNote }: { fields?: string[]; footerNote?: string }) {
   const labels = fields ?? ["ผู้รับสินค้า / Received By", "ผู้ส่งสินค้า / Sent By", "ผู้มีอำนาจอนุมัติ / Manager"];
   return (
     <div className="mt-auto pt-6 print:pt-4 break-inside-avoid">
@@ -15,9 +20,8 @@ export function PrintSignatureBlock({ fields }: { fields?: string[] }) {
           </div>
         ))}
       </div>
-      <div className="text-center text-[9px] text-gray-500 mt-3">
-        <div>ขอขอบคุณลูกค้าที่ไว้วางใจเรา</div>
-        <div>Thank you for your trust and support.</div>
+      <div className="text-center text-[9px] text-gray-500 mt-3" style={{ whiteSpace: "pre-line" }}>
+        {footerNote || "ขอขอบคุณลูกค้าที่ไว้วางใจเรา\nThank you for your trust and support."}
       </div>
     </div>
   );

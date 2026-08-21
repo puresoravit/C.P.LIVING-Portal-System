@@ -4,7 +4,7 @@
 // ตามฟอร์มอ้างอิง ไม่ใช่การเพิ่มข้อมูลใหม่)
 export function PrintAmountWordsRemark({ amountInWords, remark }: { amountInWords: string; remark?: string | null }) {
   return (
-    <div className="text-xs space-y-1">
+    <div className="text-[length:var(--print-body-size)] space-y-1">
       <div>
         <span className="text-gray-500">ตัวอักษร / Amount in Words:</span> {amountInWords}
       </div>

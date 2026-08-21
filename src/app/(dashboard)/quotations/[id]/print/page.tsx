@@ -12,6 +12,7 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
+import { getPrintTemplateSettings } from "@/lib/print-template-settings";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
 // เดิมทั้งหมด ไม่มี VAT โดย Default (vatMode=NONE) แต่รองรับ vatMode=STANDARD ได้ —
@@ -21,16 +22,24 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "quotation.print")) redirect("/");
 
-  const [quotation, company] = await Promise.all([
+  const [quotation, company, template] = await Promise.all([
     db.quotation.findUnique({ where: { id: params.id }, include: { items: true, customer: true } }),
     getCompanySettings(),
+    getPrintTemplateSettings("QUOTATION"),
   ]);
   if (!quotation) notFound();
   if (quotation.status === "DRAFT") redirect(`/quotations/${quotation.id}`);
 
   return (
-    <PrintPage>
-      <PrintDocumentHeader company={company} />
+    <PrintPage templateSettings={template}>
+      <PrintDocumentHeader
+        company={company}
+        logo={template.logo}
+        logoSize={template.logoSize}
+        showAddress={template.showAddress}
+        showPhone={template.showPhone}
+        showTaxId={template.showTaxId}
+      />
       <PrintDocumentTitle titleTh={`ใบเสนอราคา (Rev. ${quotation.revisionNo})`} titleEn="QUOTATION" />
 
       <PrintCustomerInfo
@@ -68,7 +77,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         grandTotal={quotation.grandTotal}
       />
 
-      <PrintSignatureBlock />
+      <PrintSignatureBlock footerNote={template.footerNote} />
     </PrintPage>
   );
 }
