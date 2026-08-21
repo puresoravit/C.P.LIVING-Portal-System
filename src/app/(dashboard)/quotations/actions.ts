@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -31,11 +32,11 @@ const createQuotationSchema = z.object({
   vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
 });
 
-export async function createDraftQuotation(formData: FormData) {
+export async function createDraftQuotation(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.create")) throw new Error("FORBIDDEN");
 
-  const parsed = createQuotationSchema.parse({
+  const rawParse = createQuotationSchema.safeParse({
     customerId: formData.get("customerId"),
     branchId: formData.get("branchId"),
     quotationDate: formData.get("quotationDate"),
@@ -44,6 +45,10 @@ export async function createDraftQuotation(formData: FormData) {
     placeToDelivery: formData.get("placeToDelivery") || undefined,
     vatMode: formData.get("vatMode") || "NONE",
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const parsed = rawParse.data;
 
   const quotation = await db.$transaction(async (tx) => {
     // Quotation เป็นเอกสารแยกเด็ดขาดจาก Order/Invoice — ไม่ผูก Relation ใดๆ กัน,
@@ -86,58 +91,78 @@ const addItemSchema = z.object({
   descriptionOverride: z.string().optional(),
 });
 
-export async function addQuotationItem(quotationId: string, formData: FormData) {
+export async function addQuotationItem(quotationId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.edit")) throw new Error("FORBIDDEN");
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
-  if (quotation.status !== "DRAFT") throw new Error("แก้ไขรายการได้เฉพาะ Quotation สถานะร่างเท่านั้น");
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
+  }
 
-  const parsed = addItemSchema.parse({
+  const rawParse = addItemSchema.safeParse({
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const parsed = rawParse.data;
 
   await db.quotationItem.create({
     data: { quotationId, productId: parsed.productId, quantity: parsed.quantity, descriptionOverride: parsed.descriptionOverride },
   });
 
   revalidatePath(`/quotations/${quotationId}`);
+  return { success: true };
 }
 
-export async function removeQuotationItem(quotationId: string, itemId: string) {
+export async function removeQuotationItem(quotationId: string, itemId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.edit")) throw new Error("FORBIDDEN");
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
-  if (quotation.status !== "DRAFT") throw new Error("แก้ไขรายการได้เฉพาะ Quotation สถานะร่างเท่านั้น");
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
+  }
 
   await db.quotationItem.delete({ where: { id: itemId } });
   revalidatePath(`/quotations/${quotationId}`);
+  return { success: true };
 }
 
-export async function updateQuotationVatMode(quotationId: string, formData: FormData) {
+export async function updateQuotationVatMode(quotationId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.edit")) throw new Error("FORBIDDEN");
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
-  if (quotation.status !== "DRAFT") throw new Error("แก้ไข VAT Mode ได้เฉพาะ Quotation สถานะร่างเท่านั้น");
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "แก้ไข VAT Mode ได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
+  }
 
-  const vatMode = z.enum(["NONE", "STANDARD"]).parse(formData.get("vatMode"));
-  await db.quotation.update({ where: { id: quotationId }, data: { vatMode } });
+  const vatModeParse = z.enum(["NONE", "STANDARD"]).safeParse(formData.get("vatMode"));
+  if (!vatModeParse.success) {
+    return { success: false, error: "VAT Mode ไม่ถูกต้อง" };
+  }
+  await db.quotation.update({ where: { id: quotationId }, data: { vatMode: vatModeParse.data } });
   revalidatePath(`/quotations/${quotationId}`);
+  return { success: true };
 }
 
 // Confirm — Snapshot ทุกฟิลด์ที่จำเป็นตาม computeQuotationCalc (Reuse Pricing/VAT Engine
 // เดิมทั้งหมด) revisionNo เริ่มที่ 0 เสมอตอน Confirm ครั้งแรก
-export async function confirmQuotation(quotationId: string) {
+export async function confirmQuotation(quotationId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.confirm")) throw new Error("FORBIDDEN");
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId }, include: { items: true, customer: true, branch: true } });
-  if (quotation.status !== "DRAFT") throw new Error("Quotation นี้ถูก Confirm หรือยกเลิกไปแล้ว");
-  if (quotation.items.length === 0) throw new Error("ต้องมีอย่างน้อย 1 รายการสินค้าก่อน Confirm");
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "Quotation นี้ถูก Confirm หรือยกเลิกไปแล้ว" };
+  }
+  if (quotation.items.length === 0) {
+    return { success: false, error: "ต้องมีอย่างน้อย 1 รายการสินค้าก่อน Confirm" };
+  }
 
   const calc = await computeQuotationCalc(
     quotation.items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
@@ -203,11 +228,15 @@ export async function confirmQuotation(quotationId: string) {
     });
   } catch (err) {
     logError("confirm-quotation", err, { quotationId });
-    throw new Error("ยืนยัน Quotation ไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ");
+    return {
+      success: false,
+      error: "ยืนยัน Quotation ไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ",
+    };
   }
 
   revalidatePath(`/quotations/${quotationId}`);
   revalidatePath("/quotations");
+  return { success: true };
 }
 
 const editItemSchema = z.object({

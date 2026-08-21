@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { createDraftOrder } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField, TextareaField } from "@/components/form/fields";
 
 export default async function NewOrderPage() {
   const customers = await db.customer.findMany({
@@ -18,71 +20,34 @@ export default async function NewOrderPage() {
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างออเดอร์ใหม่</h1>
 
-      <form action={createDraftOrder} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-          <select
-            name="customerId"
-            id="customerSelect"
-            required
-            autoFocus
-            defaultValue=""
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          >
-            <option value="" disabled>
-              เลือกลูกค้า
+      <ActionForm id="createOrderForm" action={createDraftOrder} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
+        <SelectField label="ลูกค้า *" name="customerId" required autoFocus defaultValue="">
+          <option value="" disabled>
+            เลือกลูกค้า
+          </option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.companyName} ({c.code})
             </option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.companyName} ({c.code})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">สาขา *</label>
-          <select
-            name="branchId"
-            id="branchSelect"
-            required
-            defaultValue=""
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          >
-            <option value="" disabled>
-              — เลือกลูกค้าก่อน —
-            </option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">วันที่ออเดอร์ *</label>
-          <input
-            name="orderDate"
-            type="date"
-            defaultValue={today}
-            required
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">อ้างอิง</label>
-          <input name="reference" className="w-full border rounded px-3 py-1.5 text-sm" />
+          ))}
+        </SelectField>
+        <SelectField label="สาขา *" name="branchId" required defaultValue="">
+          <option value="" disabled>
+            — เลือกลูกค้าก่อน —
+          </option>
+        </SelectField>
+        <Field label="วันที่ออเดอร์ *" name="orderDate" type="date" defaultValue={today} required />
+        <Field label="อ้างอิง" name="reference" />
+        <div className="col-span-2">
+          <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)
-          </label>
-          <input id="placeToDelivery" name="placeToDelivery" className="w-full border rounded px-3 py-1.5 text-sm" />
+          <TextareaField label="หมายเหตุ" name="note" />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
-          <textarea name="note" rows={2} className="w-full border rounded px-3 py-1.5 text-sm" />
+          <SubmitButton pendingLabel="กำลังสร้าง...">สร้างออเดอร์ → ไปคีย์รายการสินค้า</SubmitButton>
         </div>
-        <div className="col-span-2">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-            สร้างออเดอร์ → ไปคีย์รายการสินค้า
-          </button>
-        </div>
-      </form>
+      </ActionForm>
 
       {/* สคริปต์เล็กๆ กรอง Branch ตาม Customer ที่เลือก + auto-fill สถานที่ส่งสินค้าจากที่อยู่สาขา
           เขียนแบบ inline script เพราะเป็นแค่ UX helper ไม่ใช่ business logic (แยกจาก server actions ชัดเจน) */}
@@ -95,9 +60,9 @@ export default async function NewOrderPage() {
                 branches: c.branches.map((b) => ({ id: b.id, name: b.name, address: b.address ?? "" })),
               }))
             )};
-            const customerSelect = document.getElementById('customerSelect');
-            const branchSelect = document.getElementById('branchSelect');
-            const placeToDeliveryInput = document.getElementById('placeToDelivery');
+            const customerSelect = document.querySelector('#createOrderForm select[name="customerId"]');
+            const branchSelect = document.querySelector('#createOrderForm select[name="branchId"]');
+            const placeToDeliveryInput = document.querySelector('#createOrderForm input[name="placeToDelivery"]');
             function updateBranches() {
               const customer = customersData.find(c => c.id === customerSelect.value);
               branchSelect.innerHTML = '';

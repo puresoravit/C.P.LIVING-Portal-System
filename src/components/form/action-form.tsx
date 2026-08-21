@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { FieldErrorsContext, useFieldErrorsContext } from "./field-errors-context";
@@ -18,6 +19,11 @@ import { FieldErrorsContext, useFieldErrorsContext } from "./field-errors-contex
 //    เพื่อ "เด้ง" Error ไปให้ nearest error.tsx Boundary จับต่อ ตามพฤติกรรมเดิมของระบบ
 //    ทุกประการ (error.tsx เรียก logClientError ให้เองอยู่แล้ว) — ไม่มีการ swallow
 //    Unexpected Error เงียบๆ
+//
+// R2.4 — บาง Action (เช่น createDraftOrder) เรียก redirect() ของ Next.js ตอนสำเร็จ
+// ซึ่ง throw signal พิเศษ (ไม่ใช่ Error จริง) ต้องปล่อยผ่านไปให้ Next.js จัดการ
+// Navigation เองทันที ห้ามถูกจับเป็น "Unexpected Error" เด็ดขาด — ใช้
+// unstable_rethrow() ของ Next.js ตรวจสอบและ re-throw signal นี้ก่อนเสมอ
 export function ActionForm({
   action,
   successMessage = "บันทึกสำเร็จ",
@@ -69,6 +75,7 @@ export function ActionForm({
           showError(result.error);
         }
       } catch (err) {
+        unstable_rethrow(err); // ปล่อย redirect()/notFound() signal ของ Next.js ผ่านทันที
         setThrownError(err);
       }
     });

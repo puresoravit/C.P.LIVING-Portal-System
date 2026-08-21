@@ -43,9 +43,11 @@ export function Field({
 
   return (
     <div>
-      <label htmlFor={name} className="block text-xs font-medium text-gray-600 mb-1">
-        {label}
-      </label>
+      {label && (
+        <label htmlFor={name} className="block text-xs font-medium text-gray-600 mb-1">
+          {label}
+        </label>
+      )}
       <input
         id={name}
         name={name}
@@ -76,12 +78,14 @@ export function SelectField({
   name,
   defaultValue,
   required = false,
+  autoFocus = false,
   children,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   required?: boolean;
+  autoFocus?: boolean;
   children: React.ReactNode;
 }) {
   const { fieldErrors, clearFieldError, isPending } = useFieldErrorsContext();
@@ -100,6 +104,7 @@ export function SelectField({
         name={name}
         defaultValue={defaultValue}
         required={required}
+        autoFocus={autoFocus}
         disabled={isPending}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}

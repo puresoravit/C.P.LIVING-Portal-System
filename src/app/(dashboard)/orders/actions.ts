@@ -14,6 +14,7 @@ import { z } from "zod";
 import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
+import { zodFieldErrors } from "@/lib/zod-field-errors";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -33,11 +34,11 @@ const createOrderSchema = z.object({
   placeToDelivery: z.string().optional(),
 });
 
-export async function createDraftOrder(formData: FormData) {
+export async function createDraftOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.create")) throw new Error("FORBIDDEN");
 
-  const parsed = createOrderSchema.parse({
+  const rawParse = createOrderSchema.safeParse({
     customerId: formData.get("customerId"),
     branchId: formData.get("branchId"),
     orderDate: formData.get("orderDate"),
@@ -45,6 +46,10 @@ export async function createDraftOrder(formData: FormData) {
     note: formData.get("note") || undefined,
     placeToDelivery: formData.get("placeToDelivery") || undefined,
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const parsed = rawParse.data;
 
   const period = currentPeriod(parsed.orderDate);
 
@@ -79,12 +84,14 @@ export async function createDraftOrder(formData: FormData) {
 // ราคา/ส่วนลดเก่ามาด้วยเด็ดขาด (ราคา/ส่วนลดจะถูกคำนวณใหม่ตาม Order Date
 // ใหม่โดยอัตโนมัติผ่าน Pricing Engine ตอนแสดง Preview อยู่แล้ว เพราะ
 // OrderItem ไม่ได้เก็บราคาไว้เลย — จึง "ห้าม Copy ราคาเก่า" โดยธรรมชาติ)
-export async function duplicateOrder(sourceOrderId: string, formData: FormData) {
+export async function duplicateOrder(sourceOrderId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.create")) throw new Error("FORBIDDEN");
 
   const newOrderDate = String(formData.get("newOrderDate") || "");
-  if (!newOrderDate) throw new Error("กรุณาระบุวันที่ Order ใหม่");
+  if (!newOrderDate) {
+    return { success: false, error: "กรุณาระบุวันที่ Order ใหม่", fieldErrors: { newOrderDate: "กรุณาระบุวันที่ Order ใหม่" } };
+  }
 
   const source = await db.order.findUniqueOrThrow({
     where: { id: sourceOrderId },
@@ -142,18 +149,24 @@ const addItemSchema = z.object({
   descriptionOverride: z.string().optional(),
 });
 
-export async function addOrderItem(orderId: string, formData: FormData) {
+export async function addOrderItem(orderId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.editDraft")) throw new Error("FORBIDDEN");
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.status !== "DRAFT") throw new Error("แก้ไขรายการได้เฉพาะ Order สถานะ Draft เท่านั้น (ข้อ 29)");
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Order สถานะ Draft เท่านั้น (ข้อ 29)" };
+  }
 
-  const parsed = addItemSchema.parse({
+  const rawParse = addItemSchema.safeParse({
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
   });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+  const parsed = rawParse.data;
 
   await db.orderItem.create({
     data: {
@@ -165,17 +178,21 @@ export async function addOrderItem(orderId: string, formData: FormData) {
   });
 
   revalidatePath(`/orders/${orderId}`);
+  return { success: true };
 }
 
-export async function removeOrderItem(orderId: string, itemId: string) {
+export async function removeOrderItem(orderId: string, itemId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.editDraft")) throw new Error("FORBIDDEN");
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.status !== "DRAFT") throw new Error("แก้ไขรายการได้เฉพาะ Order สถานะ Draft เท่านั้น");
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Order สถานะ Draft เท่านั้น" };
+  }
 
   await db.orderItem.delete({ where: { id: itemId } });
   revalidatePath(`/orders/${orderId}`);
+  return { success: true };
 }
 
 // ข้อ 21: ต้อง Preview แล้วพนักงานตรวจสอบก่อน Confirm — หน้าจอบังคับให้ผ่าน Preview
@@ -188,7 +205,7 @@ export async function removeOrderItem(orderId: string, itemId: string) {
 // หมายเหตุสำคัญ: Invoice ที่สร้างตรงนี้คือ "ใบส่งของชั่วคราว" (ไม่มี VAT)
 // ตามที่ยืนยันไว้ในการหารือ — ใบกำกับภาษี (มี VAT, ไม่ผูก 1:1 กับใบนี้เสมอไป)
 // เป็นเอกสารแยกต่างหากที่จะทำใน Phase 5
-export async function confirmOrder(orderId: string) {
+export async function confirmOrder(orderId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.confirm")) throw new Error("FORBIDDEN");
   if (!can(user.role, "invoice.create")) throw new Error("FORBIDDEN");
@@ -197,8 +214,12 @@ export async function confirmOrder(orderId: string) {
     where: { id: orderId },
     include: { items: true, customer: true, branch: true },
   });
-  if (order.status !== "DRAFT") throw new Error("Order นี้ถูก Confirm หรือยกเลิกไปแล้ว");
-  if (order.items.length === 0) throw new Error("ต้องมีอย่างน้อย 1 รายการสินค้าก่อน Confirm");
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "Order นี้ถูก Confirm หรือยกเลิกไปแล้ว" };
+  }
+  if (order.items.length === 0) {
+    return { success: false, error: "ต้องมีอย่างน้อย 1 รายการสินค้าก่อน Confirm" };
+  }
 
   // คำนวณ Preview ก่อนเข้า transaction (Order ยังเป็น Draft ตอนนี้ แก้ไม่ได้แล้ว
   // เพราะกำลังอยู่ระหว่างขั้นตอน Confirm — race condition อื่นถูกกันซ้ำอีกชั้นด้วย
@@ -301,12 +322,17 @@ export async function confirmOrder(orderId: string) {
   });
   } catch (err) {
     logError("confirm-order", err, { orderId });
-    throw new Error("ยืนยันออเดอร์ไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น (ระบบยกเลิกทุกอย่างที่ทำไปแล้วอัตโนมัติ) กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ");
+    return {
+      success: false,
+      error:
+        "ยืนยันออเดอร์ไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น (ระบบยกเลิกทุกอย่างที่ทำไปแล้วอัตโนมัติ) กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ",
+    };
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
   revalidatePath("/invoices");
+  return { success: true };
 }
 
 // Clarification #11: ไม่ Cascade Cancel Invoice อัตโนมัติ — Block ถ้ามี Invoice ที่ยังไม่ Cancel

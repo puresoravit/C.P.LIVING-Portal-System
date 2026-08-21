@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { createDraftQuotation } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field, SelectField, TextareaField } from "@/components/form/fields";
 
 export default async function NewQuotationPage() {
   const customers = await db.customer.findMany({
@@ -18,66 +20,36 @@ export default async function NewQuotationPage() {
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างใบเสนอราคาใหม่</h1>
 
-      <form action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
-          <select
-            name="customerId"
-            id="customerSelect"
-            required
-            autoFocus
-            defaultValue=""
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          >
-            <option value="" disabled>
-              เลือกลูกค้า
+      <ActionForm id="createQuotationForm" action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
+        <SelectField label="ลูกค้า *" name="customerId" required autoFocus defaultValue="">
+          <option value="" disabled>
+            เลือกลูกค้า
+          </option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.companyName} ({c.code})
             </option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.companyName} ({c.code})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">สาขา *</label>
-          <select name="branchId" id="branchSelect" required defaultValue="" className="w-full border rounded px-3 py-1.5 text-sm">
-            <option value="" disabled>
-              — เลือกลูกค้าก่อน —
-            </option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">วันที่เอกสาร *</label>
-          <input name="quotationDate" type="date" defaultValue={today} required className="w-full border rounded px-3 py-1.5 text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">VAT</label>
-          <select name="vatMode" defaultValue="NONE" className="w-full border rounded px-3 py-1.5 text-sm">
-            <option value="NONE">ไม่คิด VAT</option>
-            <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">อ้างอิง</label>
-          <input name="reference" className="w-full border rounded px-3 py-1.5 text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)
-          </label>
-          <input id="placeToDelivery" name="placeToDelivery" className="w-full border rounded px-3 py-1.5 text-sm" />
+          ))}
+        </SelectField>
+        <SelectField label="สาขา *" name="branchId" required defaultValue="">
+          <option value="" disabled>
+            — เลือกลูกค้าก่อน —
+          </option>
+        </SelectField>
+        <Field label="วันที่เอกสาร *" name="quotationDate" type="date" defaultValue={today} required />
+        <SelectField label="VAT" name="vatMode" defaultValue="NONE">
+          <option value="NONE">ไม่คิด VAT</option>
+          <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
+        </SelectField>
+        <Field label="อ้างอิง" name="reference" />
+        <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
+        <div className="col-span-2">
+          <TextareaField label="หมายเหตุ" name="note" />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
-          <textarea name="note" rows={2} className="w-full border rounded px-3 py-1.5 text-sm" />
+          <SubmitButton pendingLabel="กำลังสร้าง...">สร้างใบเสนอราคา → ไปคีย์รายการสินค้า</SubmitButton>
         </div>
-        <div className="col-span-2">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
-            สร้างใบเสนอราคา → ไปคีย์รายการสินค้า
-          </button>
-        </div>
-      </form>
+      </ActionForm>
 
       <script
         dangerouslySetInnerHTML={{
@@ -88,9 +60,9 @@ export default async function NewQuotationPage() {
                 branches: c.branches.map((b) => ({ id: b.id, name: b.name, address: b.address ?? "" })),
               }))
             )};
-            const customerSelect = document.getElementById('customerSelect');
-            const branchSelect = document.getElementById('branchSelect');
-            const placeToDeliveryInput = document.getElementById('placeToDelivery');
+            const customerSelect = document.querySelector('#createQuotationForm select[name="customerId"]');
+            const branchSelect = document.querySelector('#createQuotationForm select[name="branchId"]');
+            const placeToDeliveryInput = document.querySelector('#createQuotationForm input[name="placeToDelivery"]');
             function updateBranches() {
               const customer = customersData.find(c => c.id === customerSelect.value);
               branchSelect.innerHTML = '';

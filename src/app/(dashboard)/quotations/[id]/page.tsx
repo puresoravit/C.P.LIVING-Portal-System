@@ -15,6 +15,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+import { ActionButton } from "@/components/action-button";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { SelectField } from "@/components/form/fields";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -94,16 +97,15 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
       {isDraft && (
         <>
           <div className="bg-white border rounded-lg p-4 mb-4 flex items-end gap-3">
-            <form action={updateVatModeAction} className="flex items-end gap-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">VAT</label>
-                <select name="vatMode" defaultValue={quotation.vatMode} className="border rounded px-3 py-1.5 text-sm">
-                  <option value="NONE">ไม่คิด VAT</option>
-                  <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
-                </select>
-              </div>
-              <button className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50">เปลี่ยน VAT</button>
-            </form>
+            <ActionForm action={updateVatModeAction} successMessage="เปลี่ยน VAT สำเร็จ" className="flex items-end gap-2">
+              <SelectField label="VAT" name="vatMode" defaultValue={quotation.vatMode}>
+                <option value="NONE">ไม่คิด VAT</option>
+                <option value="STANDARD">คิด VAT (อัตรามาตรฐาน)</option>
+              </SelectField>
+              <SubmitButton pendingLabel="กำลังเปลี่ยน..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
+                เปลี่ยน VAT
+              </SubmitButton>
+            </ActionForm>
           </div>
           <div className="mb-4">
             <OrderItemEntryForm key={quotation.items.length} addAction={addItemAction} />
@@ -133,9 +135,13 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
                 <td className="px-4 py-2">{item.product.unit}</td>
                 {isDraft && (
                   <td className="px-4 py-2 text-right">
-                    <form action={removeQuotationItem.bind(null, quotation.id, item.id)}>
-                      <button className="text-xs text-gray-500 hover:text-red-600">ลบ</button>
-                    </form>
+                    <ActionButton
+                      action={removeQuotationItem.bind(null, quotation.id, item.id)}
+                      label="ลบ"
+                      pendingLabel="กำลังลบ..."
+                      successMessage="ลบรายการสำเร็จ"
+                      className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
+                    />
                   </td>
                 )}
               </tr>
@@ -190,14 +196,14 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
           </a>
         )}
         {isDraft && (
-          <form action={confirmAction}>
-            <button
-              disabled={quotation.items.length === 0}
-              className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
-            >
-              ✓ Confirm ใบเสนอราคา
-            </button>
-          </form>
+          <ActionButton
+            action={confirmAction}
+            label="✓ Confirm ใบเสนอราคา"
+            pendingLabel="กำลัง Confirm..."
+            successMessage="Confirm ใบเสนอราคาสำเร็จ"
+            disabled={quotation.items.length === 0}
+            className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2"
+          />
         )}
         {quotation.status !== "CANCELLED" && (
           <CancelButton

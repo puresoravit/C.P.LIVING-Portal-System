@@ -9,6 +9,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+import { ActionButton } from "@/components/action-button";
+import { ActionForm, SubmitButton } from "@/components/form/action-form";
+import { Field } from "@/components/form/fields";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -113,9 +116,13 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <td className="px-4 py-2">{item.product.unit}</td>
                 {isDraft && (
                   <td className="px-4 py-2 text-right">
-                    <form action={removeOrderItem.bind(null, order.id, item.id)}>
-                      <button className="text-xs text-gray-500 hover:text-red-600">ลบ</button>
-                    </form>
+                    <ActionButton
+                      action={removeOrderItem.bind(null, order.id, item.id)}
+                      label="ลบ"
+                      pendingLabel="กำลังลบ..."
+                      successMessage="ลบรายการสำเร็จ"
+                      className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
+                    />
                   </td>
                 )}
               </tr>
@@ -183,14 +190,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           พิมพ์ Sales Order (เอกสารภายใน)
         </a>
         {isDraft && (
-          <form action={confirmAction}>
-            <button
-              disabled={order.items.length === 0}
-              className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
-            >
-              ✓ Confirm ออเดอร์ (สร้างบิลแยกตามประเภท)
-            </button>
-          </form>
+          <ActionButton
+            action={confirmAction}
+            label="✓ Confirm ออเดอร์ (สร้างบิลแยกตามประเภท)"
+            pendingLabel="กำลัง Confirm..."
+            successMessage="Confirm ออเดอร์สำเร็จ — สร้าง Invoice เรียบร้อย"
+            disabled={order.items.length === 0}
+            className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2"
+          />
         )}
         {order.status !== "CANCELLED" && (
           <CancelButton
@@ -245,10 +252,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       )}
       <div className="bg-white border rounded-lg p-3 mt-4 flex items-center gap-2">
         <span className="text-sm text-gray-600">คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่ (ราคา/ส่วนลดจะคำนวณใหม่ตามวันที่ที่เลือก):</span>
-        <form action={duplicateOrder.bind(null, order.id)} className="flex gap-2">
-          <input type="date" name="newOrderDate" defaultValue={new Date().toISOString().slice(0, 10)} required className="border rounded px-2 py-1 text-sm" />
-          <button className="text-sm bg-gray-800 hover:bg-gray-900 text-white rounded px-3 py-1">คัดลอก</button>
-        </form>
+        <ActionForm action={duplicateOrder.bind(null, order.id)} className="flex gap-2 items-end">
+          <Field label="" name="newOrderDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
+          <SubmitButton pendingLabel="กำลังคัดลอก..." className="text-sm bg-gray-800 hover:bg-gray-900 text-white rounded px-3 py-1">
+            คัดลอก
+          </SubmitButton>
+        </ActionForm>
       </div>
     </div>
   );
