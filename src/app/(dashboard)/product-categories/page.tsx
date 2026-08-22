@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
-import { createProductCategory, toggleProductCategoryActive } from "./actions";
+import { createProductCategory, toggleProductCategoryActive, deleteProductCategory } from "./actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
+import { CancelButton } from "@/components/cancel-button";
 
 export default async function ProductCategoriesPage() {
   const categories = await db.productCategory.findMany({
@@ -65,11 +66,23 @@ export default async function ProductCategoriesPage() {
                   <a href={`/product-categories/${c.id}`} className="text-xs text-blue-600 hover:underline">
                     แก้ไข
                   </a>
-                  <form action={toggleProductCategoryActive.bind(null, c.id)} className="inline">
-                    <button className="text-xs text-gray-500 hover:text-red-600">
-                      {c.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                    </button>
-                  </form>
+                  {/* Owner UAT Round 2 — ข้อ 1: ลบได้จริงเฉพาะตอนไม่มีสินค้า/รุ่นผูกอยู่เลย
+                      (ปลอดภัย ไม่มี FK ให้กระทบ) — มีข้อมูลผูกอยู่ ใช้ปิดใช้งานเดิมเท่านั้น */}
+                  {c._count.products === 0 && c._count.models === 0 ? (
+                    <CancelButton
+                      action={deleteProductCategory.bind(null, c.id)}
+                      confirmMessage={`ยืนยันลบประเภทสินค้า "${c.name}" ถาวร? (ไม่มีสินค้า/รุ่นผูกอยู่ ลบได้เลย ย้อนกลับไม่ได้)`}
+                      label="ลบ"
+                      successMessage="ลบประเภทสินค้าสำเร็จ"
+                      className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
+                    />
+                  ) : (
+                    <form action={toggleProductCategoryActive.bind(null, c.id)} className="inline">
+                      <button className="text-xs text-gray-500 hover:text-red-600">
+                        {c.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                      </button>
+                    </form>
+                  )}
                 </td>
               </tr>
             ))}

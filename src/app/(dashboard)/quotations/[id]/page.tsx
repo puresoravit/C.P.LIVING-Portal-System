@@ -142,36 +142,52 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             <tr>
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">รายการ</th>
+              <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
+              <th className="px-4 py-2 font-medium text-right">ราคา/หน่วย</th>
+              <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
               {isDraft && <th className="px-4 py-2"></th>}
             </tr>
           </thead>
           <tbody>
-            {quotation.items.map((item) => (
-              <tr key={item.id} className="border-t">
-                <td className="px-4 py-2 font-mono">{item.product.sku}</td>
-                <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
-                <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
-                <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
-                <td className="px-4 py-2">{item.product.unit}</td>
-                {isDraft && (
-                  <td className="px-4 py-2 text-right">
-                    <ActionButton
-                      action={removeQuotationItem.bind(null, quotation.id, item.id)}
-                      label="ลบ"
-                      pendingLabel="กำลังลบ..."
-                      successMessage="ลบรายการสำเร็จ"
-                      className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
-                    />
-                  </td>
-                )}
-              </tr>
-            ))}
+            {quotation.items.map((item, idx) => {
+              // Owner UAT — ราคาต้องเห็นในตารางรายการทันที ไม่ใช่แค่สรุปด้านล่าง —
+              // DRAFT อ่านจาก preview สด (Index เดียวกับ quotation.items เป๊ะ ตาม
+              // Pattern เดียวกับ confirmQuotation), CONFIRMED/CANCELLED อ่านจาก
+              // Snapshot บนแถวเอง (Document Snapshot Principle ห้ามคำนวณสดซ้ำ)
+              const draftLine = isDraft ? preview?.items[idx] : null;
+              const unitPrice = draftLine ? draftLine.unitPriceSnapshot : item.unitPriceSnapshot;
+              const amount = draftLine ? draftLine.grossAmount : item.grossAmount;
+              const size = draftLine ? draftLine.sizeSnapshot : item.sizeSnapshot;
+              return (
+                <tr key={item.id} className="border-t">
+                  <td className="px-4 py-2 font-mono">{item.product.sku}</td>
+                  <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
+                  <td className="px-4 py-2">{size || "-"}</td>
+                  <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
+                  <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
+                  <td className="px-4 py-2">{item.product.unit}</td>
+                  <td className="px-4 py-2 text-right">{unitPrice != null ? money(unitPrice) : "-"}</td>
+                  <td className="px-4 py-2 text-right">{amount != null ? money(amount) : "-"}</td>
+                  {isDraft && (
+                    <td className="px-4 py-2 text-right">
+                      <ActionButton
+                        action={removeQuotationItem.bind(null, quotation.id, item.id)}
+                        label="ลบ"
+                        pendingLabel="กำลังลบ..."
+                        successMessage="ลบรายการสำเร็จ"
+                        className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
+                      />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
             {quotation.items.length === 0 && (
               <tr>
-                <td colSpan={isDraft ? 6 : 5} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={isDraft ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
                   ยังไม่มีรายการสินค้า
                 </td>
               </tr>

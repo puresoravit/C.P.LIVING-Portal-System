@@ -63,6 +63,15 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue="">
             <option value="">— ยังไม่ระบุ —</option>
           </SelectField>
+          {/* Owner UAT Round 2 — ข้อ 2: เตือนชัดเจนตอนเลือกประเภทสินค้าที่ใช้ขนาด (เช่น
+              ฟูกที่นอน) แต่ยังไม่ผูกรุ่นสินค้า — ป้องกันความสับสนแบบ "megan" ที่ Owner
+              เจอ (สร้างเป็นสินค้าเดี่ยว ไม่ใช่รุ่นสินค้า เลยไม่มีขนาดให้เลือกตอนออกเอกสาร) */}
+          <div id="createUsesSizeWarning" className="col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — แต่สินค้านี้ยังไม่ได้ผูกกับ &quot;รุ่นสินค้า&quot;
+            ถ้าไม่ผูกรุ่นสินค้า จะ<b>ไม่มีตัวเลือกขนาดให้เลือก</b>ตอนออกเอกสาร (Order/ใบเสนอราคา/ใบกำกับภาษี) —
+            ถ้าต้องการให้เลือกขนาดได้ กรุณาไปสร้าง/เลือก &quot;รุ่นสินค้า&quot; ที่เมนู
+            สินค้า → รุ่นสินค้า แล้วตั้งราคาต่อฟุตที่นั่นแทน
+          </div>
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาสลับตาม ProductCategory.usesSize ที่
               เลือก (ราคาต่อฟุต / ราคาต่อหน่วย) — ยังคงเป็น Field เดียวกัน (standardPrice)
@@ -214,6 +223,11 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 opt.textContent = m.name;
                 modelSelect.appendChild(opt);
               });
+              // เปลี่ยน productTypeId ล้าง modelId กลับเป็นว่างเสมอ (เปลี่ยนแบบ Programmatic
+              // ไม่ยิง change Event เอง) ต้องเรียกอัปเดตคำเตือนต่อเองตรงนี้ — ปลอดภัยเพราะ
+              // Function Declaration ถูก Hoist ไว้แล้ว แม้เขียนอยู่ท้าย Script (เรียกได้
+              // ก็ต่อเมื่อมี Event จริงจากผู้ใช้เท่านั้น ไม่ใช่ตอน Script รันครั้งแรก)
+              updateUsesSizeWarning();
             }
             productTypeSelect.addEventListener('change', updateModels);
 
@@ -233,6 +247,18 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             // (Query Selector อื่นที่จับ Element ไว้ก่อนหน้ากลายเป็น Node ที่หลุดออกจาก
             // DOM จริงไปเงียบๆ) — ให้ทำงานเฉพาะตอนมี change Event จริงจากผู้ใช้เท่านั้น
             categorySelect.addEventListener('change', updatePriceLabel);
+
+            // Owner UAT Round 2 — ข้อ 2: เตือนตอนเลือกประเภทสินค้าที่ usesSize=true แต่
+            // ยังไม่ผูกรุ่นสินค้า — ไม่เรียกตอนโหลดหน้าเช่นกัน (ค่าเริ่มต้น hidden ตรงกับ
+            // Server Render อยู่แล้ว เพราะ Category เริ่มต้นว่างเสมอ)
+            const usesSizeWarning = document.getElementById('createUsesSizeWarning');
+            function updateUsesSizeWarning() {
+              const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
+              const showWarning = !!(cat && cat.usesSize && !modelSelect.value);
+              usesSizeWarning.classList.toggle('hidden', !showWarning);
+            }
+            categorySelect.addEventListener('change', updateUsesSizeWarning);
+            modelSelect.addEventListener('change', updateUsesSizeWarning);
           `,
         }}
       />

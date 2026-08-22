@@ -91,6 +91,43 @@ export async function updateProductCategory(id: string, formData: FormData): Pro
   return { success: true };
 }
 
+// Owner UAT Round 2 — ข้อ 1: "ลบได้จะดีกว่าไหม จะได้ไม่รกตา" — ลบจริงได้เฉพาะตอนไม่มี
+// Product/ProductModel ผูกอยู่เลย (ปลอดภัย 100% ไม่มี FK ให้ต้อง Cascade/บัง) ถ้ามีข้อมูล
+// ผูกอยู่ ยังต้องใช้ "ปิดใช้งาน" เดิมเท่านั้น (ห้าม Hard Delete ประเภทที่มี Historical
+// Reference อยู่ ตาม Convention เดิมของทั้งระบบที่ไม่เคย Hard Delete Master Data ที่ถูก
+// อ้างอิงอยู่เลยสักจุด)
+export async function deleteProductCategory(id: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+
+  const category = await db.productCategory.findUnique({
+    where: { id },
+    include: { _count: { select: { products: true, models: true } } },
+  });
+  if (!category) return { success: false, error: "ไม่พบประเภทสินค้านี้" };
+  if (category._count.products > 0 || category._count.models > 0) {
+    return {
+      success: false,
+      error: `ลบไม่ได้ — ยังมีสินค้า/รุ่นสินค้าผูกกับประเภทนี้อยู่ ${category._count.products} สินค้า / ${category._count.models} รุ่น กรุณาย้ายไปประเภทอื่นหรือลบข้อมูลที่ผูกอยู่ก่อน (หรือใช้ "ปิดใช้งาน" แทน)`,
+    };
+  }
+
+  await db.productCategory.delete({ where: { id } });
+
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      action: "DELETE",
+      module: "ProductCategory",
+      recordId: id,
+      oldValue: { code: category.code, name: category.name },
+    },
+  });
+
+  revalidatePath("/product-categories");
+  return { success: true };
+}
+
 export async function toggleProductCategoryActive(id: string) {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");

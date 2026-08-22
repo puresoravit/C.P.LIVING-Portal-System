@@ -25,6 +25,9 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
   const currentCategory = categories.find((c) => c.id === product.categoryId);
   const initialPriceLabel =
     currentCategory && currentCategory.usesSize ? "ราคาต่อฟุต (รวม VAT) *" : currentCategory ? "ราคาต่อหน่วย (รวม VAT) *" : "ราคาตั้งต้น (รวม VAT) *";
+  // Owner UAT Round 2 — ข้อ 2: เหมือนหน้า Create — ต้องคำนวณฝั่ง Server ให้ตรงกับสถานะ
+  // ปัจจุบันของสินค้านี้เป๊ะ (สินค้าที่มีปัญหาแบบ "megan" จะเห็นคำเตือนทันทีที่เปิดหน้านี้)
+  const showInitialUsesSizeWarning = !!(currentCategory && currentCategory.usesSize && !product.modelId);
 
   return (
     <div className="max-w-2xl">
@@ -71,6 +74,18 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             </option>
           ))}
         </SelectField>
+        {/* Owner UAT Round 2 — ข้อ 2: เตือนถ้าประเภทสินค้าใช้ขนาดแต่ยังไม่ผูกรุ่นสินค้า —
+            ค่าเริ่มต้นคำนวณจาก showInitialUsesSizeWarning ด้านบน ให้ตรงกับสถานะจริงของ
+            สินค้านี้ทันทีที่โหลดหน้า (กัน Hydration Mismatch เหมือนป้ายราคา) */}
+        <div
+          id="editUsesSizeWarning"
+          className={`col-span-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 ${showInitialUsesSizeWarning ? "" : "hidden"}`}
+        >
+          ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — แต่สินค้านี้ยังไม่ได้ผูกกับ &quot;รุ่นสินค้า&quot;
+          ถ้าไม่ผูกรุ่นสินค้า จะ<b>ไม่มีตัวเลือกขนาดให้เลือก</b>ตอนออกเอกสาร (Order/ใบเสนอราคา/ใบกำกับภาษี) —
+          ถ้าต้องการให้เลือกขนาดได้ กรุณาไปสร้าง/เลือก &quot;รุ่นสินค้า&quot; ที่เมนู
+          สินค้า → รุ่นสินค้า แล้วตั้งราคาต่อฟุตที่นั่นแทน
+        </div>
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาเริ่มต้นคำนวณจาก Category ปัจจุบันแล้ว
             (initialPriceLabel ด้านบน) — Script ด้านล่างจะอัปเดตต่อเฉพาะตอนมี change
@@ -110,6 +125,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
                 opt.textContent = m.name;
                 modelSelect.appendChild(opt);
               });
+              updateUsesSizeWarning();
             }
             productTypeSelect.addEventListener('change', updateModels);
 
@@ -124,6 +140,17 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
               priceLabel.textContent = cat && cat.usesSize ? 'ราคาต่อฟุต (รวม VAT) *' : cat ? 'ราคาต่อหน่วย (รวม VAT) *' : 'ราคาตั้งต้น (รวม VAT) *';
             }
             categorySelect.addEventListener('change', updatePriceLabel);
+
+            // Owner UAT Round 2 — ข้อ 2: เหมือนหน้า Create — ไม่เรียกตอนโหลดหน้า
+            // (showInitialUsesSizeWarning ฝั่ง Server คำนวณให้ตรงอยู่แล้ว)
+            const usesSizeWarning = document.getElementById('editUsesSizeWarning');
+            function updateUsesSizeWarning() {
+              const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
+              const showWarning = !!(cat && cat.usesSize && !modelSelect.value);
+              usesSizeWarning.classList.toggle('hidden', !showWarning);
+            }
+            categorySelect.addEventListener('change', updateUsesSizeWarning);
+            modelSelect.addEventListener('change', updateUsesSizeWarning);
           `,
         }}
       />

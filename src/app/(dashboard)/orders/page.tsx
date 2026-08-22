@@ -64,11 +64,28 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
       : {}),
   };
 
+  // Owner UAT Round 2 — ข้อ 4: "พิมพ์แล้ว" ต้องเป็น Tab กรองได้จริงเหมือน Tab อื่น (ไม่ใช่
+  // แค่ Badge ในแถว) — Order ไม่มี Column พิมพ์แล้วจริงในตัวเอง (ห้ามเดา OrderStatus.PRINTED
+  // ใหม่) จึงต้องคำนวณจาก Invoice ลูก Active ทุกใบ = PRINTED เหมือน deriveOrderPrintState
+  // เป๊ะ — Query เบาๆ แยกต่างหาก (id + invoice.status เท่านั้น) หา Order ที่เข้าเงื่อนไข
+  // ก่อน แล้วใช้ id IN [...] กรอง/แบ่งหน้าที่ระดับ DB ตามปกติ (ไม่ใช่ Paginate เองใน JS)
+  const confirmedOrdersForPrintCheck = await db.order.findMany({
+    where: { ...baseWhere, status: "CONFIRMED" },
+    select: { id: true, invoices: { select: { status: true } } },
+  });
+  const printedOrderIds = confirmedOrdersForPrintCheck
+    .filter((o) => deriveOrderPrintState(o.invoices) === "ALL_PRINTED")
+    .map((o) => o.id);
+  const printedCount = printedOrderIds.length;
+
   const [statusGroups, totalCount, orders] = await Promise.all([
     db.order.groupBy({ by: ["status"], where: baseWhere, _count: true }),
     db.order.count({ where: baseWhere }),
     db.order.findMany({
-      where: { ...baseWhere, ...(status ? { status: status as any } : {}) },
+      where:
+        status === "printed"
+          ? { ...baseWhere, id: { in: printedOrderIds } }
+          : { ...baseWhere, ...(status ? { status: status as any } : {}) },
       include: {
         customer: true,
         branch: true,
@@ -85,12 +102,17 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
     statusGroups.map((g) => ({ status: g.status, count: g._count })),
     TAB_ORDER
   );
+  // แทรก "พิมพ์แล้ว" หลัง "ยืนยันแล้ว" (CONFIRMED) — ตามลำดับ Lifecycle จริงของเอกสาร
+  // (ร่าง → ยืนยันแล้ว → พิมพ์แล้ว → ยกเลิก)
   const tabs = [
     { key: "all", label: "ทั้งหมด", count: totalCount },
-    ...TAB_ORDER.map((key) => ({ key, label: ORDER_STATUS_LABEL[key].label, count: counts[key] })),
+    { key: "DRAFT", label: ORDER_STATUS_LABEL.DRAFT.label, count: counts.DRAFT },
+    { key: "CONFIRMED", label: ORDER_STATUS_LABEL.CONFIRMED.label, count: counts.CONFIRMED },
+    { key: "printed", label: "พิมพ์แล้ว", count: printedCount },
+    { key: "CANCELLED", label: ORDER_STATUS_LABEL.CANCELLED.label, count: counts.CANCELLED },
   ];
 
-  const currentCount = status ? counts[status] ?? 0 : totalCount;
+  const currentCount = status === "printed" ? printedCount : status ? counts[status] ?? 0 : totalCount;
   const totalPages = Math.max(1, Math.ceil(currentCount / PAGE_SIZE));
   const preserveParams = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
   const preserveParamsNoStatus = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo });

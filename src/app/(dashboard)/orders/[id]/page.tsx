@@ -58,6 +58,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const isDraft = order.status === "DRAFT";
   const preview = order.items.length > 0 ? await computeOrderPreview(order.id) : null;
   const status = STATUS_LABEL[order.status];
+  // Owner UAT — ราคา/หน่วย ต้องเห็นทันทีในตารางรายการเอง ไม่ใช่ต้องเลื่อนไปดูที่ Preview
+  // แยกกลุ่มด้านล่างเท่านั้น (ให้ตรงกับ Layout ใบกำกับภาษีที่ Owner ระบุ) — Map นี้แค่
+  // ดึงราคาที่ preview คำนวณสดอยู่แล้วมาโชว์ต่อบรรทัด ไม่มี Pricing Logic ใหม่ ไม่กระทบ
+  // การคำนวณจริงตอน Confirm (ยังอ่านสดจาก computeOrderPreview เหมือนเดิมทุกประการ)
+  const previewByItemId = new Map(preview?.groups.flatMap((g) => g.items).map((i) => [i.orderItemId, i]) ?? []);
 
   const addItemAction = addOrderItem.bind(null, order.id);
   const confirmAction = confirmOrder.bind(null, order.id);
@@ -130,36 +135,45 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             <tr>
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">รายการ</th>
+              <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
+              <th className="px-4 py-2 font-medium text-right">ราคา/หน่วย</th>
+              <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
               {isDraft && <th className="px-4 py-2"></th>}
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item) => (
-              <tr key={item.id} className="border-t">
-                <td className="px-4 py-2 font-mono">{item.product.sku}</td>
-                <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
-                <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
-                <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
-                <td className="px-4 py-2">{item.product.unit}</td>
-                {isDraft && (
-                  <td className="px-4 py-2 text-right">
-                    <ActionButton
-                      action={removeOrderItem.bind(null, order.id, item.id)}
-                      label="ลบ"
-                      pendingLabel="กำลังลบ..."
-                      successMessage="ลบรายการสำเร็จ"
-                      className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
-                    />
-                  </td>
-                )}
-              </tr>
-            ))}
+            {order.items.map((item) => {
+              const line = previewByItemId.get(item.id);
+              return (
+                <tr key={item.id} className="border-t">
+                  <td className="px-4 py-2 font-mono">{item.product.sku}</td>
+                  <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
+                  <td className="px-4 py-2">{item.sizeOverride || item.product.size || "-"}</td>
+                  <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
+                  <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
+                  <td className="px-4 py-2">{item.product.unit}</td>
+                  <td className="px-4 py-2 text-right">{line ? money(line.unitPrice) : "-"}</td>
+                  <td className="px-4 py-2 text-right">{line ? money(line.grossAmount) : "-"}</td>
+                  {isDraft && (
+                    <td className="px-4 py-2 text-right">
+                      <ActionButton
+                        action={removeOrderItem.bind(null, order.id, item.id)}
+                        label="ลบ"
+                        pendingLabel="กำลังลบ..."
+                        successMessage="ลบรายการสำเร็จ"
+                        className="text-xs text-gray-500 hover:text-red-600 border-0 p-0"
+                      />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
             {order.items.length === 0 && (
               <tr>
-                <td colSpan={isDraft ? 6 : 5} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={isDraft ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
                   ยังไม่มีรายการสินค้า
                 </td>
               </tr>
