@@ -53,16 +53,23 @@ export const NAV_TREE: NavNode[] = [
       },
     ],
   },
-  // Owner UAT — จัดกลุ่ม "เอกสาร / Document" ใหม่เป็น Group มี 2 เมนูย่อย: "เอกสารทั้งหมด"
-  // (Document Center /orders เดิม — Label เปลี่ยนจาก "เอกสาร / Document" เป็นชื่อนี้แทน)
-  // และ "เอกสารใบส่งของชั่วคราว" (/invoices — ย้ายเข้ามาอยู่ใต้ Group นี้แทนที่จะเป็น
-  // Top-level แยก ตามที่ Owner ระบุ Layout ตรงๆ)
+  // Owner UAT — จัดกลุ่ม "เอกสาร / Document" ใหม่เป็น Group มี 4 เมนูย่อยตาม Layout ที่
+  // Owner ระบุตรงๆ: "เอกสารทั้งหมด" (Document Center /orders เดิม) → "เอกสารใบเสนอราคา"
+  // (/quotations) → "เอกสารใบส่งของชั่วคราว" (/invoices) → "เอกสารใบกำกับภาษี"
+  // (/tax-invoices) — ทั้ง 3 หน้าหลังมี Status Tab ของตัวเองอยู่แล้วจริง (ไม่ใช่หน้าใหม่
+  // ไม่มี Logic ใหม่ แค่เพิ่ม Nav Link ให้เข้าถึงได้จาก Sidebar) — Quotation/Tax Invoice
+  // "ไม่มี" Tab ยังไม่พิมพ์/พิมพ์บางส่วน/พิมพ์แล้ว แบบ Order เพราะไม่มี PRINTED Checkpoint
+  // ในตัวเองเลย (ดู QuotationStatus/TaxInvoiceStatus enum — มีแค่ DRAFT/CONFIRMED/
+  // CANCELLED ตามจริง ไม่ใช่ Concept เดียวกับ Order ที่ Derived จาก Invoice ลูกหลายใบ) —
+  // ห้ามเดา Status ที่ไม่มีจริงเพิ่มให้ 2 หน้านี้ (กฎเดิมของระบบ)
   {
     type: "group",
     label: "เอกสาร / Document",
     items: [
       { type: "link", href: "/orders", label: "เอกสารทั้งหมด", perm: "order.create" },
+      { type: "link", href: "/quotations", label: "เอกสารใบเสนอราคา", perm: "quotation.view" },
       { type: "link", href: "/invoices", label: "เอกสารใบส่งของชั่วคราว", perm: "invoice.create" },
+      { type: "link", href: "/tax-invoices", label: "เอกสารใบกำกับภาษี", perm: "taxInvoice.create" },
     ],
   },
   { type: "link", href: "/reports", label: "รายงานยอดขาย / Sales Report", perm: "report.view" },
