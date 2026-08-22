@@ -6,6 +6,7 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { SelectField, TextareaField } from "@/components/form/fields";
 import { LogoUploadForm } from "@/components/print-template/logo-upload-form";
 import { DocumentOverrideForm } from "@/components/print-template/document-override-form";
+import { ScrollToHash } from "@/components/scroll-to-hash";
 import {
   getGlobalTemplateSettingsRaw,
   getDocumentTemplateOverrideRaw,
@@ -35,6 +36,7 @@ export default async function PrintTemplateSettingsPage() {
 
   return (
     <div className="max-w-2xl">
+      <ScrollToHash />
       <h1 className="text-lg font-semibold mb-1">รูปแบบเอกสาร / Print Template</h1>
       <p className="text-sm text-gray-500 mb-4">
         ปรับรูปแบบเอกสารพิมพ์ (ใบเสนอราคา, ใบส่งของชั่วคราว, ใบกำกับภาษี, ใบวางบิล, ใบส่งคืนสินค้าฝากซ่อม) — ยังไม่ได้ตั้งค่าใดๆ

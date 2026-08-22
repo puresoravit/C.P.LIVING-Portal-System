@@ -34,15 +34,20 @@ export const NAV_TREE: NavNode[] = [
       },
       { type: "link", href: "/billing-notes/new", label: "ใบวางบิล", perm: "billingNote.create" },
       { type: "link", href: "/repair-notes/new", label: "ใบส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create" },
+      // Phase C — "แก้ไข / Edit Form" หมายถึง Document Template Editor (Logo/Font/
+      // Spacing/Header-Footer ต่อประเภทเอกสาร) ไม่ใช่การแก้ไขข้อมูล Transaction — ทุก
+      // ลิงก์ชี้ไปหน้า /settings/print-template เดิม (Deep-link ด้วย Fragment ไปยัง
+      // ประเภทเอกสารที่เลือก) ใช้สิทธิ์ user.manage ให้ตรงกับหน้าปลายทางจริง (เดิมใช้
+      // สิทธิ์เอกสารแต่ละใบซึ่งพากลุ่มไปเจอ redirect ถ้าไม่มี user.manage)
       {
         type: "group",
         label: "แก้ไข / Edit Form",
         items: [
-          { type: "link", href: "/quotations", label: "ใบเสนอราคา / Quotation", perm: "quotation.view" },
-          { type: "link", href: "/orders", label: "ใบส่งของชั่วคราว", perm: "order.create" },
-          { type: "link", href: "#", label: "ใบกำกับภาษี", perm: "taxInvoice.create", disabled: true },
-          { type: "link", href: "#", label: "ใบวางบิล", perm: "billingNote.create", disabled: true },
-          { type: "link", href: "#", label: "ใบส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create", disabled: true },
+          { type: "link", href: "/settings/print-template#QUOTATION", label: "ใบเสนอราคา / Quotation", perm: "user.manage" },
+          { type: "link", href: "/settings/print-template#INVOICE", label: "ใบส่งของชั่วคราว", perm: "user.manage" },
+          { type: "link", href: "/settings/print-template#TAX_INVOICE", label: "ใบกำกับภาษี", perm: "user.manage" },
+          { type: "link", href: "/settings/print-template#BILLING_NOTE", label: "ใบวางบิล", perm: "user.manage" },
+          { type: "link", href: "/settings/print-template#REPAIR_NOTE", label: "ใบส่งคืนสินค้าฝากซ่อม", perm: "user.manage" },
         ],
       },
     ],

@@ -39,8 +39,10 @@ export function DocumentOverrideForm({
   const boundAction = action.bind(null, docType);
   const base = { ...globalDefaults, ...currentOverride };
 
+  // Phase C — id ให้เมนู "แก้ไข / Edit Form" ลิงก์ตรงมาที่ประเภทเอกสารที่เลือกได้
+  // (Deep-link ผ่าน URL Fragment) — Reuse หน้า/ระบบเดิมทั้งหมด ไม่มี Route ใหม่
   return (
-    <details className="bg-white border rounded-lg" open={!useGlobal}>
+    <details id={docType} className="bg-white border rounded-lg scroll-mt-4" open={!useGlobal}>
       <summary className="cursor-pointer px-4 py-3 font-medium text-sm flex items-center justify-between">
         <span>{label}</span>
         {!useGlobal && <span className="text-xs text-blue-600 font-normal">กำหนดค่าเฉพาะ</span>}
