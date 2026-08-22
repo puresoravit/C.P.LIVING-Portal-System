@@ -105,6 +105,34 @@ export const LOGO_SIZE_PX: Record<LogoSizeKey, { heightPx: number; maxWidthPx: n
   large: { heightPx: 56, maxWidthPx: 160 },
 };
 
+// R6 Phase E — Visual Document Designer: Block ที่อยู่ "เหนือ" Item Table (Header/
+// Logo, Document Title, Customer Info) ไม่มีเนื้อหาที่ขยายตามข้อมูลจริง (ไม่เหมือน Item
+// Table/Amount Summary ที่ยาวได้ตามจำนวนรายการ หรือ Signature ที่ต้อง mt-auto ชิดขอบ
+// ล่างเสมอ) จึงเป็นกลุ่มเดียวที่ Drag ลำดับได้อย่างปลอดภัยโดยไม่กระทบ Pagination —
+// Item Table+Amount Summary (Fused เป็น Component เดียวต่อประเภทเอกสารอยู่แล้ว ผูกกับ
+// flex-1 Spacer) และ Signature+Footer (ผูกกับ mt-auto) ตรึงตำแหน่งเดิมเสมอ ไม่ให้ Drag
+// (ตรงกับที่ Owner อนุญาตไว้ตรงๆ ว่า "Block ที่เสี่ยงต่อ Pagination จำกัดการลากได้")
+export const PRINT_BLOCK_KEYS = ["header", "title", "customerInfo"] as const;
+export type PrintBlockKey = (typeof PRINT_BLOCK_KEYS)[number];
+export const PRINT_BLOCK_LABELS: Record<PrintBlockKey, string> = {
+  header: "โลโก้ + ข้อมูลบริษัท",
+  title: "ชื่อเอกสาร",
+  customerInfo: "ข้อมูลลูกค้า + เลขที่เอกสาร",
+};
+export const DEFAULT_BLOCK_ORDER: PrintBlockKey[] = [...PRINT_BLOCK_KEYS];
+
+/** ตรวจว่า Array ที่ได้มา (จาก AppSetting เดิม/Client) เป็น Permutation ของ
+ * PRINT_BLOCK_KEYS ครบถ้วนจริง (ไม่ขาด/ไม่ซ้ำ) — ถ้าไม่ใช่ (Data เก่าก่อนมี Field นี้,
+ * แก้ DB มือ, หรือ Bug ในอนาคต) Fallback ไป Default เสมอ กัน Block หายไปจากหน้า Print
+ * อย่างเงียบๆ (เช่น customerInfo หายจะทำให้เลขที่เอกสารไม่ขึ้นเลย — ความเสี่ยงทางธุรกิจ
+ * จริง ไม่ใช่แค่ความสวยงาม) */
+export function resolveBlockOrder(order: unknown): PrintBlockKey[] {
+  if (!Array.isArray(order) || order.length !== PRINT_BLOCK_KEYS.length) return DEFAULT_BLOCK_ORDER;
+  const asSet = new Set(order);
+  const isValidPermutation = asSet.size === PRINT_BLOCK_KEYS.length && PRINT_BLOCK_KEYS.every((k) => asSet.has(k));
+  return isValidPermutation ? (order as PrintBlockKey[]) : DEFAULT_BLOCK_ORDER;
+}
+
 const FOOTER_NOTE_MAX_LENGTH = 200;
 // ข้อความเดิมที่ Hardcode อยู่ใน print-signature-block.tsx ตอนนี้ — ใช้เป็น Default
 // \n คงรูปแบบ 2 บรรทัดเดิมไว้เป๊ะ (Render ด้วย white-space: pre-line) เพื่อ
@@ -126,6 +154,10 @@ export type OverridableTemplateSettings = {
   headingFontSize: FontSizeKey;
   spacingDensity: SpacingDensityKey;
   contentPadding: ContentPaddingKey;
+  // R6 Phase E — ลำดับ Block เหนือ Item Table (ดู resolveBlockOrder ด้านบน) —
+  // Per-Document Override ได้เหมือน Field อื่นทุกตัวในนี้ (Consistent กับสถาปัตยกรรม
+  // Global→Override เดิมทั้งหมด ไม่ต้องมี Mechanism ใหม่)
+  blockOrder: PrintBlockKey[];
 };
 
 export type GlobalTemplateSettings = OverridableTemplateSettings & { logoSize: LogoSizeKey };
@@ -143,6 +175,7 @@ export const DEFAULT_GLOBAL_TEMPLATE_SETTINGS: GlobalTemplateSettings = {
   spacingDensity: "normal",
   contentPadding: "none",
   logoSize: "normal",
+  blockOrder: DEFAULT_BLOCK_ORDER,
 };
 
 // Pure function — Merge Override ทับ Global เฉพาะ Field ที่ Override ระบุไว้จริง
@@ -155,6 +188,14 @@ export function mergeTemplateSettings(
   return { ...global, ...override };
 }
 
+// R6 Phase E — Validate เป็น Permutation ครบถ้วนจริงตอนรับค่าจาก Form ด้วย (ไม่ใช่แค่
+// Fallback เงียบๆ ตอนอ่านฝั่ง Print) ให้ User เห็น Error ชัดเจนถ้าเกิดความผิดพลาดจาก
+// Client (ไม่ควรเกิดขึ้นได้จริงจาก UI ปกติ แต่ Defense-in-depth เหมือนทุก Field อื่น)
+const blockOrderSchema = z
+  .array(z.enum(PRINT_BLOCK_KEYS))
+  .length(PRINT_BLOCK_KEYS.length)
+  .refine((arr) => new Set(arr).size === PRINT_BLOCK_KEYS.length, "ลำดับ Block ไม่ถูกต้อง");
+
 const overridableSchema = z.object({
   showAddress: z.boolean(),
   showPhone: z.boolean(),
@@ -165,6 +206,7 @@ const overridableSchema = z.object({
   headingFontSize: z.enum(FONT_SIZE_OPTIONS),
   spacingDensity: z.enum(SPACING_DENSITY_OPTIONS),
   contentPadding: z.enum(CONTENT_PADDING_OPTIONS),
+  blockOrder: blockOrderSchema,
 });
 
 export const globalTemplateSettingsSchema = overridableSchema.extend({
@@ -205,8 +247,11 @@ export async function getPrintTemplateSettings(docType: DocumentTypeKey): Promis
     ? (JSON.parse(map[APP_SETTING_KEYS.override(docType)]) as DocumentTemplateOverride)
     : null;
   const merged = mergeTemplateSettings(global, override);
+  // R6 Phase E — Defense-in-depth: กัน blockOrder ที่เสียหาย (แก้ DB มือ/Bug ในอนาคต)
+  // ทำให้ Block หายไปจากหน้า Print เงียบๆ — จุดเดียวที่หน้า Print ทั้ง 5 ประเภทเรียกใช้
+  const safeBlockOrder = resolveBlockOrder(merged.blockOrder);
 
-  return { ...merged, logo: map[APP_SETTING_KEYS.logo] ?? null };
+  return { ...merged, blockOrder: safeBlockOrder, logo: map[APP_SETTING_KEYS.logo] ?? null };
 }
 
 /** อ่านเฉพาะ Global Settings + Logo ดิบๆ (ไม่ Merge Override ใดๆ) — ใช้แสดงในหน้า
@@ -214,8 +259,9 @@ export async function getPrintTemplateSettings(docType: DocumentTypeKey): Promis
 export async function getGlobalTemplateSettingsRaw(): Promise<{ settings: GlobalTemplateSettings; logo: string | null }> {
   const rows = await db.appSetting.findMany({ where: { key: { in: [APP_SETTING_KEYS.logo, APP_SETTING_KEYS.global] } } });
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const settings = parseJsonSafe<GlobalTemplateSettings>(map[APP_SETTING_KEYS.global], DEFAULT_GLOBAL_TEMPLATE_SETTINGS);
   return {
-    settings: parseJsonSafe<GlobalTemplateSettings>(map[APP_SETTING_KEYS.global], DEFAULT_GLOBAL_TEMPLATE_SETTINGS),
+    settings: { ...settings, blockOrder: resolveBlockOrder(settings.blockOrder) },
     logo: map[APP_SETTING_KEYS.logo] ?? null,
   };
 }

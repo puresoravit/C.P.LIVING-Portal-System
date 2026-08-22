@@ -9,8 +9,9 @@ import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
-import { PrintSignatureBlock } from "@/components/print/print-signature-block";
-import { getPrintTemplateSettings } from "@/lib/print-template-settings";
+import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { RepairNotePrintBody } from "@/components/print/repair-note-print-body";
+import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
 
 // Repair/Return Note ไม่มีราคา/VAT เลย (ไม่ใช่เอกสารขาย) — ไม่มี Size column เพราะ
 // RepairReturnNoteItem ยังไม่มี field นี้ (ตามที่ตกลงไว้ ยังไม่แก้ Data Model รอบนี้)
@@ -28,8 +29,8 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
   ]);
   if (!note) notFound();
 
-  return (
-    <PrintPage templateSettings={template}>
+  const blocks: Record<PrintBlockKey, React.ReactNode> = {
+    header: (
       <PrintDocumentHeader
         company={company}
         logo={template.logo}
@@ -38,8 +39,9 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
         showPhone={template.showPhone}
         showTaxId={template.showTaxId}
       />
-      <PrintDocumentTitle titleTh="ใบส่งคืนสินค้าฝากซ่อม" titleEn="REPAIR / RETURN NOTE" />
-
+    ),
+    title: <PrintDocumentTitle titleTh="ใบส่งคืนสินค้าฝากซ่อม" titleEn="REPAIR / RETURN NOTE" />,
+    customerInfo: (
       <PrintCustomerInfo
         left={[
           { label: "ลูกค้า", value: note.customerNameSnapshot },
@@ -61,36 +63,14 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
         ]}
         shippingAddress={note.placeToDelivery}
       />
+    ),
+  };
 
-      <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
-            <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
-            <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
-            <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
-          </tr>
-        </thead>
-        <tbody>
-          {note.items.map((item, i) => (
-            <tr key={item.id} className="border-b border-dashed">
-              <td className="py-[length:var(--print-row-padding)]">{i + 1}</td>
-              <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
-              <td className="py-[length:var(--print-row-padding)]">{item.size ?? "-"}</td>
-              <td className="text-right py-[length:var(--print-row-padding)]">
-                {Number(item.quantity)} {item.unit}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  return (
+    <PrintPage templateSettings={template}>
+      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
 
-      <div className="flex-1" />
-
-      <div className="print-keep-together">
-        {note.remark && <div className="text-[length:var(--print-body-size)] text-gray-600 mb-2">หมายเหตุ: {note.remark}</div>}
-        <PrintSignatureBlock footerNote={template.footerNote} />
-      </div>
+      <RepairNotePrintBody items={note.items} remark={note.remark} footerNote={template.footerNote} />
     </PrintPage>
   );
 }

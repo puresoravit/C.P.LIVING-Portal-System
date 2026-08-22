@@ -10,13 +10,9 @@ import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
-import { PrintAmountWordsRemark } from "@/components/print/print-amount-words-remark";
-import { PrintSignatureBlock } from "@/components/print/print-signature-block";
-import { getPrintTemplateSettings } from "@/lib/print-template-settings";
-
-function money(n: unknown) {
-  return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
-}
+import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { TaxInvoicePrintBody } from "@/components/print/tax-invoice-print-body";
+import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
 
 // Tax Invoice มี VAT จริง (extractVat ใน tax-invoices/actions.ts) — Phase D ไม่แตะ
 // สูตร VAT/Value/Net ใดๆ เปลี่ยนเฉพาะ Presentation
@@ -32,8 +28,11 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
   ]);
   if (!taxInvoice) notFound();
 
-  return (
-    <PrintPage templateSettings={template}>
+  // R6 Phase E — Header/Title/CustomerInfo Render ตามลำดับที่ Owner จัดไว้ผ่าน Visual
+  // Designer (template.blockOrder) — Item Table/Summary/Signature ตรึงตำแหน่งเสมอ (ดู
+  // print-template-settings.ts สำหรับเหตุผลเต็ม)
+  const blocks: Record<PrintBlockKey, React.ReactNode> = {
+    header: (
       <PrintDocumentHeader
         company={company}
         logo={template.logo}
@@ -42,8 +41,9 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
         showPhone={template.showPhone}
         showTaxId={template.showTaxId}
       />
-      <PrintDocumentTitle titleTh="ใบกำกับภาษี / ใบเสร็จรับเงิน" titleEn="TAX INVOICE / RECEIPT" />
-
+    ),
+    title: <PrintDocumentTitle titleTh="ใบกำกับภาษี / ใบเสร็จรับเงิน" titleEn="TAX INVOICE / RECEIPT" />,
+    customerInfo: (
       <PrintCustomerInfo
         left={[
           { label: "ลูกค้า", value: taxInvoice.customerNameSnapshot },
@@ -65,57 +65,22 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
         ]}
         shippingAddress={taxInvoice.placeToDelivery}
       />
+    ),
+  };
 
-      <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
-            <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
-            <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
-            <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
-            <th className="text-right py-[length:var(--print-row-padding)]">ราคา/หน่วย</th>
-            <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          {taxInvoice.items.map((item, i) => (
-            <tr key={item.id} className="border-b border-dashed">
-              <td className="py-[length:var(--print-row-padding)]">{i + 1}</td>
-              <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
-              <td className="py-[length:var(--print-row-padding)]">{item.size ?? ""}</td>
-              <td className="text-right py-[length:var(--print-row-padding)]">
-                {Number(item.quantity)} {item.unit}
-              </td>
-              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.unitPrice)}</td>
-              <td className="text-right py-[length:var(--print-row-padding)]">{money(item.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  return (
+    <PrintPage templateSettings={template}>
+      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
 
-      <div className="flex-1" />
-
-      <div className="print-keep-together">
-        <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-[length:var(--print-block-gap)]">
-          <PrintAmountWordsRemark amountInWords={toThaiBahtText(taxInvoice.netAmount)} />
-          <div className="text-[length:var(--print-body-size)] space-y-1">
-            <div className="flex justify-between">
-              <span>มูลค่าสินค้า / Value Amount</span>
-              <span>{money(taxInvoice.valueAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>ภาษีมูลค่าเพิ่ม / VAT {Number(taxInvoice.vatPct)}%</span>
-              <span>{money(taxInvoice.vatAmount)}</span>
-            </div>
-            <div className="flex justify-between font-semibold border-t pt-1">
-              <span>สุทธิ / Net Amount</span>
-              <span>{money(taxInvoice.netAmount)}</span>
-            </div>
-          </div>
-        </div>
-
-        <PrintSignatureBlock footerNote={template.footerNote} />
-      </div>
+      <TaxInvoicePrintBody
+        items={taxInvoice.items}
+        valueAmount={taxInvoice.valueAmount}
+        vatPct={taxInvoice.vatPct}
+        vatAmount={taxInvoice.vatAmount}
+        netAmount={taxInvoice.netAmount}
+        amountInWords={toThaiBahtText(taxInvoice.netAmount)}
+        footerNote={template.footerNote}
+      />
     </PrintPage>
   );
 }

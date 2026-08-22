@@ -12,6 +12,7 @@ import {
   globalTemplateSettingsSchema,
   documentTemplateOverrideSchema,
   validateLogoDataUri,
+  resolveBlockOrder,
   type DocumentTypeKey,
 } from "@/lib/print-template-settings";
 
@@ -26,6 +27,19 @@ async function requireUser() {
 
 function checkboxValue(formData: FormData, name: string): boolean {
   return formData.get(name) === "1";
+}
+
+// R6 Phase E — Visual Document Designer ส่ง blockOrder มาเป็น Hidden Field JSON เดียว
+// (Array ของ 3 Key) — Parse แบบปลอดภัยเสมอ (Fallback ไป Default ถ้าไม่มี/Parse ไม่ได้)
+// ก่อนส่งต่อให้ Zod ตรวจ Permutation อีกชั้นหนึ่ง (Defense-in-depth เหมือน Field อื่น)
+function parseBlockOrderField(formData: FormData) {
+  const raw = formData.get("blockOrder");
+  if (!raw) return resolveBlockOrder(null);
+  try {
+    return resolveBlockOrder(JSON.parse(String(raw)));
+  } catch {
+    return resolveBlockOrder(null);
+  }
 }
 
 // R5 — บันทึก Global Template Settings ทั้งชุด (รวม logoSize) ยกเว้น Logo เอง (แยก
@@ -45,6 +59,7 @@ export async function updateGlobalTemplateSettings(formData: FormData): Promise<
     spacingDensity: String(formData.get("spacingDensity") || ""),
     contentPadding: String(formData.get("contentPadding") || ""),
     logoSize: String(formData.get("logoSize") || ""),
+    blockOrder: parseBlockOrderField(formData),
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
@@ -59,6 +74,25 @@ export async function updateGlobalTemplateSettings(formData: FormData): Promise<
 
   await db.auditLog.create({
     data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "template.global", newValue: raw.data },
+  });
+
+  revalidatePath("/settings/print-template");
+  return { success: true };
+}
+
+// R6 Phase E — Visual Designer "Reset Template to Default": ลบ Row Global ทิ้งทั้ง
+// แถว (คนละ Action กับ Logo ที่มีปุ่ม "ลบโลโก้" แยกต่างหากอยู่แล้ว) — parseJsonSafe ใน
+// getGlobalTemplateSettingsRaw/getPrintTemplateSettings Fallback ไป
+// DEFAULT_GLOBAL_TEMPLATE_SETTINGS เองเมื่อไม่มีแถวนี้ จึงไม่ต้อง Insert ค่า Default
+// กลับเข้าไปตรงๆ — Pattern เดียวกับการลบ Override ทุกประการ
+export async function resetGlobalTemplateSettings(): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "user.manage")) throw new Error("FORBIDDEN");
+
+  await db.appSetting.deleteMany({ where: { key: TEMPLATE_SETTING_KEYS.global } });
+
+  await db.auditLog.create({
+    data: { userId: user.id, action: "DELETE", module: "AppSetting", recordId: TEMPLATE_SETTING_KEYS.global },
   });
 
   revalidatePath("/settings/print-template");
@@ -139,6 +173,7 @@ export async function updateDocumentOverride(docType: DocumentTypeKey, formData:
     headingFontSize: String(formData.get("headingFontSize") || ""),
     spacingDensity: String(formData.get("spacingDensity") || ""),
     contentPadding: String(formData.get("contentPadding") || ""),
+    blockOrder: parseBlockOrderField(formData),
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };

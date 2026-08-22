@@ -11,8 +11,9 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
+import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
-import { getPrintTemplateSettings } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
@@ -35,8 +36,8 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   // ต่อท้ายด้วย -N แทน (ดู displayQuotationNumber สำหรับเหตุผลเต็มว่าทำไมปลอดภัย)
   const displayNumber = displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo);
 
-  return (
-    <PrintPage templateSettings={template}>
+  const blocks: Record<PrintBlockKey, React.ReactNode> = {
+    header: (
       <PrintDocumentHeader
         company={company}
         logo={template.logo}
@@ -45,8 +46,9 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         showPhone={template.showPhone}
         showTaxId={template.showTaxId}
       />
-      <PrintDocumentTitle titleTh="ใบเสนอราคา" titleEn="QUOTATION" />
-
+    ),
+    title: <PrintDocumentTitle titleTh="ใบเสนอราคา" titleEn="QUOTATION" />,
+    customerInfo: (
       <PrintCustomerInfo
         left={[
           { label: "ลูกค้า", value: quotation.customerNameSnapshot },
@@ -68,6 +70,12 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         ]}
         shippingAddress={quotation.placeToDelivery}
       />
+    ),
+  };
+
+  return (
+    <PrintPage templateSettings={template}>
+      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
 
       <QuotationPrintBody
         items={quotation.items}

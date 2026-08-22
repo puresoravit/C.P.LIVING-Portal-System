@@ -12,8 +12,9 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
+import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
-import { getPrintTemplateSettings } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
 
 // Invoice ในระบบนี้คือ "ใบส่งของชั่วคราว" — ไม่มี VAT ตามที่ยืนยันไว้ตั้งแต่แรก
 // (confirmOrder() ตั้ง vatPct/vatAmount = 0 เสมอ) Phase D ไม่แตะตัวเลข/สูตรใดๆ
@@ -36,13 +37,8 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
     ? invoice.printedAt.toLocaleDateString("th-TH") + " " + invoice.printedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
     : undefined;
 
-  return (
-    <PrintPage
-      markPrintedAction={markPrintedAction}
-      isPrinted={isPrinted}
-      printedAtLabel={printedAtLabel}
-      templateSettings={template}
-    >
+  const blocks: Record<PrintBlockKey, React.ReactNode> = {
+    header: (
       <PrintDocumentHeader
         company={company}
         logo={template.logo}
@@ -51,8 +47,9 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
         showPhone={template.showPhone}
         showTaxId={template.showTaxId}
       />
-      <PrintDocumentTitle titleTh="ใบส่งของชั่วคราว" titleEn="INVOICE" />
-
+    ),
+    title: <PrintDocumentTitle titleTh="ใบส่งของชั่วคราว" titleEn="INVOICE" />,
+    customerInfo: (
       <PrintCustomerInfo
         left={[
           { label: "ลูกค้า", value: invoice.customerNameSnapshot },
@@ -73,6 +70,17 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
         ]}
         shippingAddress={invoice.placeToDelivery}
       />
+    ),
+  };
+
+  return (
+    <PrintPage
+      markPrintedAction={markPrintedAction}
+      isPrinted={isPrinted}
+      printedAtLabel={printedAtLabel}
+      templateSettings={template}
+    >
+      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
 
       <InvoicePrintBody
         items={invoice.items}
