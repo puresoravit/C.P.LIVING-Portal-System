@@ -8,6 +8,7 @@ import {
   duplicateOrder,
   editConfirmedOrder,
   updateOrderApplyDiscount,
+  getSuggestedOrderItemPrice,
 } from "../actions";
 import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL, displayProductTypeCode } from "@/lib/order-preview";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
@@ -65,6 +66,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const previewByItemId = new Map(preview?.groups.flatMap((g) => g.items).map((i) => [i.orderItemId, i]) ?? []);
 
   const addItemAction = addOrderItem.bind(null, order.id);
+  // Owner UAT Round 3 — ข้อ 3: Bind ราคาแนะนำล่วงหน้าด้วย customerId/branchId/orderDate
+  // ของเอกสารนี้จริง — เหลือแค่ productId ให้ Client เรียกตอนเลือกสินค้า
+  const suggestPriceAction = getSuggestedOrderItemPrice.bind(null, order.customerId, order.branchId, order.orderDate);
   const confirmAction = confirmOrder.bind(null, order.id);
   const cancelAction = cancelOrder.bind(null, order.id);
   const editAction = editConfirmedOrder.bind(null, order.id);
@@ -84,6 +88,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
     unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
+    // Owner UAT Round 3 — ข้อ 3: ราคาปัจจุบันจริงจาก preview เดิม (เพื่อโชว์ใน Edit Modal
+    // ตอนเปิดครั้งแรก) — ไม่ใช่ Field ใหม่ใน DB แค่ดึงจาก computeOrderPreview ที่คำนวณอยู่
+    // แล้วมาแสดง
+    displayPrice: previewByItemId.get(item.id)?.unitPrice != null ? Number(previewByItemId.get(item.id)!.unitPrice) : null,
   }));
 
   return (
@@ -124,7 +132,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </ActionForm>
           </div>
           <div className="mb-4">
-            <OrderItemEntryForm key={order.items.length} addAction={addItemAction} canManageProducts={canManageProducts} />
+            <OrderItemEntryForm
+              key={order.items.length}
+              addAction={addItemAction}
+              suggestPriceAction={suggestPriceAction}
+              canManageProducts={canManageProducts}
+            />
           </div>
         </>
       )}
@@ -259,6 +272,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             activeInvoiceCount={activeInvoiceCount}
             initialApplyDiscount={order.applyDiscount}
             action={editAction}
+            suggestPriceAction={suggestPriceAction}
             canManageProducts={canManageProducts}
           />
         )}

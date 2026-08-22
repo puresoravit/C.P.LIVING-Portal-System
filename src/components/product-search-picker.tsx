@@ -8,11 +8,14 @@ import { useState, useEffect } from "react";
 // Model (Standalone เช่น หมอน/Accessory) ยังค้นหา/เลือกตรงๆ ได้เหมือนเดิมทุกประการ
 // ไม่บังคับผ่าน Size
 //
-// Phase E-UX — เปลี่ยนจาก "เลือก Model แล้ว Dropdown เดิมเปลี่ยนไปโชว์รายการ Size แทน"
-// (ของเดิม สับสนเพราะดูเหมือน Search ผลลัพธ์เปลี่ยนหน้า) เป็น "ช่อง Size แยกต่างหาก
-// ที่ปรากฏขึ้นข้างๆ ช่องค้นหา หลังเลือก Model แล้ว" ตามที่อนุมัติ — ยังคง Resolve ไปหา
-// Product Variant จริงเบื้องหลังทุกประการ ไม่มี Pricing Path ใหม่ ไม่มี Query ใหม่
-// (Model Result จาก /api/products/search เดิมมี sizes[] มาให้ครบอยู่แล้วตั้งแต่ R4)
+// Owner UAT Round 3 — ข้อ 4: Picker เองไม่เรนเดอร์ช่อง "ขนาด" อีกต่อไป (เดิมโผล่ Dropdown
+// ขึ้นข้างช่องค้นหาเองหลังเลือก Model — Owner มองว่าเป็น Dropdown ซ่อนที่ไม่ต้องการ) —
+// ช่องค้นหาตอนนี้ทำหน้าที่แค่ "เลือกสินค้า/รุ่น" อย่างเดียว เลือก Model แล้วส่งต่อผ่าน
+// onModelSelected ให้ Parent เรนเดอร์ Control ขนาดของตัวเอง (ปกติ <ModelSizeSelect> คู่กับ
+// ช่อง "ขนาด" ที่มีอยู่แล้วในตาราง/ฟอร์ม) แล้วเรียก resolveModelSize() แปลงกลับมาเป็น
+// onPick/onUnresolvedSize เอง — ยังคง Resolve ไปหา Product Variant จริงเบื้องหลังทุก
+// ประการ ไม่มี Pricing Path ใหม่ ไม่มี Query ใหม่ (Model Result จาก /api/products/search
+// เดิมมี sizes[] มาให้ครบอยู่แล้วตั้งแต่ R4)
 //
 // R6 Phase B — Size ที่เลือกได้ตอนนี้อาจเป็น "ยังไม่มี Product จริง" ได้ 2 กรณี: (1)
 // Standard Size ที่ยังไม่ได้ตั้ง pricePerFoot (Edge Case หายาก) (2) "ขนาดพิเศษ/ระบุเอง"
@@ -43,7 +46,7 @@ export type UnresolvedSizeInfo = {
   anchorProductId: string | null; // Product จริงตัวใดตัวหนึ่งของ Model นี้ (ถ้ามี) ไว้ผูก FK เมื่อต้องการ Override ราคา/ขนาด
 };
 
-type ModelSizeOption = {
+export type ModelSizeOption = {
   productId: string | null;
   sku: string | null;
   unit: string;
@@ -52,8 +55,22 @@ type ModelSizeOption = {
   resolved: boolean;
   custom: boolean;
 };
-type ModelResult = { modelId: string; modelName: string; productTypeName: string; usesSize: boolean; sizes: ModelSizeOption[] };
+export type ModelResult = { modelId: string; modelName: string; productTypeName: string; usesSize: boolean; sizes: ModelSizeOption[] };
 type ProductResult = { id: string; sku: string; name: string; unit: string; productTypeName: string };
+
+// Owner UAT Round 3 — ข้อ 4: Parent เป็นคนเรนเดอร์ช่อง "ขนาด" ของตัวเอง (Select ตอนเลือก
+// Model, Free-text ตอนไม่ใช่) แทนที่ Picker จะโผล่ Dropdown ขนาดแทรกขึ้นมาข้างช่องค้นหา
+// เอง (Owner มองว่าเป็น "Dropdown ซ่อน" ที่ยังไม่อยากให้มี) — ฟังก์ชันนี้แปลง Index ที่
+// เลือกจาก model.sizes กลับเป็นผลลัพธ์แบบเดียวกับที่ Picker เดิมเคยยิงให้เป๊ะ (Resolve
+// จริง หรือ Unresolved) ไม่มี Pricing Logic ใหม่ ใช้ sizeOptionToPicked/Unresolved เดิม
+export function resolveModelSize(
+  model: ModelResult,
+  sizeIndex: number
+): { picked: PickedProduct } | { unresolved: UnresolvedSizeInfo } | null {
+  const s = model.sizes[sizeIndex];
+  if (!s) return null;
+  return s.resolved ? { picked: sizeOptionToPicked(model, s) } : { unresolved: sizeOptionToUnresolved(model, s) };
+}
 
 function sizeOptionToPicked(model: ModelResult, s: ModelSizeOption): PickedProduct {
   const name = s.size ? `${model.modelName} ${s.size}` : model.modelName;
@@ -84,6 +101,7 @@ function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): Unresol
 export function ProductSearchPicker({
   onPick,
   onUnresolvedSize,
+  onModelSelected,
   onClear,
   autoFocus,
   placeholder = "เช่น GT-David หรือ M001",
@@ -92,6 +110,12 @@ export function ProductSearchPicker({
   onPick: (p: PickedProduct) => void;
   /** R6 Phase B — เรียกเมื่อเลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา หรือขนาดพิเศษ) — ไม่ implement = พฤติกรรมเดิม (ตัวเลือกนั้นจะเลือกไม่ได้จริง เพราะไม่มี onPick ให้เรียก) */
   onUnresolvedSize?: (info: UnresolvedSizeInfo | null) => void;
+  /** Owner UAT Round 3 — ข้อ 4: เรียกเมื่อเลือก Model จาก Dropdown ค้นหาแล้วมีมากกว่า 1
+   * ขนาดให้เลือก (ต้องให้ผู้ใช้เลือกเอง) — Picker เองไม่เรนเดอร์ช่อง "ขนาด" อีกต่อไป ส่งต่อ
+   * Model ให้ Parent เรนเดอร์ Control ของตัวเอง (เช่นผ่าน <ModelSizeSelect>) แล้วเรียก
+   * resolveModelSize() กลับมาแปลงเป็น onPick/onUnresolvedSize เอง — เรียกด้วย null ตอนล้าง
+   * (Model ที่มีขนาดเดียวและ Resolve ได้จริง ยัง Auto-pick ทันทีเหมือนเดิม ไม่เรียกนี้) */
+  onModelSelected?: (model: ModelResult | null) => void;
   /** Owner UAT Fix Batch 1 — ข้อ 2: ปุ่ม × ล้างค่าค้นหา/สินค้าที่เลือกไว้ — เรียกหลังจาก
    * ล้าง State ภายในของ Picker เองเสร็จแล้ว ให้ Parent ล้าง Size/ราคา/ตัวเลือกที่ผูกกับ
    * การเลือกนี้ต่อ (ไม่แตะ Field อื่นที่ไม่เกี่ยวข้อง เช่น ลูกค้า/สาขา/วันที่/จำนวน) */
@@ -105,10 +129,10 @@ export function ProductSearchPicker({
   const [models, setModels] = useState<ModelResult[]>([]);
   const [products, setProducts] = useState<ProductResult[]>([]);
   const [picked, setPicked] = useState(false);
-  // Model ที่เลือกไว้ (รอเลือก Size ต่อ) — ต่างจาก activeModel เดิมที่ใช้ Drill-down
-  // ภายใน Dropdown เดียวกัน ตัวนี้ทำให้ Dropdown ค้นหาปิดไปเลย แล้วโชว์ช่อง Size แยก
+  // Model ที่เลือกไว้ (รอ Parent เรนเดอร์ช่อง Size ของตัวเองต่อ ผ่าน onModelSelected) —
+  // ต่างจาก activeModel เดิมที่ใช้ Drill-down ภายใน Dropdown เดียวกัน ตัวนี้ทำให้ Dropdown
+  // ค้นหาปิดไปเลยหลังเลือก Model
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
-  const [selectedSizeIdx, setSelectedSizeIdx] = useState("");
   // ข้อ 60: รองรับเลือกด้วยลูกศร/Enter เหมือนเดิม — ใช้กับรายการ Model/Product ในช่อง
   // ค้นหาเท่านั้น (Size เป็น <select> เดิมของ Browser มี Keyboard Nav ของตัวเองอยู่แล้ว)
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -119,9 +143,9 @@ export function ProductSearchPicker({
     setProducts([]);
     setPicked(false);
     setSelectedModel(null);
-    setSelectedSizeIdx("");
     setHighlightIndex(0);
     onUnresolvedSize?.(null);
+    onModelSelected?.(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetToken]);
 
@@ -152,14 +176,15 @@ export function ProductSearchPicker({
     setModels([]);
     setProducts([]);
     setSelectedModel(null);
-    setSelectedSizeIdx("");
     onUnresolvedSize?.(null);
+    onModelSelected?.(null);
     onPick(p);
   }
 
   // เลือก Model จาก Dropdown ค้นหา — ปิด Dropdown ค้นหาทันที (ไม่ใช่ Drill-down ต่อใน
-  // Dropdown เดิม) แล้วโชว์ช่อง Size แยก — ถ้า Model มี Size ตัวเลือกเดียวและ Resolve ได้
-  // จริง ให้อัตโนมัติเลย (ไม่บังคับเลือกจากตัวเลือกเดียวที่ไม่มีความหมาย)
+  // Dropdown เดิม) — ถ้า Model มี Size ตัวเลือกเดียวและ Resolve ได้จริง ให้อัตโนมัติเลย
+  // (ไม่บังคับเลือกจากตัวเลือกเดียวที่ไม่มีความหมาย) ไม่งั้นส่งต่อให้ Parent เรนเดอร์ช่อง
+  // ขนาดของตัวเอง (Owner UAT Round 3 — ข้อ 4)
   function selectModel(m: ModelResult) {
     setQuery(`รุ่น: ${m.modelName}`);
     setModels([]);
@@ -167,31 +192,12 @@ export function ProductSearchPicker({
     setSelectedModel(m);
     onUnresolvedSize?.(null);
     if (m.sizes.length === 1 && m.sizes[0].resolved) {
-      setSelectedSizeIdx("0");
       setPicked(true);
+      onModelSelected?.(null);
       onPick(sizeOptionToPicked(m, m.sizes[0]));
     } else {
-      setSelectedSizeIdx("");
       setPicked(false);
-    }
-  }
-
-  function handleSizeChange(idxStr: string) {
-    setSelectedSizeIdx(idxStr);
-    if (!selectedModel) return;
-    const s = selectedModel.sizes[Number(idxStr)];
-    if (!s) {
-      setPicked(false);
-      onUnresolvedSize?.(null);
-      return;
-    }
-    if (s.resolved) {
-      setPicked(true);
-      onUnresolvedSize?.(null);
-      onPick(sizeOptionToPicked(selectedModel, s));
-    } else {
-      setPicked(false);
-      onUnresolvedSize?.(sizeOptionToUnresolved(selectedModel, s));
+      onModelSelected?.(m);
     }
   }
 
@@ -204,9 +210,9 @@ export function ProductSearchPicker({
     setProducts([]);
     setPicked(false);
     setSelectedModel(null);
-    setSelectedSizeIdx("");
     setHighlightIndex(0);
     onUnresolvedSize?.(null);
+    onModelSelected?.(null);
     onClear?.();
   }
 
@@ -247,8 +253,8 @@ export function ProductSearchPicker({
             setQuery(e.target.value);
             setPicked(false);
             setSelectedModel(null);
-            setSelectedSizeIdx("");
             onUnresolvedSize?.(null);
+            onModelSelected?.(null);
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
@@ -305,26 +311,6 @@ export function ProductSearchPicker({
           </ul>
         )}
       </div>
-
-      {selectedModel && (
-        <div className="w-40 shrink-0">
-          <select
-            value={selectedSizeIdx}
-            onChange={(e) => handleSizeChange(e.target.value)}
-            className="w-full border rounded px-2 py-1.5 text-sm"
-          >
-            <option value="" disabled>
-              — ขนาด —
-            </option>
-            {selectedModel.sizes.map((s, i) => (
-              <option key={i} value={i}>
-                {s.label}
-                {!s.resolved && !s.custom ? " (ยังไม่มีในระบบ)" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }

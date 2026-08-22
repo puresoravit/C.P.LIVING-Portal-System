@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
+import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 import { getSuggestedTaxInvoiceItem } from "@/app/(dashboard)/tax-invoices/actions";
 import { useToast } from "@/components/toast/toast-provider";
 
@@ -20,6 +21,9 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
   const [draft, setDraft] = useState<ManualItem>({ description: "", size: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
   const [err, setErr] = useState("");
   const [pickerResetToken, setPickerResetToken] = useState(0);
+  // Owner UAT Round 3 — ข้อ 4: Model ที่เลือกไว้ (รอเลือกขนาด) — ตอนมีค่านี้ ช่อง "ขนาด"
+  // จะเปลี่ยนจาก Free-text เป็น <ModelSizeSelect> (Dropdown ขนาดจริงของ Model นั้น)
+  const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
   const { showError } = useToast();
   const [isPending, startTransition] = useTransition();
   const [thrownError, setThrownError] = useState<unknown>(null);
@@ -28,6 +32,13 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
 
   function handleClear() {
     setDraft((prev) => ({ ...prev, description: "", size: "", unitPrice: 0 }));
+    setSelectedModel(null);
+  }
+
+  function handleSizeResolve(result: ModelSizeResolution) {
+    if (!result) return;
+    if ("picked" in result) handlePick(result.picked);
+    else handleUnresolvedSize(result.unresolved);
   }
 
   // customerId/branchId/taxInvoiceDate อยู่นอก Component นี้ (Field ของ Parent Server
@@ -108,6 +119,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
             <ProductSearchPicker
               onPick={handlePick}
               onUnresolvedSize={handleUnresolvedSize}
+              onModelSelected={setSelectedModel}
               onClear={handleClear}
               placeholder="ค้นหาสินค้า/รุ่น..."
               resetToken={pickerResetToken}
@@ -124,12 +136,16 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
           </div>
           <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">ขนาด</label>
-            <input
-              value={draft.size}
-              onChange={(e) => setDraft({ ...draft, size: e.target.value })}
-              placeholder="เช่น 5 ฟุต"
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
+            {selectedModel ? (
+              <ModelSizeSelect model={selectedModel} onResolve={handleSizeResolve} />
+            ) : (
+              <input
+                value={draft.size}
+                onChange={(e) => setDraft({ ...draft, size: e.target.value })}
+                placeholder="เช่น 5 ฟุต"
+                className="w-full border rounded px-3 py-1.5 text-sm"
+              />
+            )}
           </div>
           <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>

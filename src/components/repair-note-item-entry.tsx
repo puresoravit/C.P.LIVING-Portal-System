@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
+import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 
 type Item = { description: string; size: string; quantity: number; unit: string };
 
@@ -15,6 +16,8 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
   const [draft, setDraft] = useState<Item>({ description: "", size: "", quantity: 1, unit: "หลัง" });
   const [err, setErr] = useState("");
   const [pickerResetToken, setPickerResetToken] = useState(0);
+  // Owner UAT Round 3 — ข้อ 4: เหมือน Tax Invoice ทุกประการ
+  const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
 
   function handlePick(p: PickedProduct) {
     setDraft((prev) => ({ ...prev, description: p.modelName ?? p.name, size: p.size ?? "" }));
@@ -25,8 +28,15 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
     setDraft((prev) => ({ ...prev, description: info.modelName, size: info.custom ? "" : info.size }));
   }
 
+  function handleSizeResolve(result: ModelSizeResolution) {
+    if (!result) return;
+    if ("picked" in result) handlePick(result.picked);
+    else handleUnresolvedSize(result.unresolved);
+  }
+
   function handleClear() {
     setDraft((prev) => ({ ...prev, description: "", size: "" }));
+    setSelectedModel(null);
   }
 
   function addItem() {
@@ -59,6 +69,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             <ProductSearchPicker
               onPick={handlePick}
               onUnresolvedSize={handleUnresolvedSize}
+              onModelSelected={setSelectedModel}
               onClear={handleClear}
               placeholder="ค้นหาสินค้า/รุ่น..."
               resetToken={pickerResetToken}
@@ -75,12 +86,16 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
           </div>
           <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">ขนาด</label>
-            <input
-              value={draft.size}
-              onChange={(e) => setDraft({ ...draft, size: e.target.value })}
-              placeholder="เช่น 5 ฟุต"
-              className="w-full border rounded px-3 py-1.5 text-sm"
-            />
+            {selectedModel ? (
+              <ModelSizeSelect model={selectedModel} onResolve={handleSizeResolve} />
+            ) : (
+              <input
+                value={draft.size}
+                onChange={(e) => setDraft({ ...draft, size: e.target.value })}
+                placeholder="เช่น 5 ฟุต"
+                className="w-full border rounded px-3 py-1.5 text-sm"
+              />
+            )}
           </div>
           <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>

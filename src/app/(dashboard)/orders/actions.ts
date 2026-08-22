@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { computeOrderPreview } from "@/lib/order-preview";
-import { roundMoney, allocateProportionally } from "@/lib/pricing";
+import { roundMoney, allocateProportionally, getEffectivePrice } from "@/lib/pricing";
 import { Decimal } from "@prisma/client/runtime/library";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -23,6 +23,28 @@ async function requireUser() {
     id: (session.user as any).id as string,
     role: (session.user as any).role as any,
   };
+}
+
+// Owner UAT Round 3 — ข้อ 3: ราคาแนะนำ (Suggested) ให้เห็นทันทีตอนคีย์รายการ ก่อนกด
+// เพิ่ม — Read-only Helper เรียก Pricing Engine เดิมตัวเดียวกับที่ computeOrderPreview
+// ใช้ (getEffectivePrice) ไม่มี Path คำนวณราคาใหม่เลย และ "ไม่ใช่" ค่าที่ถูก Freeze/Commit
+// เป็น unitPriceOverride อัตโนมัติ — รายการ Standard (ไม่ Override) ยังคงคำนวณสดอีกครั้ง
+// ที่ computeOrderPreview ตอน Confirm เสมอ (กัน Stale Price ตาม Invariant เดิมของทั้งระบบ)
+// ผู้ใช้ต้อง "แก้ไขราคาที่แนะนำเอง" เท่านั้นถึงจะกลายเป็น Override จริง (ทำที่ฝั่ง Client)
+// หมายเหตุ: รับ Argument แบบ Positional (ไม่ใช่ Object เดียว) เพราะต้อง .bind() บาง
+// Argument ล่วงหน้าจาก Server Component (customerId/branchId/orderDate) แล้วส่ง Reference
+// ที่เหลือ (รับแค่ productId) ไปให้ Client Component เรียกเอง — Pattern เดียวกับ
+// addOrderItem.bind(null, order.id) ที่ใช้อยู่แล้วทั่วทั้งระบบ (Object Param เดียวจะ Bind
+// บางส่วนแบบนี้ไม่ได้)
+export async function getSuggestedOrderItemPrice(
+  customerId: string,
+  branchId: string | null,
+  orderDate: Date,
+  productId: string
+): Promise<{ price: number }> {
+  await requireUser();
+  const { price } = await getEffectivePrice({ productId, customerId, branchId, orderDate });
+  return { price: Number(price) };
 }
 
 const createOrderSchema = z.object({

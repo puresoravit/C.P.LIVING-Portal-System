@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
+import { getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -20,6 +21,20 @@ async function requireUser() {
     id: (session.user as any).id as string,
     role: (session.user as any).role as any,
   };
+}
+
+// Owner UAT Round 3 — ข้อ 3: เหมือน orders/actions.ts ทุกประการ — Read-only Suggestion
+// เท่านั้น ไม่ Freeze เป็น unitPriceOverride อัตโนมัติ — Positional Argument เพื่อ .bind()
+// บางส่วนล่วงหน้าจาก Server Component ได้ (ดู getSuggestedOrderItemPrice)
+export async function getSuggestedQuotationItemPrice(
+  customerId: string,
+  branchId: string | null,
+  quotationDate: Date,
+  productId: string
+): Promise<{ price: number }> {
+  await requireUser();
+  const { price } = await getEffectivePrice({ productId, customerId, branchId, orderDate: quotationDate });
+  return { price: Number(price) };
 }
 
 const createQuotationSchema = z.object({

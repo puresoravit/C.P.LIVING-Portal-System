@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
-import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
-import { SizeOverrideFields } from "@/components/size-override-fields";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
+import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 
 type EditItem = {
   key: string;
@@ -18,6 +19,8 @@ type EditItem = {
   // R6 Phase B — ขนาดพิเศษ/ระบุเอง ("" = Standard Size ปกติ ไม่ Override อะไรเลย)
   sizeOverride: string;
   unitPriceOverride: number | null;
+  // Owner UAT Round 3 — ข้อ 3: เหมือน OrderEditModal ทุกประการ — โชว์อย่างเดียว ไม่ส่งไป Server
+  displayPrice: number | null;
 };
 
 // แก้ไข Quotation ที่ CONFIRMED แล้ว — Re-snapshot ใบเดิม (เลขที่เดิม, revisionNo+1)
@@ -29,6 +32,7 @@ export function QuotationEditModal({
   initialVatMode,
   initialApplyDiscount,
   action,
+  suggestPriceAction,
   canManageProducts = false,
 }: {
   quotationNumber: string;
@@ -36,6 +40,8 @@ export function QuotationEditModal({
   initialVatMode: string;
   initialApplyDiscount: boolean;
   action: (formData: FormData) => Promise<ActionResult>;
+  /** Owner UAT Round 3 — ข้อ 3: เหมือน OrderEditModal ทุกประการ */
+  suggestPriceAction: (productId: string) => Promise<{ price: number }>;
   canManageProducts?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -46,10 +52,16 @@ export function QuotationEditModal({
 
   const [qty, setQty] = useState("1");
   const [selected, setSelected] = useState<PickedProduct | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
   // R6 Phase B — เหมือน OrderEditModal ทุกประการ
   const [unresolvedInfo, setUnresolvedInfo] = useState<UnresolvedSizeInfo | null>(null);
   const [overrideSize, setOverrideSize] = useState("");
   const [overridePrice, setOverridePrice] = useState("");
+  const [standaloneSize, setStandaloneSize] = useState("");
+  const [descriptionOverride, setDescriptionOverride] = useState("");
+  const [priceInput, setPriceInput] = useState("");
+  const [priceTouched, setPriceTouched] = useState(false);
+  const [suggestPending, startSuggestTransition] = useTransition();
   // R4 — ตัว Modal นี้ไม่ remount ProductSearchPicker ระหว่างเพิ่มรายการหลายรายการ
   // (ต่างจากหน้า Draft ที่ remount ด้วย key) จึงต้องสั่งล้าง Search ภายในเองผ่าน resetToken
   const [pickerResetToken, setPickerResetToken] = useState(0);
@@ -62,13 +74,43 @@ export function QuotationEditModal({
     setItems(initialItems);
     setVatMode(initialVatMode);
     setApplyDiscount(initialApplyDiscount);
+    resetEntryRow();
+    setPickerResetToken((t) => t + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialItems, initialVatMode, initialApplyDiscount]);
+
+  function resetEntryRow() {
     setSelected(null);
+    setSelectedModel(null);
     setUnresolvedInfo(null);
     setOverrideSize("");
     setOverridePrice("");
+    setStandaloneSize("");
+    setDescriptionOverride("");
+    setPriceInput("");
+    setPriceTouched(false);
     setQty("1");
-    setPickerResetToken((t) => t + 1);
-  }, [isOpen, initialItems, initialVatMode, initialApplyDiscount]);
+  }
+
+  function fetchSuggestedPrice(productId: string) {
+    startSuggestTransition(async () => {
+      try {
+        const { price } = await suggestPriceAction(productId);
+        setPriceInput(String(price));
+      } catch (err) {
+        unstable_rethrow(err);
+      }
+    });
+  }
+
+  function pick(p: PickedProduct) {
+    setSelected(p);
+    setUnresolvedInfo(null);
+    setStandaloneSize("");
+    setPriceInput("");
+    setPriceTouched(false);
+    fetchSuggestedPrice(p.id);
+  }
 
   function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
     setSelected(null);
@@ -77,7 +119,14 @@ export function QuotationEditModal({
     setOverridePrice("");
   }
 
+  function handleSizeResolve(result: ModelSizeResolution) {
+    if (!result) return;
+    if ("picked" in result) pick(result.picked);
+    else handleUnresolvedSize(result.unresolved);
+  }
+
   const overrideReady = !!unresolvedInfo?.anchorProductId && overrideSize.trim() !== "" && Number(overridePrice) > 0;
+  const canAddItem = !!selected || overrideReady;
 
   function addItem() {
     const quantity = Number(qty);
@@ -89,13 +138,14 @@ export function QuotationEditModal({
           key: `${selected.id}-${Date.now()}`,
           productId: selected.id,
           sku: selected.sku,
-          name: selected.name,
+          name: descriptionOverride.trim() || selected.name,
           unit: selected.unit,
           productTypeName: selected.productTypeName,
           quantity,
-          descriptionOverride: "",
-          sizeOverride: "",
-          unitPriceOverride: null,
+          descriptionOverride: descriptionOverride.trim(),
+          sizeOverride: standaloneSize.trim(),
+          unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
+          displayPrice: priceInput !== "" ? Number(priceInput) : null,
         },
       ]);
     } else if (overrideReady && unresolvedInfo) {
@@ -105,23 +155,20 @@ export function QuotationEditModal({
           key: `${unresolvedInfo.anchorProductId}-${Date.now()}`,
           productId: unresolvedInfo.anchorProductId!,
           sku: "-",
-          name: `${unresolvedInfo.modelName} ${overrideSize.trim()}`.trim(),
+          name: descriptionOverride.trim() || `${unresolvedInfo.modelName} ${overrideSize.trim()}`.trim(),
           unit: unresolvedInfo.unit,
           productTypeName: unresolvedInfo.productTypeName,
           quantity,
-          descriptionOverride: "",
+          descriptionOverride: descriptionOverride.trim(),
           sizeOverride: overrideSize.trim(),
           unitPriceOverride: Number(overridePrice),
+          displayPrice: Number(overridePrice),
         },
       ]);
     } else {
       return;
     }
-    setSelected(null);
-    setUnresolvedInfo(null);
-    setOverrideSize("");
-    setOverridePrice("");
-    setQty("1");
+    resetEntryRow();
     setPickerResetToken((t) => t + 1);
   }
 
@@ -159,6 +206,10 @@ export function QuotationEditModal({
     });
   }
 
+  function money(n: number) {
+    return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
+  }
+
   return (
     <>
       <button
@@ -170,7 +221,7 @@ export function QuotationEditModal({
 
       {isOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-semibold">แก้ไขใบเสนอราคา {quotationNumber}</h2>
               <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
@@ -204,8 +255,10 @@ export function QuotationEditModal({
                     <tr>
                       <th className="px-3 py-2 font-medium">รหัสสินค้า</th>
                       <th className="px-3 py-2 font-medium">รายการ</th>
+                      <th className="px-3 py-2 font-medium">ขนาด</th>
                       <th className="px-3 py-2 font-medium text-right">จำนวน</th>
                       <th className="px-3 py-2 font-medium">หน่วย</th>
+                      <th className="px-3 py-2 font-medium text-right">ราคา/หน่วย</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
@@ -214,8 +267,10 @@ export function QuotationEditModal({
                       <tr key={item.key} className="border-t">
                         <td className="px-3 py-2 font-mono">{item.sku}</td>
                         <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">{item.sizeOverride || "-"}</td>
                         <td className="px-3 py-2 text-right">{item.quantity}</td>
                         <td className="px-3 py-2">{item.unit}</td>
+                        <td className="px-3 py-2 text-right">{item.displayPrice != null ? money(item.displayPrice) : "-"}</td>
                         <td className="px-3 py-2 text-right">
                           <button onClick={() => removeItem(item.key)} className="text-xs text-gray-500 hover:text-red-600">
                             ลบ
@@ -225,7 +280,7 @@ export function QuotationEditModal({
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-gray-400">
+                        <td colSpan={7} className="px-3 py-6 text-center text-gray-400">
                           ยังไม่มีรายการสินค้า
                         </td>
                       </tr>
@@ -234,29 +289,51 @@ export function QuotationEditModal({
                 </table>
               </div>
 
-              <div className="bg-gray-50 border rounded-lg p-3 relative space-y-2">
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ)
-                    </label>
+              <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
+                <div className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-4">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า/รุ่น</label>
                     <ProductSearchPicker
-                      onPick={(p) => {
-                        setSelected(p);
-                        setUnresolvedInfo(null);
-                      }}
+                      onPick={pick}
                       onUnresolvedSize={handleUnresolvedSize}
-                      onClear={() => {
-                        setSelected(null);
-                        setUnresolvedInfo(null);
-                        setOverrideSize("");
-                        setOverridePrice("");
-                      }}
+                      onModelSelected={setSelectedModel}
+                      onClear={resetEntryRow}
                       placeholder="เช่น M001 หรือ ที่นอนสปริง"
                       resetToken={pickerResetToken}
                     />
                   </div>
-                  <div className="w-24">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">รายการ (ถ้ามี)</label>
+                    <input
+                      value={descriptionOverride}
+                      onChange={(e) => setDescriptionOverride(e.target.value)}
+                      placeholder={selected?.name ?? "รายละเอียดเพิ่มเติม"}
+                      className="w-full border rounded px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      ขนาด{unresolvedInfo?.custom ? " *" : ""}
+                    </label>
+                    {selectedModel ? (
+                      <ModelSizeSelect model={selectedModel} onResolve={handleSizeResolve} />
+                    ) : unresolvedInfo ? (
+                      <input
+                        value={overrideSize}
+                        onChange={(e) => setOverrideSize(e.target.value)}
+                        placeholder={unresolvedInfo.custom ? "เช่น 4.2 เมตร" : unresolvedInfo.size}
+                        className="w-full border rounded px-3 py-1.5 text-sm"
+                      />
+                    ) : (
+                      <input
+                        value={standaloneSize}
+                        onChange={(e) => setStandaloneSize(e.target.value)}
+                        placeholder="เช่น 5 ฟุต (ถ้ามี)"
+                        className="w-full border rounded px-3 py-1.5 text-sm"
+                      />
+                    )}
+                  </div>
+                  <div className="col-span-1">
                     <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
                     <input
                       type="number"
@@ -267,24 +344,53 @@ export function QuotationEditModal({
                       className="w-full border rounded px-3 py-1.5 text-sm"
                     />
                   </div>
-                  <button
-                    type="button"
-                    disabled={!selected && !overrideReady}
-                    onClick={addItem}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 h-[34px]"
-                  >
-                    + เพิ่ม
-                  </button>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">ราคา/หน่วย{unresolvedInfo ? " *" : ""}</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={unresolvedInfo ? overridePrice : priceInput}
+                      placeholder={suggestPending ? "กำลังคำนวณ..." : undefined}
+                      disabled={!selected && !unresolvedInfo}
+                      onChange={(e) => {
+                        if (unresolvedInfo) {
+                          setOverridePrice(e.target.value);
+                        } else {
+                          setPriceInput(e.target.value);
+                          setPriceTouched(true);
+                        }
+                      }}
+                      className="w-full border rounded px-3 py-1.5 text-sm disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <button
+                      type="button"
+                      disabled={!canAddItem}
+                      onClick={addItem}
+                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-2 py-2"
+                    >
+                      + เพิ่ม
+                    </button>
+                  </div>
                 </div>
-                {unresolvedInfo && (
-                  <SizeOverrideFields
-                    info={unresolvedInfo}
-                    sizeText={overrideSize}
-                    price={overridePrice}
-                    onSizeTextChange={setOverrideSize}
-                    onPriceChange={setOverridePrice}
-                    canManageProducts={canManageProducts}
-                  />
+                {unresolvedInfo && !unresolvedInfo.anchorProductId && (
+                  <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    รุ่น &quot;{unresolvedInfo.modelName}&quot; ยังไม่มีสินค้าในระบบเลย ต้องตั้งราคาต่อฟุตหรือเพิ่มไซส์ก่อนจึงจะคีย์เอกสารได้{" "}
+                    {canManageProducts ? (
+                      <a href={`/product-models/${unresolvedInfo.modelId}`} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                        ไปตั้งค่าที่หน้ารุ่นสินค้า
+                      </a>
+                    ) : (
+                      "กรุณาติดต่อผู้ดูแลระบบ"
+                    )}
+                  </div>
+                )}
+                {unresolvedInfo?.anchorProductId && !unresolvedInfo.custom && (
+                  <p className="text-xs text-amber-700">
+                    ไซส์มาตรฐานนี้ยังไม่มีในระบบ — ราคาที่กรอกใช้เฉพาะรายการนี้ ไม่บันทึกเป็นราคามาตรฐาน
+                  </p>
                 )}
               </div>
             </div>

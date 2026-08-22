@@ -7,6 +7,7 @@ import {
   confirmQuotation,
   cancelQuotation,
   editConfirmedQuotation,
+  getSuggestedQuotationItemPrice,
 } from "../actions";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
 import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
@@ -54,6 +55,13 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   const status = STATUS_LABEL[quotation.status];
 
   const addItemAction = addQuotationItem.bind(null, quotation.id);
+  // Owner UAT Round 3 — ข้อ 3: เหมือน Order ทุกประการ
+  const suggestPriceAction = getSuggestedQuotationItemPrice.bind(
+    null,
+    quotation.customerId,
+    quotation.branchId,
+    quotation.quotationDate
+  );
   const updateDraftSettingsAction = updateQuotationDraftSettings.bind(null, quotation.id);
   const confirmAction = confirmQuotation.bind(null, quotation.id);
   const cancelAction = cancelQuotation.bind(null, quotation.id);
@@ -92,6 +100,9 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
     unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
+    // Owner UAT Round 3 — ข้อ 3: Modal นี้เปิดได้เฉพาะตอน CONFIRMED เท่านั้น (unitPriceSnapshot
+    // มีค่าจริงแล้วเสมอ ณ จุดนี้) ใช้ Snapshot ตรงๆ ไม่ต้องคำนวณสดซ้ำ
+    displayPrice: item.unitPriceSnapshot != null ? Number(item.unitPriceSnapshot) : null,
   }));
 
   return (
@@ -131,7 +142,12 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             </ActionForm>
           </div>
           <div className="mb-4">
-            <OrderItemEntryForm key={quotation.items.length} addAction={addItemAction} canManageProducts={canManageProducts} />
+            <OrderItemEntryForm
+              key={quotation.items.length}
+              addAction={addItemAction}
+              suggestPriceAction={suggestPriceAction}
+              canManageProducts={canManageProducts}
+            />
           </div>
         </>
       )}
@@ -259,6 +275,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             initialVatMode={quotation.vatMode}
             initialApplyDiscount={quotation.applyDiscount}
             action={editAction}
+            suggestPriceAction={suggestPriceAction}
             canManageProducts={canManageProducts}
           />
         )}
