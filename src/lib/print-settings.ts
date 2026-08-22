@@ -12,6 +12,12 @@
 
 export type PrintProfileKey = "continuous" | "a4";
 
+// R6 Phase D — Shared ระหว่าง PrintProfileSelector (เขียน) กับ PrintButton (อ่าน เพื่อ
+// เปิด/ปิดปุ่ม "มาร์คว่าพิมพ์แล้ว" ตาม Profile ที่เลือกอยู่จริง) — ยังคงเป็น
+// localStorage ล้วนๆ ไม่ลง Database ตามสถาปัตยกรรมเดิมของ R5 ทุกประการ
+export const PRINT_PROFILE_STORAGE_KEY = "billSystemPrintProfile";
+export const PRINT_PROFILE_CHANGE_EVENT = "print-profile-change";
+
 export const PRINT_PROFILES: Record<
   PrintProfileKey,
   { label: string; pageSize: string; margin: string; contentHeightMm: number }

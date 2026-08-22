@@ -15,10 +15,15 @@ import { buildPrintCssVars, type OverridableTemplateSettings } from "@/lib/print
 export function PrintPage({
   children,
   markPrintedAction,
+  isPrinted,
+  printedAtLabel,
   templateSettings,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
+  /** R6 Phase D — true = เอกสารผ่าน PRINTED Checkpoint แล้ว (โชว์วันที่แทนปุ่ม Mark) */
+  isPrinted?: boolean;
+  printedAtLabel?: string;
   // R5 — ค่าที่ Resolve แล้ว (Global + Override ของเอกสารนี้) ฉีดเป็น CSS Var ที่จุด
   // เดียวนี้ ให้ Shared Print Component ที่เหลือทั้งหมด Inherit ผ่าน Tailwind Arbitrary
   // Value (เช่น text-[length:var(--print-body-size)]) โดยไม่ต้องรับ Prop ซ้ำเอง —
@@ -33,7 +38,7 @@ export function PrintPage({
         dangerouslySetInnerHTML={{ __html: `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }` }}
       />
       <div className="print:hidden flex items-center justify-between gap-3 mb-2">
-        <PrintButton markPrintedAction={markPrintedAction} />
+        <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} />
         <PrintProfileSelector />
       </div>
       <div

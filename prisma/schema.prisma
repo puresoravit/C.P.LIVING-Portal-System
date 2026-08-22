@@ -359,6 +359,14 @@ model Invoice {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  // R6 Phase D — Sales SOT: PRINTED ต้องแปลว่า "ยืนยันพิมพ์กระดาษต่อเนื่อง 9×11 จริงแล้ว"
+  // เท่านั้น (ไม่ใช่แค่เคยกด window.print()) — printedAt เป็น First-Printed Timestamp
+  // เขียนครั้งเดียวตอน CONFIRMED→PRINTED เท่านั้น (Reprint ไม่ overwrite เพราะ Action
+  // เช็ค status ก่อนเขียนเสมอ) printedById ไม่ผูก Relation ตาม Convention เดียวกับ
+  // createdById ด้านบน (Plain String)
+  printedAt   DateTime?
+  printedById String?
+
   items InvoiceItem[]
   taxInvoices TaxInvoice[]
   billingNoteId String?      // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล

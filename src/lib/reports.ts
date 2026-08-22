@@ -53,12 +53,20 @@ function addRow(m: Metrics, row: Row): Metrics {
   };
 }
 
+// R6 Phase D — Sales Source of Truth: "ยอดขายจริง" = เฉพาะ Invoice ("ใบส่งของชั่วคราว")
+// ที่ผ่าน PRINTED Checkpoint แล้วเท่านั้น (ยืนยันพิมพ์กระดาษต่อเนื่อง 9×11 จริง ผ่าน
+// markInvoicePrinted) — Confirm อย่างเดียวไม่นับ, Cancel ไม่นับ (สอดคล้องกับพฤติกรรม
+// เดิมที่กันไปแล้วผ่าน status ≠ CANCELLED) จุดเดียวนี้ที่ fetchRows/fetchProductRows
+// ทั้งคู่เรียกใช้ ทำให้ Dashboard/Top10/Monthly Sales/Sales Growth/Branch Report/
+// /reports ทั่วไป ใช้ฐานข้อมูลเดียวกันเป๊ะโดยอัตโนมัติ ไม่ต้องแก้ที่อื่นซ้ำ
+const SALES_SOT_STATUS = "PRINTED" as const;
+
 async function fetchRows(filters: ReportFilters): Promise<Row[]> {
   const items = await db.invoiceItem.findMany({
     where: {
       skuSnapshot: filters.sku,
       invoice: {
-        status: { not: "CANCELLED" },
+        status: SALES_SOT_STATUS,
         invoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
         customerId: filters.customerId,
         branchId: filters.branchId,
@@ -255,7 +263,7 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
     where: {
       skuSnapshot: filters.sku,
       invoice: {
-        status: { not: "CANCELLED" },
+        status: SALES_SOT_STATUS,
         invoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
         customerId: filters.customerId,
         branchId: filters.branchId,
@@ -380,8 +388,12 @@ export async function getDashboard(filters: ReportFilters) {
   const genGroup = salesByTypeCode.get(UNSPECIFIED_TYPE_CODE);
   if (genGroup) byType.push(genGroup);
 
-  const topCustomers = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, 10);
+  // R6 Phase D — ข้อ G: Dashboard ระดับแรกเปลี่ยนจาก Card กลุ่มส่วนลด → Card ลูกค้า
+  // แสดงทุกบริษัทที่มียอดตาม Sales SOT ในช่วงวันที่เลือก (ไม่ Cap 10 เหมือน topCustomers
+  // เดิมที่ยังใช้กับ List "Top 10 ลูกค้า" แยกต่างหากด้านล่างอยู่)
+  const customerCards = [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net);
+  const topCustomers = customerCards.slice(0, 10);
   const topProducts = await getTopProductModels(filters, 10);
 
-  return { summary, byType, topCustomers, topProducts };
+  return { summary, byType, customerCards, topCustomers, topProducts };
 }

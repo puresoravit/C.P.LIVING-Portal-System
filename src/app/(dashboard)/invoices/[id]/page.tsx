@@ -53,6 +53,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           {invoice.order.orderNumber}
         </a>{" "}
         · {invoice.invoiceDate.toLocaleDateString("th-TH")} · กลุ่มส่วนลด {displayProductTypeCode(invoice.productTypeCode)}
+        {invoice.printedAt && ` · พิมพ์แล้วเมื่อ ${invoice.printedAt.toLocaleDateString("th-TH")}`}
       </p>
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">

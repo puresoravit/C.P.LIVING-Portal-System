@@ -18,16 +18,17 @@ type QuotationPrintItem = {
   netAmount: unknown;
 };
 
-// Discount Show/Hide Toggle — Presentation เท่านั้น ไม่แตะยอดที่ Snapshot ไว้จริงเลย
-// (grandTotal/netBeforeVat/vatAmount แสดงเหมือนเดิมเสมอ ไม่ว่า Toggle จะเปิดหรือปิด
-// — ซ่อนแค่ "แถวรายละเอียดส่วนลด" เท่านั้น) ค่าเริ่มต้นเปิด (แสดงส่วนลด) ตรงกับ
-// พฤติกรรมเดิมของเอกสารอื่นทุกใบที่ไม่เคยมี Toggle นี้มาก่อน
+// R6 Phase D — showDiscount (เดิม Presentation Toggle อิสระ) ถูกถอดออกแล้ว: ต้อง
+// สะท้อน applyDiscount (Calculation Snapshot ของเอกสารจริง) เท่านั้น ไม่ใช่ Toggle
+// ที่ผู้ใช้กดเอง — showVatBreakdown ยังคงเป็น Toggle Presentation ล้วนๆ ตามเดิม (VAT
+// เป็น Inclusive อยู่แล้ว การซ่อน/โชว์ Breakdown ไม่เปลี่ยนยอดใดๆ จึงอนุมัติให้คงไว้)
 export function QuotationPrintBody({
   items,
   note,
   amountInWords,
   grossAmount,
   discountAmount,
+  applyDiscount,
   vatMode,
   vatRateSnapshot,
   netBeforeVat,
@@ -39,33 +40,26 @@ export function QuotationPrintBody({
   amountInWords: string;
   grossAmount: unknown;
   discountAmount: unknown;
+  /** Snapshot ของ Quotation.applyDiscount — คุมว่าแสดงคอลัมน์/แถวส่วนลดหรือไม่ */
+  applyDiscount: boolean;
   vatMode: string;
   vatRateSnapshot: unknown;
   netBeforeVat: unknown;
   vatAmount: unknown;
   grandTotal: unknown;
 }) {
-  const [showDiscount, setShowDiscount] = useState(true);
+  const showDiscount = applyDiscount;
   // Phase R1 — showVatBreakdown: Toggle การแสดงผลล้วนๆ (print-time, ไม่ persist ลง DB)
-  // แยกอิสระจาก showDiscount เดิมโดยสิ้นเชิง ค่าเริ่มต้น = แสดง (true) เพื่อรักษา
-  // พฤติกรรมเดิมของเอกสารทุกใบ ปิด/เปิด Toggle นี้ไม่มีผลต่อ Grand Total ที่แสดงเลย
-  // (ซ่อนแค่ 2 แถวรายละเอียด "มูลค่าก่อน VAT"/"VAT %") ใช้ได้เฉพาะตอน hasVat เท่านั้น
+  // ค่าเริ่มต้น = แสดง (true) เพื่อรักษาพฤติกรรมเดิมของเอกสารทุกใบ ปิด/เปิด Toggle นี้
+  // ไม่มีผลต่อ Grand Total ที่แสดงเลย (ซ่อนแค่ 2 แถวรายละเอียด "มูลค่าก่อน VAT"/"VAT %")
+  // ใช้ได้เฉพาะตอน hasVat เท่านั้น
   const [showVatBreakdown, setShowVatBreakdown] = useState(true);
   const hasVat = vatMode === "STANDARD";
 
   return (
     <>
-      <div className="print:hidden flex items-center gap-4 mb-2 text-sm">
-        <div className="flex items-center gap-1.5">
-          <input
-            id="show-discount"
-            type="checkbox"
-            checked={showDiscount}
-            onChange={(e) => setShowDiscount(e.target.checked)}
-          />
-          <label htmlFor="show-discount">แสดงส่วนลดในเอกสาร</label>
-        </div>
-        {hasVat && (
+      {hasVat && (
+        <div className="print:hidden flex items-center gap-4 mb-2 text-sm">
           <div className="flex items-center gap-1.5">
             <input
               id="show-vat-breakdown"
@@ -75,8 +69,8 @@ export function QuotationPrintBody({
             />
             <label htmlFor="show-vat-breakdown">แสดงรายละเอียด VAT</label>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
         <thead>

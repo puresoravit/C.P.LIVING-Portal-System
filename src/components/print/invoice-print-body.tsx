@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import { PrintAmountWordsRemark } from "./print-amount-words-remark";
 
 function money(n: unknown) {
@@ -18,17 +15,19 @@ type InvoicePrintItem = {
   netAmount: unknown;
 };
 
-// Phase C — Discount Show/Hide Toggle เหมือน QuotationPrintBody ทุกประการ (Pattern
-// เดียวกัน ตามที่อนุมัติ) — Presentation ล้วนๆ ไม่แตะ grossAmount/discountAmount/
-// grandTotal ที่ Snapshot ไว้จริงเลย, ไม่ Persist (React State ล้วนๆ, Reset ทุกครั้งที่
-// โหลดหน้าใหม่) — Invoice ไม่มี VAT เลย (ยืนยันตั้งแต่ R1) จึงไม่มี Toggle VAT ใดๆ
-// ต่างจาก Quotation ที่มี vatMode เป็นทางเลือก
+// R6 Phase D — เดิม (Phase C) เป็น Presentation Toggle ที่ผู้ใช้กดเปิด/ปิดเองตอน Print
+// เปลี่ยนตาม Requirement ใหม่: ต้องสะท้อน Calculation/Snapshot ของเอกสารจริงเท่านั้น
+// (applyDiscount) ไม่ใช่ Toggle อิสระอีกต่อไป — ถ้าเอกสารนี้ "ไม่ใช้ส่วนลด"
+// (applyDiscount=false) discountAmount จะเป็น 0 อยู่แล้วจริงๆ (ไม่ใช่ข้อมูลปลอม) แต่ซ่อน
+// คอลัมน์/แถวไปเลยเพื่อไม่ให้ดูเหมือนมีส่วนลด 0% ที่ตั้งใจให้ — Invoice ไม่มี VAT เลย
+// (ยืนยันตั้งแต่ R1) จึงไม่มี Toggle VAT ใดๆ ต่างจาก Quotation
 export function InvoicePrintBody({
   items,
   grossAmount,
   discountAmount,
   grandTotal,
   amountInWords,
+  applyDiscount,
   disclaimer,
 }: {
   items: InvoicePrintItem[];
@@ -36,25 +35,15 @@ export function InvoicePrintBody({
   discountAmount: unknown;
   grandTotal: unknown;
   amountInWords: string;
+  /** Snapshot ของ Invoice.applyDiscount — คุมว่าแสดงคอลัมน์/แถวส่วนลดหรือไม่ */
+  applyDiscount: boolean;
   /** ข้อความรับรองสภาพสินค้าใต้สรุปยอด — อยู่ Block เดียวกับสรุปยอดเพื่อกัน Print แยกหน้า (break-inside-avoid ผ่าน print-keep-together) */
   disclaimer?: React.ReactNode;
 }) {
-  const [showDiscount, setShowDiscount] = useState(true);
+  const showDiscount = applyDiscount;
 
   return (
     <>
-      <div className="print:hidden flex items-center gap-4 mb-2 text-sm">
-        <div className="flex items-center gap-1.5">
-          <input
-            id="show-discount"
-            type="checkbox"
-            checked={showDiscount}
-            onChange={(e) => setShowDiscount(e.target.checked)}
-          />
-          <label htmlFor="show-discount">แสดงส่วนลดในเอกสาร</label>
-        </div>
-      </div>
-
       <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
         <thead>
           <tr className="border-b">

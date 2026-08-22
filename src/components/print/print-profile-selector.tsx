@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PRINT_PROFILES, DEFAULT_PRINT_PROFILE, printPageStyleFor, type PrintProfileKey } from "@/lib/print-settings";
-
-const STORAGE_KEY = "billSystemPrintProfile";
+import {
+  PRINT_PROFILES,
+  DEFAULT_PRINT_PROFILE,
+  printPageStyleFor,
+  PRINT_PROFILE_STORAGE_KEY as STORAGE_KEY,
+  PRINT_PROFILE_CHANGE_EVENT,
+  type PrintProfileKey,
+} from "@/lib/print-settings";
 
 // ข้อ 8 (Print Profile): ให้เลือกขนาดกระดาษก่อน print ได้ จำค่าไว้ด้วย localStorage
 // ไม่บันทึกลง Database ตามที่อนุมัติ — ทำงานเป็น client component เพราะ @page CSS
@@ -28,6 +33,9 @@ export function PrintProfileSelector() {
   function handleChange(next: PrintProfileKey) {
     setProfile(next);
     window.localStorage.setItem(STORAGE_KEY, next);
+    // R6 Phase D — แจ้ง PrintButton (Sibling Component คนละต้นไม้) ว่า Profile
+    // เปลี่ยนแล้ว เพื่อเปิด/ปิดปุ่ม "มาร์คว่าพิมพ์แล้ว" ให้ตรงกับที่เลือกอยู่จริงทันที
+    window.dispatchEvent(new CustomEvent(PRINT_PROFILE_CHANGE_EVENT, { detail: next }));
   }
 
   return (

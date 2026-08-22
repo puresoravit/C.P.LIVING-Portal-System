@@ -71,7 +71,7 @@ export default async function HomePage(
   // Query ใหม่ ไม่แตะ Sales SOT
   const currentGregorianYear = new Date().getFullYear();
   const selectedYear = Number(searchParams.year) || currentGregorianYear;
-  const [{ summary, byType, topCustomers, topProducts }, availableYears, monthlyGroups, previousDecemberNet] = await Promise.all([
+  const [{ summary, customerCards, topCustomers, topProducts }, availableYears, monthlyGroups, previousDecemberNet] = await Promise.all([
     getDashboard({ dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }),
     getAvailableSalesYears(),
     getSalesByGroup(
@@ -113,19 +113,24 @@ export default async function HomePage(
         </div>
       </div>
 
-      {/* ข้อ 2 (Dashboard Requirement): จำนวน Card ต้องรองรับ ProductType เพิ่ม/ลดได้
-          โดยไม่ทำหน้าแตก จึงใช้ responsive grid แทน grid-cols-3 ตายตัวเดิม */}
+      {/* R6 Phase D — ข้อ G: ระดับแรกของ Dashboard เปลี่ยนจาก Card กลุ่มส่วนลด → Card
+          ลูกค้า แสดงเฉพาะลูกค้าที่มียอดตาม Sales SOT (Invoice ที่ผ่าน PRINTED Checkpoint)
+          ในช่วงวันที่เลือก กดเข้าไปดู Breakdown ตามกลุ่มส่วนลดของลูกค้ารายนั้นได้ (ข้อ H) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-        {byType.map((t) => (
-          <div key={t.key} className="bg-white border rounded-lg p-4">
-            <div className="text-xs text-gray-500 mb-1">{t.label}</div>
-            <div className="text-lg font-medium">{money(t.metrics.net)}</div>
-            <div className="text-xs text-gray-400">{t.metrics.quantity.toLocaleString("th-TH")} หน่วย</div>
-          </div>
+        {customerCards.map((c) => (
+          <a
+            key={c.key}
+            href={`/customers/sales/${c.key}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
+            className="bg-white border rounded-lg p-4 hover:bg-gray-50"
+          >
+            <div className="text-xs text-gray-500 mb-1">{c.label}</div>
+            <div className="text-lg font-medium">{money(c.metrics.net)}</div>
+            <div className="text-xs text-gray-400">{c.metrics.quantity.toLocaleString("th-TH")} หน่วย</div>
+          </a>
         ))}
-        {byType.length === 0 && (
+        {customerCards.length === 0 && (
           <div className="col-span-full bg-white border rounded-lg p-4 text-center text-gray-400 text-sm">
-            ยังไม่มีกลุ่มส่วนลดที่เปิดใช้งาน
+            ยังไม่มียอดขายในช่วงวันที่นี้
           </div>
         )}
       </div>

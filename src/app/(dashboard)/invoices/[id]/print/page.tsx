@@ -30,10 +30,19 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
   ]);
   if (!invoice) notFound();
 
-  const markPrintedAction = markInvoicePrinted.bind(null, invoice.id);
+  const markPrintedAction = invoice.status === "CANCELLED" ? undefined : markInvoicePrinted.bind(null, invoice.id);
+  const isPrinted = invoice.status === "PRINTED";
+  const printedAtLabel = invoice.printedAt
+    ? invoice.printedAt.toLocaleDateString("th-TH") + " " + invoice.printedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+    : undefined;
 
   return (
-    <PrintPage markPrintedAction={markPrintedAction} templateSettings={template}>
+    <PrintPage
+      markPrintedAction={markPrintedAction}
+      isPrinted={isPrinted}
+      printedAtLabel={printedAtLabel}
+      templateSettings={template}
+    >
       <PrintDocumentHeader
         company={company}
         logo={template.logo}
@@ -71,6 +80,7 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
         discountAmount={invoice.discountAmount}
         grandTotal={invoice.grandTotal}
         amountInWords={toThaiBahtText(invoice.grandTotal)}
+        applyDiscount={invoice.applyDiscount}
         disclaimer={
           <div className="text-[10px] text-gray-600 mb-2">
             ได้รับสินค้าครบถ้วนตามรายการ ตรวจสอบแล้วอยู่ในสภาพสมบูรณ์ ไม่มีความเสียหายใดๆ

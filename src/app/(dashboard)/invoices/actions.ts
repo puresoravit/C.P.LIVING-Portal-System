@@ -65,15 +65,37 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
   return { success: true };
 }
 
-// ข้อ 28: PRINTED เป็นสถานะที่บอกว่าเคยพิมพ์แล้ว — เตรียมไว้ก่อนสำหรับ Phase 5
-export async function markInvoicePrinted(invoiceId: string) {
+// R6 Phase D — Sales SOT: PRINTED ต้องแปลว่า "ยืนยันพิมพ์กระดาษต่อเนื่อง 9×11 จริงแล้ว"
+// เท่านั้น — printProfile มาจาก Hidden Field ที่ PrintButton (Client) ส่งมาตาม Print
+// Profile ที่เลือกอยู่จริงตอนกด (UI ซ่อนปุ่มนี้อยู่แล้วถ้าไม่ใช่ 9×11 — เช็คซ้ำฝั่ง Server
+// เป็น Defense-in-depth เท่านั้น ไม่ใช่ Flow หลัก) printedAt/printedById เขียนครั้งเดียว
+// ตอน CONFIRMED→PRINTED เท่านั้น (Reprint กดซ้ำ = No-op เพราะเงื่อนไข status ไม่ตรงอีกแล้ว
+// จึงไม่มีทาง Overwrite First-Printed Timestamp เดิมโดยไม่ตั้งใจ)
+export async function markInvoicePrinted(invoiceId: string, formData: FormData) {
   const user = await requireUser();
   if (!can(user.role, "invoice.print")) throw new Error("FORBIDDEN");
 
+  const printProfile = String(formData.get("printProfile") || "");
+
   const invoice = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
   if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
-  if (invoice.status === "CONFIRMED") {
-    await db.invoice.update({ where: { id: invoiceId }, data: { status: "PRINTED" } });
+  if (invoice.status === "CONFIRMED" && printProfile === "continuous") {
+    const printedAt = new Date();
+    await db.invoice.update({
+      where: { id: invoiceId },
+      data: { status: "PRINTED", printedAt, printedById: user.id },
+    });
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE",
+        module: "Invoice",
+        recordId: invoiceId,
+        oldValue: { status: "CONFIRMED" },
+        newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile },
+      },
+    });
   }
   revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
 }

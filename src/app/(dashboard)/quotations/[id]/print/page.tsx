@@ -70,6 +70,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         amountInWords={toThaiBahtText(quotation.grandTotal ?? 0)}
         grossAmount={quotation.grossAmount}
         discountAmount={quotation.discountAmount}
+        applyDiscount={quotation.applyDiscount}
         vatMode={quotation.vatMode}
         vatRateSnapshot={quotation.vatRateSnapshot}
         netBeforeVat={quotation.netBeforeVat}
