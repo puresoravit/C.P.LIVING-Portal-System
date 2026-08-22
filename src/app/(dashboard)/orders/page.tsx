@@ -112,7 +112,10 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
         customer: true,
         branch: true,
         _count: { select: { items: true } },
-        invoices: { orderBy: { createdAt: "asc" } },
+        invoices: {
+          orderBy: { createdAt: "asc" },
+          include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
@@ -263,6 +266,21 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                           <span className="text-gray-400 whitespace-nowrap">
                             {inv.printedAt ? `พิมพ์เมื่อ ${inv.printedAt.toLocaleDateString("th-TH")}` : "ยังไม่พิมพ์"}
                           </span>
+                          {/* Billing Status Visibility — แกนแยกจาก Document Status เดิม
+                              เฉพาะ Invoice ที่ PRINTED เท่านั้นที่มีความหมาย */}
+                          {inv.status === "PRINTED" &&
+                            (inv.billingNote ? (
+                              <a
+                                href={`/billing-notes/${inv.billingNote.id}`}
+                                className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
+                              >
+                                วางบิลแล้ว: {inv.billingNote.billingNoteNumber}
+                              </a>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+                                ยังไม่วางบิล
+                              </span>
+                            ))}
                         </div>
                       </div>
                     ))}

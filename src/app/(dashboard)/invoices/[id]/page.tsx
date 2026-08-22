@@ -27,7 +27,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
 
   const invoice = await db.invoice.findUnique({
     where: { id: params.id },
-    include: { items: true, order: true },
+    include: { items: true, order: true, billingNote: { select: { id: true, billingNoteNumber: true } } },
   });
   if (!invoice) notFound();
 
@@ -55,6 +55,24 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         · {invoice.invoiceDate.toLocaleDateString("th-TH")} · กลุ่มส่วนลด {displayProductTypeCode(invoice.productTypeCode)}
         {invoice.printedAt && ` · พิมพ์แล้วเมื่อ ${invoice.printedAt.toLocaleDateString("th-TH")}`}
       </p>
+
+      {/* Billing Status Visibility — แกนแยกจาก Document Status ข้างบน มีความหมายเฉพาะ
+          Invoice ที่ PRINTED เท่านั้น (ยังไม่ PRINTED ไม่มีทางมี billingNoteId อยู่แล้วตาม
+          Business Rule เดิม — วางบิลได้ต้อง PRINTED ก่อน) */}
+      {invoice.status === "PRINTED" && (
+        <p className="text-sm mb-4">
+          {invoice.billingNote ? (
+            <>
+              สถานะวางบิล:{" "}
+              <a href={`/billing-notes/${invoice.billingNote.id}`} className="text-purple-700 hover:underline font-medium">
+                วางบิลแล้ว — {invoice.billingNote.billingNoteNumber}
+              </a>
+            </>
+          ) : (
+            <span className="text-amber-700">สถานะวางบิล: ยังไม่วางบิล</span>
+          )}
+        </p>
+      )}
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">
         <div className="grid grid-cols-2 gap-2">

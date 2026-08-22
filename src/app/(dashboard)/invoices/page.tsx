@@ -22,6 +22,18 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 const TAB_ORDER = ["DRAFT", "CONFIRMED", "PRINTED", "CANCELLED"];
 const PAGE_SIZE = 25;
 
+// Billing Status Visibility — ข้อกำหนดใหม่: "สถานะการวางบิล" เป็นแกนแยกจาก Document
+// Status (PRINTED) เดิมโดยเด็ดขาด ห้ามปนกัน — PRINTED ยังหมายถึง Checkpoint พิมพ์ 9×11
+// ตาม Rule เดิมทุกประการ (ไม่แตะ Sales SOT/markInvoicePrinted เลย) — "วางบิลแล้ว/ยังไม่
+// วางบิล" มาจาก Relation Invoice.billingNoteId ที่มีอยู่แล้ว (Reuse ตรงๆ ไม่เพิ่ม Schema)
+// — สองแกนนี้เป็นอิสระต่อกัน: DRAFT/CONFIRMED/CANCELLED ไม่มีทางมี billingNoteId อยู่แล้ว
+// (Business Rule เดิม — จะวางบิลได้ต้อง PRINTED ก่อนเท่านั้น ดู billing-notes/new/page.tsx)
+// จึง Derived Tab สองอันนี้มีความหมายเฉพาะเจาะจงกับ Invoice ที่ PRINTED เท่านั้น
+const BILLING_STATUS_LABEL: Record<"billed" | "unbilled", { label: string; className: string }> = {
+  unbilled: { label: "ยังไม่วางบิล", className: "bg-amber-100 text-amber-700" },
+  billed: { label: "วางบิลแล้ว", className: "bg-purple-100 text-purple-700" },
+};
+
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
@@ -53,11 +65,24 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
       : {}),
   };
 
-  const [statusGroups, totalCount, invoices] = await Promise.all([
+  // Billing Status — Where เสริมสำหรับ 2 Tab ใหม่ (คำนวณแยกเพราะไม่ใช่ Prisma groupBy
+  // ปกติ ต้องรวม status:"PRINTED" + billingNoteId เข้าด้วยกันเสมอ)
+  const BILLING_STATUS_WHERE: Record<string, { status: "PRINTED"; billingNoteId: any }> = {
+    printed_unbilled: { status: "PRINTED", billingNoteId: null },
+    printed_billed: { status: "PRINTED", billingNoteId: { not: null } },
+  };
+
+  const [statusGroups, totalCount, printedUnbilledCount, printedBilledCount, invoices] = await Promise.all([
     db.invoice.groupBy({ by: ["status"], where: baseWhere, _count: true }),
     db.invoice.count({ where: baseWhere }),
+    db.invoice.count({ where: { ...baseWhere, ...BILLING_STATUS_WHERE.printed_unbilled } }),
+    db.invoice.count({ where: { ...baseWhere, ...BILLING_STATUS_WHERE.printed_billed } }),
     db.invoice.findMany({
-      where: { ...baseWhere, ...(status ? { status: status as any } : {}) },
+      where:
+        status && status in BILLING_STATUS_WHERE
+          ? { ...baseWhere, ...BILLING_STATUS_WHERE[status] }
+          : { ...baseWhere, ...(status ? { status: status as any } : {}) },
+      include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -68,12 +93,26 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
     statusGroups.map((g) => ({ status: g.status, count: g._count })),
     TAB_ORDER
   );
+  // แทรก "ยังไม่วางบิล/วางบิลแล้ว" หลัง "พิมพ์แล้ว" — เป็น Refinement ของ Tab พิมพ์แล้ว
+  // เดิม (ซึ่งยังอยู่ นับ PRINTED ทั้งหมดไม่แยกว่าวางบิลหรือยัง เหมือนเดิมทุกประการ)
   const tabs = [
     { key: "all", label: "ทั้งหมด", count: totalCount },
-    ...TAB_ORDER.map((key) => ({ key, label: STATUS_LABEL[key].label, count: counts[key] })),
+    { key: "DRAFT", label: STATUS_LABEL.DRAFT.label, count: counts.DRAFT },
+    { key: "CONFIRMED", label: STATUS_LABEL.CONFIRMED.label, count: counts.CONFIRMED },
+    { key: "PRINTED", label: STATUS_LABEL.PRINTED.label, count: counts.PRINTED },
+    { key: "printed_unbilled", label: "ยังไม่วางบิล", count: printedUnbilledCount },
+    { key: "printed_billed", label: "วางบิลแล้ว", count: printedBilledCount },
+    { key: "CANCELLED", label: STATUS_LABEL.CANCELLED.label, count: counts.CANCELLED },
   ];
 
-  const currentCount = status ? counts[status] ?? 0 : totalCount;
+  const currentCount =
+    status && status in BILLING_STATUS_WHERE
+      ? status === "printed_unbilled"
+        ? printedUnbilledCount
+        : printedBilledCount
+      : status
+        ? counts[status] ?? 0
+        : totalCount;
   const totalPages = Math.max(1, Math.ceil(currentCount / PAGE_SIZE));
   const preserveParams = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
   const preserveParamsNoStatus = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo });
@@ -122,6 +161,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
               <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">ยอดสุทธิ</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
+              <th className="px-4 py-2 font-medium">สถานะวางบิล</th>
             </tr>
           </thead>
           <tbody>
@@ -139,11 +179,30 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
                 <td className="px-4 py-2">
                   <StatusBadge status={inv.status} config={STATUS_LABEL} />
                 </td>
+                {/* Billing Status Visibility — แกนแยกจาก Document Status ข้างบน แสดงเฉพาะ
+                    Invoice ที่ PRINTED เท่านั้น (แกนนี้ไม่มีความหมายกับสถานะอื่น) — ถ้าวาง
+                    บิลแล้ว กดไปดู/ตรวจสอบใบวางบิลที่ผูกอยู่ได้ตรงๆ ผ่าน Relation เดิม */}
+                <td className="px-4 py-2">
+                  {inv.status !== "PRINTED" ? (
+                    <span className="text-gray-300">-</span>
+                  ) : inv.billingNote ? (
+                    <a
+                      href={`/billing-notes/${inv.billingNote.id}`}
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
+                    >
+                      {BILLING_STATUS_LABEL.billed.label}: {inv.billingNote.billingNoteNumber}
+                    </a>
+                  ) : (
+                    <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${BILLING_STATUS_LABEL.unbilled.className}`}>
+                      {BILLING_STATUS_LABEL.unbilled.label}
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
             {invoices.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   ไม่พบ Invoice ที่ตรงกับเงื่อนไข
                 </td>
               </tr>
