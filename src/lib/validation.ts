@@ -54,6 +54,9 @@ export const productSchema = z.object({
   unit: z.string().min(1, "กรุณากรอกหน่วยนับ"),
   standardPrice: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ"),
   description: z.string().optional(),
+  // Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ได้เอง — กรอกมาเมื่อ
+  // category.usesSize=true และไม่ได้ผูก modelId (ตรวจใน Action อีกชั้น ไม่ใช่ Schema)
+  pricePerFoot: z.coerce.number().min(0, "ราคาต่อฟุตต้องไม่ติดลบ").optional(),
 });
 
 // Phase B — Master รุ่นสินค้า (ProductModel) ผูกกับ ProductType (กลุ่มส่วนลด) เดียว

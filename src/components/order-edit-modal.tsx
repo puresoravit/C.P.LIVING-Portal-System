@@ -16,8 +16,13 @@ type EditItem = {
   productTypeName: string;
   quantity: number;
   descriptionOverride: string;
-  // R6 Phase B — ขนาดพิเศษ/ระบุเอง ("" = Standard Size ปกติ ไม่ Override อะไรเลย)
+  // R6 Phase B — ขนาดพิเศษ/ระบุเอง ("" = Standard Size ปกติ ไม่ Override อะไรเลย) — ใช้
+  // ตอน Submit เท่านั้น ห้ามใช้แสดงผลตรงๆ (ดู sizeDisplay ด้านล่าง)
   sizeOverride: string;
+  // Owner UAT — ข้อ 4: Field แสดงผลอย่างเดียว (Standard Size ก็มีค่าด้วย ไม่ใช่แค่ Custom
+  // Size เหมือน sizeOverride) — แยกออกมาต่างหากเพื่อไม่ให้กระทบ Logic เดิมที่เช็ค
+  // !!sizeOverride เพื่อสื่อ "รายการนี้เป็น Custom Size" ตอน Submit (handleSubmit ด้านล่าง)
+  sizeDisplay: string;
   unitPriceOverride: number | null;
   // Owner UAT Round 3 — ข้อ 3: ราคาที่แสดงในตารางรายการของ Modal นี้เท่านั้น (ราคาแนะนำ
   // ตอนเพิ่ม หรือราคา Override) — ไม่ได้ส่งไป Server เลย (editConfirmedOrder ยังคำนวณสด
@@ -119,6 +124,10 @@ export function OrderEditModal({
   }
 
   function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
+    // Owner UAT — ข้อ 4: เหมือน order-item-entry-form.tsx ทุกประการ — ต้องล้าง
+    // selectedModel ด้วย ไม่งั้นช่อง "ขนาด" จะค้างเป็น <ModelSizeSelect> ต่อ ทำให้ไม่มีทาง
+    // พิมพ์ค่า "ขนาดพิเศษ/ระบุเอง" จริงๆ ได้เลยทาง UI
+    setSelectedModel(null);
     setSelected(null);
     setUnresolvedInfo(info);
     setOverrideSize(info && !info.custom ? info.size : "");
@@ -150,6 +159,7 @@ export function OrderEditModal({
           quantity,
           descriptionOverride: descriptionOverride.trim(),
           sizeOverride: standaloneSize.trim(),
+          sizeDisplay: selected.size || standaloneSize.trim(),
           unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
           displayPrice: priceInput !== "" ? Number(priceInput) : null,
         },
@@ -167,6 +177,7 @@ export function OrderEditModal({
           quantity,
           descriptionOverride: descriptionOverride.trim(),
           sizeOverride: overrideSize.trim(),
+          sizeDisplay: overrideSize.trim(),
           unitPriceOverride: Number(overridePrice),
           displayPrice: Number(overridePrice),
         },
@@ -286,7 +297,7 @@ export function OrderEditModal({
                       <tr key={item.key} className="border-t">
                         <td className="px-3 py-2 font-mono">{item.sku}</td>
                         <td className="px-3 py-2">{item.name}</td>
-                        <td className="px-3 py-2">{item.sizeOverride || "-"}</td>
+                        <td className="px-3 py-2">{item.sizeDisplay || "-"}</td>
                         <td className="px-3 py-2 text-right">{item.quantity}</td>
                         <td className="px-3 py-2">{item.unit}</td>
                         <td className="px-3 py-2 text-right">{item.displayPrice != null ? money(item.displayPrice) : "-"}</td>
@@ -398,7 +409,7 @@ export function OrderEditModal({
                   <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
                     รุ่น &quot;{unresolvedInfo.modelName}&quot; ยังไม่มีสินค้าในระบบเลย ต้องตั้งราคาต่อฟุตหรือเพิ่มไซส์ก่อนจึงจะคีย์เอกสารได้{" "}
                     {canManageProducts ? (
-                      <a href={`/product-models/${unresolvedInfo.modelId}`} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                      <a href={unresolvedInfo.manageHref} target="_blank" rel="noopener noreferrer" className="underline font-medium">
                         ไปตั้งค่าที่หน้ารุ่นสินค้า
                       </a>
                     ) : (

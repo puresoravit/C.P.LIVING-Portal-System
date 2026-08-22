@@ -16,5 +16,9 @@
 // key ต้องตรงกับ name ของ Field นั้น, error (Toast message) ยังคงส่งมาคู่กันเสมอ
 // เผื่อกรณี fieldErrors ว่างหรือ Error ไม่ผูกกับ Field ใดเป็นพิเศษ
 export type ActionResult =
-  | { success: true }
+  // Owner UAT — ข้อ 2: message (Optional) — ให้ Action สื่อสารรายละเอียดเพิ่มเติมตอนสำเร็จ
+  // ได้ (เช่น "ลบไม่ได้เพราะมีการใช้งานอยู่ เลยปิดใช้งานแทน") โดยไม่กระทบ Action เดิมที่ไม่
+  // เคยส่งค่านี้มาแม้แต่ตัวเดียว (Consumer เดิมทั้งหมดยัง Fallback ไปที่ successMessage
+  // Static Prop ของตัวเองเหมือนเดิมทุกประการถ้า Action ไม่ส่ง message มา)
+  | { success: true; message?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string> };

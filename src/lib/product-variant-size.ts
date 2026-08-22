@@ -30,13 +30,27 @@ export function computeStandardVariantPrice(pricePerFoot: Decimal, value: number
  * PriceRule/DiscountRule และไม่แตะ Product ที่เป็น "ขนาดพิเศษ" ใดๆ เพราะ Variant พวกนั้น
  * ไม่มีทางมี size ตรงกับ Label ในตารางนี้อยู่แล้ว) ต้องเรียกหลัง update ProductModel เสร็จ
  * ภายใน Transaction เดียวกันเสมอ (ให้ Atomic กับการเปลี่ยน pricePerFoot)
+ *
+ * Owner UAT — ข้อ 1: ขยายให้ Parent เป็น "Product Anchor" ได้ด้วย (ไม่ใช่แค่ ProductModel)
+ * — ส่ง parent: {kind:"model", modelId} แบบเดิมทุกประการ หรือ parent: {kind:"product",
+ * productId} สำหรับ Product ที่เป็น Anchor ของตัวเอง — Logic การสร้าง/Recalculate Variant
+ * เหมือนเดิมเป๊ะทั้งสองแบบ ต่างกันแค่ Field ไหนที่ผูก FK (modelId vs parentProductId) ชื่อ
+ * ที่ตั้งให้ Variant ก็ต่างกันเล็กน้อยตาม Parent Name ที่รับมา (ไม่ Parse จากไหนทั้งสิ้น)
  */
 export async function syncStandardVariants(
-  params: { modelId: string; productTypeId: string; categoryId: string | null; pricePerFoot: Decimal; unit: string },
+  params: {
+    parent: { kind: "model"; modelId: string } | { kind: "product"; productId: string };
+    parentName: string;
+    productTypeId: string | null;
+    categoryId: string | null;
+    pricePerFoot: Decimal;
+    unit: string;
+  },
   tx: Prisma.TransactionClient
 ): Promise<void> {
+  const where = params.parent.kind === "model" ? { modelId: params.parent.modelId } : { parentProductId: params.parent.productId };
   const existing = await tx.product.findMany({
-    where: { modelId: params.modelId },
+    where,
     select: { id: true, size: true },
   });
   const existingBySize = new Map(existing.map((p) => [p.size ?? "", p.id]));
@@ -51,10 +65,11 @@ export async function syncStandardVariants(
       await tx.product.create({
         data: {
           sku,
-          name: std.label,
+          name: `${params.parentName} ${std.label}`,
           productTypeId: params.productTypeId,
           categoryId: params.categoryId,
-          modelId: params.modelId,
+          modelId: params.parent.kind === "model" ? params.parent.modelId : undefined,
+          parentProductId: params.parent.kind === "product" ? params.parent.productId : undefined,
           size: std.label,
           unit: params.unit,
           standardPrice: price,

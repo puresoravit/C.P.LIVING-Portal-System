@@ -9,6 +9,8 @@ import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
+import { syncStandardVariants } from "@/lib/product-variant-size";
+import { Decimal } from "@prisma/client/runtime/library";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -17,6 +19,27 @@ async function requireUser() {
     id: (session.user as any).id as string,
     role: (session.user as any).role as any,
   };
+}
+
+// Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้ (ไม่ต้องพึ่ง
+// ProductModel) — ตรวจว่ากรอก pricePerFoot มาถูกเงื่อนไขไหม (ต้องมี Category
+// usesSize=true และห้ามผูก modelId พร้อมกัน เพราะ Product แถวเดียวเป็นได้แค่ Variant
+// ของ Model หรือเป็น Anchor ของตัวเอง อย่างใดอย่างหนึ่งเท่านั้น ไม่ใช่ทั้งคู่พร้อมกัน)
+function validateProductPricePerFoot(
+  pricePerFoot: number | undefined,
+  modelId: string | null | undefined,
+  categoryUsesSize: boolean
+): { error: string; fieldErrors: Record<string, string> } | null {
+  if (pricePerFoot === undefined) return null;
+  if (modelId) {
+    const error = "สินค้านี้ผูกกับรุ่นสินค้าอยู่แล้ว ไม่สามารถตั้งราคาต่อฟุตของตัวเองซ้ำได้ (เลือกอย่างใดอย่างหนึ่ง)";
+    return { error, fieldErrors: { pricePerFoot: error } };
+  }
+  if (!categoryUsesSize) {
+    const error = "กำหนดราคาต่อฟุตได้เฉพาะสินค้าที่ประเภทสินค้าเป็นแบบมีขนาด (usesSize) เท่านั้น";
+    return { error, fieldErrors: { pricePerFoot: error } };
+  }
+  return null;
 }
 
 export async function createProduct(formData: FormData): Promise<ActionResult> {
@@ -36,11 +59,18 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     unit: formData.get("unit"),
     standardPrice: formData.get("standardPrice"),
     description: formData.get("description") || undefined,
+    pricePerFoot: formData.get("pricePerFoot") || undefined,
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
   }
   const parsed = raw.data;
+
+  const category = parsed.categoryId ? await db.productCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
+  const pricePerFootError = validateProductPricePerFoot(parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
+  if (pricePerFootError) {
+    return { success: false, ...pricePerFootError };
+  }
 
   // R4 — รหัสสินค้า (Product.sku) เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน
   // ProductSkuSequence (Atomic, ไม่ผูกกับ ProductType เพราะ nullable แล้ว) ถ้ากรอกเอง ใช้ค่าที่กรอกตามเดิม
@@ -53,7 +83,25 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     return { success: false, error, fieldErrors: { sku: error } };
   }
 
-  const product = await db.product.create({ data: { ...parsed, sku } });
+  const product = await db.$transaction(async (tx) => {
+    const created = await tx.product.create({ data: { ...parsed, sku } });
+    // Owner UAT — ข้อ 1: กรอก pricePerFoot มา = Product แถวนี้เป็น Anchor ของตัวเอง —
+    // Sync Standard Variant (3/3.5/4/5/6 ฟุต) ให้ทันที เหมือน ProductModel ทุกประการ
+    if (parsed.pricePerFoot !== undefined) {
+      await syncStandardVariants(
+        {
+          parent: { kind: "product", productId: created.id },
+          parentName: parsed.name,
+          productTypeId: parsed.productTypeId || null,
+          categoryId: parsed.categoryId || null,
+          pricePerFoot: new Decimal(parsed.pricePerFoot),
+          unit: parsed.unit,
+        },
+        tx
+      );
+    }
+    return created;
+  });
 
   await db.auditLog.create({
     data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku } },
@@ -77,6 +125,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     unit: formData.get("unit"),
     standardPrice: formData.get("standardPrice"),
     description: formData.get("description") || undefined,
+    pricePerFoot: formData.get("pricePerFoot") || undefined,
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
@@ -92,10 +141,35 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     return { success: false, error, fieldErrors: { sku: error } };
   }
 
+  const category = parsed.categoryId ? await db.productCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
+  const pricePerFootError = validateProductPricePerFoot(parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
+  if (pricePerFootError) {
+    return { success: false, ...pricePerFootError };
+  }
+
   const before = await db.product.findUnique({ where: { id } });
-  const product = await db.product.update({
-    where: { id },
-    data: { ...parsed, productTypeId: parsed.productTypeId ?? null, categoryId: parsed.categoryId ?? null },
+  const product = await db.$transaction(async (tx) => {
+    const updated = await tx.product.update({
+      where: { id },
+      data: { ...parsed, productTypeId: parsed.productTypeId ?? null, categoryId: parsed.categoryId ?? null },
+    });
+    // Owner UAT — ข้อ 1: Recalculate เฉพาะตอนกรอก pricePerFoot มาจริง (ขอบเขตเดียวกับ
+    // ProductModel — แตะเฉพาะ Standard Variant ของ Anchor นี้ ไม่แตะ PriceRule/
+    // DiscountRule/Historical Snapshot ใดๆ) ถ้าลบ pricePerFoot ออก จะไม่ลบ/ปรับ Variant เดิม
+    if (parsed.pricePerFoot !== undefined) {
+      await syncStandardVariants(
+        {
+          parent: { kind: "product", productId: updated.id },
+          parentName: parsed.name,
+          productTypeId: parsed.productTypeId || null,
+          categoryId: parsed.categoryId || null,
+          pricePerFoot: new Decimal(parsed.pricePerFoot),
+          unit: parsed.unit,
+        },
+        tx
+      );
+    }
+    return updated;
   });
 
   await db.auditLog.create({
@@ -111,6 +185,61 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
 
   revalidatePath("/products");
   return { success: true };
+}
+
+// Owner UAT — ข้อ 2: "ลบ" ในมุมผู้ใช้ แต่ Implementation ต้องรักษา Referential
+// Integrity + Historical Record เสมอ — Audit FK จริงก่อนเลือกวิธี: ถ้าไม่มี Document/
+// PriceRule/Size Variant ใดๆ อ้างอิงอยู่เลย ลบจริงได้ปลอดภัย 100% (Hard Delete) — ถ้ามี
+// ผูกอยู่ (แม้เอกสารนั้นจะถูกยกเลิกไปแล้วก็ตาม เพราะ Invoice/Quotation ที่ยกเลิกก็ยังต้อง
+// เปิดดู/พิมพ์ย้อนหลังได้เสมอ) ต้องเก็บแถวไว้ (Soft Delete ผ่าน active=false เดิม — ทำให้
+// หายจาก /api/products/search ทันทีเพราะ Query ทุกจุดกรอง active:true อยู่แล้ว ไม่ต้องมี
+// Field ใหม่) — ปุ่ม UI ยังเขียนว่า "ลบ" เหมือนกันทั้งสองแบบ ต่างกันแค่ Toast ข้อความ
+export async function deleteProduct(id: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+
+  const product = await db.product.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: { priceRules: true, orderItems: true, invoiceItems: true, quotationItems: true, sizeVariants: true },
+      },
+    },
+  });
+  if (!product) return { success: false, error: "ไม่พบสินค้านี้" };
+
+  const { priceRules, orderItems, invoiceItems, quotationItems, sizeVariants } = product._count;
+  const totalRefs = priceRules + orderItems + invoiceItems + quotationItems + sizeVariants;
+
+  if (totalRefs === 0) {
+    await db.product.delete({ where: { id } });
+    await db.auditLog.create({
+      data: { userId: user.id, action: "DELETE", module: "Product", recordId: id, oldValue: { sku: product.sku, name: product.name } },
+    });
+    revalidatePath("/products");
+    return { success: true };
+  }
+
+  // ยังมีการอ้างอิงอยู่ (เอกสาร/ราคาเฉพาะ/Size Variant) — ลบจริงไม่ได้ เพราะจะทำให้
+  // Historical Document เปิด/พิมพ์ไม่ได้ หรือ Size Variant กำพร้า — ปิดใช้งานแทน (หายจาก
+  // Search ทันที เหมือนที่ Requirement ต้องการ) เอกสารเก่ายังอ่าน Snapshot ได้ปกติทุกประการ
+  const before = product.active;
+  await db.product.update({ where: { id }, data: { active: false } });
+  await db.auditLog.create({
+    data: {
+      userId: user.id,
+      action: "DEACTIVATE",
+      module: "Product",
+      recordId: id,
+      oldValue: { active: before, reason: "delete-blocked-by-references", refs: product._count },
+      newValue: { active: false },
+    },
+  });
+  revalidatePath("/products");
+  return {
+    success: true,
+    message: `ปิดใช้งานสินค้านี้แทนการลบจริง เนื่องจากมีการใช้งานในเอกสาร/ราคาเฉพาะ/ขนาดย่อยอยู่แล้ว ${totalRefs} รายการ (จะไม่ขึ้นในการค้นหาสินค้าสำหรับเอกสารใหม่อีกต่อไป แต่เอกสารเก่ายังเปิด/พิมพ์ได้ปกติ)`,
+  };
 }
 
 export async function toggleProductActive(id: string) {

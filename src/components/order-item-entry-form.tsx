@@ -76,6 +76,12 @@ export function OrderItemEntryForm({
   }
 
   function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
+    // Owner UAT — ข้อ 4: ต้องล้าง selectedModel ด้วย ไม่งั้นช่อง "ขนาด" จะค้างเป็น
+    // <ModelSizeSelect> ต่อ (Ternary เช็ค selectedModel ก่อน unresolvedInfo เสมอ) ทำให้
+    // ไม่มีทางพิมพ์ค่า "ขนาดพิเศษ/ระบุเอง" จริงๆ ได้เลยทาง UI (Bug เดิมตั้งแต่ R6 Phase B
+    // — เจอตอน Live UAT รอบนี้ ไม่ใช่จาก Session นี้เปลี่ยน แต่ต้องแก้เพราะอยู่ใน Scope
+    // ข้อ 4 โดยตรง "Custom Size uses user-entered Size+Price")
+    setSelectedModel(null);
     setSelected(null);
     setUnresolvedInfo(info);
     setOverrideSize(info && !info.custom ? info.size : "");
@@ -241,7 +247,7 @@ export function OrderItemEntryForm({
         <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
           รุ่น &quot;{unresolvedInfo.modelName}&quot; ยังไม่มีสินค้าในระบบเลย ต้องตั้งราคาต่อฟุตหรือเพิ่มไซส์ก่อนจึงจะคีย์เอกสารได้{" "}
           {canManageProducts ? (
-            <a href={`/product-models/${unresolvedInfo.modelId}`} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+            <a href={unresolvedInfo.manageHref} target="_blank" rel="noopener noreferrer" className="underline font-medium">
               ไปตั้งค่าที่หน้ารุ่นสินค้า
             </a>
           ) : (

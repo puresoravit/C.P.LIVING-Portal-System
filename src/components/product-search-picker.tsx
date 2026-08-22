@@ -44,6 +44,9 @@ export type UnresolvedSizeInfo = {
   size: string; // Label แนะนำเริ่มต้น (Standard Size ที่ยังไม่มี Variant) หรือ "" (ขนาดพิเศษ)
   custom: boolean;
   anchorProductId: string | null; // Product จริงตัวใดตัวหนึ่งของ Model นี้ (ถ้ามี) ไว้ผูก FK เมื่อต้องการ Override ราคา/ขนาด
+  // Owner UAT — ข้อ 1: ลิงก์ "ไปตั้งค่า" ที่ถูกต้องตามชนิดของ Family — /product-models/{id}
+  // สำหรับ ProductModel จริง, /products/{id} สำหรับ Product ที่เป็น Anchor ของตัวเอง
+  manageHref: string;
 };
 
 export type ModelSizeOption = {
@@ -55,7 +58,19 @@ export type ModelSizeOption = {
   resolved: boolean;
   custom: boolean;
 };
-export type ModelResult = { modelId: string; modelName: string; productTypeName: string; usesSize: boolean; sizes: ModelSizeOption[] };
+export type ModelResult = {
+  modelId: string;
+  modelName: string;
+  productTypeName: string;
+  usesSize: boolean;
+  sizes: ModelSizeOption[];
+  // Owner UAT — ข้อ 1: Family นี้อาจเป็น ProductModel จริง หรือ Product ที่ตั้ง pricePerFoot
+  // เป็น Anchor ของตัวเอง — Server (/api/products/search) คำนวณสองค่านี้มาให้ตรงชนิดแล้ว
+  // ไม่ต้องเดา/derive ฝั่ง Client อีก (ProductModel เองไม่ใช่ Product แถวจริง ผูก FK ไม่ได้
+  // โดยตรง จึงต้องมี Field แยกจาก modelId ชัดเจน)
+  anchorProductId: string | null;
+  manageHref: string;
+};
 type ProductResult = { id: string; sku: string; name: string; unit: string; productTypeName: string };
 
 // Owner UAT Round 3 — ข้อ 4: Parent เป็นคนเรนเดอร์ช่อง "ขนาด" ของตัวเอง (Select ตอนเลือก
@@ -86,7 +101,6 @@ function sizeOptionToPicked(model: ModelResult, s: ModelSizeOption): PickedProdu
 }
 
 function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): UnresolvedSizeInfo {
-  const anchor = model.sizes.find((x) => x.resolved)?.productId ?? null;
   return {
     modelId: model.modelId,
     modelName: model.modelName,
@@ -94,7 +108,10 @@ function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): Unresol
     unit: s.unit,
     size: s.custom ? "" : s.label,
     custom: s.custom,
-    anchorProductId: anchor,
+    // Owner UAT — ข้อ 1: ใช้ค่าที่ Server คำนวณมาให้ตรงชนิดแล้ว (ProductModel ต้องมี Variant
+    // จริงอย่างน้อย 1 ตัวถึงจะมี Anchor, Product Anchor เป็น Product แถวจริงอยู่แล้วเสมอ)
+    anchorProductId: model.anchorProductId,
+    manageHref: model.manageHref,
   };
 }
 

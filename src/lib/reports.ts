@@ -243,9 +243,12 @@ export function computeSalesGrowth(monthlyData: MonthlySalesPoint[], previousDec
 // ==========================================================================
 
 export type ProductModelGroupResult = {
-  key: string; // modelId ถ้า assign แล้ว, ไม่งั้น `product:${productId}` (standalone fallback)
+  // Owner UAT — ข้อ 1: Key มี Prefix บอกชนิดเสมอ — "model:{id}" (ProductModel จริง),
+  // "family:{id}" (Product ที่เป็น Size Family Anchor ของตัวเอง — ไม่ต้องพึ่ง ProductModel
+  // อีกต่อไป), "standalone:{id}" (Product เดี่ยว ไม่มี Size Family เลย ไม่มี Drill-down)
+  key: string;
   label: string;
-  isModel: boolean;
+  kind: "model" | "family" | "standalone";
   metrics: Metrics;
 };
 
@@ -259,6 +262,13 @@ type ProductRow = {
   productId: string;
   modelId: string | null;
   modelName: string | null;
+  // Owner UAT — ข้อ 1: Product ที่เป็น Size Family Anchor ของตัวเอง (ไม่ผ่าน ProductModel)
+  // — familyProductId คือ Root ของ Family นี้เสมอ (Parent ถ้าแถวนี้เป็น Variant, หรือ
+  // ตัวเองถ้าแถวนี้คือ Anchor โดยตรง — เกิดได้น้อยมากเพราะ Anchor ไม่โผล่ใน Search แล้ว
+  // แต่เอกสารเก่าก่อนหน้านี้อาจอ้างอิงถึงตรงๆ ได้ ต้อง Backward Compatible) — ไม่มี Family
+  // เลย (Product เดี่ยวจริงๆ) = null ทั้งคู่ ห้าม Parse ชื่อสินค้าเพื่อหา Family เด็ดขาด
+  familyProductId: string | null;
+  familyProductName: string | null;
   productName: string;
   // Size ที่ใช้ report/drill-down: เอา sizeSnapshot (ค่า ณ วันที่ขาย) ก่อนเสมอถ้ามี
   // เอกสารเก่าก่อน Phase C ที่ snapshot เป็น null ถึงจะ fallback ไปใช้ Product.size
@@ -278,22 +288,40 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
         productTypeCode: filters.productTypeCode,
       },
     },
-    include: { product: { include: { model: true } } },
+    include: { product: { include: { model: true, parentProduct: true } } },
   });
 
-  return items.map((item) => ({
-    quantity: Number(item.quantity),
-    gross: Number(item.grossAmount),
-    discount: Number(item.discountAmount),
-    net: Number(item.netAmount),
-    vat: Number(item.vatAmount),
-    total: Number(item.totalAmount),
-    productId: item.productId,
-    modelId: item.product.modelId,
-    modelName: item.product.model?.name ?? null,
-    productName: item.productNameSnapshot,
-    size: item.sizeSnapshot ?? item.product.size ?? null,
-  }));
+  return items.map((item) => {
+    const p = item.product;
+    // Owner UAT — ข้อ 1: Family Root คำนวณจาก FK ล้วนๆ — parentProduct ก่อน (แถวนี้เป็น
+    // Variant), ไม่งั้นเช็คว่าแถวนี้เองเป็น Anchor ไหม (pricePerFoot ไม่ว่าง), ไม่งั้นไม่มี
+    // Family เลย — ไม่มีการ Parse ชื่อสินค้าที่ไหนเลยสักจุด
+    const familyProductId = p.parentProduct?.id ?? (p.pricePerFoot != null ? p.id : null);
+    const familyProductName = p.parentProduct?.name ?? (p.pricePerFoot != null ? p.name : null);
+    return {
+      quantity: Number(item.quantity),
+      gross: Number(item.grossAmount),
+      discount: Number(item.discountAmount),
+      net: Number(item.netAmount),
+      vat: Number(item.vatAmount),
+      total: Number(item.totalAmount),
+      productId: item.productId,
+      modelId: p.modelId,
+      modelName: p.model?.name ?? null,
+      familyProductId,
+      familyProductName,
+      productName: item.productNameSnapshot,
+      size: item.sizeSnapshot ?? p.size ?? null,
+    };
+  });
+}
+
+// Owner UAT — ข้อ 1: Key+Label+Kind เดียวกันเป๊ะ ใช้ทั้งใน getTopProductModels (Group) และ
+// getProductModelSizeBreakdown (Drill-down Filter) กันไม่ให้ 2 จุด Derive คนละแบบเพี้ยนกัน
+function resolveProductFamily(row: ProductRow): { key: string; label: string; kind: "model" | "family" | "standalone" } {
+  if (row.modelId) return { key: `model:${row.modelId}`, label: row.modelName ?? row.productName, kind: "model" };
+  if (row.familyProductId) return { key: `family:${row.familyProductId}`, label: row.familyProductName ?? row.productName, kind: "family" };
+  return { key: `standalone:${row.productId}`, label: row.productName, kind: "standalone" };
 }
 
 function addMetrics(
@@ -319,9 +347,8 @@ export async function getTopProductModels(filters: ReportFilters, limit = 10): P
   const map = new Map<string, ProductModelGroupResult>();
 
   for (const row of rows) {
-    const key = row.modelId ?? `product:${row.productId}`;
-    const label = row.modelName ?? row.productName;
-    const entry = map.get(key) ?? { key, label, isModel: !!row.modelId, metrics: emptyMetrics() };
+    const { key, label, kind } = resolveProductFamily(row);
+    const entry = map.get(key) ?? { key, label, kind, metrics: emptyMetrics() };
     entry.metrics = addMetrics(entry.metrics, row);
     map.set(key, entry);
   }
@@ -329,11 +356,14 @@ export async function getTopProductModels(filters: ReportFilters, limit = 10): P
   return [...map.values()].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, limit);
 }
 
-/** ข้อ 5: Drill-down ของ 1 Model แยกยอดตาม Size — ใช้ Date Filter เดียวกับ Dashboard
- * เสมอ (รับ filters ตรงจาก caller ไม่มี default เป็น All-time) */
-export async function getProductModelSizeBreakdown(filters: ReportFilters, modelId: string) {
+/** ข้อ 5: Drill-down ของ 1 Family (ProductModel หรือ Product Anchor) แยกยอดตาม Size —
+ * รับ key แบบเดียวกับที่ getTopProductModels คืนมาเป๊ะ ("model:{id}" หรือ "family:{id}")
+ * ใช้ Date Filter เดียวกับ Dashboard เสมอ (รับ filters ตรงจาก caller ไม่มี default เป็น
+ * All-time) — SUM(bySize) ต้องเท่ากับ total เสมอเพราะกรองด้วย Key เดียวกับที่ Group ไว้แล้ว
+ * ไม่ได้คำนวณแยกคนละทาง */
+export async function getProductModelSizeBreakdown(filters: ReportFilters, key: string) {
   const rows = await fetchProductRows(filters);
-  const relevant = rows.filter((r) => r.modelId === modelId);
+  const relevant = rows.filter((r) => resolveProductFamily(r).key === key);
 
   const map = new Map<string, Metrics>();
   for (const row of relevant) {

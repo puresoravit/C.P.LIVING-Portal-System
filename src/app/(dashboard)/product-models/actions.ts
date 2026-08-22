@@ -95,7 +95,8 @@ export async function createProductModel(formData: FormData): Promise<ActionResu
     if (parsed.pricePerFoot !== undefined) {
       await syncStandardVariants(
         {
-          modelId: created.id,
+          parent: { kind: "model", modelId: created.id },
+          parentName: parsed.name,
           productTypeId: parsed.productTypeId,
           categoryId: parsed.categoryId || null,
           pricePerFoot: new Decimal(parsed.pricePerFoot),
@@ -158,7 +159,8 @@ export async function updateProductModel(id: string, formData: FormData): Promis
     if (parsed.pricePerFoot !== undefined) {
       await syncStandardVariants(
         {
-          modelId: updated.id,
+          parent: { kind: "model", modelId: updated.id },
+          parentName: parsed.name,
           productTypeId: parsed.productTypeId,
           categoryId: parsed.categoryId || null,
           pricePerFoot: new Decimal(parsed.pricePerFoot),

@@ -30,7 +30,7 @@ export function CancelButton({
     startTransition(async () => {
       const result = await action();
       if (result.success) {
-        showSuccess(successMessage);
+        showSuccess(result.message ?? successMessage);
       } else {
         showError(result.error);
       }

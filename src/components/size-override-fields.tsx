@@ -28,7 +28,7 @@ export function SizeOverrideFields({
       <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
         รุ่น &quot;{info.modelName}&quot; ยังไม่มีสินค้าในระบบเลย ต้องตั้งราคาต่อฟุตหรือเพิ่มไซส์ก่อนจึงจะคีย์เอกสารได้{" "}
         {canManageProducts ? (
-          <a href={`/product-models/${info.modelId}`} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+          <a href={info.manageHref} target="_blank" rel="noopener noreferrer" className="underline font-medium">
             ไปตั้งค่าที่หน้ารุ่นสินค้า
           </a>
         ) : (

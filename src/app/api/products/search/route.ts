@@ -22,7 +22,12 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (!q) return NextResponse.json({ models: [], products: [] });
 
-  const [models, standaloneProducts] = await Promise.all([
+  // Owner UAT — ข้อ 1: Product ที่ตั้ง pricePerFoot ไว้เอง (Anchor ของตัวเอง ไม่ต้องพึ่ง
+  // ProductModel) ต้องค้นหาเจอแล้วแสดง Size ให้เลือกได้เหมือน ProductModel ทุกประการ —
+  // Query แยกต่างหาก แล้วรวมเข้ากับผลลัพธ์ "models" ชุดเดียวกัน (Shape เดียวกันเป๊ะ ให้
+  // Consumer เดิมทั้งหมดใช้ต่อได้โดยไม่ต้องแก้) — Standalone Products (ไม่มี Size จริง)
+  // ต้อง Exclude Anchor พวกนี้ออก ไม่งั้นจะขึ้นซ้ำ 2 ที่
+  const [models, productAnchors, standaloneProducts] = await Promise.all([
     db.productModel.findMany({
       where: { active: true, name: { contains: q, mode: "insensitive" } },
       include: {
@@ -35,7 +40,25 @@ export async function GET(req: NextRequest) {
     db.product.findMany({
       where: {
         active: true,
+        pricePerFoot: { not: null },
+        OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }],
+      },
+      include: {
+        productType: true,
+        category: true,
+        sizeVariants: { where: { active: true }, select: { id: true, sku: true, size: true, unit: true } },
+      },
+      take: 10,
+    }),
+    db.product.findMany({
+      where: {
+        active: true,
         modelId: null,
+        pricePerFoot: null,
+        // Owner UAT — ข้อ 1: Size Variant ของ Product Anchor (parentProductId ไม่ว่าง)
+        // ต้องไม่โผล่ซ้ำเป็นสินค้า Standalone แยกต่างหาก — เหมือนที่ modelId ไม่ว่างกันไม่ให้
+        // Variant ของ ProductModel โผล่ซ้ำอยู่แล้วทุกประการ
+        parentProductId: null,
         OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }],
       },
       include: { productType: true },
@@ -43,22 +66,47 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({
-    models: models
-      .filter((m) => m.products.length > 0 || m.category?.usesSize) // รุ่นที่ยังไม่มี Size เลยและไม่ใช้ Size ไม่มีประโยชน์ให้เลือก
-      .map((m) => {
-        const usesSize = m.category?.usesSize ?? false;
-        return {
-          modelId: m.id,
-          modelName: m.name,
-          productTypeName: m.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
+  const modelResults = models
+    .filter((m) => m.products.length > 0 || m.category?.usesSize) // รุ่นที่ยังไม่มี Size เลยและไม่ใช้ Size ไม่มีประโยชน์ให้เลือก
+    .map((m) => {
+      const usesSize = m.category?.usesSize ?? false;
+      return {
+        modelId: m.id,
+        modelName: m.name,
+        productTypeName: m.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
+        usesSize,
+        manageHref: `/product-models/${m.id}`,
+        // ProductModel เองไม่ใช่ Product แถวจริง ใช้ FK ผูก OrderItem/QuotationItem ไม่ได้
+        // ต้องมี Variant จริงอย่างน้อย 1 ตัวก่อนถึงจะมี Anchor ให้ผูก (เหมือนเดิมทุกประการ)
+        anchorProductId: m.products[0]?.id ?? null,
+        sizes: mergeSizeOptions(
           usesSize,
-          sizes: mergeSizeOptions(
-            usesSize,
-            m.products.map((p) => ({ productId: p.id, sku: p.sku, unit: p.unit, size: p.size }))
-          ),
-        };
-      }),
+          m.products.map((p) => ({ productId: p.id, sku: p.sku, unit: p.unit, size: p.size }))
+        ),
+      };
+    });
+
+  const anchorResults = productAnchors.map((p) => {
+    const usesSize = p.category?.usesSize ?? true;
+    return {
+      modelId: p.id,
+      modelName: p.name,
+      productTypeName: p.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
+      usesSize,
+      manageHref: `/products/${p.id}`,
+      // Product Anchor เป็น Product แถวจริงอยู่แล้วในตัวเอง — ใช้เป็น Anchor ผูก FK ได้เสมอ
+      // แม้ยังไม่มี Size Variant ถูก Sync เลยสักตัว (ต่างจาก ProductModel ที่ไม่มี Product
+      // แถวของตัวเอง)
+      anchorProductId: p.id,
+      sizes: mergeSizeOptions(
+        usesSize,
+        p.sizeVariants.map((v) => ({ productId: v.id, sku: v.sku, unit: v.unit, size: v.size }))
+      ),
+    };
+  });
+
+  return NextResponse.json({
+    models: [...modelResults, ...anchorResults],
     products: standaloneProducts.map((p) => ({
       id: p.id,
       sku: p.sku,

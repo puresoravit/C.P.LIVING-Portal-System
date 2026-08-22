@@ -30,15 +30,27 @@ export default async function ProductModelDrillDownPage(
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "report.view")) redirect("/");
 
-  const model = await db.productModel.findUnique({ where: { id: params.id }, include: { productType: true } });
-  if (!model) notFound();
+  // Owner UAT — ข้อ 1: params.id เป็น "model:{id}" (ProductModel จริง) หรือ "family:{id}"
+  // (Product ที่เป็น Size Family Anchor ของตัวเอง — ไม่ต้องพึ่ง ProductModel อีกต่อไป) —
+  // Key มี Prefix มาจาก getTopProductModels เสมอ (resolveProductFamily เดียวกัน) กันไม่ให้
+  // 2 ฝั่งตีความ id เพี้ยนกัน — รองรับ Legacy Link แบบไม่มี Prefix (คือ modelId ตรงๆ) ไว้
+  // ด้วย เผื่อมี Bookmark/Link เก่าจากก่อนเปลี่ยน Key Scheme
+  const separatorIdx = params.id.indexOf(":");
+  const kind = separatorIdx === -1 ? "model" : (params.id.slice(0, separatorIdx) as "model" | "family");
+  const rawId = separatorIdx === -1 ? params.id : params.id.slice(separatorIdx + 1);
+
+  const entity =
+    kind === "family"
+      ? await db.product.findUnique({ where: { id: rawId }, include: { productType: true } })
+      : await db.productModel.findUnique({ where: { id: rawId }, include: { productType: true } });
+  if (!entity) notFound();
 
   const dateFrom = searchParams.dateFrom || startOfMonth();
   const dateTo = searchParams.dateTo || endOfCurrentMonth();
 
   const { bySize, total } = await getProductModelSizeBreakdown(
     { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) },
-    model.id
+    `${kind}:${rawId}`
   );
 
   return (
@@ -46,9 +58,9 @@ export default async function ProductModelDrillDownPage(
       <a href="/" className="text-sm text-blue-600 hover:underline">
         ← กลับไปแดชบอร์ด
       </a>
-      <h1 className="text-lg font-semibold mt-2 mb-1">{model.name}</h1>
+      <h1 className="text-lg font-semibold mt-2 mb-1">{entity.name}</h1>
       <p className="text-sm text-gray-500 mb-4">
-        {model.productType.name} · ช่วงวันที่ {toDisplayDate(dateFrom)} – {toDisplayDate(dateTo)}
+        {entity.productType?.name ?? "ไม่ระบุกลุ่มส่วนลด"} · ช่วงวันที่ {toDisplayDate(dateFrom)} – {toDisplayDate(dateTo)}
       </p>
 
       <div className="bg-white border rounded-lg overflow-hidden">

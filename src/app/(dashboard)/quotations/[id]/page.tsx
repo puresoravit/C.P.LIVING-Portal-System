@@ -99,6 +99,14 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
+    // Owner UAT — ข้อ 4: Field แสดงผลอย่างเดียว แยกจาก sizeOverride ที่ใช้ตอน Submit จริง
+    // (ห้ามปนกัน — ถ้าเอา sizeSnapshot ไปยัด sizeOverride ตรงๆ จะทำให้
+    // descriptionOverride ถูก Force ทับด้วย i.name โดยไม่ตั้งใจตอน Submit ใน
+    // QuotationEditModal เพราะ Logic เดิมเช็ค !!sizeOverride เพื่อสื่อ "รายการนี้เป็น Custom
+    // Size" — รายการ Size มาตรฐานไม่มีค่าใน sizeOverride เลย (มีแต่ Custom Size) ต้อง
+    // Fallback มาที่ sizeSnapshot (ค่า Confirm ไว้แล้วจริง) เฉพาะตอนแสดงผลเท่านั้น ไม่งั้น
+    // Modal โชว์ "-" ทับ Size ที่คีย์ไว้จริงอย่างผิดๆ (ข้อมูลจริงใน DB ไม่เคยหายเลย)
+    sizeDisplay: item.sizeOverride ?? item.sizeSnapshot ?? "",
     unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
     // Owner UAT Round 3 — ข้อ 3: Modal นี้เปิดได้เฉพาะตอน CONFIRMED เท่านั้น (unitPriceSnapshot
     // มีค่าจริงแล้วเสมอ ณ จุดนี้) ใช้ Snapshot ตรงๆ ไม่ต้องคำนวณสดซ้ำ

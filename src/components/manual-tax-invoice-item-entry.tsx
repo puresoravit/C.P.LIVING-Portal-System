@@ -75,6 +75,10 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
   // กรอกเอง (ห้ามระบบเดาราคาตามที่อนุมัติ)
   function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
     if (!info) return;
+    // Owner UAT — ข้อ 4: ต้องล้าง selectedModel ด้วย ไม่งั้นช่อง "ขนาด" จะค้างเป็น
+    // <ModelSizeSelect> ต่อ (Ternary เช็ค selectedModel ก่อนเสมอ) ทำให้ไม่มีทางพิมพ์ค่า
+    // "ขนาดพิเศษ/ระบุเอง" จริงๆ ได้เลยทาง UI (Bug เดิมตั้งแต่ R6 Phase B)
+    setSelectedModel(null);
     setDraft((prev) => ({
       ...prev,
       description: info.modelName,

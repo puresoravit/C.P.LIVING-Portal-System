@@ -25,9 +25,12 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
   const currentCategory = categories.find((c) => c.id === product.categoryId);
   const initialPriceLabel =
     currentCategory && currentCategory.usesSize ? "ราคาต่อฟุต (รวม VAT) *" : currentCategory ? "ราคาต่อหน่วย (รวม VAT) *" : "ราคาตั้งต้น (รวม VAT) *";
-  // Owner UAT Round 2 — ข้อ 2: เหมือนหน้า Create — ต้องคำนวณฝั่ง Server ให้ตรงกับสถานะ
-  // ปัจจุบันของสินค้านี้เป๊ะ (สินค้าที่มีปัญหาแบบ "megan" จะเห็นคำเตือนทันทีที่เปิดหน้านี้)
-  const showInitialUsesSizeWarning = !!(currentCategory && currentCategory.usesSize && !product.modelId);
+  const usesSize = !!(currentCategory && currentCategory.usesSize);
+  // Owner UAT — ข้อ 1: เหมือนหน้า Create — ต้องคำนวณฝั่ง Server ให้ตรงกับสถานะปัจจุบันของ
+  // สินค้านี้เป๊ะ (กัน Hydration Mismatch) — เตือนเฉพาะตอน usesSize=true และไม่ได้ผูก
+  // รุ่นสินค้า (Legacy) และยังไม่ได้กรอกราคาต่อฟุตไว้เลยทั้งคู่
+  const showInitialUsesSizeWarning = usesSize && !product.modelId && product.pricePerFoot == null;
+  const showPricePerFootField = usesSize;
 
   return (
     <div className="max-w-2xl">
@@ -66,25 +69,25 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             </option>
           ))}
         </SelectField>
-        <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue={product.modelId ?? ""}>
-          <option value="">— ยังไม่ระบุ —</option>
+        {/* Owner UAT — ข้อ 1: Legacy/Advanced — ปกติไม่ต้องใช้อีกต่อไป */}
+        <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue={product.modelId ?? ""}>
+          <option value="">— ไม่ผูก (ปกติ) —</option>
           {modelsForCurrentType.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
             </option>
           ))}
         </SelectField>
-        {/* Owner UAT Round 2 — ข้อ 2: เตือนถ้าประเภทสินค้าใช้ขนาดแต่ยังไม่ผูกรุ่นสินค้า —
-            ค่าเริ่มต้นคำนวณจาก showInitialUsesSizeWarning ด้านบน ให้ตรงกับสถานะจริงของ
-            สินค้านี้ทันทีที่โหลดหน้า (กัน Hydration Mismatch เหมือนป้ายราคา) */}
+        {/* Owner UAT — ข้อ 1: เตือนเฉพาะตอน usesSize=true และไม่ได้ผูกรุ่นสินค้า (Legacy)
+            และไม่ได้กรอกราคาต่อฟุตไว้เลยทั้งคู่ — ค่าเริ่มต้นคำนวณจาก
+            showInitialUsesSizeWarning ด้านบน ให้ตรงกับสถานะจริงของสินค้านี้ทันทีที่โหลด
+            หน้า (กัน Hydration Mismatch เหมือนป้ายราคา) */}
         <div
           id="editUsesSizeWarning"
           className={`col-span-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 ${showInitialUsesSizeWarning ? "" : "hidden"}`}
         >
-          ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — แต่สินค้านี้ยังไม่ได้ผูกกับ &quot;รุ่นสินค้า&quot;
-          ถ้าไม่ผูกรุ่นสินค้า จะ<b>ไม่มีตัวเลือกขนาดให้เลือก</b>ตอนออกเอกสาร (Order/ใบเสนอราคา/ใบกำกับภาษี) —
-          ถ้าต้องการให้เลือกขนาดได้ กรุณาไปสร้าง/เลือก &quot;รุ่นสินค้า&quot; ที่เมนู
-          สินค้า → รุ่นสินค้า แล้วตั้งราคาต่อฟุตที่นั่นแทน
+          ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
+          มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
         </div>
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาเริ่มต้นคำนวณจาก Category ปัจจุบันแล้ว
@@ -97,6 +100,16 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           defaultValue={String(product.standardPrice)}
           required
         />
+        {/* Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้ — แก้ไขราคาต่อ
+            ฟุตตรงนี้จะ Recalculate Size Variant ที่มีอยู่แล้วทันที (เหมือนหน้ารุ่นสินค้า) */}
+        <div id="editPricePerFootWrap" className={`col-span-3 ${showPricePerFootField ? "" : "hidden"}`}>
+          <Field
+            label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง/อัปเดต Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ (เว้นว่าง = ไม่มี Size ย่อย)"
+            name="pricePerFoot"
+            type="number"
+            defaultValue={product.pricePerFoot != null ? String(product.pricePerFoot) : ""}
+          />
+        </div>
         <div className="col-span-3">
           <Field label="คำอธิบาย" name="description" defaultValue={product.description ?? ""} />
         </div>
@@ -118,14 +131,14 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             const modelSelect = document.querySelector('select[name="modelId"]');
             function updateModels() {
               const typeId = productTypeSelect.value;
-              modelSelect.innerHTML = '<option value="">— ยังไม่ระบุ —</option>';
+              modelSelect.innerHTML = '<option value="">— ไม่ผูก (ปกติ) —</option>';
               modelsByType.filter(m => m.productTypeId === typeId).forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
                 opt.textContent = m.name;
                 modelSelect.appendChild(opt);
               });
-              updateUsesSizeWarning();
+              updatePricePerFootUi();
             }
             productTypeSelect.addEventListener('change', updateModels);
 
@@ -141,16 +154,25 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             }
             categorySelect.addEventListener('change', updatePriceLabel);
 
-            // Owner UAT Round 2 — ข้อ 2: เหมือนหน้า Create — ไม่เรียกตอนโหลดหน้า
-            // (showInitialUsesSizeWarning ฝั่ง Server คำนวณให้ตรงอยู่แล้ว)
+            // Owner UAT — ข้อ 1: เหมือนหน้า Create — ไม่เรียกตอนโหลดหน้า
+            // (showInitialUsesSizeWarning/showPricePerFootField ฝั่ง Server คำนวณให้ตรง
+            // อยู่แล้ว)
             const usesSizeWarning = document.getElementById('editUsesSizeWarning');
-            function updateUsesSizeWarning() {
+            const pricePerFootWrap = document.getElementById('editPricePerFootWrap');
+            const pricePerFootInput = document.querySelector('input[name="pricePerFoot"]');
+            function updatePricePerFootUi() {
               const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
-              const showWarning = !!(cat && cat.usesSize && !modelSelect.value);
+              const usesSize = !!(cat && cat.usesSize);
+              const hasModel = !!modelSelect.value;
+              pricePerFootWrap.classList.toggle('hidden', !usesSize);
+              pricePerFootInput.disabled = hasModel;
+              if (hasModel) pricePerFootInput.value = '';
+              const showWarning = usesSize && !hasModel && !pricePerFootInput.value;
               usesSizeWarning.classList.toggle('hidden', !showWarning);
             }
-            categorySelect.addEventListener('change', updateUsesSizeWarning);
-            modelSelect.addEventListener('change', updateUsesSizeWarning);
+            categorySelect.addEventListener('change', updatePricePerFootUi);
+            modelSelect.addEventListener('change', updatePricePerFootUi);
+            pricePerFootInput.addEventListener('input', updatePricePerFootUi);
           `,
         }}
       />

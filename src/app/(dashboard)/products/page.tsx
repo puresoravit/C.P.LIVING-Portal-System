@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
-import { createProduct, toggleProductActive } from "./actions";
+import { createProduct, toggleProductActive, deleteProduct } from "./actions";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
+import { CancelButton } from "@/components/cancel-button";
 
 export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string }> }) {
   const searchParams = await props.searchParams;
@@ -18,7 +19,12 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           : {}),
         ...(unassignedOnly ? { modelId: null } : {}),
       },
-      include: { productType: true, category: true, model: true },
+      include: {
+        productType: true,
+        category: true,
+        model: true,
+        _count: { select: { priceRules: true, orderItems: true, invoiceItems: true, quotationItems: true, sizeVariants: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
@@ -60,23 +66,37 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               </option>
             ))}
           </SelectField>
-          <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue="">
-            <option value="">— ยังไม่ระบุ —</option>
+          {/* Owner UAT — ข้อ 1: "รุ่นสินค้า" เป็น Legacy/Advanced แล้ว — ปกติไม่ต้องใช้อีก
+              ต่อไป (เว้นว่างไว้เสมอ) เพราะ Size/Pricing ทำงานจาก Product ตรงๆ ได้แล้วผ่าน
+              ช่อง "ราคาต่อฟุต" ด้านล่าง — ยังคง Field ไว้เพื่อ Backward Compatible กับ
+              Workflow เดิม (ผูก Product เข้ากับ ProductModel ที่มีอยู่แล้วได้เหมือนเดิม) */}
+          <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
+            <option value="">— ไม่ผูก (ปกติ) —</option>
           </SelectField>
-          {/* Owner UAT Round 2 — ข้อ 2: เตือนชัดเจนตอนเลือกประเภทสินค้าที่ใช้ขนาด (เช่น
-              ฟูกที่นอน) แต่ยังไม่ผูกรุ่นสินค้า — ป้องกันความสับสนแบบ "megan" ที่ Owner
-              เจอ (สร้างเป็นสินค้าเดี่ยว ไม่ใช่รุ่นสินค้า เลยไม่มีขนาดให้เลือกตอนออกเอกสาร) */}
+          {/* Owner UAT — ข้อ 1: เตือนเฉพาะกรณีเลือกประเภทสินค้าที่ใช้ขนาด แต่ทั้งไม่ได้ผูก
+              รุ่นสินค้า (Legacy) และไม่ได้กรอกราคาต่อฟุตด้านล่างเลย — ชี้ตรงไปที่ช่องราคาต่อ
+              ฟุตในฟอร์มนี้เอง ไม่ต้องออกไปหน้าอื่นอีกต่อไป */}
           <div id="createUsesSizeWarning" className="col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-            ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — แต่สินค้านี้ยังไม่ได้ผูกกับ &quot;รุ่นสินค้า&quot;
-            ถ้าไม่ผูกรุ่นสินค้า จะ<b>ไม่มีตัวเลือกขนาดให้เลือก</b>ตอนออกเอกสาร (Order/ใบเสนอราคา/ใบกำกับภาษี) —
-            ถ้าต้องการให้เลือกขนาดได้ กรุณาไปสร้าง/เลือก &quot;รุ่นสินค้า&quot; ที่เมนู
-            สินค้า → รุ่นสินค้า แล้วตั้งราคาต่อฟุตที่นั่นแทน
+            ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
+            มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
           </div>
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาสลับตาม ProductCategory.usesSize ที่
               เลือก (ราคาต่อฟุต / ราคาต่อหน่วย) — ยังคงเป็น Field เดียวกัน (standardPrice)
               ไม่มีการเพิ่ม Field คู่ขนานใดๆ ทั้งสิ้น เปลี่ยนแค่ป้ายข้อความให้ตรงความหมาย */}
           <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
+          {/* Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้เลย ไม่ต้อง
+              สร้างรุ่นสินค้าแยก — กรอกราคาต่อฟุตตรงนี้ = ระบบสร้าง/อัปเดต Size 3/3.5/4/5/6
+              ฟุต + ขนาดพิเศษ ให้อัตโนมัติทันที (เหมือนหน้ารุ่นสินค้าทุกประการ) เว้นว่าง =
+              สินค้านี้มีราคาเดียวตายตัว ไม่มี Size ย่อย — ใช้ไม่ได้ถ้าผูกรุ่นสินค้า (Legacy)
+              ไว้ด้านบนแล้ว (เลือกได้ทางใดทางหนึ่งเท่านั้น) */}
+          <div id="createPricePerFootWrap" className="col-span-3 hidden">
+            <Field
+              label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ (เว้นว่าง = ไม่มี Size ย่อย)"
+              name="pricePerFoot"
+              type="number"
+            />
+          </div>
           <div className="col-span-3">
             <Field label="คำอธิบาย" name="description" />
           </div>
@@ -187,6 +207,18 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                   <a href={`/products/${p.id}`} className="text-xs text-blue-600 hover:underline">
                     แก้ไข
                   </a>
+                  {/* Owner UAT — ข้อ 2: เพิ่ม "ลบ" — deleteProduct ตัดสินใจเองฝั่ง Server ว่า
+                      ลบถาวรได้จริง (ไม่มีการใช้งานอ้างอิงเลย) หรือปิดใช้งานแทน (มีประวัติ
+                      เอกสาร/ราคาเฉพาะ/ขนาดย่อยผูกอยู่ — ต้องรักษา Historical Snapshot ไว้)
+                      แล้วสื่อสารผลจริงกลับผ่าน message ของ ActionResult — ปุ่ม
+                      เปิดใช้งาน/ปิดใช้งาน เดิมยังคงอยู่แยกต่างหาก สำหรับสลับสถานะโดยไม่ลบ */}
+                  <CancelButton
+                    action={deleteProduct.bind(null, p.id)}
+                    confirmMessage={`ยืนยันลบสินค้า "${p.name}" ? (หากมีการใช้งานในเอกสาร/ราคาเฉพาะ/ขนาดย่อยอยู่แล้ว ระบบจะปิดใช้งานแทนการลบถาวร เพื่อรักษาประวัติเอกสารเก่า)`}
+                    label="ลบ"
+                    successMessage="ลบสินค้าสำเร็จ"
+                    className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
+                  />
                   <form action={toggleProductActive.bind(null, p.id)} className="inline">
                     <button className="text-xs text-gray-500 hover:text-red-600">
                       {p.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
@@ -216,7 +248,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             const modelSelect = document.querySelector('#createProductForm select[name="modelId"]');
             function updateModels() {
               const typeId = productTypeSelect.value;
-              modelSelect.innerHTML = '<option value="">— ยังไม่ระบุ —</option>';
+              modelSelect.innerHTML = '<option value="">— ไม่ผูก (ปกติ) —</option>';
               modelsByType.filter(m => m.productTypeId === typeId).forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
@@ -227,7 +259,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               // ไม่ยิง change Event เอง) ต้องเรียกอัปเดตคำเตือนต่อเองตรงนี้ — ปลอดภัยเพราะ
               // Function Declaration ถูก Hoist ไว้แล้ว แม้เขียนอยู่ท้าย Script (เรียกได้
               // ก็ต่อเมื่อมี Event จริงจากผู้ใช้เท่านั้น ไม่ใช่ตอน Script รันครั้งแรก)
-              updateUsesSizeWarning();
+              updatePricePerFootUi();
             }
             productTypeSelect.addEventListener('change', updateModels);
 
@@ -248,17 +280,28 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             // DOM จริงไปเงียบๆ) — ให้ทำงานเฉพาะตอนมี change Event จริงจากผู้ใช้เท่านั้น
             categorySelect.addEventListener('change', updatePriceLabel);
 
-            // Owner UAT Round 2 — ข้อ 2: เตือนตอนเลือกประเภทสินค้าที่ usesSize=true แต่
-            // ยังไม่ผูกรุ่นสินค้า — ไม่เรียกตอนโหลดหน้าเช่นกัน (ค่าเริ่มต้น hidden ตรงกับ
-            // Server Render อยู่แล้ว เพราะ Category เริ่มต้นว่างเสมอ)
+            // Owner UAT — ข้อ 1: โชว์ช่อง "ราคาต่อฟุต" เฉพาะตอนเลือกประเภทสินค้าที่ใช้ขนาด
+            // และไม่ได้ผูกรุ่นสินค้า (Legacy) — ปิดใช้งาน (ไม่ใช่ซ่อนเฉยๆ) ตอนผูกรุ่นสินค้า
+            // ไว้แล้ว เพื่อกันส่งค่าซ้อนกันทั้งสองทาง (Mutual Exclusive ตาม Server
+            // Validation) — เตือนเพิ่มเมื่อ usesSize=true แต่ไม่ได้กรอกราคาต่อฟุตและไม่ได้
+            // ผูกรุ่นสินค้าเลยทั้งคู่ (ไม่เรียกตอนโหลดหน้า เพราะค่าเริ่มต้น hidden ตรงกับ
+            // Server Render อยู่แล้ว — Category/pricePerFoot เริ่มต้นว่างเสมอ)
             const usesSizeWarning = document.getElementById('createUsesSizeWarning');
-            function updateUsesSizeWarning() {
+            const pricePerFootWrap = document.getElementById('createPricePerFootWrap');
+            const pricePerFootInput = document.querySelector('#createProductForm input[name="pricePerFoot"]');
+            function updatePricePerFootUi() {
               const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
-              const showWarning = !!(cat && cat.usesSize && !modelSelect.value);
+              const usesSize = !!(cat && cat.usesSize);
+              const hasModel = !!modelSelect.value;
+              pricePerFootWrap.classList.toggle('hidden', !usesSize);
+              pricePerFootInput.disabled = hasModel;
+              if (hasModel) pricePerFootInput.value = '';
+              const showWarning = usesSize && !hasModel && !pricePerFootInput.value;
               usesSizeWarning.classList.toggle('hidden', !showWarning);
             }
-            categorySelect.addEventListener('change', updateUsesSizeWarning);
-            modelSelect.addEventListener('change', updateUsesSizeWarning);
+            categorySelect.addEventListener('change', updatePricePerFootUi);
+            modelSelect.addEventListener('change', updatePricePerFootUi);
+            pricePerFootInput.addEventListener('input', updatePricePerFootUi);
           `,
         }}
       />

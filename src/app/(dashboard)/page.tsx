@@ -167,7 +167,7 @@ export default async function HomePage(
               <li key={p.key} className="flex justify-between">
                 <span>
                   {i + 1}.{" "}
-                  {p.isModel ? (
+                  {p.kind !== "standalone" ? (
                     <a
                       href={`/products/model/${p.key}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
                       className="text-blue-600 hover:underline"

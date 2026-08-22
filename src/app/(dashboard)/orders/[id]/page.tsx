@@ -87,6 +87,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
+    // Owner UAT — ข้อ 4: เหมือน Quotation Edit ทุกประการ — Field แสดงผลอย่างเดียว แยกจาก
+    // sizeOverride ที่ใช้ตอน Submit จริง (ห้ามปนกัน ดูเหตุผลเต็มที่ quotations/[id]/page.tsx)
+    // — รายการ Size มาตรฐานไม่มีค่าใน sizeOverride เลย ต้อง Fallback ไปอ่าน product.size
+    // (Order ไม่มี Snapshot Field ของตัวเอง — คำนวณสดผ่าน computeOrderPreview เสมอ บรรทัด
+    // 102 ของ order-preview.ts ก็ Fallback แบบเดียวกันนี้อยู่แล้ว) เฉพาะตอนแสดงผลเท่านั้น
+    sizeDisplay: item.sizeOverride ?? item.product.size ?? "",
     unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
     // Owner UAT Round 3 — ข้อ 3: ราคาปัจจุบันจริงจาก preview เดิม (เพื่อโชว์ใน Edit Modal
     // ตอนเปิดครั้งแรก) — ไม่ใช่ Field ใหม่ใน DB แค่ดึงจาก computeOrderPreview ที่คำนวณอยู่

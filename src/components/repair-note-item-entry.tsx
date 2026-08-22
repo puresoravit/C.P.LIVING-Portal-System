@@ -25,6 +25,9 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
 
   function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
     if (!info) return;
+    // Owner UAT — ข้อ 4: เหมือน manual-tax-invoice-item-entry.tsx ทุกประการ — ต้องล้าง
+    // selectedModel ด้วย ไม่งั้นช่อง "ขนาด" จะค้างเป็น <ModelSizeSelect> ต่อ
+    setSelectedModel(null);
     setDraft((prev) => ({ ...prev, description: info.modelName, size: info.custom ? "" : info.size }));
   }
 
