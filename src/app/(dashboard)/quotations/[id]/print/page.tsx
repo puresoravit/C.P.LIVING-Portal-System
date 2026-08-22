@@ -13,6 +13,7 @@ import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { getPrintTemplateSettings } from "@/lib/print-template-settings";
+import { displayQuotationNumber } from "@/lib/running-number";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
 // เดิมทั้งหมด ไม่มี VAT โดย Default (vatMode=NONE) แต่รองรับ vatMode=STANDARD ได้ —
@@ -30,6 +31,10 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   if (!quotation) notFound();
   if (quotation.status === "DRAFT") redirect(`/quotations/${quotation.id}`);
 
+  // Owner UAT Fix Batch — ข้อ 3: ห้ามแสดง "Rev. N" ใน Print/Preview — ใช้เลขที่เอกสาร
+  // ต่อท้ายด้วย -N แทน (ดู displayQuotationNumber สำหรับเหตุผลเต็มว่าทำไมปลอดภัย)
+  const displayNumber = displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo);
+
   return (
     <PrintPage templateSettings={template}>
       <PrintDocumentHeader
@@ -40,7 +45,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         showPhone={template.showPhone}
         showTaxId={template.showTaxId}
       />
-      <PrintDocumentTitle titleTh={`ใบเสนอราคา (Rev. ${quotation.revisionNo})`} titleEn="QUOTATION" />
+      <PrintDocumentTitle titleTh="ใบเสนอราคา" titleEn="QUOTATION" />
 
       <PrintCustomerInfo
         left={[
@@ -52,8 +57,8 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
             label: "เลขที่",
             value: (
               <span className="inline-flex items-center gap-1">
-                {quotation.quotationNumber}
-                <CopyDocumentNumber value={quotation.quotationNumber} />
+                {displayNumber}
+                <CopyDocumentNumber value={displayNumber} />
               </span>
             ),
           },

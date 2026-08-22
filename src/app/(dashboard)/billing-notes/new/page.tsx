@@ -9,11 +9,22 @@ function money(n: unknown) {
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
 // เหมือนเดิมทุกประการ แค่เพิ่ม Filter วันที่เข้าไปในขั้นตอน "แสดง Invoice" เท่านั้น —
-// billingNoteId:null + status ≠ CANCELLED (กัน Invoice ถูกวางบิลซ้ำ) ยังคงเดิมไม่แตะ —
-// invoiceDate ยังเป็น Field หลักที่ใช้กรองเหมือนเดิม (ตรงกับ Business Rule เดิมของหน้านี้
-// ที่ Sort ด้วย invoiceDate อยู่แล้ว ไม่มี Semantic อื่นที่ต้องรักษาเป็นพิเศษ) — createBillingNote
+// billingNoteId:null (กัน Invoice ถูกวางบิลซ้ำ) ยังคงเดิมไม่แตะ — invoiceDate ยังเป็น
+// Field หลักที่ใช้กรองเหมือนเดิม (ตรงกับ Business Rule เดิมของหน้านี้ที่ Sort ด้วย
+// invoiceDate อยู่แล้ว ไม่มี Semantic อื่นที่ต้องรักษาเป็นพิเศษ) — createBillingNote
 // Action เดิมไม่ต้องแก้เลย เพราะรับแค่ invoiceIds ที่ติ๊กมาจริงอยู่แล้ว (Date Range เป็นแค่
 // ตัวช่วยค้นหา ไม่ใช่ Field ที่ต้อง Persist ไปกับ BillingNote)
+//
+// Owner UAT Fix Batch 3 — ข้อ 1: Source ต้องเป็น Invoice ที่ status=PRINTED เท่านั้น (ผ่าน
+// Checkpoint กระดาษต่อเนื่อง 9×11 จริง — Audit แล้วว่า markInvoicePrinted (invoices/
+// actions.ts) เขียน status="PRINTED" ได้ก็ต่อเมื่อ printProfile==="continuous" เท่านั้น
+// เข้มงวดอยู่แล้วตั้งแต่ R6 Phase D ไม่มีทางเกิดจาก A4/เปิด Preview เฉยๆ) — เดิมใช้
+// status:{not:"CANCELLED"} ซึ่งหลุดรวม CONFIRMED-แต่ยังไม่พิมพ์มาด้วยผิดๆ แก้เป็น
+// status:"PRINTED" ตรงๆ — เอาช่อง "วันที่วางบิล" แยกออกจาก Flow แล้ว (ไม่จำเป็นต้องให้
+// User กรอกเอง เพราะเป็นแค่วันที่ออกเอกสารจริง = วันนี้เสมอในทางปฏิบัติ) แต่ยังคง Field
+// เดิมของ BillingNote/createBillingNote Action ไว้ทั้งหมด (ยังต้องมีค่าอยู่ดีเพราะขับ
+// วันครบกำหนด = billingNoteDate + creditDays) แค่ส่งเป็น Hidden Input ค่าวันนี้แทนให้
+// User กรอกเอง (Server-computed ค่าเดียว ไม่มี Hydration Risk)
 export default async function NewBillingNotePage(props: { searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string }> }) {
   const searchParams = await props.searchParams;
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
@@ -30,7 +41,7 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
         where: {
           customerId: selectedCustomerId,
           billingNoteId: null,
-          status: { not: "CANCELLED" },
+          status: "PRINTED",
           invoiceDate: { gte: new Date(dateFrom), lte: new Date(dateTo) },
         },
         orderBy: { invoiceDate: "asc" },
@@ -47,7 +58,7 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างใบวางบิล</h1>
       <p className="text-sm text-gray-500 mb-4">
-        เลือกลูกค้าและช่วงวันที่เพื่อดู Invoice ที่ยังไม่เคยถูกวางบิล แล้วติ๊กใบที่ต้องการรวมเป็นใบวางบิลเดียว
+        เลือกลูกค้าและช่วงวันที่เพื่อดู Invoice ที่พิมพ์แล้ว (9×11) และยังไม่เคยถูกวางบิล แล้วติ๊กใบที่ต้องการรวมเป็นใบวางบิลเดียว
       </p>
 
       <form method="get" className="bg-white border rounded-lg p-4 mb-4 grid grid-cols-4 gap-3 items-end">
@@ -84,10 +95,11 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
       {selectedCustomerId && (
         <form action={createBillingNoteAction}>
           <input type="hidden" name="customerId" value={selectedCustomerId} />
-          <div className="bg-white border rounded-lg p-4 mb-4">
-            <label className="block text-xs font-medium text-gray-600 mb-1">วันที่วางบิล *</label>
-            <input name="billingNoteDate" type="date" defaultValue={today} required className="border rounded px-3 py-1.5 text-sm" />
-          </div>
+          {/* Owner UAT Fix Batch 3 — ข้อ 1: เอาช่อง "วันที่วางบิล" ออกจาก Flow ที่ User ต้อง
+              กรอกเอง — Field เดิมของ createBillingNote Action ยังต้องมีค่าอยู่ (ขับวันครบ
+              กำหนด = วันนี้ + creditDays) จึงส่งเป็น Hidden Input ค่าวันนี้ (Server-computed
+              ตอน Render หน้า ไม่มี Hydration Risk เพราะเป็นค่าคงที่ ไม่เปลี่ยนหลัง Mount) */}
+          <input type="hidden" name="billingNoteDate" value={today} />
 
           <div className="bg-white border rounded-lg overflow-hidden mb-4">
             <table id="billingNoteInvoiceTable" className="w-full text-sm">
@@ -120,7 +132,7 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
                 {eligibleInvoices.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                      ลูกค้ารายนี้ไม่มี Invoice ที่รอวางบิล
+                      ลูกค้ารายนี้ไม่มี Invoice ที่พิมพ์แล้ว (9×11) และยังไม่ถูกวางบิลในช่วงวันที่นี้
                     </td>
                   </tr>
                 )}

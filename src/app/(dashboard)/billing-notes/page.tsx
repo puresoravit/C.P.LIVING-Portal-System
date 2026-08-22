@@ -9,6 +9,7 @@ import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
+import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -74,6 +75,8 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
   const totalPages = Math.max(1, Math.ceil(currentCount / PAGE_SIZE));
   const preserveParams = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
   const preserveParamsNoStatus = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo });
+  // Owner UAT Fix Batch 3 — ข้อ 5: ปุ่ม × ล้างเฉพาะ q — คง dateFrom/dateTo/status เดิมไว้
+  const preserveParamsNoQ = toQueryObject({ dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
 
   return (
     <div className="max-w-4xl">
@@ -91,7 +94,12 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
       <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4 items-end">
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">ค้นหา (เลขที่/ชื่อลูกค้า/รหัสลูกค้า/เลขที่ Invoice ที่บรรจุอยู่)</label>
-          <input name="q" defaultValue={searchParams.q} placeholder="เช่น BI-202608 หรือ บริษัท..." className="w-full border rounded px-3 py-1.5 text-sm" />
+          <SearchInputWithClear
+            defaultValue={searchParams.q}
+            placeholder="เช่น BI-202608 หรือ บริษัท..."
+            basePath="/billing-notes"
+            preserveParams={preserveParamsNoQ}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่เริ่ม</label>

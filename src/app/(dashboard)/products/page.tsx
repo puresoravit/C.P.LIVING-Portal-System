@@ -6,6 +6,7 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { CancelButton } from "@/components/cancel-button";
 import { StatusTabs } from "@/components/status-tabs";
+import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
 // Owner UAT Fix Batch — ข้อ 1: Product Status เป็น Active/Inactive ชัดเจนแบบเดียวกับ
 // Document Status Tabs (StatusTabs Component เดิม ใช้ร่วมกันอยู่แล้วที่ Order/Invoice/
@@ -55,6 +56,10 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
   const preserveParams: Record<string, string> = {};
   if (q) preserveParams.q = q;
   if (unassignedOnly) preserveParams.unassigned = "1";
+  // Owner UAT Fix Batch 3 — ข้อ 5: ปุ่ม × ล้างเฉพาะ q — คง unassigned/status เดิมไว้
+  const preserveParamsNoQ: Record<string, string> = {};
+  if (unassignedOnly) preserveParamsNoQ.unassigned = "1";
+  if (status) preserveParamsNoQ.status = status;
 
   // ข้อมูลสำหรับ Model dropdown ที่กรองตาม Type ที่เลือก (Pattern เดียวกับ
   // Customer→Branch dependent select ที่ใช้อยู่แล้วในระบบ) — ไม่ auto-derive ชื่อ
@@ -105,16 +110,24 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาสลับตาม ProductCategory.usesSize ที่
               เลือก (ราคาต่อฟุต / ราคาต่อหน่วย) — ยังคงเป็น Field เดียวกัน (standardPrice)
-              ไม่มีการเพิ่ม Field คู่ขนานใดๆ ทั้งสิ้น เปลี่ยนแค่ป้ายข้อความให้ตรงความหมาย */}
-          <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
+              ไม่มีการเพิ่ม Field คู่ขนานใดๆ ทั้งสิ้น เปลี่ยนแค่ป้ายข้อความให้ตรงความหมาย —
+              Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน Field นี้ไปเลยตอน usesSize=true และไม่ได้
+              ผูกรุ่นสินค้า (Legacy) เพราะกรณีนั้นใช้ "ราคาต่อฟุต" ด้านล่างเป็น Source เดียว
+              พอ (ห้ามกรอกราคาซ้ำสองช่อง) ค่าเริ่มต้น (ไม่เลือกประเภทสินค้าเลย) ไม่ใช่กรณีนี้
+              จึงเห็น Field ตั้งแต่โหลดหน้าเหมือนเดิม ไม่มี Hydration Mismatch */}
+          <div id="createStandardPriceWrap">
+            <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
+          </div>
           {/* Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้เลย ไม่ต้อง
               สร้างรุ่นสินค้าแยก — กรอกราคาต่อฟุตตรงนี้ = ระบบสร้าง/อัปเดต Size 3/3.5/4/5/6
               ฟุต + ขนาดพิเศษ ให้อัตโนมัติทันที (เหมือนหน้ารุ่นสินค้าทุกประการ) เว้นว่าง =
               สินค้านี้มีราคาเดียวตายตัว ไม่มี Size ย่อย — ใช้ไม่ได้ถ้าผูกรุ่นสินค้า (Legacy)
-              ไว้ด้านบนแล้ว (เลือกได้ทางใดทางหนึ่งเท่านั้น) */}
+              ไว้ด้านบนแล้ว (เลือกได้ทางใดทางหนึ่งเท่านั้น) — Owner UAT Fix Batch 3 — ข้อ 4:
+              บังคับกรอก (required) เฉพาะตอนเป็น Source ราคาเดียวจริงๆ (usesSize=true และ
+              ไม่ได้ผูกรุ่นสินค้า) */}
           <div id="createPricePerFootWrap" className="col-span-3 hidden">
             <Field
-              label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ (เว้นว่าง = ไม่มี Size ย่อย)"
+              label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
               name="pricePerFoot"
               type="number"
             />
@@ -130,10 +143,11 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
 
       <div className="flex items-center justify-between mb-3 gap-3">
         <form className="flex-1">
-          <input
-            name="q"
+          <SearchInputWithClear
             defaultValue={q}
             placeholder="ค้นหาด้วยรหัสสินค้าหรือชื่อสินค้า..."
+            basePath="/products"
+            preserveParams={preserveParamsNoQ}
             className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </form>
@@ -243,17 +257,40 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                       Race Condition ระหว่าง Render หน้ากับตอนกดปุ่มจริง) ถ้ามี Reference โผล่
                       ขึ้นมาระหว่างนั้นจะ Fallback ไปปิดใช้งานแทนแทนที่จะลบทับข้อมูลอ้างอิง */}
                   {(() => {
-                    const totalRefs =
-                      p._count.priceRules + p._count.orderItems + p._count.invoiceItems + p._count.quotationItems + p._count.sizeVariants;
-                    return totalRefs === 0 ? (
-                      <CancelButton
-                        action={deleteProduct.bind(null, p.id)}
-                        confirmMessage={`ยืนยันลบสินค้า "${p.name}" อย่างถาวร? การลบนี้ย้อนกลับไม่ได้ (สินค้านี้ไม่มีเอกสาร/ราคาเฉพาะ/ขนาดย่อยอ้างอิงอยู่เลย ลบได้อย่างปลอดภัย)`}
-                        label="ลบถาวร"
-                        successMessage="ลบสินค้าสำเร็จ"
-                        className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
-                      />
-                    ) : null;
+                    // Owner UAT Fix Batch 3 — ข้อ 2: เดิมซ่อนปุ่ม "ลบถาวร" เงียบๆ ตอนมี
+                    // Reference — Owner ต้องการเห็นเหตุผลชัดเจนว่าลบถาวรไม่ได้เพราะอะไร
+                    // (ไม่ใช่แค่ปุ่มหายไปเฉยๆ) — ประกอบข้อความจาก _count จริงแต่ละประเภท
+                    // (Audit ตรงจาก DB ทุกครั้งที่ Render หน้า ไม่ใช่ Static Text) แสดงเป็น
+                    // Label แบบอ่านได้ทันทีในตาราง (ไม่ต้อง Hover ถึงจะเห็น) พร้อม title
+                    // Attribute ขยายรายละเอียดเต็มไว้ด้วยเผื่อคอลัมน์แคบ
+                    const refBreakdown: { count: number; label: string }[] = [
+                      { count: p._count.sizeVariants, label: "ขนาดย่อย" },
+                      { count: p._count.orderItems, label: "รายการในออเดอร์" },
+                      { count: p._count.invoiceItems, label: "รายการใน Invoice" },
+                      { count: p._count.quotationItems, label: "รายการในใบเสนอราคา" },
+                      { count: p._count.priceRules, label: "ราคาเฉพาะลูกค้า/สาขา" },
+                    ].filter((r) => r.count > 0);
+                    const totalRefs = refBreakdown.reduce((s, r) => s + r.count, 0);
+                    if (totalRefs === 0) {
+                      return (
+                        <CancelButton
+                          action={deleteProduct.bind(null, p.id)}
+                          confirmMessage={`ยืนยันลบสินค้า "${p.name}" อย่างถาวร? การลบนี้ย้อนกลับไม่ได้ (สินค้านี้ไม่มีเอกสาร/ราคาเฉพาะ/ขนาดย่อยอ้างอิงอยู่เลย ลบได้อย่างปลอดภัย)`}
+                          label="ลบถาวร"
+                          successMessage="ลบสินค้าสำเร็จ"
+                          className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
+                        />
+                      );
+                    }
+                    const detail = refBreakdown.map((r) => `${r.label} ${r.count} รายการ`).join(", ");
+                    return (
+                      <span
+                        title={`ลบถาวรไม่ได้เพราะยังมีการใช้งานอ้างอิงอยู่: ${detail} (ประวัติเอกสาร/ราคาเฉพาะ/ขนาดย่อยต้องรักษาไว้เสมอ — ใช้ "ปิดใช้งาน" แทนถ้าต้องการซ่อนจากการค้นหา)`}
+                        className="text-xs text-gray-400 whitespace-nowrap cursor-help"
+                      >
+                        ลบถาวรไม่ได้ ({totalRefs} รายการ)
+                      </span>
+                    );
                   })()}
                   <form action={toggleProductActive.bind(null, p.id)} className="inline">
                     <button className="text-xs text-gray-500 hover:text-red-600">
@@ -325,14 +362,27 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             const usesSizeWarning = document.getElementById('createUsesSizeWarning');
             const pricePerFootWrap = document.getElementById('createPricePerFootWrap');
             const pricePerFootInput = document.querySelector('#createProductForm input[name="pricePerFoot"]');
+            // Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน "ราคาตั้งต้น" ทั้ง Wrap ตอนเป็น Sized
+            // Anchor (usesSize=true && ไม่ได้ผูกรุ่นสินค้า) ใช้ "ราคาต่อฟุต" เป็น Source
+            // เดียวแทน — สลับ required ไปมาด้วยเพื่อไม่ให้ Field ที่ซ่อนอยู่บล็อก Submit
+            const standardPriceWrap = document.getElementById('createStandardPriceWrap');
+            const standardPriceInput = document.querySelector('#createProductForm input[name="standardPrice"]');
             function updatePricePerFootUi() {
               const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
               const usesSize = !!(cat && cat.usesSize);
               const hasModel = !!modelSelect.value;
+              const isSizedAnchor = usesSize && !hasModel;
+
               pricePerFootWrap.classList.toggle('hidden', !usesSize);
               pricePerFootInput.disabled = hasModel;
               if (hasModel) pricePerFootInput.value = '';
-              const showWarning = usesSize && !hasModel && !pricePerFootInput.value;
+              pricePerFootInput.required = isSizedAnchor;
+
+              standardPriceWrap.classList.toggle('hidden', isSizedAnchor);
+              standardPriceInput.required = !isSizedAnchor;
+              standardPriceInput.disabled = isSizedAnchor;
+
+              const showWarning = isSizedAnchor && !pricePerFootInput.value;
               usesSizeWarning.classList.toggle('hidden', !showWarning);
             }
             categorySelect.addEventListener('change', updatePricePerFootUi);

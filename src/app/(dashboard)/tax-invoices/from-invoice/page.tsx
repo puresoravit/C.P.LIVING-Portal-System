@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { createTaxInvoiceFromInvoice } from "../actions";
 import { displayProductTypeCode } from "@/lib/order-preview";
+import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -130,13 +131,15 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
       </p>
 
       <form className="bg-white border rounded-lg p-4 flex gap-2 mb-4">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="เช่น INV-A-202608-0001, ORDER-202608-00001 หรือ ชื่อ/รหัสลูกค้า..."
-          autoFocus
-          className="flex-1 border rounded px-3 py-1.5 text-sm"
-        />
+        <div className="flex-1">
+          <SearchInputWithClear
+            defaultValue={q}
+            placeholder="เช่น INV-A-202608-0001, ORDER-202608-00001 หรือ ชื่อ/รหัสลูกค้า..."
+            autoFocus
+            basePath="/tax-invoices/from-invoice"
+            preserveParams={{}}
+          />
+        </div>
         <button className="bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded px-4 py-2">ค้นหา</button>
       </form>
 

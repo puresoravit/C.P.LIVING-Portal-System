@@ -33,6 +33,7 @@ type EditItem = {
 // ส่งรายการ+VAT Mode ทั้งชุดไปคำนวณ/Snapshot ใหม่ในครั้งเดียว
 export function QuotationEditModal({
   quotationNumber,
+  nextDisplayNumber,
   initialItems,
   initialVatMode,
   initialApplyDiscount,
@@ -41,6 +42,9 @@ export function QuotationEditModal({
   canManageProducts = false,
 }: {
   quotationNumber: string;
+  /** Owner UAT Fix Batch — ข้อ 3: เลขที่เอกสารที่จะได้หลังบันทึกครั้งนี้ (มี Suffix -N ต่อ
+   * ท้ายแล้วถ้าจำเป็น) — ใช้บอก User ในข้อความเตือนแทนคำว่า "Rev." */
+  nextDisplayNumber: string;
   initialItems: EditItem[];
   initialVatMode: string;
   initialApplyDiscount: boolean;
@@ -209,7 +213,7 @@ export function QuotationEditModal({
     startTransition(async () => {
       const result = await action(formData);
       if (result.success) {
-        showSuccess("แก้ไขใบเสนอราคาสำเร็จ (Revision ใหม่)");
+        showSuccess(`แก้ไขใบเสนอราคาสำเร็จ (เลขที่เอกสาร: ${nextDisplayNumber})`);
         setIsOpen(false);
       } else {
         showError(result.error);
@@ -242,8 +246,8 @@ export function QuotationEditModal({
 
             <div className="p-4 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                การบันทึกจะสร้าง <b>Revision ใหม่</b> ของใบเสนอราคาใบนี้ (เลขที่เดิม, Rev. เพิ่มขึ้น 1) — ราคา/ส่วนลด/VAT
-                จะถูกคำนวณใหม่ทั้งหมดตามรายการที่แก้ไข
+                การบันทึกจะปรับปรุงใบเสนอราคาใบนี้ — เลขที่เอกสารจะเปลี่ยนเป็น <b>{nextDisplayNumber}</b> เพื่อแยกจากฉบับก่อนหน้าอย่างชัดเจน
+                (ราคา/ส่วนลด/VAT จะถูกคำนวณใหม่ทั้งหมดตามรายการที่แก้ไข ฉบับก่อนหน้ายังตรวจสอบย้อนหลังได้ผ่าน Audit Log ตามปกติ)
               </div>
 
               <div className="flex flex-wrap items-end gap-3">
@@ -415,7 +419,7 @@ export function QuotationEditModal({
                 disabled={!canSubmit}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
               >
-                {isPending ? "กำลังบันทึก..." : "บันทึก (สร้าง Revision ใหม่)"}
+                {isPending ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
               </button>
             </div>
           </div>

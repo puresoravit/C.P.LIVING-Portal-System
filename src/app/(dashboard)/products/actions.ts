@@ -42,6 +42,35 @@ function validateProductPricePerFoot(
   return null;
 }
 
+// Owner UAT Fix Batch 3 — ข้อ 4: สินค้าที่ Category usesSize=true และไม่ได้ผูกรุ่นสินค้า
+// (Legacy) เหลือ "ราคาต่อฟุต" เป็น Source ราคาเพียงช่องเดียว (ห้ามให้กรอก
+// ราคาตั้งต้น/ราคาต่อฟุต ซ้ำกันสองช่อง) — Product.standardPrice ยังเป็น Column บังคับ
+// ระดับ Schema เดิม (ไม่แตะ) จึง Derive มาจาก pricePerFoot ตรงๆ ให้อัตโนมัติในกรณีนี้
+// (Anchor Product เองไม่เคยถูกเลือกขายตรงๆ ผ่าน getEffectivePrice อยู่แล้วในสถาปัตยกรรม
+// ปัจจุบัน — ขายจริงผ่าน Size Variant ที่ syncStandardVariants สร้างให้เท่านั้น ค่านี้จึง
+// เป็นแค่ Placeholder ที่สมเหตุสมผล ไม่กระทบราคาที่ใช้จริงเลย) — กรณีอื่น (usesSize=false
+// หรือผูกรุ่นสินค้าอยู่) ยังคงบังคับกรอก standardPrice เองตามเดิมทุกประการ
+function resolveProductStandardPrice(
+  standardPrice: number | undefined,
+  pricePerFoot: number | undefined,
+  modelId: string | null | undefined,
+  categoryUsesSize: boolean
+): { value: number } | { error: string; fieldErrors: Record<string, string> } {
+  const isSizedAnchor = categoryUsesSize && !modelId;
+  if (isSizedAnchor) {
+    if (pricePerFoot === undefined) {
+      const error = "กรุณากรอกราคาต่อฟุต สำหรับสินค้าประเภทมีขนาดที่ไม่ได้ผูกรุ่นสินค้า";
+      return { error, fieldErrors: { pricePerFoot: error } };
+    }
+    return { value: pricePerFoot };
+  }
+  if (standardPrice === undefined) {
+    const error = "กรุณากรอกราคา";
+    return { error, fieldErrors: { standardPrice: error } };
+  }
+  return { value: standardPrice };
+}
+
 export async function createProduct(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
@@ -57,7 +86,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
-    standardPrice: formData.get("standardPrice"),
+    standardPrice: formData.get("standardPrice") || undefined,
     description: formData.get("description") || undefined,
     pricePerFoot: formData.get("pricePerFoot") || undefined,
   });
@@ -70,6 +99,10 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   const pricePerFootError = validateProductPricePerFoot(parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
   if (pricePerFootError) {
     return { success: false, ...pricePerFootError };
+  }
+  const standardPriceResult = resolveProductStandardPrice(parsed.standardPrice, parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
+  if ("error" in standardPriceResult) {
+    return { success: false, ...standardPriceResult };
   }
 
   // R4 — รหัสสินค้า (Product.sku) เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน
@@ -84,7 +117,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
 
   const product = await db.$transaction(async (tx) => {
-    const created = await tx.product.create({ data: { ...parsed, sku } });
+    const created = await tx.product.create({ data: { ...parsed, sku, standardPrice: standardPriceResult.value } });
     // Owner UAT — ข้อ 1: กรอก pricePerFoot มา = Product แถวนี้เป็น Anchor ของตัวเอง —
     // Sync Standard Variant (3/3.5/4/5/6 ฟุต) ให้ทันที เหมือน ProductModel ทุกประการ
     if (parsed.pricePerFoot !== undefined) {
@@ -104,7 +137,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   });
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku } },
+    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku, standardPrice: standardPriceResult.value } },
   });
 
   revalidatePath("/products");
@@ -123,7 +156,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
-    standardPrice: formData.get("standardPrice"),
+    standardPrice: formData.get("standardPrice") || undefined,
     description: formData.get("description") || undefined,
     pricePerFoot: formData.get("pricePerFoot") || undefined,
   });
@@ -146,12 +179,21 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   if (pricePerFootError) {
     return { success: false, ...pricePerFootError };
   }
+  const standardPriceResult = resolveProductStandardPrice(parsed.standardPrice, parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
+  if ("error" in standardPriceResult) {
+    return { success: false, ...standardPriceResult };
+  }
 
   const before = await db.product.findUnique({ where: { id } });
   const product = await db.$transaction(async (tx) => {
     const updated = await tx.product.update({
       where: { id },
-      data: { ...parsed, productTypeId: parsed.productTypeId ?? null, categoryId: parsed.categoryId ?? null },
+      data: {
+        ...parsed,
+        productTypeId: parsed.productTypeId ?? null,
+        categoryId: parsed.categoryId ?? null,
+        standardPrice: standardPriceResult.value,
+      },
     });
     // Owner UAT — ข้อ 1: Recalculate เฉพาะตอนกรอก pricePerFoot มาจริง (ขอบเขตเดียวกับ
     // ProductModel — แตะเฉพาะ Standard Variant ของ Anchor นี้ ไม่แตะ PriceRule/
@@ -179,7 +221,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
       module: "Product",
       recordId: product.id,
       oldValue: before ?? undefined,
-      newValue: parsed,
+      newValue: { ...parsed, standardPrice: standardPriceResult.value },
     },
   });
 

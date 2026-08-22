@@ -21,6 +21,7 @@ import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { SelectField } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { displayQuotationNumber } from "@/lib/running-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -121,9 +122,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">
-          {quotation.quotationNumber}
-          <CopyDocumentNumber value={quotation.quotationNumber} />
-          {quotation.revisionNo > 0 && <span className="text-sm text-gray-400 ml-2">Rev.{quotation.revisionNo}</span>}
+          {displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo)}
+          <CopyDocumentNumber value={displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo)} />
         </h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
@@ -278,7 +278,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
         )}
         {isConfirmed && (
           <QuotationEditModal
-            quotationNumber={quotation.quotationNumber}
+            quotationNumber={displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo)}
+            nextDisplayNumber={displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo + 1)}
             initialItems={initialEditItems}
             initialVatMode={quotation.vatMode}
             initialApplyDiscount={quotation.applyDiscount}

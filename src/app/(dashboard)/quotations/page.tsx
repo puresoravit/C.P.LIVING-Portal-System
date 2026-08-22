@@ -9,6 +9,8 @@ import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
+import { displayQuotationNumber } from "@/lib/running-number";
+import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -74,6 +76,8 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
   const totalPages = Math.max(1, Math.ceil(currentCount / PAGE_SIZE));
   const preserveParams = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
   const preserveParamsNoStatus = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo });
+  // Owner UAT Fix Batch 3 — ข้อ 5: ปุ่ม × ล้างเฉพาะ q — คง dateFrom/dateTo/status เดิมไว้
+  const preserveParamsNoQ = toQueryObject({ dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
 
   return (
     <div className="max-w-5xl">
@@ -93,7 +97,12 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
       <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4 items-end">
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">ค้นหา (เลขที่/ชื่อลูกค้า/รหัสลูกค้า/อ้างอิง)</label>
-          <input name="q" defaultValue={searchParams.q} placeholder="เช่น QT-202608 หรือ บริษัท..." className="w-full border rounded px-3 py-1.5 text-sm" />
+          <SearchInputWithClear
+            defaultValue={searchParams.q}
+            placeholder="เช่น QT-202608 หรือ บริษัท..."
+            basePath="/quotations"
+            preserveParams={preserveParamsNoQ}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่เริ่ม</label>
@@ -127,9 +136,8 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
               <tr key={qt.id} className="border-t hover:bg-gray-50">
                 <td className="px-4 py-2">
                   <a href={`/quotations/${qt.id}`} className="font-mono text-blue-600 hover:underline">
-                    {qt.quotationNumber}
+                    {displayQuotationNumber(qt.quotationNumber, qt.revisionNo)}
                   </a>
-                  {qt.revisionNo > 0 && <span className="text-xs text-gray-400 ml-1">Rev.{qt.revisionNo}</span>}
                 </td>
                 <td className="px-4 py-2">{qt.quotationDate.toLocaleDateString("th-TH")}</td>
                 <td className="px-4 py-2">{qt.customer.companyName}</td>

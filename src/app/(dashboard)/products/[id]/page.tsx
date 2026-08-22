@@ -29,7 +29,8 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
   // Owner UAT — ข้อ 1: เหมือนหน้า Create — ต้องคำนวณฝั่ง Server ให้ตรงกับสถานะปัจจุบันของ
   // สินค้านี้เป๊ะ (กัน Hydration Mismatch) — เตือนเฉพาะตอน usesSize=true และไม่ได้ผูก
   // รุ่นสินค้า (Legacy) และยังไม่ได้กรอกราคาต่อฟุตไว้เลยทั้งคู่
-  const showInitialUsesSizeWarning = usesSize && !product.modelId && product.pricePerFoot == null;
+  const isSizedAnchor = usesSize && !product.modelId;
+  const showInitialUsesSizeWarning = isSizedAnchor && product.pricePerFoot == null;
   const showPricePerFootField = usesSize;
 
   return (
@@ -92,22 +93,30 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาเริ่มต้นคำนวณจาก Category ปัจจุบันแล้ว
             (initialPriceLabel ด้านบน) — Script ด้านล่างจะอัปเดตต่อเฉพาะตอนมี change
-            Event จริงจากผู้ใช้เท่านั้น ไม่เรียกซ้ำตอนโหลดหน้า (กัน Hydration Mismatch) */}
-        <Field
-          label={initialPriceLabel}
-          name="standardPrice"
-          type="number"
-          defaultValue={String(product.standardPrice)}
-          required
-        />
+            Event จริงจากผู้ใช้เท่านั้น ไม่เรียกซ้ำตอนโหลดหน้า (กัน Hydration Mismatch) —
+            Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน Field นี้ไปเลยตอนสินค้านี้เป็น Sized Anchor
+            อยู่แล้ว (usesSize=true และไม่ได้ผูกรุ่นสินค้า) — isSizedAnchor คำนวณฝั่ง Server
+            ให้ตรงกับสถานะปัจจุบันเป๊ะ กัน Hydration Mismatch เหมือน Field อื่นในหน้านี้ */}
+        <div id="editStandardPriceWrap" className={isSizedAnchor ? "hidden" : ""}>
+          <Field
+            label={initialPriceLabel}
+            name="standardPrice"
+            type="number"
+            defaultValue={String(product.standardPrice)}
+            required={!isSizedAnchor}
+          />
+        </div>
         {/* Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้ — แก้ไขราคาต่อ
-            ฟุตตรงนี้จะ Recalculate Size Variant ที่มีอยู่แล้วทันที (เหมือนหน้ารุ่นสินค้า) */}
+            ฟุตตรงนี้จะ Recalculate Size Variant ที่มีอยู่แล้วทันที (เหมือนหน้ารุ่นสินค้า) —
+            Owner UAT Fix Batch 3 — ข้อ 4: บังคับกรอก (required) เฉพาะตอนเป็น Source ราคา
+            เดียวจริงๆ (isSizedAnchor) */}
         <div id="editPricePerFootWrap" className={`col-span-3 ${showPricePerFootField ? "" : "hidden"}`}>
           <Field
-            label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง/อัปเดต Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ (เว้นว่าง = ไม่มี Size ย่อย)"
+            label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง/อัปเดต Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
             name="pricePerFoot"
             type="number"
             defaultValue={product.pricePerFoot != null ? String(product.pricePerFoot) : ""}
+            required={isSizedAnchor}
           />
         </div>
         <div className="col-span-3">
@@ -160,14 +169,25 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             const usesSizeWarning = document.getElementById('editUsesSizeWarning');
             const pricePerFootWrap = document.getElementById('editPricePerFootWrap');
             const pricePerFootInput = document.querySelector('input[name="pricePerFoot"]');
+            // Owner UAT Fix Batch 3 — ข้อ 4: เหมือนหน้า Create ทุกประการ
+            const standardPriceWrap = document.getElementById('editStandardPriceWrap');
+            const standardPriceInput = document.querySelector('input[name="standardPrice"]');
             function updatePricePerFootUi() {
               const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
               const usesSize = !!(cat && cat.usesSize);
               const hasModel = !!modelSelect.value;
+              const isSizedAnchor = usesSize && !hasModel;
+
               pricePerFootWrap.classList.toggle('hidden', !usesSize);
               pricePerFootInput.disabled = hasModel;
               if (hasModel) pricePerFootInput.value = '';
-              const showWarning = usesSize && !hasModel && !pricePerFootInput.value;
+              pricePerFootInput.required = isSizedAnchor;
+
+              standardPriceWrap.classList.toggle('hidden', isSizedAnchor);
+              standardPriceInput.required = !isSizedAnchor;
+              standardPriceInput.disabled = isSizedAnchor;
+
+              const showWarning = isSizedAnchor && !pricePerFootInput.value;
               usesSizeWarning.classList.toggle('hidden', !showWarning);
             }
             categorySelect.addEventListener('change', updatePricePerFootUi);

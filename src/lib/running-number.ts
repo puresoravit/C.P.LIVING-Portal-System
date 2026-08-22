@@ -36,3 +36,18 @@ export async function getNextSeq(
 export function formatDocNumber(docType: string, period: string, seq: number, digits = 5): string {
   return `${docType}-${period}-${String(seq).padStart(digits, "0")}`;
 }
+
+// Owner UAT Fix Batch — ข้อ 3 (Quotation Revision UX): "Rev. N" สื่อความหมายกำกวมกับ
+// Owner (เอกสารกระดาษคนละใบ แต่เลขที่เหมือนกันเป๊ะ ต่างกันแค่ Label เล็กๆ ข้างเลข) —
+// Audit แล้วพบว่า Quotation.revisionNo เป็นแค่ Counter เพิ่มใน Row เดิม (ไม่มี Table
+// History แยก, ไม่มี Unique Constraint ผูกกับมันเลย, Quotation.quotationNumber เดิมยัง
+// @unique เดี่ยวๆ) จึงปลอดภัย 100% ที่จะ "แปะ Suffix ต่อท้ายเฉพาะตอนแสดงผล/พิมพ์" แทนการ
+// โชว์ "Rev. N": ไม่มีการเปลี่ยน Schema/Data ใดๆ เลย, Running Number Sequence เดิมของ
+// เดือนนั้นไม่ขยับ, AuditLog เดิม (บันทึก Before/After ทุกครั้งที่แก้ไข Confirmed
+// Quotation อยู่แล้ว) ไม่ถูกแตะ, ไม่มีความเสี่ยงเลขซ้ำเพราะ Suffix นี้ไม่เคยถูก Query/
+// Unique-check ใดๆ เป็นแค่ String ที่คำนวณตอนแสดงผลเท่านั้น — Quotation ฉบับแรก
+// (revisionNo=0) แสดงเลขปกติเป๊ะ ไม่มี Suffix เลย ฉบับที่แก้ไขแล้ว (revisionNo>=1) จะได้
+// "-N" ต่อท้าย ให้แยกออกจากฉบับแรกได้ชัดเจนบนกระดาษจริง
+export function displayQuotationNumber(quotationNumber: string, revisionNo: number): string {
+  return revisionNo > 0 ? `${quotationNumber}-${revisionNo}` : quotationNumber;
+}

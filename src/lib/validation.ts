@@ -52,7 +52,11 @@ export const productSchema = z.object({
   modelId: z.string().nullable().optional(), // Phase B — ไม่บังคับกรอก, null = ยังไม่ระบุ/ยกเลิกการผูก Model, Product ไม่มี Model ใช้งานได้ปกติ
   size: z.string().optional(),
   unit: z.string().min(1, "กรุณากรอกหน่วยนับ"),
-  standardPrice: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ"),
+  // Owner UAT Fix Batch 3 — ข้อ 4: standardPrice ไม่บังคับที่ระดับ Schema อีกต่อไป —
+  // สินค้าที่ Category usesSize=true และไม่ได้ผูกรุ่นสินค้า (Legacy) ใช้ pricePerFoot
+  // เป็น Source เดียวแทน (ไม่ต้องกรอกซ้ำสองช่อง) — Action (createProduct/updateProduct)
+  // เป็นคนบังคับว่า "ต้องมีค่าใดค่าหนึ่งเสมอ" ตามเงื่อนไข usesSize/modelId อีกชั้น
+  standardPrice: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ").optional(),
   description: z.string().optional(),
   // Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ได้เอง — กรอกมาเมื่อ
   // category.usesSize=true และไม่ได้ผูก modelId (ตรวจใน Action อีกชั้น ไม่ใช่ Schema)
