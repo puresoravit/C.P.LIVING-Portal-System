@@ -67,7 +67,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
             <span className="text-gray-500">เลขผู้เสียภาษี:</span> {taxInvoice.taxIdSnapshot ?? "-"}
           </div>
           <div>
-            <span className="text-gray-500">สาขา:</span> {taxInvoice.branchNameSnapshot}
+            <span className="text-gray-500">สาขา:</span> {taxInvoice.branchNameSnapshot ?? "-"}
           </div>
           <div>
             <span className="text-gray-500">ที่อยู่:</span> {taxInvoice.addressSnapshot ?? "-"}

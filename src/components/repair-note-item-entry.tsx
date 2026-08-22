@@ -1,13 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
 
-type Item = { description: string; quantity: number; unit: string };
+type Item = { description: string; size: string; quantity: number; unit: string };
 
+// Owner UAT Fix Batch 1 — ข้อ 5: เชื่อม Product Master เข้ากับเอกสารนี้ตาม Pattern
+// เดียวกับเอกสารอื่น (สินค้า/รุ่น | ขนาด | จำนวน | หน่วย | รายละเอียด) — ProductSearchPicker
+// เป็นแค่ Autofill Helper (Client-side ล้วนๆ) ไม่มี Server Action ใหม่ เพราะเอกสารนี้
+// ไม่มีราคาต้องคำนวณ — RepairReturnNoteItem ยังไม่ผูก FK กับ Product Master เหมือนเดิม
+// ทุกประการ (Free-text Snapshot) ทุก Field ที่ Autofill มายังแก้ไขเองต่อได้เสมอ
 export function RepairNoteItemEntry({ createAction }: { createAction: (formData: FormData) => void }) {
   const [items, setItems] = useState<Item[]>([]);
-  const [draft, setDraft] = useState<Item>({ description: "", quantity: 1, unit: "หลัง" });
+  const [draft, setDraft] = useState<Item>({ description: "", size: "", quantity: 1, unit: "หลัง" });
   const [err, setErr] = useState("");
+  const [pickerResetToken, setPickerResetToken] = useState(0);
+
+  function handlePick(p: PickedProduct) {
+    setDraft((prev) => ({ ...prev, description: p.modelName ?? p.name, size: p.size ?? "" }));
+  }
+
+  function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
+    if (!info) return;
+    setDraft((prev) => ({ ...prev, description: info.modelName, size: info.custom ? "" : info.size }));
+  }
+
+  function handleClear() {
+    setDraft((prev) => ({ ...prev, description: "", size: "" }));
+  }
 
   function addItem() {
     if (!draft.description.trim()) {
@@ -20,7 +40,8 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
     }
     setErr("");
     setItems((prev) => [...prev, draft]);
-    setDraft({ description: "", quantity: 1, unit: "หลัง" });
+    setDraft({ description: "", size: "", quantity: 1, unit: "หลัง" });
+    setPickerResetToken((t) => t + 1);
   }
 
   function removeItem(idx: number) {
@@ -31,16 +52,37 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
     <div>
       <div className="bg-white border rounded-lg p-3 mb-3">
         <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-7">
+          <div className="col-span-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการอัตโนมัติ
+            </label>
+            <ProductSearchPicker
+              onPick={handlePick}
+              onUnresolvedSize={handleUnresolvedSize}
+              onClear={handleClear}
+              placeholder="ค้นหาสินค้า/รุ่น..."
+              resetToken={pickerResetToken}
+            />
+          </div>
+          <div className="col-span-3">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              placeholder="เช่น ที่นอนสปริง Mary ขนาด 5 ฟุต (PVC สีโอวัลติน)"
+              placeholder="เช่น ที่นอนสปริง Mary (PVC สีโอวัลติน)"
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">ขนาด</label>
+            <input
+              value={draft.size}
+              onChange={(e) => setDraft({ ...draft, size: e.target.value })}
+              placeholder="เช่น 5 ฟุต"
+              className="w-full border rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
             <input
               type="number"
@@ -76,6 +118,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">รายการ</th>
+              <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2"></th>
@@ -85,6 +128,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             {items.map((item, idx) => (
               <tr key={idx} className="border-t">
                 <td className="px-4 py-2">{item.description}</td>
+                <td className="px-4 py-2">{item.size}</td>
                 <td className="px-4 py-2 text-right">{item.quantity}</td>
                 <td className="px-4 py-2">{item.unit}</td>
                 <td className="px-4 py-2 text-right">
@@ -96,7 +140,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
                   ยังไม่มีรายการ
                 </td>
               </tr>

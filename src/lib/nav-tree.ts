@@ -29,7 +29,8 @@ export const NAV_TREE: NavNode[] = [
         label: "ใบกำกับภาษี",
         items: [
           { type: "link", href: "/tax-invoices/new", label: "สร้างใบกำกับภาษี / Create Tax Invoice", perm: "taxInvoice.create" },
-          { type: "link", href: "#", label: "ดึงยอดจากใบส่งของชั่วคราว", perm: "taxInvoice.create", disabled: true },
+          // Owner UAT Fix Batch 1 — ข้อ 4: เปิดใช้งานจริงแล้ว (เดิม disabled: true, href: "#")
+          { type: "link", href: "/tax-invoices/from-invoice", label: "ดึงยอดจากใบส่งของชั่วคราว", perm: "taxInvoice.create" },
         ],
       },
       { type: "link", href: "/billing-notes/new", label: "ใบวางบิล", perm: "billingNote.create" },

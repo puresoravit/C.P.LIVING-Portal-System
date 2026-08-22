@@ -24,7 +24,8 @@ async function requireUser() {
 
 const createQuotationSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
-  branchId: z.string().min(1, "กรุณาเลือกสาขา"),
+  // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order ทุกประการ
+  branchId: z.string().optional(),
   quotationDate: z.coerce.date(),
   reference: z.string().optional(),
   note: z.string().optional(),
@@ -38,7 +39,7 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
 
   const rawParse = createQuotationSchema.safeParse({
     customerId: formData.get("customerId"),
-    branchId: formData.get("branchId"),
+    branchId: formData.get("branchId") || undefined,
     quotationDate: formData.get("quotationDate"),
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
@@ -212,8 +213,9 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
         data: {
           customerNameSnapshot: quotation.customer.companyName,
           customerTaxIdSnapshot: quotation.customer.taxId,
-          branchNameSnapshot: quotation.branch.name,
-          addressSnapshot: quotation.branch.address,
+          // Owner UAT Fix Batch 1 — ข้อ 3: quotation.branch เป็น null ได้แล้ว
+          branchNameSnapshot: quotation.branch?.name ?? null,
+          addressSnapshot: quotation.branch?.address ?? null,
           grossAmount: calc.grossAmount,
           discountAmount: calc.discountAmount,
           // R3 — Snapshot ค่า applyDiscount ที่ใช้จริงตอน Confirm (ตอนนี้เท่ากับ

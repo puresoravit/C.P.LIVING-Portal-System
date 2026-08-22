@@ -95,7 +95,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        {order.customer.companyName} / {order.branch.name} · {order.orderDate.toLocaleDateString("th-TH")}
+        {order.customer.companyName} / {order.branch?.name ?? "ไม่มีสาขา"} · {order.orderDate.toLocaleDateString("th-TH")}
         {order.reference && <> · อ้างอิง: {order.reference}</>}
         {order.placeToDelivery && (
           <>

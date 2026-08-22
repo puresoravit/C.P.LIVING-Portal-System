@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
 import { toQueryObject } from "@/lib/search-params";
 import { buildStatusTabCounts } from "@/lib/status-tab-counts";
-import { sumActiveInvoiceTotal } from "@/lib/order-doc-center";
+import { sumActiveInvoiceTotal, deriveOrderPrintState } from "@/lib/order-doc-center";
 import { displayProductTypeCode } from "@/lib/order-preview";
 import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
@@ -145,6 +145,9 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
           const activeInvoices = order.invoices.filter((inv) => inv.status !== "CANCELLED");
           const hasInvoices = order.invoices.length > 0;
           const total = order.status === "DRAFT" && !hasInvoices ? null : sumActiveInvoiceTotal(order.invoices);
+          // Owner UAT Fix Batch 1 — ข้อ 8: Derived State จาก Invoice ลูกจริง (ไม่ใช่ Field
+          // ใหม่/Label หลอก) — แสดงเสริมข้าง Order Status เดิม ไม่ได้แทนที่กัน
+          const printState = deriveOrderPrintState(order.invoices);
 
           return (
             <details key={order.id} className="group">
@@ -165,7 +168,19 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                   </span>
                   <span className="text-sm font-medium sm:text-right">{total === null ? "-" : `${money(total)} บาท`}</span>
                   <div className="flex items-center justify-between sm:justify-start">
-                    <StatusBadge status={order.status} config={ORDER_STATUS_LABEL} />
+                    <span className="flex items-center gap-1 flex-wrap">
+                      <StatusBadge status={order.status} config={ORDER_STATUS_LABEL} />
+                      {printState === "ALL_PRINTED" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">
+                          พิมพ์แล้ว
+                        </span>
+                      )}
+                      {printState === "PARTIALLY_PRINTED" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+                          พิมพ์บางส่วน
+                        </span>
+                      )}
+                    </span>
                     <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90 sm:justify-self-end">
                       &rsaquo;
                     </span>

@@ -86,7 +86,8 @@ export async function computeQuotationCalc(
   }[],
   params: {
     customerId: string;
-    branchId: string;
+    // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน pricing.ts ทุกประการ
+    branchId: string | null;
     quotationDate: Date;
     vatMode: QuotationVatModeValue;
     applyDiscount: boolean;

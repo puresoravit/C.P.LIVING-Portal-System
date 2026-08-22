@@ -19,6 +19,11 @@ export type ReportFilters = {
   sku?: string;
 };
 
+// Owner UAT Fix Batch 1 — ข้อ 3: Sentinel สำหรับ Invoice ที่ไม่มีสาขา (บริษัทไม่มีสาขา) —
+// mirror UNSPECIFIED_TYPE_CODE/LABEL ทุกประการ ใช้ Group By "branch" เท่านั้น
+export const UNSPECIFIED_BRANCH_KEY = "NO_BRANCH";
+export const UNSPECIFIED_BRANCH_LABEL = "ไม่มีสาขา";
+
 export type Metrics = { quantity: number; gross: number; discount: number; net: number; vat: number; total: number };
 
 function emptyMetrics(): Metrics {
@@ -35,8 +40,9 @@ type Row = {
   invoiceDate: Date;
   customerId: string;
   customerName: string;
-  branchId: string;
-  branchName: string;
+  // Owner UAT Fix Batch 1 — ข้อ 3: Invoice ไม่มีสาขาได้แล้ว (บริษัทไม่มีสาขา)
+  branchId: string | null;
+  branchName: string | null;
   productTypeCode: string;
   sku: string;
   productName: string;
@@ -131,8 +137,10 @@ export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey)
         label = row.customerName;
         break;
       case "branch":
-        key = row.branchId;
-        label = row.branchName;
+        // Owner UAT Fix Batch 1 — ข้อ 3: ไม่มีสาขา → รวมกลุ่มเป็น "ไม่มีสาขา" (Sentinel
+        // เดียวกับแนวทาง UNSPECIFIED_TYPE_CODE ของ productType ด้านล่าง)
+        key = row.branchId ?? UNSPECIFIED_BRANCH_KEY;
+        label = row.branchName ?? UNSPECIFIED_BRANCH_LABEL;
         break;
       case "productType":
         key = row.productTypeCode;
@@ -345,11 +353,14 @@ export async function getBranchProductMix(filters: ReportFilters) {
   const map = new Map<string, { branchName: string; byType: Map<string, Metrics>; total: Metrics }>();
 
   for (const row of rows) {
-    const entry = map.get(row.branchId) ?? { branchName: row.branchName, byType: new Map(), total: emptyMetrics() };
+    // Owner UAT Fix Batch 1 — ข้อ 3: ไม่มีสาขา → รวมกลุ่มเดียวกับ getSalesByGroup(..., "branch")
+    const branchKey = row.branchId ?? UNSPECIFIED_BRANCH_KEY;
+    const branchLabel = row.branchName ?? UNSPECIFIED_BRANCH_LABEL;
+    const entry = map.get(branchKey) ?? { branchName: branchLabel, byType: new Map(), total: emptyMetrics() };
     const typeMetrics = entry.byType.get(row.productTypeCode) ?? emptyMetrics();
     entry.byType.set(row.productTypeCode, addRow(typeMetrics, row));
     entry.total = addRow(entry.total, row);
-    map.set(row.branchId, entry);
+    map.set(branchKey, entry);
   }
 
   return [...map.entries()]

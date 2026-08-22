@@ -27,7 +27,9 @@ async function requireUser() {
 
 const createOrderSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
-  branchId: z.string().min(1, "กรุณาเลือกสาขา"),
+  // Owner UAT Fix Batch 1 — ข้อ 3: บริษัทที่ไม่มีสาขาต้องสร้างเอกสารได้ด้วย Customer
+  // อย่างเดียว — ไม่บังคับเลือกสาขาอีกต่อไป (ถ้าลูกค้ามีสาขา ยังเลือกได้ตามปกติ)
+  branchId: z.string().optional(),
   orderDate: z.coerce.date(),
   reference: z.string().optional(),
   note: z.string().optional(),
@@ -40,7 +42,7 @@ export async function createDraftOrder(formData: FormData): Promise<ActionResult
 
   const rawParse = createOrderSchema.safeParse({
     customerId: formData.get("customerId"),
-    branchId: formData.get("branchId"),
+    branchId: formData.get("branchId") || undefined,
     orderDate: formData.get("orderDate"),
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
@@ -292,8 +294,10 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
           // ภายหลังห้ามกระทบ Invoice ใบนี้
           customerNameSnapshot: order.customer.companyName,
           taxIdSnapshot: order.customer.taxId,
-          branchNameSnapshot: order.branch.name,
-          addressSnapshot: order.branch.address,
+          // Owner UAT Fix Batch 1 — ข้อ 3: Order ไม่มีสาขาได้แล้ว (order.branch เป็น
+          // null ได้) — Snapshot เป็น null ไปด้วยตามข้อเท็จจริง ไม่เดา/ไม่ fallback ข้อความ
+          branchNameSnapshot: order.branch?.name ?? null,
+          addressSnapshot: order.branch?.address ?? null,
           placeToDelivery: order.placeToDelivery,
           grossAmount: group.grossAmount,
           discountPct: group.discountPct,
@@ -542,8 +546,8 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
             productTypeCode: group.productTypeCode,
             customerNameSnapshot: order.customer.companyName,
             taxIdSnapshot: order.customer.taxId,
-            branchNameSnapshot: order.branch.name,
-            addressSnapshot: order.branch.address,
+            branchNameSnapshot: order.branch?.name ?? null,
+            addressSnapshot: order.branch?.address ?? null,
             placeToDelivery: order.placeToDelivery,
             grossAmount: group.grossAmount,
             discountPct: group.discountPct,

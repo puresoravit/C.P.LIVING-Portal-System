@@ -109,7 +109,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        {quotation.customer.companyName} / {quotation.branch.name} · {quotation.quotationDate.toLocaleDateString("th-TH")}
+        {quotation.customer.companyName} / {quotation.branch?.name ?? "ไม่มีสาขา"} · {quotation.quotationDate.toLocaleDateString("th-TH")}
         {quotation.reference && <> · อ้างอิง: {quotation.reference}</>}
       </p>
 

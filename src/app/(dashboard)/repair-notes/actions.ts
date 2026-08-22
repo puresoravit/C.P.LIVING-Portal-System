@@ -21,13 +21,17 @@ async function requireUser() {
 
 const itemSchema = z.object({
   description: z.string().min(1),
+  // Owner UAT Fix Batch 1 — ข้อ 5: เชื่อม Product Search Picker เข้ากับเอกสารนี้ —
+  // size เป็น Autofill Helper ล้วนๆ (Client-side) ยังไม่ผูก FK ตามเจตนาเดิม
+  size: z.string().optional(),
   quantity: z.coerce.number().positive(),
   unit: z.string().min(1),
 });
 
 const createSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
-  branchId: z.string().min(1, "กรุณาเลือกสาขา"),
+  // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order ทุกประการ
+  branchId: z.string().optional(),
   noteDate: z.coerce.date(),
   placeToDelivery: z.string().optional(),
   reference: z.string().optional(),
@@ -45,7 +49,7 @@ export async function createRepairReturnNote(formData: FormData) {
 
   const parsed = createSchema.parse({
     customerId: formData.get("customerId"),
-    branchId: formData.get("branchId"),
+    branchId: formData.get("branchId") || undefined,
     noteDate: formData.get("noteDate"),
     placeToDelivery: formData.get("placeToDelivery") || undefined,
     reference: formData.get("reference") || undefined,
@@ -55,7 +59,8 @@ export async function createRepairReturnNote(formData: FormData) {
 
   const [customer, branch] = await Promise.all([
     db.customer.findUniqueOrThrow({ where: { id: parsed.customerId } }),
-    db.branch.findUniqueOrThrow({ where: { id: parsed.branchId } }),
+    // Owner UAT Fix Batch 1 — ข้อ 3: ไม่มีสาขาได้แล้ว
+    parsed.branchId ? db.branch.findUniqueOrThrow({ where: { id: parsed.branchId } }) : Promise.resolve(null),
   ]);
 
   const period = currentPeriod(parsed.noteDate);
@@ -69,9 +74,9 @@ export async function createRepairReturnNote(formData: FormData) {
         noteNumber,
         noteDate: parsed.noteDate,
         customerId: parsed.customerId,
-        branchId: parsed.branchId,
+        branchId: parsed.branchId ?? null,
         customerNameSnapshot: customer.companyName,
-        addressSnapshot: branch.address,
+        addressSnapshot: branch?.address ?? null,
         placeToDelivery: parsed.placeToDelivery,
         reference: parsed.reference,
         remark: parsed.remark,

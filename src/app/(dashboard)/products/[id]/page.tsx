@@ -18,6 +18,13 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
   const updateWithId = updateProduct.bind(null, product.id);
   const modelsByType = productModels.map((m) => ({ id: m.id, name: m.name, productTypeId: m.productTypeId }));
   const modelsForCurrentType = productModels.filter((m) => m.productTypeId === product.productTypeId);
+  // Owner UAT Fix Batch 1 — ข้อ 1: คำนวณป้ายราคาเริ่มต้นฝั่ง Server ตาม Category ปัจจุบัน
+  // ของสินค้า (ต่างจากหน้า Create ที่ Category เริ่มต้นว่างเสมอ) — ต้องคำนวณให้ตรงกับที่
+  // Client Script จะคำนวณตอน change ทุกประการ ไม่งั้น Text จะไม่ตรงกับที่ Hydrate ตอนโหลด
+  // หน้าแรก (Hydration Mismatch) ถ้าสินค้านี้ผูก Category ที่ usesSize=true อยู่แล้ว
+  const currentCategory = categories.find((c) => c.id === product.categoryId);
+  const initialPriceLabel =
+    currentCategory && currentCategory.usesSize ? "ราคาต่อฟุต (รวม VAT) *" : currentCategory ? "ราคาต่อหน่วย (รวม VAT) *" : "ราคาตั้งต้น (รวม VAT) *";
 
   return (
     <div className="max-w-2xl">
@@ -65,8 +72,11 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           ))}
         </SelectField>
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
+        {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาเริ่มต้นคำนวณจาก Category ปัจจุบันแล้ว
+            (initialPriceLabel ด้านบน) — Script ด้านล่างจะอัปเดตต่อเฉพาะตอนมี change
+            Event จริงจากผู้ใช้เท่านั้น ไม่เรียกซ้ำตอนโหลดหน้า (กัน Hydration Mismatch) */}
         <Field
-          label="ราคาตั้งต้น (รวม VAT) *"
+          label={initialPriceLabel}
           name="standardPrice"
           type="number"
           defaultValue={String(product.standardPrice)}
@@ -102,6 +112,18 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
               });
             }
             productTypeSelect.addEventListener('change', updateModels);
+
+            // Owner UAT Fix Batch 1 — ข้อ 1: สลับป้ายราคาตาม Category.usesSize — ไม่เรียก
+            // updatePriceLabel() ตอนโหลดหน้า (initialPriceLabel ฝั่ง Server คำนวณให้ตรง
+            // อยู่แล้ว) เพื่อกัน Hydration Mismatch เดียวกับหน้า Create
+            const categoriesUsesSize = ${safeJsonForScript(categories.map((c) => ({ id: c.id, usesSize: c.usesSize })))};
+            const categorySelect = document.querySelector('select[name="categoryId"]');
+            const priceLabel = document.querySelector('label[for="standardPrice"]');
+            function updatePriceLabel() {
+              const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
+              priceLabel.textContent = cat && cat.usesSize ? 'ราคาต่อฟุต (รวม VAT) *' : cat ? 'ราคาต่อหน่วย (รวม VAT) *' : 'ราคาตั้งต้น (รวม VAT) *';
+            }
+            categorySelect.addEventListener('change', updatePriceLabel);
           `,
         }}
       />

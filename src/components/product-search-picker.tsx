@@ -20,7 +20,18 @@ import { useState, useEffect } from "react";
 // ตัดสินใจเอง (Order/Quotation ต้องมี productId Anchor จริงเสมอ, Tax Invoice ไม่ต้องมี
 // เพราะ Schema เป็น Free-text Snapshot อยู่แล้ว) — ตัว Picker เองไม่รู้ Business Rule
 // ปลายทาง แค่ส่งข้อมูลที่ Resolve ได้เท่าที่ทำได้ไปให้ ไม่มีการคำนวณราคาใดๆ ในนี้เลย
-export type PickedProduct = { id: string; sku: string; name: string; unit: string; productTypeName: string };
+export type PickedProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  unit: string;
+  productTypeName: string;
+  // Owner UAT Fix Batch 1 — ข้อ 5: modelName (ไม่รวม Size) + size แยกออกมาต่างหาก
+  // (Additive, Optional) ให้ผู้เรียกที่ต้องการแสดง Size เป็นคอลัมน์แยก (เช่น
+  // RepairNoteItemEntry) ใช้ได้โดยไม่กระทบ Consumer เดิมที่ใช้แค่ name รวม
+  size?: string;
+  modelName?: string;
+};
 
 export type UnresolvedSizeInfo = {
   modelId: string;
@@ -46,7 +57,15 @@ type ProductResult = { id: string; sku: string; name: string; unit: string; prod
 
 function sizeOptionToPicked(model: ModelResult, s: ModelSizeOption): PickedProduct {
   const name = s.size ? `${model.modelName} ${s.size}` : model.modelName;
-  return { id: s.productId!, sku: s.sku!, name, unit: s.unit, productTypeName: model.productTypeName };
+  return {
+    id: s.productId!,
+    sku: s.sku!,
+    name,
+    unit: s.unit,
+    productTypeName: model.productTypeName,
+    size: s.size || undefined,
+    modelName: model.modelName,
+  };
 }
 
 function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): UnresolvedSizeInfo {
@@ -65,6 +84,7 @@ function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): Unresol
 export function ProductSearchPicker({
   onPick,
   onUnresolvedSize,
+  onClear,
   autoFocus,
   placeholder = "เช่น GT-David หรือ M001",
   resetToken,
@@ -72,6 +92,10 @@ export function ProductSearchPicker({
   onPick: (p: PickedProduct) => void;
   /** R6 Phase B — เรียกเมื่อเลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา หรือขนาดพิเศษ) — ไม่ implement = พฤติกรรมเดิม (ตัวเลือกนั้นจะเลือกไม่ได้จริง เพราะไม่มี onPick ให้เรียก) */
   onUnresolvedSize?: (info: UnresolvedSizeInfo | null) => void;
+  /** Owner UAT Fix Batch 1 — ข้อ 2: ปุ่ม × ล้างค่าค้นหา/สินค้าที่เลือกไว้ — เรียกหลังจาก
+   * ล้าง State ภายในของ Picker เองเสร็จแล้ว ให้ Parent ล้าง Size/ราคา/ตัวเลือกที่ผูกกับ
+   * การเลือกนี้ต่อ (ไม่แตะ Field อื่นที่ไม่เกี่ยวข้อง เช่น ลูกค้า/สาขา/วันที่/จำนวน) */
+  onClear?: () => void;
   autoFocus?: boolean;
   placeholder?: string;
   /** เปลี่ยนค่านี้ (เช่น ++ ทุกครั้งที่ Parent Add สำเร็จ) เพื่อล้าง Search/Selection ภายใน */
@@ -171,6 +195,22 @@ export function ProductSearchPicker({
     }
   }
 
+  // Owner UAT Fix Batch 1 — ข้อ 2: ล้างเฉพาะ State ภายในของ Picker เอง (ค้นหา/Model/Size
+  // ที่เลือกไว้) แล้วแจ้ง Parent ผ่าน onClear ให้ล้าง Size Override/ราคาที่ผูกกับการเลือก
+  // นี้ต่อ — ไม่แตะ Field อื่นของฟอร์ม (ลูกค้า/สาขา/วันที่/จำนวน ฯลฯ)
+  function clear() {
+    setQuery("");
+    setModels([]);
+    setProducts([]);
+    setPicked(false);
+    setSelectedModel(null);
+    setSelectedSizeIdx("");
+    setHighlightIndex(0);
+    onUnresolvedSize?.(null);
+    onClear?.();
+  }
+
+  const hasValue = query !== "" || picked || !!selectedModel;
   const showDropdown = !picked && !selectedModel && models.length + products.length > 0;
   const flatItems: { kind: "model" | "product"; data: ModelResult | ProductResult }[] = [
     ...models.map((m) => ({ kind: "model" as const, data: m })),
@@ -195,8 +235,12 @@ export function ProductSearchPicker({
   }
 
   return (
-    <div className="flex gap-2">
-      <div className="relative flex-1">
+    // Owner UAT Fix Batch 1 — ข้อ 2: flex-wrap + min-w กันช่อง Size (w-40 คงที่) ไปบีบช่อง
+    // ค้นหาจนเหลือพื้นที่ไม่พอ (ต้นเหตุ "Size dropdown ซ้อนอยู่ภายใน Product Search popup"
+    // ที่เจอใน Tax Invoice เดิม — คอลัมน์ Grid แคบเกินไปสำหรับ flex ไม่ wrap) — ถ้าพื้นที่ไม่
+    // พอจริงๆ ช่อง Size จะตกไปบรรทัดใหม่แทนที่จะบีบซ้อนทับกัน
+    <div className="flex flex-wrap gap-2">
+      <div className="relative flex-1 min-w-[160px]">
         <input
           value={query}
           onChange={(e) => {
@@ -210,8 +254,19 @@ export function ProductSearchPicker({
           placeholder={placeholder}
           autoFocus={autoFocus}
           autoComplete="off"
-          className="w-full border rounded px-3 py-1.5 text-sm"
+          className={`w-full border rounded px-3 py-1.5 text-sm ${hasValue ? "pr-7" : ""}`}
         />
+        {hasValue && (
+          <button
+            type="button"
+            onClick={clear}
+            tabIndex={-1}
+            aria-label="ล้างการค้นหา"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-base leading-none w-5 h-5 flex items-center justify-center"
+          >
+            ×
+          </button>
+        )}
         {showDropdown && (
           <ul className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-56 overflow-auto">
             {models.map((m, i) => (

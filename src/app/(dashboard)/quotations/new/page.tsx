@@ -31,7 +31,8 @@ export default async function NewQuotationPage() {
             </option>
           ))}
         </SelectField>
-        <SelectField label="สาขา *" name="branchId" required defaultValue="">
+        {/* Owner UAT Fix Batch 1 — ข้อ 3 */}
+        <SelectField label="สาขา (ถ้ามี)" name="branchId" defaultValue="">
           <option value="" disabled>
             — เลือกลูกค้าก่อน —
           </option>
@@ -62,10 +63,16 @@ export default async function NewQuotationPage() {
             function updateBranches() {
               const customer = customersData.find(c => c.id === customerSelect.value);
               branchSelect.innerHTML = '';
+              const emptyOpt = document.createElement('option');
+              emptyOpt.value = '';
+              emptyOpt.selected = true;
               if (!customer || customer.branches.length === 0) {
-                branchSelect.innerHTML = '<option value="" disabled selected>ลูกค้ารายนี้ยังไม่มีสาขา</option>';
+                emptyOpt.textContent = 'ลูกค้ารายนี้ยังไม่มีสาขา — ไม่ต้องเลือก';
+                branchSelect.appendChild(emptyOpt);
                 return;
               }
+              emptyOpt.textContent = '— ไม่ระบุสาขา —';
+              branchSelect.appendChild(emptyOpt);
               customer.branches.forEach(b => {
                 const opt = document.createElement('option');
                 opt.value = b.id;

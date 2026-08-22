@@ -52,6 +52,15 @@ export function OrderItemEntryForm({
     setOverridePrice("");
   }
 
+  // Owner UAT Fix Batch 1 — ข้อ 2: ปุ่ม × ล้างเฉพาะสินค้า/ขนาด/ราคาที่เลือกไว้ — ไม่แตะ
+  // จำนวนที่พิมพ์ไว้แล้วหรือ Field อื่นของฟอร์ม
+  function handleClear() {
+    setSelected(null);
+    setUnresolvedInfo(null);
+    setOverrideSize("");
+    setOverridePrice("");
+  }
+
   const overrideReady = !!unresolvedInfo?.anchorProductId && overrideSize.trim() !== "" && Number(overridePrice) > 0;
   const canAdd = !!selected || overrideReady;
   const effectiveProductId = selected?.id ?? unresolvedInfo?.anchorProductId ?? "";
@@ -101,7 +110,7 @@ export function OrderItemEntryForm({
           <label className="block text-xs font-medium text-gray-600 mb-1">
             ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ) — เลือกด้วยลูกศร/Enter
           </label>
-          <ProductSearchPicker onPick={pick} onUnresolvedSize={handleUnresolvedSize} autoFocus placeholder="เช่น M001 หรือ ที่นอนสปริง" />
+          <ProductSearchPicker onPick={pick} onUnresolvedSize={handleUnresolvedSize} onClear={handleClear} autoFocus placeholder="เช่น M001 หรือ ที่นอนสปริง" />
         </div>
         <div className="w-28">
           <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>

@@ -67,6 +67,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
           <tr className="border-b">
             <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
             <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
+            <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
             <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
           </tr>
         </thead>
@@ -75,6 +76,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
             <tr key={item.id} className="border-b border-dashed">
               <td className="py-[length:var(--print-row-padding)]">{i + 1}</td>
               <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
+              <td className="py-[length:var(--print-row-padding)]">{item.size ?? "-"}</td>
               <td className="text-right py-[length:var(--print-row-padding)]">
                 {Number(item.quantity)} {item.unit}
               </td>

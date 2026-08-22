@@ -64,6 +64,9 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             <option value="">— ยังไม่ระบุ —</option>
           </SelectField>
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
+          {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาสลับตาม ProductCategory.usesSize ที่
+              เลือก (ราคาต่อฟุต / ราคาต่อหน่วย) — ยังคงเป็น Field เดียวกัน (standardPrice)
+              ไม่มีการเพิ่ม Field คู่ขนานใดๆ ทั้งสิ้น เปลี่ยนแค่ป้ายข้อความให้ตรงความหมาย */}
           <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           <div className="col-span-3">
             <Field label="คำอธิบาย" name="description" />
@@ -158,9 +161,13 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 <td className="px-4 py-2 text-right">
                   {Number(p.standardPrice).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                 </td>
-                <td className="px-4 py-2">
+                {/* Owner UAT Fix Batch 1 — ข้อ 10: whitespace-nowrap กัน "ใช้งาน" ตัด
+                    บรรทัดกลางคำเป็น "ใช้ / งาน" ตอนคอลัมน์แคบ (Thai Line-breaking ของ
+                    Browser ถือว่ามี Break Opportunity ระหว่างพยางค์ได้แม้ไม่มีเว้นวรรค)
+                    — ไม่แตะ Status Logic ใดๆ ทั้งสิ้น */}
+                <td className="px-4 py-2 whitespace-nowrap">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
+                    className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
                       p.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                     }`}
                   >
@@ -209,6 +216,23 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               });
             }
             productTypeSelect.addEventListener('change', updateModels);
+
+            // Owner UAT Fix Batch 1 — ข้อ 1: สลับป้ายราคาตาม Category.usesSize
+            const categoriesUsesSize = ${safeJsonForScript(categories.map((c) => ({ id: c.id, usesSize: c.usesSize })))};
+            const categorySelect = document.querySelector('#createProductForm select[name="categoryId"]');
+            const priceLabel = document.querySelector('#createProductForm label[for="standardPrice"]');
+            function updatePriceLabel() {
+              const cat = categoriesUsesSize.find(c => c.id === categorySelect.value);
+              priceLabel.textContent = cat && cat.usesSize ? 'ราคาต่อฟุต (รวม VAT) *' : cat ? 'ราคาต่อหน่วย (รวม VAT) *' : 'ราคาตั้งต้น (รวม VAT) *';
+            }
+            // หมายเหตุ: ห้ามเรียก updatePriceLabel() ทันทีตอน Script รัน — Category
+            // เริ่มต้นของฟอร์มนี้เป็นค่าว่างเสมอ (ตรงกับป้ายเริ่มต้นที่ Server Render
+            // มาให้แล้ว) เรียกตอนนี้จะไป Mutate DOM Node ที่ React (Field Component)
+            // กำลัง Hydrate อยู่ ทำให้ Text ไม่ตรงกับที่ Server Render จริง เกิด Hydration
+            // Mismatch (React Error #418) แล้วทำให้ทั้งฟอร์ม Remount ใหม่ฝั่ง Client
+            // (Query Selector อื่นที่จับ Element ไว้ก่อนหน้ากลายเป็น Node ที่หลุดออกจาก
+            // DOM จริงไปเงียบๆ) — ให้ทำงานเฉพาะตอนมี change Event จริงจากผู้ใช้เท่านั้น
+            categorySelect.addEventListener('change', updatePriceLabel);
           `,
         }}
       />

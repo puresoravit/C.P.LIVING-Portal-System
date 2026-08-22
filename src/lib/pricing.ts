@@ -34,22 +34,27 @@ export function dateRangesOverlap(
 export async function getEffectivePrice(params: {
   productId: string;
   customerId: string;
-  branchId: string;
+  // Owner UAT Fix Batch 1 — ข้อ 3: null = ลูกค้าไม่มีสาขา (หรือเอกสารนี้ไม่ได้ระบุ
+  // สาขา) — ข้าม Tier 1 (Branch) ไปเลย ตกลงไปที่ Tier 2 (Customer) ที่มีอยู่แล้วเดิม
+  // ไม่มี Business Rule ใหม่ ใช้ Fallback Mechanism เดิมของ DiscountRule/PriceRule
+  branchId: string | null;
   orderDate: Date;
 }): Promise<{ price: Decimal; source: "BRANCH" | "CUSTOMER" | "STANDARD" }> {
   const { productId, customerId, branchId, orderDate } = params;
 
-  // 1. Branch Special Price
-  const branchPrice = await db.priceRule.findFirst({
-    where: {
-      productId,
-      customerId,
-      branchId,
-      effectiveFrom: { lte: orderDate },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: orderDate } }],
-    },
-    orderBy: { effectiveFrom: "desc" },
-  });
+  // 1. Branch Special Price (ข้ามถ้าเอกสารนี้ไม่มีสาขา)
+  const branchPrice = branchId
+    ? await db.priceRule.findFirst({
+        where: {
+          productId,
+          customerId,
+          branchId,
+          effectiveFrom: { lte: orderDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: orderDate } }],
+        },
+        orderBy: { effectiveFrom: "desc" },
+      })
+    : null;
   if (branchPrice) return { price: branchPrice.price, source: "BRANCH" };
 
   // 2. Customer Special Price (branchId ต้องเป็น null เท่านั้น = apply ทุกสาขา)
@@ -78,22 +83,25 @@ export async function getEffectivePrice(params: {
  */
 export async function getEffectiveDiscountPct(params: {
   customerId: string;
-  branchId: string;
+  // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน getEffectivePrice ทุกประการ
+  branchId: string | null;
   productTypeId: string;
   orderDate: Date;
 }): Promise<{ discountPct: Decimal; source: "BRANCH" | "CUSTOMER" | "DEFAULT" }> {
   const { customerId, branchId, productTypeId, orderDate } = params;
 
-  const branchDiscount = await db.discountRule.findFirst({
-    where: {
-      customerId,
-      branchId,
-      productTypeId,
-      effectiveFrom: { lte: orderDate },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: orderDate } }],
-    },
-    orderBy: { effectiveFrom: "desc" },
-  });
+  const branchDiscount = branchId
+    ? await db.discountRule.findFirst({
+        where: {
+          customerId,
+          branchId,
+          productTypeId,
+          effectiveFrom: { lte: orderDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: orderDate } }],
+        },
+        orderBy: { effectiveFrom: "desc" },
+      })
+    : null;
   if (branchDiscount) return { discountPct: branchDiscount.discountPct, source: "BRANCH" };
 
   const customerDiscount = await db.discountRule.findFirst({

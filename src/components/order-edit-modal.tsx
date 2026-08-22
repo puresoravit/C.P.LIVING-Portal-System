@@ -263,6 +263,12 @@ export function OrderEditModal({
                         setUnresolvedInfo(null);
                       }}
                       onUnresolvedSize={handleUnresolvedSize}
+                      onClear={() => {
+                        setSelected(null);
+                        setUnresolvedInfo(null);
+                        setOverrideSize("");
+                        setOverridePrice("");
+                      }}
                       placeholder="เช่น M001 หรือ ที่นอนสปริง"
                       resetToken={pickerResetToken}
                     />

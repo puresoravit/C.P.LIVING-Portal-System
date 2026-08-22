@@ -110,7 +110,8 @@ const manualItemSchema = z.object({
 
 const manualTaxInvoiceSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
-  branchId: z.string().min(1, "กรุณาเลือกสาขา"),
+  // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order ทุกประการ
+  branchId: z.string().optional(),
   taxInvoiceDate: z.coerce.date(),
   placeToDelivery: z.string().optional(),
   items: z.array(manualItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการ"),
@@ -124,7 +125,7 @@ export async function createManualTaxInvoice(formData: FormData) {
 
   const parsed = manualTaxInvoiceSchema.parse({
     customerId: formData.get("customerId"),
-    branchId: formData.get("branchId"),
+    branchId: formData.get("branchId") || undefined,
     taxInvoiceDate: formData.get("taxInvoiceDate"),
     placeToDelivery: formData.get("placeToDelivery") || undefined,
     items: itemsRaw,
@@ -132,7 +133,8 @@ export async function createManualTaxInvoice(formData: FormData) {
 
   const [customer, branch] = await Promise.all([
     db.customer.findUniqueOrThrow({ where: { id: parsed.customerId } }),
-    db.branch.findUniqueOrThrow({ where: { id: parsed.branchId } }),
+    // Owner UAT Fix Batch 1 — ข้อ 3: ไม่มีสาขาได้แล้ว — ไม่ query/ไม่บังคับมีสาขาจริง
+    parsed.branchId ? db.branch.findUniqueOrThrow({ where: { id: parsed.branchId } }) : Promise.resolve(null),
   ]);
 
   const vatPct = await getEffectiveVatRate(parsed.taxInvoiceDate);
@@ -154,12 +156,12 @@ export async function createManualTaxInvoice(formData: FormData) {
         taxInvoiceNumber,
         taxInvoiceDate: parsed.taxInvoiceDate,
         customerId: parsed.customerId,
-        branchId: parsed.branchId,
+        branchId: parsed.branchId ?? null,
         referenceInvoiceId: null,
         customerNameSnapshot: customer.companyName,
         taxIdSnapshot: customer.taxId,
-        branchNameSnapshot: branch.name,
-        addressSnapshot: branch.address,
+        branchNameSnapshot: branch?.name ?? null,
+        addressSnapshot: branch?.address ?? null,
         placeToDelivery: parsed.placeToDelivery,
         valueAmount: netBeforeVat,
         vatPct,
@@ -206,12 +208,14 @@ export async function getSuggestedTaxInvoiceItem(params: {
   const product = await db.product.findUniqueOrThrow({ where: { id: params.productId } });
 
   let unitPrice = Number(product.standardPrice);
-  if (params.customerId && params.branchId) {
+  // Owner UAT Fix Batch 1 — ข้อ 3: ไม่มีสาขาก็ยัง Fallback ไปที่ Customer-level
+  // PriceRule ได้ผ่าน getEffectivePrice เดิม (branchId: null ข้าม Tier 1 อัตโนมัติ)
+  if (params.customerId) {
     const orderDate = params.taxInvoiceDate ? new Date(params.taxInvoiceDate) : new Date();
     const { price } = await getEffectivePrice({
       productId: params.productId,
       customerId: params.customerId,
-      branchId: params.branchId,
+      branchId: params.branchId ?? null,
       orderDate,
     });
     unitPrice = Number(price);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sumActiveInvoiceTotal } from "./order-doc-center";
+import { sumActiveInvoiceTotal, deriveOrderPrintState } from "./order-doc-center";
 
 describe("sumActiveInvoiceTotal", () => {
   it("Active Invoice ทุกใบ → รวมครบ", () => {
@@ -42,5 +42,31 @@ describe("sumActiveInvoiceTotal", () => {
       { status: "PRINTED", grandTotal: 800 }, // รุ่น 3 - B (active)
     ]);
     expect(total.toNumber()).toBe(2940);
+  });
+});
+
+describe("deriveOrderPrintState", () => {
+  it("ไม่มี Invoice เลย → null", () => {
+    expect(deriveOrderPrintState([])).toBeNull();
+  });
+
+  it("Active ทุกใบ PRINTED → ALL_PRINTED", () => {
+    expect(deriveOrderPrintState([{ status: "PRINTED" }, { status: "PRINTED" }])).toBe("ALL_PRINTED");
+  });
+
+  it("Active บางใบ PRINTED บางใบ CONFIRMED → PARTIALLY_PRINTED", () => {
+    expect(deriveOrderPrintState([{ status: "PRINTED" }, { status: "CONFIRMED" }])).toBe("PARTIALLY_PRINTED");
+  });
+
+  it("Active ไม่มีใบไหน PRINTED เลย → null (ปล่อยให้ Order Status เดิมสื่อความหมาย)", () => {
+    expect(deriveOrderPrintState([{ status: "CONFIRMED" }, { status: "CONFIRMED" }])).toBe(null);
+  });
+
+  it("CANCELLED ไม่นับเป็น Active — Active ที่เหลือ PRINTED หมด → ALL_PRINTED แม้มี CANCELLED ปน", () => {
+    expect(deriveOrderPrintState([{ status: "CANCELLED" }, { status: "PRINTED" }])).toBe("ALL_PRINTED");
+  });
+
+  it("มีแต่ CANCELLED ล้วน (ไม่มี Active เหลือเลย) → null", () => {
+    expect(deriveOrderPrintState([{ status: "CANCELLED" }, { status: "CANCELLED" }])).toBeNull();
   });
 });

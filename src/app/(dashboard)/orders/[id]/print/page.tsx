@@ -42,7 +42,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
       <PrintCustomerInfo
         left={[
           { label: "ลูกค้า", value: order.customer.companyName },
-          { label: "สาขา", value: order.branch.name },
+          { label: "สาขา", value: order.branch?.name ?? "-" },
         ]}
         right={[
           {

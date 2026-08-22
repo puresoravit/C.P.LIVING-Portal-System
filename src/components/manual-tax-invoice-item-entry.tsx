@@ -26,6 +26,10 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
 
   if (thrownError) throw thrownError;
 
+  function handleClear() {
+    setDraft((prev) => ({ ...prev, description: "", size: "", unitPrice: 0 }));
+  }
+
   // customerId/branchId/taxInvoiceDate อยู่นอก Component นี้ (Field ของ Parent Server
   // Component เชื่อมกันผ่าน form="taxInvoiceForm" เดิม ไม่ใช่ React State ร่วมกัน) —
   // อ่านค่าปัจจุบันจาก DOM ตรงๆ ตอนเลือกสินค้า สอดคล้องกับ Pattern Vanilla Script ที่
@@ -97,18 +101,19 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
     <div>
       <div className="bg-white border rounded-lg p-3 mb-3">
         <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-4">
+          <div className="col-span-5">
             <label className="block text-xs font-medium text-gray-600 mb-1">
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการ/ราคาอัตโนมัติ
             </label>
             <ProductSearchPicker
               onPick={handlePick}
               onUnresolvedSize={handleUnresolvedSize}
+              onClear={handleClear}
               placeholder="ค้นหาสินค้า/รุ่น..."
               resetToken={pickerResetToken}
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
