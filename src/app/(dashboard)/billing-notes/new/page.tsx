@@ -25,31 +25,50 @@ function money(n: unknown) {
 // เดิมของ BillingNote/createBillingNote Action ไว้ทั้งหมด (ยังต้องมีค่าอยู่ดีเพราะขับ
 // วันครบกำหนด = billingNoteDate + creditDays) แค่ส่งเป็น Hidden Input ค่าวันนี้แทนให้
 // User กรอกเอง (Server-computed ค่าเดียว ไม่มี Hydration Risk)
-export default async function NewBillingNotePage(props: { searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string }> }) {
+export default async function NewBillingNotePage(props: {
+  searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string; billing?: string }>;
+}) {
   const searchParams = await props.searchParams;
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
 
   const selectedCustomerId = searchParams.customerId;
   const dateFrom = searchParams.dateFrom || startOfMonth();
   const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  // Owner UAT — ต้องดู/สลับได้ทั้ง 2 สถานะของ PRINTED Invoice ในหน้านี้เลย (ยังไม่วางบิล
+  // / วางบิลแล้ว) ตาม Customer+ช่วงวันที่เดียวกัน ไม่ใช่แค่เห็นฝั่งที่เลือกได้อย่างเดียว —
+  // "วางบิลแล้ว" เป็น View-only (เชื่อมไปดู Billing Note ที่ผูกอยู่ได้) ห้ามเลือกสร้างซ้ำ
+  // ตาม Business Rule เดิม — ทั้งสอง Query ใช้เงื่อนไข Customer+Date Range เดียวกันเป๊ะ
+  // ต่างกันแค่ billingNoteId เท่านั้น (Reuse Relation เดิม ไม่มี Query ใหม่)
+  const billingView = searchParams.billing === "billed" ? "billed" : "unbilled";
   // Prisma gte/lte เป็น Inclusive อยู่แล้วโดย Default — dateTo เป็นเที่ยงคืนของวันนั้น
   // (เหมือน Pattern เดิมที่ Order/Invoice List ใช้อยู่แล้วทุกจุด) invoiceDate ในระบบนี้
   // ไม่มี Time Component จริง (เก็บเป็นวันที่ล้วนตอนสร้างเอกสารเสมอ) จึง lte ตรงๆ ครอบคลุม
   // ทั้งวันนั้นถูกต้องอยู่แล้ว ไม่ต้องเติม 23:59:59 เพิ่ม
-  const eligibleInvoices = selectedCustomerId
-    ? await db.invoice.findMany({
-        where: {
-          customerId: selectedCustomerId,
-          billingNoteId: null,
-          status: "PRINTED",
-          invoiceDate: { gte: new Date(dateFrom), lte: new Date(dateTo) },
-        },
-        orderBy: { invoiceDate: "asc" },
-      })
-    : [];
+  const invoiceDateFilter = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+  const [eligibleInvoices, billedInvoices] = selectedCustomerId
+    ? await Promise.all([
+        db.invoice.findMany({
+          where: { customerId: selectedCustomerId, billingNoteId: null, status: "PRINTED", invoiceDate: invoiceDateFilter },
+          orderBy: { invoiceDate: "asc" },
+        }),
+        db.invoice.findMany({
+          where: { customerId: selectedCustomerId, billingNoteId: { not: null }, status: "PRINTED", invoiceDate: invoiceDateFilter },
+          include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
+          orderBy: { invoiceDate: "asc" },
+        }),
+      ])
+    : [[], []];
   const totalAmount = eligibleInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
+  const billedTotalAmount = billedInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
 
   const today = new Date().toISOString().slice(0, 10);
+  const viewLinkParams = (billing: "unbilled" | "billed") =>
+    new URLSearchParams({
+      ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),
+      dateFrom,
+      dateTo,
+      billing,
+    }).toString();
 
   return (
     <div className="max-w-3xl">
@@ -92,7 +111,87 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
         </div>
       </form>
 
+      {/* Owner UAT — สลับดู 2 สถานะของ Invoice ที่ PRINTED ในช่วง Customer+วันที่เดียวกันนี้
+          ได้เลย: "ยังไม่วางบิล" (เลือกสร้างใบวางบิลได้ — Default) กับ "วางบิลแล้ว" (View-only
+          เชื่อมไปดู Billing Note ที่ผูกอยู่ได้ ห้ามเลือกสร้างซ้ำตาม Business Rule เดิม) */}
       {selectedCustomerId && (
+        <div className="flex gap-1 mb-3 border-b">
+          <a
+            href={`/billing-notes/new?${viewLinkParams("unbilled")}`}
+            className={`px-3 py-2 text-sm border-b-2 ${
+              billingView === "unbilled" ? "border-blue-600 text-blue-600 font-medium" : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            ยังไม่วางบิล <span className={billingView === "unbilled" ? "text-blue-600" : "text-gray-400"}>({eligibleInvoices.length})</span>
+          </a>
+          <a
+            href={`/billing-notes/new?${viewLinkParams("billed")}`}
+            className={`px-3 py-2 text-sm border-b-2 ${
+              billingView === "billed" ? "border-blue-600 text-blue-600 font-medium" : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            วางบิลแล้ว <span className={billingView === "billed" ? "text-blue-600" : "text-gray-400"}>({billedInvoices.length})</span>
+          </a>
+        </div>
+      )}
+
+      {selectedCustomerId && billingView === "billed" && (
+        <div className="bg-white border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-600 text-left">
+              <tr>
+                <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
+                <th className="px-4 py-2 font-medium">วันที่</th>
+                <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
+                <th className="px-4 py-2 font-medium">ใบวางบิลที่ผูกอยู่</th>
+              </tr>
+            </thead>
+            <tbody>
+              {billedInvoices.map((inv) => (
+                <tr key={inv.id} className="border-t">
+                  <td className="px-4 py-2 font-mono">
+                    <a href={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
+                      {inv.invoiceNumber}
+                    </a>
+                  </td>
+                  <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
+                  <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
+                  <td className="px-4 py-2">
+                    {inv.billingNote && (
+                      <a
+                        href={`/billing-notes/${inv.billingNote.id}`}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
+                      >
+                        {inv.billingNote.billingNoteNumber}
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {billedInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                    ลูกค้ารายนี้ไม่มี Invoice ที่วางบิลแล้วในช่วงวันที่นี้
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {billedInvoices.length > 0 && (
+              <tfoot>
+                <tr className="border-t font-medium bg-gray-50">
+                  <td colSpan={2} className="px-4 py-2 text-right">
+                    รวม ({billedInvoices.length} ใบ)
+                  </td>
+                  <td className="px-4 py-2 text-right">{money(billedTotalAmount)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
+      {selectedCustomerId && billingView === "unbilled" && (
         <form action={createBillingNoteAction}>
           <input type="hidden" name="customerId" value={selectedCustomerId} />
           {/* Owner UAT Fix Batch 3 — ข้อ 1: เอาช่อง "วันที่วางบิล" ออกจาก Flow ที่ User ต้อง
@@ -165,7 +264,7 @@ export default async function NewBillingNotePage(props: { searchParams: Promise<
         </form>
       )}
 
-      {selectedCustomerId && eligibleInvoices.length > 0 && (
+      {selectedCustomerId && billingView === "unbilled" && eligibleInvoices.length > 0 && (
         <script
           dangerouslySetInnerHTML={{
             __html: `

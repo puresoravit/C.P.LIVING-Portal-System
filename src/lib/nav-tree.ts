@@ -53,13 +53,18 @@ export const NAV_TREE: NavNode[] = [
       },
     ],
   },
-  { type: "link", href: "/orders", label: "เอกสาร / Document", perm: "order.create" },
-  // Billing Status Visibility — เจอระหว่าง UAT ว่าไม่มี Link ตรงไปหน้ารายการ Invoice
-  // (/invoices) เลยสักจุดสำหรับ Role ที่มี report.view (Owner/Admin) — เดิมมีแค่ Card
-  // ทางลัดที่โผล่เฉพาะหน้าแรกของ Billing Staff (ไม่มี report.view) เท่านั้น ทำให้ฟีเจอร์
-  // สถานะวางบิลใหม่ที่อยู่หน้านี้ (Tab ยังไม่วางบิล/วางบิลแล้ว + คอลัมน์สถานะวางบิล) หา
-  // ทางเข้าไม่เจอเลยนอกจากพิมพ์ URL เอง — เพิ่ม Link ตรงนี้ให้ครบทุก Role ที่มีสิทธิ์จริง
-  { type: "link", href: "/invoices", label: "ใบส่งของชั่วคราว (Invoice)", perm: "invoice.create" },
+  // Owner UAT — จัดกลุ่ม "เอกสาร / Document" ใหม่เป็น Group มี 2 เมนูย่อย: "เอกสารทั้งหมด"
+  // (Document Center /orders เดิม — Label เปลี่ยนจาก "เอกสาร / Document" เป็นชื่อนี้แทน)
+  // และ "เอกสารใบส่งของชั่วคราว" (/invoices — ย้ายเข้ามาอยู่ใต้ Group นี้แทนที่จะเป็น
+  // Top-level แยก ตามที่ Owner ระบุ Layout ตรงๆ)
+  {
+    type: "group",
+    label: "เอกสาร / Document",
+    items: [
+      { type: "link", href: "/orders", label: "เอกสารทั้งหมด", perm: "order.create" },
+      { type: "link", href: "/invoices", label: "เอกสารใบส่งของชั่วคราว", perm: "invoice.create" },
+    ],
+  },
   { type: "link", href: "/reports", label: "รายงานยอดขาย / Sales Report", perm: "report.view" },
   {
     type: "group",
