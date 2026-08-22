@@ -5,20 +5,30 @@ import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { CancelButton } from "@/components/cancel-button";
+import { StatusTabs } from "@/components/status-tabs";
 
-export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string }> }) {
+// Owner UAT Fix Batch — ข้อ 1: Product Status เป็น Active/Inactive ชัดเจนแบบเดียวกับ
+// Document Status Tabs (StatusTabs Component เดิม ใช้ร่วมกันอยู่แล้วที่ Order/Invoice/
+// TaxInvoice/Quotation/BillingNote/RepairNote — Product เป็น Master Data ตัวแรกที่ใช้
+// Pattern นี้ เพราะมี field `active` อยู่แล้วพอดี ไม่ต้องเพิ่ม Schema ใดๆ)
+type StatusFilter = "active" | "inactive" | undefined;
+
+export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string; status?: string }> }) {
   const searchParams = await props.searchParams;
   const q = searchParams.q?.trim();
   const unassignedOnly = searchParams.unassigned === "1";
+  const status: StatusFilter = searchParams.status === "active" || searchParams.status === "inactive" ? searchParams.status : undefined;
 
-  const [products, productTypes, categories, productModels] = await Promise.all([
+  const searchWhere = {
+    ...(q
+      ? { OR: [{ sku: { contains: q, mode: "insensitive" as const } }, { name: { contains: q, mode: "insensitive" as const } }] }
+      : {}),
+    ...(unassignedOnly ? { modelId: null } : {}),
+  };
+
+  const [products, productTypes, categories, productModels, activeCount, inactiveCount, totalCount] = await Promise.all([
     db.product.findMany({
-      where: {
-        ...(q
-          ? { OR: [{ sku: { contains: q, mode: "insensitive" as const } }, { name: { contains: q, mode: "insensitive" as const } }] }
-          : {}),
-        ...(unassignedOnly ? { modelId: null } : {}),
-      },
+      where: { ...searchWhere, ...(status ? { active: status === "active" } : {}) },
       include: {
         productType: true,
         category: true,
@@ -30,9 +40,21 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.product.count({ where: { ...searchWhere, active: true } }),
+    db.product.count({ where: { ...searchWhere, active: false } }),
+    db.product.count({ where: searchWhere }),
   ]);
 
   const unassignedCount = await db.product.count({ where: { modelId: null } });
+
+  const statusTabs = [
+    { key: "all", label: "ทั้งหมด", count: totalCount },
+    { key: "active", label: "ใช้งาน", count: activeCount },
+    { key: "inactive", label: "ไม่ใช้งาน", count: inactiveCount },
+  ];
+  const preserveParams: Record<string, string> = {};
+  if (q) preserveParams.q = q;
+  if (unassignedOnly) preserveParams.unassigned = "1";
 
   // ข้อมูลสำหรับ Model dropdown ที่กรองตาม Type ที่เลือก (Pattern เดียวกับ
   // Customer→Branch dependent select ที่ใช้อยู่แล้วในระบบ) — ไม่ auto-derive ชื่อ
@@ -151,6 +173,8 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
         </ActionForm>
       )}
 
+      <StatusTabs tabs={statusTabs} activeKey={status ?? "all"} basePath="/products" preserveParams={preserveParams} />
+
       <div className="bg-white border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
@@ -190,35 +214,47 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 <td className="px-4 py-2 text-right">
                   {Number(p.standardPrice).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                 </td>
-                {/* Owner UAT Fix Batch 1 — ข้อ 10: whitespace-nowrap กัน "ใช้งาน" ตัด
-                    บรรทัดกลางคำเป็น "ใช้ / งาน" ตอนคอลัมน์แคบ (Thai Line-breaking ของ
-                    Browser ถือว่ามี Break Opportunity ระหว่างพยางค์ได้แม้ไม่มีเว้นวรรค)
-                    — ไม่แตะ Status Logic ใดๆ ทั้งสิ้น */}
+                {/* Owner UAT Fix Batch — ข้อ 1: Status เป็น Active/Inactive ชัดเจน (ตรงกับ
+                    Status Tab ด้านบนเป๊ะ) — เดิมใช้คำว่า "ปิดใช้งาน" เป็น Label ของทั้ง
+                    "สถานะ" และ "ปุ่ม Action" ปนกัน ทำให้กำกวม แยกแล้ว: Badge นี้บอก "สถานะ"
+                    (คำนาม/adjective — ใช้งาน/ไม่ใช้งาน) ส่วนปุ่มด้านล่างเป็น "การกระทำ"
+                    (กริยา — ปิดใช้งาน/เปิดใช้งาน) whitespace-nowrap กัน Thai Line-breaking
+                    ตัดคำกลางคัน (ข้อ 10 เดิม ยังคงไว้) */}
                 <td className="px-4 py-2 whitespace-nowrap">
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
                       p.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                     }`}
                   >
-                    {p.active ? "ใช้งาน" : "ปิดใช้งาน"}
+                    {p.active ? "ใช้งาน" : "ไม่ใช้งาน"}
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right space-x-2">
                   <a href={`/products/${p.id}`} className="text-xs text-blue-600 hover:underline">
                     แก้ไข
                   </a>
-                  {/* Owner UAT — ข้อ 2: เพิ่ม "ลบ" — deleteProduct ตัดสินใจเองฝั่ง Server ว่า
-                      ลบถาวรได้จริง (ไม่มีการใช้งานอ้างอิงเลย) หรือปิดใช้งานแทน (มีประวัติ
-                      เอกสาร/ราคาเฉพาะ/ขนาดย่อยผูกอยู่ — ต้องรักษา Historical Snapshot ไว้)
-                      แล้วสื่อสารผลจริงกลับผ่าน message ของ ActionResult — ปุ่ม
-                      เปิดใช้งาน/ปิดใช้งาน เดิมยังคงอยู่แยกต่างหาก สำหรับสลับสถานะโดยไม่ลบ */}
-                  <CancelButton
-                    action={deleteProduct.bind(null, p.id)}
-                    confirmMessage={`ยืนยันลบสินค้า "${p.name}" ? (หากมีการใช้งานในเอกสาร/ราคาเฉพาะ/ขนาดย่อยอยู่แล้ว ระบบจะปิดใช้งานแทนการลบถาวร เพื่อรักษาประวัติเอกสารเก่า)`}
-                    label="ลบ"
-                    successMessage="ลบสินค้าสำเร็จ"
-                    className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
-                  />
+                  {/* Owner UAT Fix Batch — ข้อ 1: เดิมปุ่ม "ลบ" กดแล้วบางครั้งกลายเป็นแค่
+                      ปิดใช้งานเงียบๆ ทำให้ User สับสนว่า "ลบ" แปลว่าอะไรกันแน่ — เปลี่ยนเป็น
+                      Status-based Management ชัดเจน: ปุ่ม "ปิดใช้งาน/เปิดใช้งาน" เป็นทางหลัก
+                      (ปลอดภัย ย้อนกลับได้เสมอ ไม่กระทบ Historical Reference ใดๆ) ส่วนปุ่ม
+                      "ลบถาวร" (Hard Delete จริง ย้อนกลับไม่ได้) โผล่ให้เห็น เฉพาะแถวที่ไม่มี
+                      Relation/Reference ใดๆ อ้างอิงอยู่เลย (_count รวมทุกประเภท = 0) เท่านั้น
+                      — deleteProduct ฝั่ง Server ยัง Double-check totalRefs ซ้ำเองเสมอ (กัน
+                      Race Condition ระหว่าง Render หน้ากับตอนกดปุ่มจริง) ถ้ามี Reference โผล่
+                      ขึ้นมาระหว่างนั้นจะ Fallback ไปปิดใช้งานแทนแทนที่จะลบทับข้อมูลอ้างอิง */}
+                  {(() => {
+                    const totalRefs =
+                      p._count.priceRules + p._count.orderItems + p._count.invoiceItems + p._count.quotationItems + p._count.sizeVariants;
+                    return totalRefs === 0 ? (
+                      <CancelButton
+                        action={deleteProduct.bind(null, p.id)}
+                        confirmMessage={`ยืนยันลบสินค้า "${p.name}" อย่างถาวร? การลบนี้ย้อนกลับไม่ได้ (สินค้านี้ไม่มีเอกสาร/ราคาเฉพาะ/ขนาดย่อยอ้างอิงอยู่เลย ลบได้อย่างปลอดภัย)`}
+                        label="ลบถาวร"
+                        successMessage="ลบสินค้าสำเร็จ"
+                        className="text-xs text-gray-500 hover:text-red-600 border-0 p-0 inline"
+                      />
+                    ) : null;
+                  })()}
                   <form action={toggleProductActive.bind(null, p.id)} className="inline">
                     <button className="text-xs text-gray-500 hover:text-red-600">
                       {p.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}

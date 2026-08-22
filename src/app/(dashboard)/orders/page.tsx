@@ -69,22 +69,43 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
   // ใหม่) จึงต้องคำนวณจาก Invoice ลูก Active ทุกใบ = PRINTED เหมือน deriveOrderPrintState
   // เป๊ะ — Query เบาๆ แยกต่างหาก (id + invoice.status เท่านั้น) หา Order ที่เข้าเงื่อนไข
   // ก่อน แล้วใช้ id IN [...] กรอง/แบ่งหน้าที่ระดับ DB ตามปกติ (ไม่ใช่ Paginate เองใน JS)
+  //
+  // Owner UAT Fix Batch — ข้อ 5: เพิ่ม Tab "พิมพ์บางส่วน"/"ยังไม่พิมพ์" แยกจาก "พิมพ์แล้ว"
+  // เดิม (Derived จาก Invoice ลูก Active เหมือนกันทุกประการ ไม่เพิ่ม OrderStatus Enum ใหม่)
+  // — "ยังไม่พิมพ์" หมายถึง Order ที่ Confirmed แล้วและมี Invoice ลูก Active อยู่จริง แต่ยัง
+  // ไม่มีใบไหน PRINTED เลยสักใบ (ต่างจาก deriveOrderPrintState ที่คืน null ทั้งกรณีนี้และ
+  // กรณี "ไม่มี Invoice เลย" ปนกัน เพราะ Component นั้นออกแบบมาสำหรับ "ไม่ต้องโชว์ Badge
+  // เสริม" ไม่ใช่สำหรับแยก Tab กรอง — จึงต้องแยก Logic ตรงนี้เอง ไม่แก้ Shared Function เดิม)
   const confirmedOrdersForPrintCheck = await db.order.findMany({
     where: { ...baseWhere, status: "CONFIRMED" },
     select: { id: true, invoices: { select: { status: true } } },
   });
-  const printedOrderIds = confirmedOrdersForPrintCheck
-    .filter((o) => deriveOrderPrintState(o.invoices) === "ALL_PRINTED")
-    .map((o) => o.id);
-  const printedCount = printedOrderIds.length;
+  const allPrintedIds: string[] = [];
+  const partiallyPrintedIds: string[] = [];
+  const notPrintedIds: string[] = [];
+  for (const o of confirmedOrdersForPrintCheck) {
+    const printState = deriveOrderPrintState(o.invoices);
+    if (printState === "ALL_PRINTED") allPrintedIds.push(o.id);
+    else if (printState === "PARTIALLY_PRINTED") partiallyPrintedIds.push(o.id);
+    else if (o.invoices.some((inv) => inv.status !== "CANCELLED")) notPrintedIds.push(o.id);
+  }
+  const printedCount = allPrintedIds.length;
+  const partiallyPrintedCount = partiallyPrintedIds.length;
+  const notPrintedCount = notPrintedIds.length;
+
+  const PRINT_FILTER_IDS: Record<string, string[]> = {
+    printed: allPrintedIds,
+    partially_printed: partiallyPrintedIds,
+    not_printed: notPrintedIds,
+  };
 
   const [statusGroups, totalCount, orders] = await Promise.all([
     db.order.groupBy({ by: ["status"], where: baseWhere, _count: true }),
     db.order.count({ where: baseWhere }),
     db.order.findMany({
       where:
-        status === "printed"
-          ? { ...baseWhere, id: { in: printedOrderIds } }
+        status && status in PRINT_FILTER_IDS
+          ? { ...baseWhere, id: { in: PRINT_FILTER_IDS[status] } }
           : { ...baseWhere, ...(status ? { status: status as any } : {}) },
       include: {
         customer: true,
@@ -102,17 +123,19 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
     statusGroups.map((g) => ({ status: g.status, count: g._count })),
     TAB_ORDER
   );
-  // แทรก "พิมพ์แล้ว" หลัง "ยืนยันแล้ว" (CONFIRMED) — ตามลำดับ Lifecycle จริงของเอกสาร
-  // (ร่าง → ยืนยันแล้ว → พิมพ์แล้ว → ยกเลิก)
+  // แทรก "พิมพ์แล้ว/พิมพ์บางส่วน/ยังไม่พิมพ์" หลัง "ยืนยันแล้ว" (CONFIRMED) — ตามลำดับ
+  // Lifecycle จริงของเอกสาร (ร่าง → ยืนยันแล้ว → ยังไม่พิมพ์/พิมพ์บางส่วน/พิมพ์แล้ว → ยกเลิก)
   const tabs = [
     { key: "all", label: "ทั้งหมด", count: totalCount },
     { key: "DRAFT", label: ORDER_STATUS_LABEL.DRAFT.label, count: counts.DRAFT },
     { key: "CONFIRMED", label: ORDER_STATUS_LABEL.CONFIRMED.label, count: counts.CONFIRMED },
+    { key: "not_printed", label: "ยังไม่พิมพ์", count: notPrintedCount },
+    { key: "partially_printed", label: "พิมพ์บางส่วน", count: partiallyPrintedCount },
     { key: "printed", label: "พิมพ์แล้ว", count: printedCount },
     { key: "CANCELLED", label: ORDER_STATUS_LABEL.CANCELLED.label, count: counts.CANCELLED },
   ];
 
-  const currentCount = status === "printed" ? printedCount : status ? counts[status] ?? 0 : totalCount;
+  const currentCount = status && status in PRINT_FILTER_IDS ? PRINT_FILTER_IDS[status].length : status ? counts[status] ?? 0 : totalCount;
   const totalPages = Math.max(1, Math.ceil(currentCount / PAGE_SIZE));
   const preserveParams = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo, status: searchParams.status });
   const preserveParamsNoStatus = toQueryObject({ q: searchParams.q, dateFrom: searchParams.dateFrom, dateTo: searchParams.dateTo });
@@ -227,6 +250,11 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                           <span className="text-gray-500">{displayProductTypeCode(inv.productTypeCode)}</span>
                           <span className="text-gray-700">{money(inv.grandTotal)} บาท</span>
                           <StatusBadge status={inv.status} config={INVOICE_STATUS_LABEL} />
+                          {/* Owner UAT Fix Batch — ข้อ 5: โชว์ printedAt ให้ตรวจสอบได้ว่า
+                              ใบไหน "พิมพ์แล้ว" จริงๆ เมื่อไหร่ ไม่ใช่แค่ Badge Status เฉยๆ */}
+                          <span className="text-gray-400 whitespace-nowrap">
+                            {inv.printedAt ? `พิมพ์เมื่อ ${inv.printedAt.toLocaleDateString("th-TH")}` : "ยังไม่พิมพ์"}
+                          </span>
                         </div>
                       </div>
                     ))}
