@@ -4,12 +4,13 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 
 export default async function ProductModelsPage() {
-  const [models, productTypes] = await Promise.all([
+  const [models, productTypes, categories] = await Promise.all([
     db.productModel.findMany({
       orderBy: [{ productTypeId: "asc" }, { sortOrder: "asc" }],
-      include: { productType: true, _count: { select: { products: true } } },
+      include: { productType: true, category: true, _count: { select: { products: true } } },
     }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
   return (
@@ -23,13 +24,21 @@ export default async function ProductModelsPage() {
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มรุ่นสินค้าใหม่</summary>
         <ActionForm action={createProductModel} successMessage="เพิ่มรุ่นสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
+          <SelectField label="กลุ่มส่วนลด *" name="productTypeId" required defaultValue="">
             <option value="" disabled>
-              เลือกประเภทสินค้า
+              เลือกกลุ่มส่วนลด
             </option>
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
                 {pt.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
+            <option value="">— ไม่ระบุประเภทสินค้า —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </SelectField>
@@ -45,6 +54,7 @@ export default async function ProductModelsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อรุ่น</th>
               <th className="px-4 py-2 font-medium">จำนวนรหัสสินค้า</th>
@@ -56,6 +66,9 @@ export default async function ProductModelsPage() {
             {models.map((m) => (
               <tr key={m.id} className="border-t">
                 <td className="px-4 py-2">{m.productType.name}</td>
+                <td className="px-4 py-2">
+                  {m.category ? m.category.name : <span className="text-gray-400">— ไม่ระบุ —</span>}
+                </td>
                 <td className="px-4 py-2">{m.name}</td>
                 <td className="px-4 py-2">{m._count.products} รหัสสินค้า</td>
                 <td className="px-4 py-2">
@@ -81,7 +94,7 @@ export default async function ProductModelsPage() {
             ))}
             {models.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                   ยังไม่มีรุ่นสินค้า — สินค้าที่ยังไม่ได้กำหนดรุ่นจะแสดงแยกเป็นรายการของตัวเองใน Dashboard
                 </td>
               </tr>

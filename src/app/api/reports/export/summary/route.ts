@@ -9,7 +9,7 @@ const GROUP_LABEL: Record<GroupKey, string> = {
   month: "เดือน",
   customer: "ลูกค้า",
   branch: "สาขา",
-  productType: "ประเภทสินค้า",
+  productType: "กลุ่มส่วนลด",
   sku: "สินค้า",
 };
 

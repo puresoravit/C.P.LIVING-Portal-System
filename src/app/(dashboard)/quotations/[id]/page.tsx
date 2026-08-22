@@ -132,7 +132,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             <tr>
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">รายการ</th>
-              <th className="px-4 py-2 font-medium">ประเภท</th>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               {isDraft && <th className="px-4 py-2"></th>}

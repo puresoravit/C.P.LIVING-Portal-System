@@ -81,7 +81,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
     <div className="max-w-5xl">
       <h1 className="text-lg font-semibold mb-1">ใบส่งของชั่วคราว (Invoice)</h1>
       <p className="text-sm text-gray-500 mb-4">
-        แตกอัตโนมัติจาก Order ตอน Confirm — แยกใบตามประเภทสินค้า (Type) เสมอ
+        แตกอัตโนมัติจาก Order ตอน Confirm — แยกใบตามกลุ่มส่วนลด (Type) เสมอ
       </p>
 
       <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4 items-end">
@@ -111,7 +111,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
               <th className="px-4 py-2 font-medium">เลขที่</th>
               <th className="px-4 py-2 font-medium">วันที่</th>
               <th className="px-4 py-2 font-medium">ลูกค้า</th>
-              <th className="px-4 py-2 font-medium">ประเภท</th>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">ยอดสุทธิ</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
             </tr>

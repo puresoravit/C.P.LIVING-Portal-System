@@ -14,17 +14,17 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
   return (
     <div className="max-w-xl">
       <a href="/product-types" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการประเภทสินค้า
+        ← กลับไปรายการกลุ่มส่วนลด
       </a>
-      <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขประเภทสินค้า: {productType.name}</h1>
+      <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขกลุ่มส่วนลด: {productType.name}</h1>
 
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
         className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
       >
-        <Field label="รหัสประเภท *" name="code" defaultValue={productType.code} required autoFocus />
-        <Field label="ชื่อประเภท *" name="name" defaultValue={productType.name} required />
+        <Field label="รหัสกลุ่ม *" name="code" defaultValue={productType.code} required autoFocus />
+        <Field label="ชื่อกลุ่ม *" name="name" defaultValue={productType.name} required />
         <div className="col-span-2">
           <Field label="คำอธิบาย" name="description" defaultValue={productType.description ?? ""} />
         </div>

@@ -26,9 +26,11 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   const raw = productSchema.safeParse({
     sku: formData.get("sku") || undefined,
     name: formData.get("name"),
-    // R4 — ประเภทสินค้าว่างได้ (= "ไม่ระบุประเภท") ต้องแปลง "" จาก Select เป็น
+    // R4 — กลุ่มส่วนลดว่างได้ (= "ไม่ระบุกลุ่มส่วนลด") ต้องแปลง "" จาก Select เป็น
     // undefined ก่อนเข้า Prisma ไม่งั้นจะพยายามผูก FK กับ Empty String
     productTypeId: formData.get("productTypeId") || undefined,
+    // R6 — ประเภทสินค้า (ProductCategory) ว่างได้เช่นกัน คนละ FK จาก productTypeId
+    categoryId: formData.get("categoryId") || undefined,
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
@@ -69,6 +71,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     sku: formData.get("sku") || undefined,
     name: formData.get("name"),
     productTypeId: formData.get("productTypeId") || undefined,
+    categoryId: formData.get("categoryId") || undefined,
     modelId: formData.get("modelId") || null,
     size: formData.get("size") || undefined,
     unit: formData.get("unit"),
@@ -92,7 +95,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   const before = await db.product.findUnique({ where: { id } });
   const product = await db.product.update({
     where: { id },
-    data: { ...parsed, productTypeId: parsed.productTypeId ?? null },
+    data: { ...parsed, productTypeId: parsed.productTypeId ?? null, categoryId: parsed.categoryId ?? null },
   });
 
   await db.auditLog.create({

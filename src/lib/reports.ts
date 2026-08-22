@@ -95,7 +95,7 @@ export type GroupKey = "month" | "customer" | "branch" | "productType" | "sku";
 
 export type GroupResult = { key: string; label: string; metrics: Metrics };
 
-/** ข้อ 36: Group By เดือน/ลูกค้า/สาขา/ประเภทสินค้า/SKU */
+/** ข้อ 36: Group By เดือน/ลูกค้า/สาขา/กลุ่มส่วนลด (ProductType)/SKU */
 export async function getSalesByGroup(filters: ReportFilters, groupBy: GroupKey): Promise<GroupResult[]> {
   const rows = await fetchRows(filters);
   const map = new Map<string, GroupResult>();

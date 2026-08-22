@@ -52,7 +52,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         <a href={`/orders/${invoice.order.id}`} className="text-blue-600 hover:underline font-mono">
           {invoice.order.orderNumber}
         </a>{" "}
-        · {invoice.invoiceDate.toLocaleDateString("th-TH")} · ประเภท {displayProductTypeCode(invoice.productTypeCode)}
+        · {invoice.invoiceDate.toLocaleDateString("th-TH")} · กลุ่มส่วนลด {displayProductTypeCode(invoice.productTypeCode)}
       </p>
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">

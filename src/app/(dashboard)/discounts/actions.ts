@@ -13,7 +13,7 @@ import type { ActionResult } from "@/lib/action-result";
 const discountRuleSchema = z.object({
   customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
   branchId: z.string().optional(),
-  productTypeId: z.string().min(1, "กรุณาเลือกประเภทสินค้า"),
+  productTypeId: z.string().min(1, "กรุณาเลือกกลุ่มส่วนลด"),
   discountPct: z.coerce.number().min(0).max(100, "ส่วนลดต้องอยู่ระหว่าง 0-100%"),
   effectiveFrom: z.coerce.date(),
   effectiveTo: z.string().optional(),
@@ -57,7 +57,7 @@ export async function createDiscountRule(formData: FormData): Promise<ActionResu
     dateRangesOverlap(raw.effectiveFrom, effectiveTo, r.effectiveFrom, r.effectiveTo)
   );
   if (hasOverlap) {
-    const error = "ช่วงวันที่มีผล (Effective Date) ซ้อนกับส่วนลดที่ตั้งไว้แล้วสำหรับลูกค้า/สาขา/ประเภทสินค้านี้";
+    const error = "ช่วงวันที่มีผล (Effective Date) ซ้อนกับส่วนลดที่ตั้งไว้แล้วสำหรับลูกค้า/สาขา/กลุ่มส่วนลดนี้";
     return { success: false, error, fieldErrors: { effectiveFrom: error } };
   }
 

@@ -17,7 +17,7 @@ import { getEffectivePrice, getEffectiveDiscountPct, roundMoney } from "@/lib/pr
 // เป็น plain String อยู่แล้ว ไม่ผูก ProductType) จึงปลอดภัยที่จะ normalize ตรงนี้จุดเดียว
 // แล้วให้โค้ดส่วนอื่น (groupByTypeAndApplyDiscount ฯลฯ) ไม่ต้องรู้เรื่อง null เลย
 export const UNSPECIFIED_TYPE_CODE = "GEN";
-export const UNSPECIFIED_TYPE_LABEL = "ไม่ระบุประเภท";
+export const UNSPECIFIED_TYPE_LABEL = "ไม่ระบุกลุ่มส่วนลด";
 
 // R4 — ทุกจุดที่แสดง Invoice.productTypeCode/InvoiceItem.productTypeSnapshot (String
 // ล้วนๆ ไม่ใช่ FK) ให้ User เห็น ต้องผ่านฟังก์ชันนี้เสมอ — ห้ามโชว์ "GEN" ดิบๆ ที่ไหนเลย

@@ -11,11 +11,12 @@ export async function GET() {
   }
 
   const buffer = await buildTemplateBuffer(
-    ["sku", "name", "productTypeCode", "modelName", "size", "unit", "standardPrice", "description"],
+    ["sku", "name", "productTypeCode", "productCategoryCode", "modelName", "size", "unit", "standardPrice", "description"],
     {
       sku: "M001",
       name: "ที่นอนสปริง GT-David ขนาด 5 ฟุต",
       productTypeCode: "A",
+      productCategoryCode: "MATTRESS",
       modelName: "GT-David",
       size: "5 ฟุต",
       unit: "หลัง",

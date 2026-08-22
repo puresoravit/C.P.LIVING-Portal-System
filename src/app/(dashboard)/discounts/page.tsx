@@ -25,9 +25,9 @@ export default async function DiscountsPage() {
     <div className="max-w-6xl">
       <h1 className="text-lg font-semibold mb-1">ส่วนลด (Discount Rule)</h1>
       <p className="text-sm text-gray-500 mb-4">
-        ตั้ง % ส่วนลดตามลูกค้า/สาขา × ประเภทสินค้า — คำนวณแยกจากราคาพิเศษ (Price
+        ตั้ง % ส่วนลดตามลูกค้า/สาขา × กลุ่มส่วนลด — คำนวณแยกจากราคาพิเศษ (Price
         Rule) เป็นคนละชั้น จะหักออกจากราคาตั้งต้นเสมอ ลำดับการใช้ส่วนลด:{" "}
-        <b>สาขา+ประเภท → ลูกค้า+ประเภท → 0%</b>
+        <b>สาขา+กลุ่มส่วนลด → ลูกค้า+กลุ่มส่วนลด → 0%</b>
       </p>
 
       <details className="mb-6 bg-white border rounded-lg">
@@ -51,9 +51,9 @@ export default async function DiscountsPage() {
               </option>
             ))}
           </SelectField>
-          <SelectField label="ประเภทสินค้า *" name="productTypeId" required defaultValue="">
+          <SelectField label="กลุ่มส่วนลด *" name="productTypeId" required defaultValue="">
             <option value="" disabled>
-              เลือกประเภท
+              เลือกกลุ่มส่วนลด
             </option>
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
@@ -76,7 +76,7 @@ export default async function DiscountsPage() {
             <tr>
               <th className="px-4 py-2 font-medium">ลูกค้า</th>
               <th className="px-4 py-2 font-medium">สาขา</th>
-              <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>
               <th className="px-4 py-2 font-medium">มีผลตั้งแต่</th>
               <th className="px-4 py-2 font-medium">มีผลถึง</th>

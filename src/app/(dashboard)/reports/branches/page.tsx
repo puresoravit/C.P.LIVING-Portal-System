@@ -28,7 +28,7 @@ export default async function BranchReportPage(
         ← กลับไปรายงานยอดขาย
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-1">รายงานแยกตามสาขา (Product Mix)</h1>
-      <p className="text-sm text-gray-500 mb-4">ดูสัดส่วนสินค้าแต่ละ Type ที่แต่ละสาขาซื้อ</p>
+      <p className="text-sm text-gray-500 mb-4">ดูสัดส่วนสินค้าแต่ละกลุ่มส่วนลดที่แต่ละสาขาซื้อ</p>
 
       <form className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3 mb-4">
         <div>
@@ -54,7 +54,7 @@ export default async function BranchReportPage(
             <div className="grid grid-cols-3 gap-2">
               {b.byType.map((t) => (
                 <div key={t.code} className="bg-gray-50 rounded px-3 py-2 text-xs">
-                  <div className="font-medium mb-1">{t.code === "GEN" ? "ไม่ระบุประเภท" : `TYPE ${t.code}`}</div>
+                  <div className="font-medium mb-1">{t.code === "GEN" ? "ไม่ระบุกลุ่มส่วนลด" : `TYPE ${t.code}`}</div>
                   <div>จำนวน: {t.metrics.quantity.toLocaleString("th-TH")}</div>
                   <div>Net: {money(t.metrics.net)}</div>
                 </div>

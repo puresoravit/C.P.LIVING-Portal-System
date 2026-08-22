@@ -62,7 +62,8 @@ export const NAV_TREE: NavNode[] = [
     label: "สินค้า / Product",
     items: [
       { type: "link", href: "/products", label: "รายการสินค้า", perm: "product.view" },
-      { type: "link", href: "/product-types", label: "ประเภทสินค้า", perm: "productType.view" },
+      { type: "link", href: "/product-categories", label: "ประเภทสินค้า", perm: "product.view" },
+      { type: "link", href: "/product-types", label: "กลุ่มส่วนลด", perm: "productType.view" },
       { type: "link", href: "/product-models", label: "รุ่นสินค้า", perm: "product.view" },
       { type: "link", href: "/prices", label: "ราคาเฉพาะลูกค้า / สาขา", perm: "price.view" },
       { type: "link", href: "/discounts", label: "ส่วนลดสินค้า", perm: "discount.view" },

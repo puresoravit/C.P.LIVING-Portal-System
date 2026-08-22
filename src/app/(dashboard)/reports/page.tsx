@@ -13,7 +13,7 @@ const GROUP_TABS: { key: GroupKey; label: string }[] = [
   { key: "month", label: "ตามเดือน" },
   { key: "customer", label: "ตามลูกค้า" },
   { key: "branch", label: "ตามสาขา" },
-  { key: "productType", label: "ตามประเภทสินค้า" },
+  { key: "productType", label: "ตามกลุ่มส่วนลด" },
   { key: "sku", label: "ตามสินค้า (รหัสสินค้า)" },
 ];
 
@@ -94,7 +94,7 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ประเภทสินค้า</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">กลุ่มส่วนลด</label>
           <select name="productTypeCode" defaultValue={searchParams.productTypeCode ?? ""} className="w-full border rounded px-3 py-1.5 text-sm">
             <option value="">ทั้งหมด</option>
             {productTypes.map((pt) => (

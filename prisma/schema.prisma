@@ -123,6 +123,27 @@ model ProductType {
   @@map("product_types")
 }
 
+// R6 — Product Architecture Correction: "ประเภทสินค้า" เชิงคุณลักษณะจริง (ฟูกที่นอน/
+// หมอน/อื่นๆ) แยกคนละ Concept จาก ProductType เดิม (ซึ่งใช้จริงเป็น "กลุ่มส่วนลด" ผูกกับ
+// DiscountRule/Auto-Split Invoice — เปลี่ยนแค่ Label ผู้ใช้ ไม่แตะ Schema/Relation เดิม)
+// usesSize ใช้ตัดสินที่ Document Entry (Phase B) ว่า Category นี้ต้องเลือก Size ไหม โดย
+// ไม่ต้อง Hardcode รายชื่อ Category ในโค้ด — เพิ่ม Category ใหม่ได้จากหน้า Management ตรงๆ
+model ProductCategory {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  usesSize  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+  models   ProductModel[]
+
+  @@map("product_categories")
+}
+
 // Phase B — Master สำหรับ "รุ่นสินค้า" (เช่น GT-David) ที่ครอบคลุมหลาย SKU/Size
 // ของ Product เดียวกัน ใช้สำหรับ Group ยอดขายใน Dashboard/Report ระดับ Model แทนการ
 // แยกราย SKU — ตั้งใจแยกเป็นตารางจริง (ไม่ใช่ free-text field บน Product) เพื่อกัน
@@ -132,6 +153,9 @@ model ProductModel {
   id            String      @id @default(cuid())
   productTypeId String
   productType   ProductType @relation(fields: [productTypeId], references: [id])
+  // R6 — nullable: จัดหมวดได้ทีหลัง ไม่บังคับตอน Migrate (ข้อมูลเดิมทั้งหมด categoryId = null)
+  categoryId    String?
+  category      ProductCategory? @relation(fields: [categoryId], references: [id])
   name          String      // เช่น "GT-David"
   active        Boolean     @default(true)
   sortOrder     Int         @default(0)
@@ -155,6 +179,10 @@ model Product {
   // DiscountRule.productTypeId เพราะทั้งคู่ยังต้องผูก Type เสมอตาม Design เดิม
   productTypeId  String?
   productType    ProductType?  @relation(fields: [productTypeId], references: [id])
+  // R6 — Product Category เชิงคุณลักษณะ (ฟูกที่นอน/หมอน/อื่นๆ) แยกจาก productTypeId
+  // (กลุ่มส่วนลด) โดยสิ้นเชิง — nullable เพราะสินค้าเดิมทั้งหมดยังไม่ได้จัดหมวด
+  categoryId     String?
+  category       ProductCategory? @relation(fields: [categoryId], references: [id])
   modelId        String?       // Phase B — nullable ถาวร: Product ที่ยังไม่ได้ assign
                                 // Model (หรือไม่มี Model ที่มีความหมาย เช่นสินค้าตัวเดียว
                                 // ไม่มี Size variant) ยังใช้งาน/ขายได้ปกติทุกอย่าง — ห้าม

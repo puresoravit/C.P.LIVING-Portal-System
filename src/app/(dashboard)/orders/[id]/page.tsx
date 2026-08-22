@@ -126,7 +126,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             <tr>
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">รายการ</th>
-              <th className="px-4 py-2 font-medium">ประเภท</th>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               {isDraft && <th className="px-4 py-2"></th>}
@@ -167,7 +167,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       {preview && (
         <div className="bg-white border rounded-lg p-4 mb-4">
           <h2 className="font-medium text-sm mb-3">
-            สรุปแยกตามประเภทสินค้า (Preview) — จะแตกเป็น Invoice แยกใบตามนี้
+            สรุปแยกตามกลุ่มส่วนลด (Preview) — จะแตกเป็น Invoice แยกใบตามนี้
           </h2>
           <div className="space-y-3">
             {preview.groups.map((g) => (
@@ -218,7 +218,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         {isDraft && (
           <ActionButton
             action={confirmAction}
-            label="✓ Confirm ออเดอร์ (สร้างบิลแยกตามประเภท)"
+            label="✓ Confirm ออเดอร์ (สร้างบิลแยกตามกลุ่มส่วนลด)"
             pendingLabel="กำลัง Confirm..."
             successMessage="Confirm ออเดอร์สำเร็จ — สร้าง Invoice เรียบร้อย"
             disabled={order.items.length === 0}

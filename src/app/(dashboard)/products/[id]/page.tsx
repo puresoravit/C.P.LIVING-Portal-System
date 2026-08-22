@@ -7,9 +7,10 @@ import { Field, SelectField } from "@/components/form/fields";
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, productTypes, productModels] = await Promise.all([
+  const [product, productTypes, categories, productModels] = await Promise.all([
     db.product.findUnique({ where: { id: params.id } }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
   ]);
   if (!product) notFound();
@@ -39,11 +40,19 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         <div className="col-span-2">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>
-        <SelectField label="ประเภทสินค้า" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
-          <option value="">— ไม่ระบุประเภท —</option>
+        <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
+          <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
           {productTypes.map((pt) => (
             <option key={pt.id} value={pt.id}>
               {pt.name}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue={product.categoryId ?? ""}>
+          <option value="">— ไม่ระบุประเภทสินค้า —</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
             </option>
           ))}
         </SelectField>

@@ -58,9 +58,9 @@ export async function validateDiscountImport(rows: any[]) {
       branchId = branch.id;
     }
 
-    if (!productTypeCode) return { row: rowNum, valid: false, error: "ไม่มีรหัสประเภทสินค้า (productTypeCode)" };
+    if (!productTypeCode) return { row: rowNum, valid: false, error: "ไม่มีรหัสกลุ่มส่วนลด (productTypeCode)" };
     const productTypeId = typeByCode.get(productTypeCode);
-    if (!productTypeId) return { row: rowNum, valid: false, error: `ไม่พบประเภทสินค้ารหัส "${productTypeCode}"` };
+    if (!productTypeId) return { row: rowNum, valid: false, error: `ไม่พบกลุ่มส่วนลดรหัส "${productTypeCode}"` };
 
     if (isNaN(discountPct) || discountPct < 0 || discountPct > 100) return { row: rowNum, valid: false, error: `ส่วนลด "${raw.discountPct}" ไม่ถูกต้อง (ต้อง 0-100)` };
     if (!effectiveFrom) return { row: rowNum, valid: false, error: `วันที่มีผล "${raw.effectiveFrom}" ไม่ถูกต้อง` };

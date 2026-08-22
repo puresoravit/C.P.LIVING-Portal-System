@@ -36,7 +36,7 @@ export async function createProductType(formData: FormData): Promise<ActionResul
 
   const existing = await db.productType.findUnique({ where: { code: parsed.code } });
   if (existing) {
-    const error = `รหัสประเภทสินค้า "${parsed.code}" มีอยู่แล้ว`;
+    const error = `รหัสกลุ่มส่วนลด "${parsed.code}" มีอยู่แล้ว`;
     return { success: false, error, fieldErrors: { code: error } };
   }
 
@@ -67,7 +67,7 @@ export async function updateProductType(id: string, formData: FormData): Promise
 
   const existing = await db.productType.findUnique({ where: { code: parsed.code } });
   if (existing && existing.id !== id) {
-    const error = `รหัสประเภทสินค้า "${parsed.code}" มีอยู่แล้ว`;
+    const error = `รหัสกลุ่มส่วนลด "${parsed.code}" มีอยู่แล้ว`;
     return { success: false, error, fieldErrors: { code: error } };
   }
 

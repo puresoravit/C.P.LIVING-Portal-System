@@ -65,7 +65,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
           <tr className="border-b">
             <th className="text-left py-1 font-mono w-16">รหัส</th>
             <th className="text-left py-1">รายการ</th>
-            <th className="text-left py-1">ประเภท</th>
+            <th className="text-left py-1">กลุ่มส่วนลด</th>
             <th className="text-left py-1">ขนาด</th>
             <th className="text-right py-1">จำนวน</th>
           </tr>
@@ -102,7 +102,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
               </div>
             ))}
             <div className="flex justify-between font-medium pt-1.5 border-t">
-              <span>รวมสุทธิ (จะแยกเป็น {preview.groups.length} บิลตามประเภทสินค้า)</span>
+              <span>รวมสุทธิ (จะแยกเป็น {preview.groups.length} บิลตามกลุ่มส่วนลด)</span>
               <span>{money(preview.grandNet)} บาท</span>
             </div>
           </div>

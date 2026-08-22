@@ -11,17 +11,17 @@ export default async function ProductTypesPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-lg font-semibold mb-1">ประเภทสินค้า</h1>
+      <h1 className="text-lg font-semibold mb-1">กลุ่มส่วนลด</h1>
       <p className="text-sm text-gray-500 mb-4">
-        ระบบใช้ประเภทสินค้าเหล่านี้แยกบิลอัตโนมัติตอน Confirm Order — เพิ่มประเภทใหม่ได้เองที่นี่
-        โดยไม่ต้องแก้โปรแกรม
+        ระบบใช้กลุ่มส่วนลดเหล่านี้แยกบิลอัตโนมัติตอน Confirm Order และคำนวณส่วนลดตาม
+        ลูกค้า/สาขา — เพิ่มกลุ่มใหม่ได้เองที่นี่ โดยไม่ต้องแก้โปรแกรม
       </p>
 
       <details className="mb-6 bg-white border rounded-lg">
-        <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มประเภทสินค้าใหม่</summary>
-        <ActionForm action={createProductType} successMessage="เพิ่มประเภทสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <Field label="รหัสประเภท * (เช่น D)" name="code" required />
-          <Field label="ชื่อประเภท * (เช่น TYPE D)" name="name" required />
+        <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มกลุ่มส่วนลดใหม่</summary>
+        <ActionForm action={createProductType} successMessage="เพิ่มกลุ่มส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+          <Field label="รหัสกลุ่ม * (เช่น D)" name="code" required />
+          <Field label="ชื่อกลุ่ม * (เช่น TYPE D)" name="name" required />
           <div className="col-span-2">
             <Field label="คำอธิบาย" name="description" />
           </div>

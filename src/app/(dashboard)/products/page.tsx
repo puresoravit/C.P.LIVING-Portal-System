@@ -10,7 +10,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
   const q = searchParams.q?.trim();
   const unassignedOnly = searchParams.unassigned === "1";
 
-  const [products, productTypes, productModels] = await Promise.all([
+  const [products, productTypes, categories, productModels] = await Promise.all([
     db.product.findMany({
       where: {
         ...(q
@@ -18,10 +18,11 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           : {}),
         ...(unassignedOnly ? { modelId: null } : {}),
       },
-      include: { productType: true, model: true },
+      include: { productType: true, category: true, model: true },
       orderBy: { createdAt: "desc" },
     }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
@@ -43,11 +44,19 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <div className="col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
-          <SelectField label="ประเภทสินค้า" name="productTypeId" defaultValue="">
-            <option value="">— ไม่ระบุประเภท —</option>
+          <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
+            <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
                 {pt.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
+            <option value="">— ไม่ระบุประเภทสินค้า —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </SelectField>
@@ -117,7 +126,8 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               {unassignedOnly && <th className="px-4 py-2 w-8"></th>}
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
-              <th className="px-4 py-2 font-medium">ประเภท</th>
+              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
+              <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">รุ่นสินค้า</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2 font-medium text-right">ราคาตั้งต้น</th>
@@ -136,7 +146,10 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 <td className="px-4 py-2 font-mono">{p.sku}</td>
                 <td className="px-4 py-2">{p.name}</td>
                 <td className="px-4 py-2">
-                  {p.productType ? p.productType.name : <span className="text-gray-400">ไม่ระบุประเภท</span>}
+                  {p.productType ? p.productType.name : <span className="text-gray-400">ไม่ระบุกลุ่มส่วนลด</span>}
+                </td>
+                <td className="px-4 py-2">
+                  {p.category ? p.category.name : <span className="text-gray-400">— ไม่ระบุ —</span>}
                 </td>
                 <td className="px-4 py-2">
                   {p.model ? p.model.name : <span className="text-gray-400">— ยังไม่ระบุ —</span>}
@@ -168,7 +181,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan={unassignedOnly ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={unassignedOnly ? 10 : 9} className="px-4 py-8 text-center text-gray-400">
                   ไม่พบสินค้า
                 </td>
               </tr>

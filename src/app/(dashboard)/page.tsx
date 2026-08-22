@@ -44,7 +44,7 @@ export default async function HomePage(
         <div className="grid grid-cols-2 gap-3">
           <a href="/orders/new" className="bg-white border rounded-lg p-4 hover:bg-gray-50">
             <div className="font-medium text-sm mb-1">+ สร้างออเดอร์ใหม่</div>
-            <div className="text-xs text-gray-500">คีย์รายการขาย แยกบิลอัตโนมัติตามประเภทสินค้า</div>
+            <div className="text-xs text-gray-500">คีย์รายการขาย แยกบิลอัตโนมัติตามกลุ่มส่วนลด</div>
           </a>
           <a href="/orders" className="bg-white border rounded-lg p-4 hover:bg-gray-50">
             <div className="font-medium text-sm mb-1">ดูออเดอร์ทั้งหมด</div>
@@ -125,7 +125,7 @@ export default async function HomePage(
         ))}
         {byType.length === 0 && (
           <div className="col-span-full bg-white border rounded-lg p-4 text-center text-gray-400 text-sm">
-            ยังไม่มีประเภทสินค้าที่เปิดใช้งาน
+            ยังไม่มีกลุ่มส่วนลดที่เปิดใช้งาน
           </div>
         )}
       </div>

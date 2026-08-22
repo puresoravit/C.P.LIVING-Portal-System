@@ -28,6 +28,7 @@ export async function createProductModel(formData: FormData): Promise<ActionResu
 
   const raw = productModelSchema.safeParse({
     productTypeId: formData.get("productTypeId"),
+    categoryId: formData.get("categoryId") || undefined,
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
@@ -40,7 +41,7 @@ export async function createProductModel(formData: FormData): Promise<ActionResu
     where: { productTypeId: parsed.productTypeId, name: parsed.name },
   });
   if (existing) {
-    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในประเภทสินค้านี้`;
+    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในกลุ่มส่วนลดนี้`;
     return { success: false, error, fieldErrors: { name: error } };
   }
 
@@ -61,6 +62,7 @@ export async function updateProductModel(id: string, formData: FormData): Promis
 
   const raw = productModelSchema.safeParse({
     productTypeId: formData.get("productTypeId"),
+    categoryId: formData.get("categoryId") || undefined,
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
@@ -73,12 +75,15 @@ export async function updateProductModel(id: string, formData: FormData): Promis
     where: { productTypeId: parsed.productTypeId, name: parsed.name },
   });
   if (existing && existing.id !== id) {
-    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในประเภทสินค้านี้`;
+    const error = `รุ่นสินค้า "${parsed.name}" มีอยู่แล้วในกลุ่มส่วนลดนี้`;
     return { success: false, error, fieldErrors: { name: error } };
   }
 
   const before = await db.productModel.findUnique({ where: { id } });
-  const model = await db.productModel.update({ where: { id }, data: parsed });
+  const model = await db.productModel.update({
+    where: { id },
+    data: { ...parsed, categoryId: parsed.categoryId ?? null },
+  });
 
   await db.auditLog.create({
     data: {
@@ -135,14 +140,14 @@ export async function bulkAssignProductModel(formData: FormData): Promise<Action
   }
 
   const model = await db.productModel.findUniqueOrThrow({ where: { id: modelId } });
-  // ProductModel ผูกกับ ProductType เดียว — ห้ามให้ Product ต่างประเภทสินค้ากันมาอยู่
-  // Model เดียวกัน (ไม่มี constraint ระดับ DB บังคับเรื่องนี้ ต้องเช็คที่นี่)
+  // ProductModel ผูกกับ ProductType (กลุ่มส่วนลด) เดียว — ห้ามให้ Product คนละกลุ่มส่วนลด
+  // มาอยู่ Model เดียวกัน (ไม่มี constraint ระดับ DB บังคับเรื่องนี้ ต้องเช็คที่นี่)
   const mismatched = await db.product.findMany({
     where: { id: { in: productIds }, productTypeId: { not: model.productTypeId } },
     select: { sku: true },
   });
   if (mismatched.length > 0) {
-    const error = `สินค้า ${mismatched.map((p) => p.sku).join(", ")} คนละประเภทสินค้ากับรุ่น "${model.name}" — กำหนดรุ่นไม่ได้`;
+    const error = `สินค้า ${mismatched.map((p) => p.sku).join(", ")} คนละกลุ่มส่วนลดกับรุ่น "${model.name}" — กำหนดรุ่นไม่ได้`;
     return { success: false, error, fieldErrors: { modelId: error } };
   }
 
