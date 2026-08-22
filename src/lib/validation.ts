@@ -59,9 +59,13 @@ export const productSchema = z.object({
 // Phase B — Master รุ่นสินค้า (ProductModel) ผูกกับ ProductType (กลุ่มส่วนลด) เดียว
 // R6 — เพิ่ม categoryId (ประเภทสินค้า) ไม่บังคับ — ใช้ที่ Document Entry (Phase B)
 // ตัดสินว่าต้องเลือก Size ไหม (ผ่าน ProductCategory.usesSize)
+// R6 Phase B — pricePerFoot/variantUnit ไม่บังคับที่ระดับ Schema (บังคับกันเองใน Action
+// เฉพาะตอน Category usesSize=true และกรอก pricePerFoot มา — ดู product-models/actions.ts)
 export const productModelSchema = z.object({
   productTypeId: z.string().min(1, "กรุณาเลือกกลุ่มส่วนลด"),
   categoryId: z.string().optional(),
   name: z.string().min(1, "กรุณากรอกชื่อรุ่นสินค้า"),
   sortOrder: z.coerce.number().default(0),
+  pricePerFoot: z.coerce.number().min(0, "ราคาต่อฟุตต้องไม่ติดลบ").optional(),
+  variantUnit: z.string().optional(),
 });

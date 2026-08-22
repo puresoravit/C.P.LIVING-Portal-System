@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProductModel, batchCreateProductVariants } from "../actions";
+import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { BatchSizeForm } from "@/components/batch-size-form";
@@ -32,6 +33,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขรุ่นสินค้า: {model.name}</h1>
 
       <ActionForm
+        id="editProductModelForm"
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
         className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
@@ -59,6 +61,15 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
           <Field label="ชื่อรุ่นสินค้า *" name="name" defaultValue={model.name} required autoFocus />
         </div>
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(model.sortOrder)} />
+        <div className="col-span-2 pricePerFootFields hidden bg-blue-50 border border-blue-200 rounded-lg p-3 grid grid-cols-2 gap-3">
+          <div className="col-span-2 text-xs text-blue-800">
+            ประเภทสินค้านี้มีขนาด (Size) — แก้ราคาต่อฟุตแล้วบันทึก ระบบจะสร้าง Standard Variant
+            ที่ยังไม่มี และ<b>อัปเดตราคา Standard Variant ที่มีอยู่แล้วให้ตรงราคาต่อฟุตใหม่ทันที</b>{" "}
+            (ไม่แตะ PriceRule เฉพาะลูกค้า/สาขา และไม่กระทบเอกสารที่ Confirm ไปแล้ว)
+          </div>
+          <Field label="ราคาต่อฟุต (บาท)" name="pricePerFoot" type="number" defaultValue={model.pricePerFoot != null ? String(model.pricePerFoot) : ""} />
+          <Field label="หน่วยนับของ Variant (เช่น หลัง)" name="variantUnit" defaultValue={variants[0]?.unit ?? ""} />
+        </div>
         <div className="col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/product-models" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
@@ -107,6 +118,23 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
         <h3 className="font-medium text-xs text-gray-600 mb-2">เพิ่มไซส์ใหม่</h3>
         <BatchSizeForm modelId={model.id} existingSizes={existingSizes} defaultUnit={commonUnit} action={batchSizeAction} />
       </div>
+
+      {/* R6 Phase B — โชว์/ซ่อนช่องราคาต่อฟุตตาม Category ที่เลือก (usesSize) */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            const categoriesUsesSize = ${safeJsonForScript(Object.fromEntries(categories.map((c) => [c.id, c.usesSize])))};
+            const categorySelect = document.querySelector('#editProductModelForm select[name="categoryId"]');
+            const pricePerFootFields = document.querySelector('#editProductModelForm .pricePerFootFields');
+            function updatePricePerFootVisibility() {
+              const usesSize = categoriesUsesSize[categorySelect.value] === true;
+              pricePerFootFields.classList.toggle('hidden', !usesSize);
+            }
+            categorySelect.addEventListener('change', updatePricePerFootVisibility);
+            updatePricePerFootVisibility();
+          `,
+        }}
+      />
     </div>
   );
 }

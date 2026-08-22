@@ -91,6 +91,8 @@ const addItemSchema = z.object({
   productId: z.string().min(1, "กรุณาเลือกสินค้า"),
   quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
   descriptionOverride: z.string().optional(),
+  sizeOverride: z.string().optional(),
+  unitPriceOverride: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ").optional(),
 });
 
 export async function addQuotationItem(quotationId: string, formData: FormData): Promise<ActionResult> {
@@ -106,6 +108,8 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
+    sizeOverride: formData.get("sizeOverride") || undefined,
+    unitPriceOverride: formData.get("unitPriceOverride") || undefined,
   });
   if (!rawParse.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
@@ -113,7 +117,14 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
   const parsed = rawParse.data;
 
   await db.quotationItem.create({
-    data: { quotationId, productId: parsed.productId, quantity: parsed.quantity, descriptionOverride: parsed.descriptionOverride },
+    data: {
+      quotationId,
+      productId: parsed.productId,
+      quantity: parsed.quantity,
+      descriptionOverride: parsed.descriptionOverride,
+      sizeOverride: parsed.sizeOverride,
+      unitPriceOverride: parsed.unitPriceOverride,
+    },
   });
 
   revalidatePath(`/quotations/${quotationId}`);
@@ -175,7 +186,13 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
   }
 
   const calc = await computeQuotationCalc(
-    quotation.items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
+    quotation.items.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      descriptionOverride: i.descriptionOverride,
+      sizeOverride: i.sizeOverride,
+      unitPriceOverride: i.unitPriceOverride,
+    })),
     {
       customerId: quotation.customerId,
       branchId: quotation.branchId,
@@ -262,6 +279,8 @@ const editItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   descriptionOverride: z.string().optional(),
+  sizeOverride: z.string().optional(),
+  unitPriceOverride: z.coerce.number().min(0).optional(),
 });
 const editItemsSchema = z.array(editItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการสินค้า");
 
@@ -300,7 +319,13 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
   };
 
   const calc = await computeQuotationCalc(
-    parsedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
+    parsedItems.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      descriptionOverride: i.descriptionOverride,
+      sizeOverride: i.sizeOverride,
+      unitPriceOverride: i.unitPriceOverride,
+    })),
     { customerId: quotation.customerId, branchId: quotation.branchId, quotationDate: quotation.quotationDate, vatMode, applyDiscount }
   );
 

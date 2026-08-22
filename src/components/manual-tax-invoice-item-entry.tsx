@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { ProductSearchPicker, type PickedProduct } from "@/components/product-search-picker";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
 import { getSuggestedTaxInvoiceItem } from "@/app/(dashboard)/tax-invoices/actions";
 import { useToast } from "@/components/toast/toast-provider";
 
@@ -54,6 +54,24 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
     });
   }
 
+  // R6 Phase B — เลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา
+  // หรือ "ขนาดพิเศษ/ระบุเอง") — TaxInvoiceItem ไม่มี productId ผูกอยู่แล้ว (Free-text
+  // Snapshot ตามเดิม) จึงไม่ต้องบล็อกเหมือน Order/Quotation แค่เติมชื่อ/ขนาดให้ ราคาต้อง
+  // กรอกเอง (ห้ามระบบเดาราคาตามที่อนุมัติ)
+  function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
+    if (!info) return;
+    setDraft((prev) => ({
+      ...prev,
+      description: info.modelName,
+      size: info.custom ? "" : info.size,
+      unit: info.unit || prev.unit,
+      unitPrice: 0,
+    }));
+    if (!info.custom) {
+      showError("ไซส์นี้ยังไม่มีในระบบ — กรอกราคาเอง");
+    }
+  }
+
   function addItem() {
     if (!draft.description.trim()) {
       setErr("กรอกรายการก่อน");
@@ -83,7 +101,12 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
             <label className="block text-xs font-medium text-gray-600 mb-1">
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการ/ราคาอัตโนมัติ
             </label>
-            <ProductSearchPicker onPick={handlePick} placeholder="ค้นหาสินค้า/รุ่น..." resetToken={pickerResetToken} />
+            <ProductSearchPicker
+              onPick={handlePick}
+              onUnresolvedSize={handleUnresolvedSize}
+              placeholder="ค้นหาสินค้า/รุ่น..."
+              resetToken={pickerResetToken}
+            />
           </div>
           <div className="col-span-3">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>

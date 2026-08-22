@@ -9,6 +9,8 @@ import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
+import { syncStandardVariants } from "@/lib/product-variant-size";
+import { Decimal } from "@prisma/client/runtime/library";
 import { z } from "zod";
 
 async function requireUser() {
@@ -20,18 +22,47 @@ async function requireUser() {
   };
 }
 
-// Phase B — CRUD สำหรับ ProductModel (รุ่นสินค้า) ใช้ permission product.view/
-// product.edit เดิม ตามที่อนุมัติ ไม่เพิ่ม Permission Key ใหม่
-export async function createProductModel(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
-
-  const raw = productModelSchema.safeParse({
+function parseProductModelForm(formData: FormData) {
+  return productModelSchema.safeParse({
     productTypeId: formData.get("productTypeId"),
     categoryId: formData.get("categoryId") || undefined,
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
+    pricePerFoot: formData.get("pricePerFoot") || undefined,
+    variantUnit: formData.get("variantUnit") || undefined,
   });
+}
+
+// R6 Phase B — ตรวจว่ากรอก pricePerFoot มาถูกต้องหรือไม่ (ต้องมี Category usesSize=true
+// และกรอกหน่วยนับมาด้วยเสมอ ถ้ากรอก pricePerFoot) คืน error ถ้าไม่ผ่าน — Pure Validation
+// ไม่แตะ DB เพิ่ม (categoryUsesSize ถูก Query มาจาก Caller แล้ว)
+function validatePricePerFootInput(
+  pricePerFoot: number | undefined,
+  variantUnit: string | undefined,
+  categoryUsesSize: boolean
+): { error: string; fieldErrors: Record<string, string> } | null {
+  if (pricePerFoot === undefined) return null;
+  if (!categoryUsesSize) {
+    const error = "กำหนดราคาต่อฟุตได้เฉพาะรุ่นที่ประเภทสินค้าเป็นแบบมีขนาด (usesSize) เท่านั้น";
+    return { error, fieldErrors: { pricePerFoot: error } };
+  }
+  if (!variantUnit || !variantUnit.trim()) {
+    const error = "กรุณากรอกหน่วยนับสำหรับ Standard Variant ที่จะสร้าง/อัปเดตราคาอัตโนมัติ";
+    return { error, fieldErrors: { variantUnit: error } };
+  }
+  return null;
+}
+
+// Phase B — CRUD สำหรับ ProductModel (รุ่นสินค้า) ใช้ permission product.view/
+// product.edit เดิม ตามที่อนุมัติ ไม่เพิ่ม Permission Key ใหม่
+// R6 Phase B — pricePerFoot: ถ้ากรอกมา (Category usesSize=true) จะ Sync Standard Variant
+// (3/3.5/4/5/6 ฟุต) ให้อัตโนมัติภายใน Transaction เดียวกับการสร้าง Model — Auto SKU เดิม
+// ไม่แตะ PriceRule/DiscountRule/Historical Snapshot ใดๆ
+export async function createProductModel(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+
+  const raw = parseProductModelForm(formData);
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
   }
@@ -45,7 +76,36 @@ export async function createProductModel(formData: FormData): Promise<ActionResu
     return { success: false, error, fieldErrors: { name: error } };
   }
 
-  const model = await db.productModel.create({ data: parsed });
+  const category = parsed.categoryId ? await db.productCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
+  const validationError = validatePricePerFootInput(parsed.pricePerFoot, parsed.variantUnit, category?.usesSize ?? false);
+  if (validationError) {
+    return { success: false, ...validationError };
+  }
+
+  const model = await db.$transaction(async (tx) => {
+    const created = await tx.productModel.create({
+      data: {
+        productTypeId: parsed.productTypeId,
+        categoryId: parsed.categoryId || null,
+        name: parsed.name,
+        sortOrder: parsed.sortOrder,
+        pricePerFoot: parsed.pricePerFoot ?? null,
+      },
+    });
+    if (parsed.pricePerFoot !== undefined) {
+      await syncStandardVariants(
+        {
+          modelId: created.id,
+          productTypeId: parsed.productTypeId,
+          categoryId: parsed.categoryId || null,
+          pricePerFoot: new Decimal(parsed.pricePerFoot),
+          unit: parsed.variantUnit!.trim(),
+        },
+        tx
+      );
+    }
+    return created;
+  });
 
   await db.auditLog.create({
     data: { userId: user.id, action: "CREATE", module: "ProductModel", recordId: model.id, newValue: parsed },
@@ -60,12 +120,7 @@ export async function updateProductModel(id: string, formData: FormData): Promis
   const user = await requireUser();
   if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
 
-  const raw = productModelSchema.safeParse({
-    productTypeId: formData.get("productTypeId"),
-    categoryId: formData.get("categoryId") || undefined,
-    name: formData.get("name"),
-    sortOrder: formData.get("sortOrder") || 0,
-  });
+  const raw = parseProductModelForm(formData);
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
   }
@@ -79,10 +134,40 @@ export async function updateProductModel(id: string, formData: FormData): Promis
     return { success: false, error, fieldErrors: { name: error } };
   }
 
+  const category = parsed.categoryId ? await db.productCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
+  const validationError = validatePricePerFootInput(parsed.pricePerFoot, parsed.variantUnit, category?.usesSize ?? false);
+  if (validationError) {
+    return { success: false, ...validationError };
+  }
+
   const before = await db.productModel.findUnique({ where: { id } });
-  const model = await db.productModel.update({
-    where: { id },
-    data: { ...parsed, categoryId: parsed.categoryId ?? null },
+  const model = await db.$transaction(async (tx) => {
+    const updated = await tx.productModel.update({
+      where: { id },
+      data: {
+        productTypeId: parsed.productTypeId,
+        categoryId: parsed.categoryId ?? null,
+        name: parsed.name,
+        sortOrder: parsed.sortOrder,
+        pricePerFoot: parsed.pricePerFoot ?? null,
+      },
+    });
+    // R6 Phase B — Recalculate เฉพาะตอนกรอก pricePerFoot มาจริง (ขอบเขต (ข) ที่อนุมัติ:
+    // แตะเฉพาะ Standard Variant ของ Model นี้ ไม่แตะ PriceRule/DiscountRule/Historical
+    // Snapshot ใดๆ) — ถ้าลบ pricePerFoot ออก (เว้นว่าง) จะไม่ลบ/ปรับราคา Variant เดิมเลย
+    if (parsed.pricePerFoot !== undefined) {
+      await syncStandardVariants(
+        {
+          modelId: updated.id,
+          productTypeId: parsed.productTypeId,
+          categoryId: parsed.categoryId || null,
+          pricePerFoot: new Decimal(parsed.pricePerFoot),
+          unit: parsed.variantUnit!.trim(),
+        },
+        tx
+      );
+    }
+    return updated;
   });
 
   await db.auditLog.create({
@@ -218,6 +303,7 @@ export async function batchCreateProductVariants(modelId: string, formData: Form
         sku,
         name: displayName,
         productTypeId: model.productTypeId,
+        categoryId: model.categoryId,
         modelId,
         size: sizeValue,
         unit,

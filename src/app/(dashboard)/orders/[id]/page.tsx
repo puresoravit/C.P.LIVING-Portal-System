@@ -41,6 +41,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "order.create")) redirect("/");
+  // R6 Phase B — คุมว่าจะโชว์ลิงก์ไปหน้ารุ่นสินค้าตอนเลือกไซส์ที่ยังไม่มี Product จริงไหม
+  const canManageProducts = can((session?.user as any)?.role, "product.edit");
 
   const order = await db.order.findUnique({
     where: { id: params.id },
@@ -75,6 +77,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
+    sizeOverride: item.sizeOverride ?? "",
+    unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
   }));
 
   return (
@@ -115,7 +119,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </ActionForm>
           </div>
           <div className="mb-4">
-            <OrderItemEntryForm key={order.items.length} addAction={addItemAction} />
+            <OrderItemEntryForm key={order.items.length} addAction={addItemAction} canManageProducts={canManageProducts} />
           </div>
         </>
       )}
@@ -241,6 +245,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             activeInvoiceCount={activeInvoiceCount}
             initialApplyDiscount={order.applyDiscount}
             action={editAction}
+            canManageProducts={canManageProducts}
           />
         )}
       </div>

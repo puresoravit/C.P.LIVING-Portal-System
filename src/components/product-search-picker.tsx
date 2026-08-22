@@ -13,24 +13,65 @@ import { useState, useEffect } from "react";
 // ที่ปรากฏขึ้นข้างๆ ช่องค้นหา หลังเลือก Model แล้ว" ตามที่อนุมัติ — ยังคง Resolve ไปหา
 // Product Variant จริงเบื้องหลังทุกประการ ไม่มี Pricing Path ใหม่ ไม่มี Query ใหม่
 // (Model Result จาก /api/products/search เดิมมี sizes[] มาให้ครบอยู่แล้วตั้งแต่ R4)
+//
+// R6 Phase B — Size ที่เลือกได้ตอนนี้อาจเป็น "ยังไม่มี Product จริง" ได้ 2 กรณี: (1)
+// Standard Size ที่ยังไม่ได้ตั้ง pricePerFoot (Edge Case หายาก) (2) "ขนาดพิเศษ/ระบุเอง"
+// ที่ตั้งใจไม่มี Product ตายตัว — ทั้งคู่ยิง onUnresolvedSize แทน onPick ให้ Parent
+// ตัดสินใจเอง (Order/Quotation ต้องมี productId Anchor จริงเสมอ, Tax Invoice ไม่ต้องมี
+// เพราะ Schema เป็น Free-text Snapshot อยู่แล้ว) — ตัว Picker เองไม่รู้ Business Rule
+// ปลายทาง แค่ส่งข้อมูลที่ Resolve ได้เท่าที่ทำได้ไปให้ ไม่มีการคำนวณราคาใดๆ ในนี้เลย
 export type PickedProduct = { id: string; sku: string; name: string; unit: string; productTypeName: string };
 
-type ModelSizeOption = { productId: string; sku: string; unit: string; size: string | null; label: string };
-type ModelResult = { modelId: string; modelName: string; productTypeName: string; sizes: ModelSizeOption[] };
+export type UnresolvedSizeInfo = {
+  modelId: string;
+  modelName: string;
+  productTypeName: string;
+  unit: string;
+  size: string; // Label แนะนำเริ่มต้น (Standard Size ที่ยังไม่มี Variant) หรือ "" (ขนาดพิเศษ)
+  custom: boolean;
+  anchorProductId: string | null; // Product จริงตัวใดตัวหนึ่งของ Model นี้ (ถ้ามี) ไว้ผูก FK เมื่อต้องการ Override ราคา/ขนาด
+};
+
+type ModelSizeOption = {
+  productId: string | null;
+  sku: string | null;
+  unit: string;
+  size: string;
+  label: string;
+  resolved: boolean;
+  custom: boolean;
+};
+type ModelResult = { modelId: string; modelName: string; productTypeName: string; usesSize: boolean; sizes: ModelSizeOption[] };
 type ProductResult = { id: string; sku: string; name: string; unit: string; productTypeName: string };
 
 function sizeOptionToPicked(model: ModelResult, s: ModelSizeOption): PickedProduct {
   const name = s.size ? `${model.modelName} ${s.size}` : model.modelName;
-  return { id: s.productId, sku: s.sku, name, unit: s.unit, productTypeName: model.productTypeName };
+  return { id: s.productId!, sku: s.sku!, name, unit: s.unit, productTypeName: model.productTypeName };
+}
+
+function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): UnresolvedSizeInfo {
+  const anchor = model.sizes.find((x) => x.resolved)?.productId ?? null;
+  return {
+    modelId: model.modelId,
+    modelName: model.modelName,
+    productTypeName: model.productTypeName,
+    unit: s.unit,
+    size: s.custom ? "" : s.label,
+    custom: s.custom,
+    anchorProductId: anchor,
+  };
 }
 
 export function ProductSearchPicker({
   onPick,
+  onUnresolvedSize,
   autoFocus,
   placeholder = "เช่น GT-David หรือ M001",
   resetToken,
 }: {
   onPick: (p: PickedProduct) => void;
+  /** R6 Phase B — เรียกเมื่อเลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา หรือขนาดพิเศษ) — ไม่ implement = พฤติกรรมเดิม (ตัวเลือกนั้นจะเลือกไม่ได้จริง เพราะไม่มี onPick ให้เรียก) */
+  onUnresolvedSize?: (info: UnresolvedSizeInfo | null) => void;
   autoFocus?: boolean;
   placeholder?: string;
   /** เปลี่ยนค่านี้ (เช่น ++ ทุกครั้งที่ Parent Add สำเร็จ) เพื่อล้าง Search/Selection ภายใน */
@@ -43,7 +84,7 @@ export function ProductSearchPicker({
   // Model ที่เลือกไว้ (รอเลือก Size ต่อ) — ต่างจาก activeModel เดิมที่ใช้ Drill-down
   // ภายใน Dropdown เดียวกัน ตัวนี้ทำให้ Dropdown ค้นหาปิดไปเลย แล้วโชว์ช่อง Size แยก
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
-  const [selectedSizeProductId, setSelectedSizeProductId] = useState("");
+  const [selectedSizeIdx, setSelectedSizeIdx] = useState("");
   // ข้อ 60: รองรับเลือกด้วยลูกศร/Enter เหมือนเดิม — ใช้กับรายการ Model/Product ในช่อง
   // ค้นหาเท่านั้น (Size เป็น <select> เดิมของ Browser มี Keyboard Nav ของตัวเองอยู่แล้ว)
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -54,8 +95,9 @@ export function ProductSearchPicker({
     setProducts([]);
     setPicked(false);
     setSelectedModel(null);
-    setSelectedSizeProductId("");
+    setSelectedSizeIdx("");
     setHighlightIndex(0);
+    onUnresolvedSize?.(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetToken]);
 
@@ -86,39 +128,47 @@ export function ProductSearchPicker({
     setModels([]);
     setProducts([]);
     setSelectedModel(null);
-    setSelectedSizeProductId("");
+    setSelectedSizeIdx("");
+    onUnresolvedSize?.(null);
     onPick(p);
   }
 
   // เลือก Model จาก Dropdown ค้นหา — ปิด Dropdown ค้นหาทันที (ไม่ใช่ Drill-down ต่อใน
-  // Dropdown เดิม) แล้วโชว์ช่อง Size แยก — ถ้า Model มี Size ตัวเลือกเดียว Resolve ให้
-  // อัตโนมัติเลย (ไม่บังคับเลือกจากตัวเลือกเดียวที่ไม่มีความหมาย)
+  // Dropdown เดิม) แล้วโชว์ช่อง Size แยก — ถ้า Model มี Size ตัวเลือกเดียวและ Resolve ได้
+  // จริง ให้อัตโนมัติเลย (ไม่บังคับเลือกจากตัวเลือกเดียวที่ไม่มีความหมาย)
   function selectModel(m: ModelResult) {
     setQuery(`รุ่น: ${m.modelName}`);
     setModels([]);
     setProducts([]);
     setSelectedModel(m);
-    if (m.sizes.length === 1) {
-      const only = m.sizes[0];
-      setSelectedSizeProductId(only.productId);
+    onUnresolvedSize?.(null);
+    if (m.sizes.length === 1 && m.sizes[0].resolved) {
+      setSelectedSizeIdx("0");
       setPicked(true);
-      onPick(sizeOptionToPicked(m, only));
+      onPick(sizeOptionToPicked(m, m.sizes[0]));
     } else {
-      setSelectedSizeProductId("");
+      setSelectedSizeIdx("");
       setPicked(false);
     }
   }
 
-  function handleSizeChange(productId: string) {
-    setSelectedSizeProductId(productId);
+  function handleSizeChange(idxStr: string) {
+    setSelectedSizeIdx(idxStr);
     if (!selectedModel) return;
-    const s = selectedModel.sizes.find((x) => x.productId === productId);
+    const s = selectedModel.sizes[Number(idxStr)];
     if (!s) {
       setPicked(false);
+      onUnresolvedSize?.(null);
       return;
     }
-    setPicked(true);
-    onPick(sizeOptionToPicked(selectedModel, s));
+    if (s.resolved) {
+      setPicked(true);
+      onUnresolvedSize?.(null);
+      onPick(sizeOptionToPicked(selectedModel, s));
+    } else {
+      setPicked(false);
+      onUnresolvedSize?.(sizeOptionToUnresolved(selectedModel, s));
+    }
   }
 
   const showDropdown = !picked && !selectedModel && models.length + products.length > 0;
@@ -153,7 +203,8 @@ export function ProductSearchPicker({
             setQuery(e.target.value);
             setPicked(false);
             setSelectedModel(null);
-            setSelectedSizeProductId("");
+            setSelectedSizeIdx("");
+            onUnresolvedSize?.(null);
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
@@ -201,18 +252,19 @@ export function ProductSearchPicker({
       </div>
 
       {selectedModel && (
-        <div className="w-32 shrink-0">
+        <div className="w-40 shrink-0">
           <select
-            value={selectedSizeProductId}
+            value={selectedSizeIdx}
             onChange={(e) => handleSizeChange(e.target.value)}
             className="w-full border rounded px-2 py-1.5 text-sm"
           >
             <option value="" disabled>
               — ขนาด —
             </option>
-            {selectedModel.sizes.map((s) => (
-              <option key={s.productId} value={s.productId}>
+            {selectedModel.sizes.map((s, i) => (
+              <option key={i} value={i}>
                 {s.label}
+                {!s.resolved && !s.custom ? " (ยังไม่มีในระบบ)" : ""}
               </option>
             ))}
           </select>

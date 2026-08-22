@@ -77,7 +77,13 @@ export function aggregateQuotationTotals(
  * ไม่แตกเป็นหลายใบ
  */
 export async function computeQuotationCalc(
-  rawItems: { productId: string; quantity: Decimal | number; descriptionOverride?: string | null }[],
+  rawItems: {
+    productId: string;
+    quantity: Decimal | number;
+    descriptionOverride?: string | null;
+    sizeOverride?: string | null;
+    unitPriceOverride?: Decimal | number | null;
+  }[],
   params: {
     customerId: string;
     branchId: string;
@@ -95,12 +101,19 @@ export async function computeQuotationCalc(
       include: { productType: true },
     });
     const quantity = new Decimal(raw.quantity);
-    const { price } = await getEffectivePrice({
-      productId: raw.productId,
-      customerId: params.customerId,
-      branchId: params.branchId,
-      orderDate: params.quotationDate,
-    });
+    // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": unitPriceOverride ใช้แทน Pricing Engine ทั้งหมด
+    // (เหมือน Order ทุกประการ — ดู order-preview.ts) ไม่กระทบ Pricing Priority เดิม
+    const price =
+      raw.unitPriceOverride != null
+        ? new Decimal(raw.unitPriceOverride)
+        : (
+            await getEffectivePrice({
+              productId: raw.productId,
+              customerId: params.customerId,
+              branchId: params.branchId,
+              orderDate: params.quotationDate,
+            })
+          ).price;
     // R3 — applyDiscount=false ข้าม getEffectiveDiscountPct ไปเลย (ไม่ query DiscountRule)
     // แล้วบังคับ discountPct=0 ที่ต้นทาง แทนที่จะ Query แล้วค่อย Override ทีหลัง
     // R4 — product.productTypeId=null (ไม่ระบุประเภท) ก็ข้ามเช่นกัน เพราะ DiscountRule.
@@ -128,7 +141,7 @@ export async function computeQuotationCalc(
       skuSnapshot: product.sku,
       productNameSnapshot: raw.descriptionOverride || product.name,
       productTypeSnapshot: product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
-      sizeSnapshot: product.size,
+      sizeSnapshot: raw.sizeOverride || product.size,
       unitSnapshot: product.unit,
       unitPriceSnapshot: price,
       grossAmount,

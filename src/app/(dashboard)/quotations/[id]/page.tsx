@@ -36,6 +36,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
   if (!can(role, "quotation.view")) redirect("/");
+  // R6 Phase B — คุมว่าจะโชว์ลิงก์ไปหน้ารุ่นสินค้าตอนเลือกไซส์ที่ยังไม่มี Product จริงไหม
+  const canManageProducts = can(role, "product.edit");
 
   const quotation = await db.quotation.findUnique({
     where: { id: params.id },
@@ -62,7 +64,13 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   const preview =
     isDraft && quotation.items.length > 0
       ? await computeQuotationCalc(
-          quotation.items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride })),
+          quotation.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            descriptionOverride: i.descriptionOverride,
+            sizeOverride: i.sizeOverride,
+            unitPriceOverride: i.unitPriceOverride,
+          })),
           {
             customerId: quotation.customerId,
             branchId: quotation.branchId,
@@ -82,6 +90,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
+    sizeOverride: item.sizeOverride ?? "",
+    unitPriceOverride: item.unitPriceOverride != null ? Number(item.unitPriceOverride) : null,
   }));
 
   return (
@@ -121,7 +131,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             </ActionForm>
           </div>
           <div className="mb-4">
-            <OrderItemEntryForm key={quotation.items.length} addAction={addItemAction} />
+            <OrderItemEntryForm key={quotation.items.length} addAction={addItemAction} canManageProducts={canManageProducts} />
           </div>
         </>
       )}
@@ -233,6 +243,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             initialVatMode={quotation.vatMode}
             initialApplyDiscount={quotation.applyDiscount}
             action={editAction}
+            canManageProducts={canManageProducts}
           />
         )}
       </div>

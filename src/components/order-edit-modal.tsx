@@ -3,7 +3,8 @@
 import { useState, useEffect, useTransition } from "react";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
-import { ProductSearchPicker, type PickedProduct } from "@/components/product-search-picker";
+import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo } from "@/components/product-search-picker";
+import { SizeOverrideFields } from "@/components/size-override-fields";
 
 type EditItem = {
   key: string;
@@ -14,6 +15,9 @@ type EditItem = {
   productTypeName: string;
   quantity: number;
   descriptionOverride: string;
+  // R6 Phase B — ขนาดพิเศษ/ระบุเอง ("" = Standard Size ปกติ ไม่ Override อะไรเลย)
+  sizeOverride: string;
+  unitPriceOverride: number | null;
 };
 
 // E3 — Proper Modal สำหรับแก้ไข Order ที่ Confirmed แล้ว (Case A) แทน window.confirm()
@@ -27,6 +31,7 @@ export function OrderEditModal({
   activeInvoiceCount,
   initialApplyDiscount,
   action,
+  canManageProducts = false,
 }: {
   orderNumber: string;
   initialItems: EditItem[];
@@ -34,6 +39,7 @@ export function OrderEditModal({
   activeInvoiceCount: number;
   initialApplyDiscount: boolean;
   action: (formData: FormData) => Promise<ActionResult>;
+  canManageProducts?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
@@ -44,6 +50,10 @@ export function OrderEditModal({
 
   const [qty, setQty] = useState("1");
   const [selected, setSelected] = useState<PickedProduct | null>(null);
+  // R6 Phase B — เหมือน OrderItemEntryForm ทุกประการ
+  const [unresolvedInfo, setUnresolvedInfo] = useState<UnresolvedSizeInfo | null>(null);
+  const [overrideSize, setOverrideSize] = useState("");
+  const [overridePrice, setOverridePrice] = useState("");
   // R4 — ตัว Modal นี้ไม่ remount ProductSearchPicker ระหว่างเพิ่มรายการหลายรายการ
   // (ต่างจากหน้า Draft ที่ remount ด้วย key) จึงต้องสั่งล้าง Search ภายในเองผ่าน resetToken
   const [pickerResetToken, setPickerResetToken] = useState(0);
@@ -57,28 +67,64 @@ export function OrderEditModal({
     setAcknowledgePrinted(false);
     setApplyDiscount(initialApplyDiscount);
     setSelected(null);
+    setUnresolvedInfo(null);
+    setOverrideSize("");
+    setOverridePrice("");
     setQty("1");
     setPickerResetToken((t) => t + 1);
   }, [isOpen, initialItems, initialApplyDiscount]);
 
+  function handleUnresolvedSize(info: UnresolvedSizeInfo | null) {
+    setSelected(null);
+    setUnresolvedInfo(info);
+    setOverrideSize(info && !info.custom ? info.size : "");
+    setOverridePrice("");
+  }
+
+  const overrideReady = !!unresolvedInfo?.anchorProductId && overrideSize.trim() !== "" && Number(overridePrice) > 0;
+
   function addItem() {
-    if (!selected) return;
     const quantity = Number(qty);
     if (!(quantity > 0)) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        key: `${selected.id}-${Date.now()}`,
-        productId: selected.id,
-        sku: selected.sku,
-        name: selected.name,
-        unit: selected.unit,
-        productTypeName: selected.productTypeName,
-        quantity,
-        descriptionOverride: "",
-      },
-    ]);
+    if (selected) {
+      setItems((prev) => [
+        ...prev,
+        {
+          key: `${selected.id}-${Date.now()}`,
+          productId: selected.id,
+          sku: selected.sku,
+          name: selected.name,
+          unit: selected.unit,
+          productTypeName: selected.productTypeName,
+          quantity,
+          descriptionOverride: "",
+          sizeOverride: "",
+          unitPriceOverride: null,
+        },
+      ]);
+    } else if (overrideReady && unresolvedInfo) {
+      setItems((prev) => [
+        ...prev,
+        {
+          key: `${unresolvedInfo.anchorProductId}-${Date.now()}`,
+          productId: unresolvedInfo.anchorProductId!,
+          sku: "-",
+          name: `${unresolvedInfo.modelName} ${overrideSize.trim()}`.trim(),
+          unit: unresolvedInfo.unit,
+          productTypeName: unresolvedInfo.productTypeName,
+          quantity,
+          descriptionOverride: "",
+          sizeOverride: overrideSize.trim(),
+          unitPriceOverride: Number(overridePrice),
+        },
+      ]);
+    } else {
+      return;
+    }
     setSelected(null);
+    setUnresolvedInfo(null);
+    setOverrideSize("");
+    setOverridePrice("");
     setQty("1");
     setPickerResetToken((t) => t + 1);
   }
@@ -94,7 +140,19 @@ export function OrderEditModal({
     const formData = new FormData();
     formData.set(
       "itemsJson",
-      JSON.stringify(items.map((i) => ({ productId: i.productId, quantity: i.quantity, descriptionOverride: i.descriptionOverride || undefined })))
+      JSON.stringify(
+        items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          // R6 Phase B — รายการ Override (มี sizeOverride) ต้อง Default ชื่อที่แสดงเป็น
+          // "ชื่อรุ่น + ขนาดที่พิมพ์" เสมอ ไม่งั้นจะไปโชว์ชื่อ Anchor Product ผิดๆ แทน —
+          // รายการ Standard ปกติยังปล่อย undefined ให้ Fallback ไปที่ Product.name สดๆ
+          // จาก DB เหมือนเดิมทุกประการ (ไม่ Freeze ชื่อ ณ ตอนเลือกเหมือนรายการ Override)
+          descriptionOverride: i.descriptionOverride || (i.sizeOverride ? i.name : undefined),
+          sizeOverride: i.sizeOverride || undefined,
+          unitPriceOverride: i.unitPriceOverride ?? undefined,
+        }))
+      )
     );
     formData.set("acknowledgePrinted", acknowledgePrinted ? "1" : "0");
     formData.set("applyDiscount", applyDiscount ? "1" : "0");
@@ -193,36 +251,52 @@ export function OrderEditModal({
                 </table>
               </div>
 
-              <div className="flex gap-2 items-end bg-gray-50 border rounded-lg p-3 relative">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ)
-                  </label>
-                  <ProductSearchPicker
-                    onPick={setSelected}
-                    placeholder="เช่น M001 หรือ ที่นอนสปริง"
-                    resetToken={pickerResetToken}
-                  />
+              <div className="bg-gray-50 border rounded-lg p-3 relative space-y-2">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      ค้นหารุ่นสินค้า/สินค้า (ชื่อรุ่น, รหัสสินค้า หรือชื่อ)
+                    </label>
+                    <ProductSearchPicker
+                      onPick={(p) => {
+                        setSelected(p);
+                        setUnresolvedInfo(null);
+                      }}
+                      onUnresolvedSize={handleUnresolvedSize}
+                      placeholder="เช่น M001 หรือ ที่นอนสปริง"
+                      resetToken={pickerResetToken}
+                    />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                      className="w-full border rounded px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!selected && !overrideReady}
+                    onClick={addItem}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 h-[34px]"
+                  >
+                    + เพิ่ม
+                  </button>
                 </div>
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={qty}
-                    onChange={(e) => setQty(e.target.value)}
-                    className="w-full border rounded px-3 py-1.5 text-sm"
+                {unresolvedInfo && (
+                  <SizeOverrideFields
+                    info={unresolvedInfo}
+                    sizeText={overrideSize}
+                    price={overridePrice}
+                    onSizeTextChange={setOverrideSize}
+                    onPriceChange={setOverridePrice}
+                    canManageProducts={canManageProducts}
                   />
-                </div>
-                <button
-                  type="button"
-                  disabled={!selected}
-                  onClick={addItem}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 h-[34px]"
-                >
-                  + เพิ่ม
-                </button>
+                )}
               </div>
             </div>
 

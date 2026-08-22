@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createProductModel, toggleProductModelActive } from "./actions";
+import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 
@@ -23,7 +24,7 @@ export default async function ProductModelsPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มรุ่นสินค้าใหม่</summary>
-        <ActionForm action={createProductModel} successMessage="เพิ่มรุ่นสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm id="createProductModelForm" action={createProductModel} successMessage="เพิ่มรุ่นสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
           <SelectField label="กลุ่มส่วนลด *" name="productTypeId" required defaultValue="">
             <option value="" disabled>
               เลือกกลุ่มส่วนลด
@@ -44,6 +45,14 @@ export default async function ProductModelsPage() {
           </SelectField>
           <Field label="ชื่อรุ่นสินค้า * (เช่น GT-David)" name="name" required />
           <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
+          <div className="col-span-2 pricePerFootFields hidden bg-blue-50 border border-blue-200 rounded-lg p-3 grid grid-cols-2 gap-3">
+            <div className="col-span-2 text-xs text-blue-800">
+              ประเภทสินค้านี้มีขนาด (Size) — กำหนดราคาต่อฟุตเพื่อสร้าง/อัปเดตราคา Standard Variant
+              (3 / 3.5 / 4 / 5 / 6 ฟุต) ให้อัตโนมัติ (เว้นว่างได้ถ้ายังไม่ต้องการตั้งตอนนี้)
+            </div>
+            <Field label="ราคาต่อฟุต (บาท)" name="pricePerFoot" type="number" />
+            <Field label="หน่วยนับของ Variant (เช่น หลัง)" name="variantUnit" />
+          </div>
           <div className="col-span-2">
             <SubmitButton>บันทึกรุ่นสินค้า</SubmitButton>
           </div>
@@ -102,6 +111,24 @@ export default async function ProductModelsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* R6 Phase B — โชว์/ซ่อนช่องราคาต่อฟุตตาม Category ที่เลือก (usesSize) — Pattern
+          เดียวกับ Type→Model dependent dropdown เดิมของหน้านี้ ไม่มี Business Logic ใหม่ */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            const categoriesUsesSize = ${safeJsonForScript(Object.fromEntries(categories.map((c) => [c.id, c.usesSize])))};
+            const categorySelect = document.querySelector('#createProductModelForm select[name="categoryId"]');
+            const pricePerFootFields = document.querySelector('#createProductModelForm .pricePerFootFields');
+            function updatePricePerFootVisibility() {
+              const usesSize = categoriesUsesSize[categorySelect.value] === true;
+              pricePerFootFields.classList.toggle('hidden', !usesSize);
+            }
+            categorySelect.addEventListener('change', updatePricePerFootVisibility);
+            updatePricePerFootVisibility();
+          `,
+        }}
+      />
     </div>
   );
 }

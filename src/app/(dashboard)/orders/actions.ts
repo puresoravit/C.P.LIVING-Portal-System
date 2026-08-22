@@ -151,6 +151,9 @@ const addItemSchema = z.object({
   productId: z.string().min(1, "กรุณาเลือกสินค้า"),
   quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
   descriptionOverride: z.string().optional(),
+  // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": ทั้งคู่ต้องมาคู่กันเสมอถ้ามี (validate เพิ่มด้านล่าง)
+  sizeOverride: z.string().optional(),
+  unitPriceOverride: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ").optional(),
 });
 
 export async function addOrderItem(orderId: string, formData: FormData): Promise<ActionResult> {
@@ -166,6 +169,8 @@ export async function addOrderItem(orderId: string, formData: FormData): Promise
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
+    sizeOverride: formData.get("sizeOverride") || undefined,
+    unitPriceOverride: formData.get("unitPriceOverride") || undefined,
   });
   if (!rawParse.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
@@ -178,6 +183,8 @@ export async function addOrderItem(orderId: string, formData: FormData): Promise
       productId: parsed.productId,
       quantity: parsed.quantity,
       descriptionOverride: parsed.descriptionOverride,
+      sizeOverride: parsed.sizeOverride,
+      unitPriceOverride: parsed.unitPriceOverride,
     },
   });
 
@@ -405,6 +412,8 @@ const editItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   descriptionOverride: z.string().optional(),
+  sizeOverride: z.string().optional(),
+  unitPriceOverride: z.coerce.number().min(0).optional(),
 });
 const editItemsSchema = z.array(editItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการสินค้า");
 
@@ -492,6 +501,8 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
           productId: i.productId,
           quantity: i.quantity,
           descriptionOverride: i.descriptionOverride,
+          sizeOverride: i.sizeOverride,
+          unitPriceOverride: i.unitPriceOverride,
         })),
       });
       // R3 — ต้อง update Order.applyDiscount ก่อนเรียก computeOrderPreview เสมอ เพราะ

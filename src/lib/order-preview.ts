@@ -76,12 +76,20 @@ export async function buildPreviewLineItems(
 
   const lines: PreviewLineItem[] = [];
   for (const item of order.items) {
-    const { price } = await getEffectivePrice({
-      productId: item.productId,
-      customerId: order.customerId,
-      branchId: order.branchId,
-      orderDate: order.orderDate,
-    });
+    // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": unitPriceOverride ที่กรอกเองตอนคีย์เอกสาร ต้อง
+    // ใช้แทน Pricing Engine ทั้งหมด (ห้ามระบบเดาราคาตามที่อนุมัติ) — ยังคงเรียก
+    // getEffectivePrice ตามปกติสำหรับ Standard Size (ไม่มี Override) เพื่อไม่ให้ Pricing
+    // Priority เดิม (Branch→Customer→Standard) เปลี่ยนแปลงแม้แต่นิดเดียว
+    const price =
+      item.unitPriceOverride ??
+      (
+        await getEffectivePrice({
+          productId: item.productId,
+          customerId: order.customerId,
+          branchId: order.branchId,
+          orderDate: order.orderDate,
+        })
+      ).price;
     lines.push({
       orderItemId: item.id,
       productId: item.productId,
@@ -91,7 +99,7 @@ export async function buildPreviewLineItems(
       productTypeId: item.product.productTypeId ?? UNSPECIFIED_TYPE_CODE,
       productTypeCode: item.product.productType?.code ?? UNSPECIFIED_TYPE_CODE,
       productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
-      size: item.product.size,
+      size: item.sizeOverride || item.product.size,
       quantity: item.quantity,
       unit: item.product.unit,
       unitPrice: price,
