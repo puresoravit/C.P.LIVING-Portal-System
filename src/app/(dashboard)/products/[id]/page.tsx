@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateProduct } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
-import { SizeSelect } from "@/components/size-select";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 
@@ -56,7 +55,6 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             </option>
           ))}
         </SelectField>
-        <SizeSelect defaultValue={product.size ?? ""} />
         <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
         <Field
           label="ราคาตั้งต้น (รวม VAT) *"

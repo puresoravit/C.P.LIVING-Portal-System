@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
-import { getEffectiveVatRate, extractVat, roundMoney } from "@/lib/pricing";
+import { getEffectiveVatRate, extractVat, roundMoney, getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -186,6 +186,43 @@ export async function createManualTaxInvoice(formData: FormData) {
 
   revalidatePath("/tax-invoices");
   redirect(`/tax-invoices/${taxInvoice.id}`);
+}
+
+// Phase E-UX — Manual Tax Invoice Item Entry: ช่วย Autofill รายการ/ขนาด/หน่วย/ราคา
+// จาก Product Master + Pricing Engine เดิม (getEffectivePrice ตัวเดียวกับ Order/
+// Quotation ทุกประการ ไม่มี Pricing Path ใหม่) — Field ที่ Autofill ยังแก้ไขต่อได้
+// เสมอ (TaxInvoiceItem ไม่มี productId ผูกอยู่จริงตามที่ตรวจ Schema แล้ว — ยังคงเป็น
+// Free-text Snapshot ล้วนๆ เหมือนเดิมทุกประการ ไม่มี Schema/Migration เปลี่ยนแปลง
+// ใดๆ — Action นี้เป็นแค่ Read-only Helper ให้ Client เรียกมา "แนะนำ" ค่าเริ่มต้นเท่านั้น)
+export async function getSuggestedTaxInvoiceItem(params: {
+  productId: string;
+  customerId?: string;
+  branchId?: string;
+  taxInvoiceDate?: string;
+}): Promise<{ description: string; size: string; unit: string; unitPrice: number }> {
+  const user = await requireUser();
+  if (!can(user.role, "taxInvoice.create")) throw new Error("FORBIDDEN");
+
+  const product = await db.product.findUniqueOrThrow({ where: { id: params.productId } });
+
+  let unitPrice = Number(product.standardPrice);
+  if (params.customerId && params.branchId) {
+    const orderDate = params.taxInvoiceDate ? new Date(params.taxInvoiceDate) : new Date();
+    const { price } = await getEffectivePrice({
+      productId: params.productId,
+      customerId: params.customerId,
+      branchId: params.branchId,
+      orderDate,
+    });
+    unitPrice = Number(price);
+  }
+
+  return {
+    description: product.name,
+    size: product.size ?? "",
+    unit: product.unit,
+    unitPrice,
+  };
 }
 
 export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResult> {

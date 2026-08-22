@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { createProduct, toggleProductActive } from "./actions";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
-import { SizeSelect } from "@/components/size-select";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 
@@ -55,7 +54,6 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <SelectField label="รุ่นสินค้า (เว้นว่าง = ยังไม่ระบุ)" name="modelId" defaultValue="">
             <option value="">— ยังไม่ระบุ —</option>
           </SelectField>
-          <SizeSelect />
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
           <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           <div className="col-span-3">

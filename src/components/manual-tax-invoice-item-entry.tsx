@@ -1,13 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
+import { ProductSearchPicker, type PickedProduct } from "@/components/product-search-picker";
+import { getSuggestedTaxInvoiceItem } from "@/app/(dashboard)/tax-invoices/actions";
+import { useToast } from "@/components/toast/toast-provider";
 
 type ManualItem = { description: string; size: string; quantity: number; unit: string; unitPrice: number };
 
+// Phase E-UX — เชื่อม Product/Model/Size/Pricing เข้ากับหน้า Manual Tax Invoice ตาม
+// หลักเดียวกับ Create Document (Order/Quotation): ค้นหา Product/Model จริงผ่าน
+// ProductSearchPicker เดิมของ R4 ทุกประการ (ไม่มี Picker/Size Architecture ชุดใหม่)
+// แล้วให้ Server Action (getSuggestedTaxInvoiceItem) Autofill รายการ/ขนาด/หน่วย/ราคา
+// จาก Product Master + Pricing Engine เดิม (getEffectivePrice) — TaxInvoiceItem ไม่มี
+// productId ผูกจริง (ตรวจ Schema แล้ว เป็น Free-text Snapshot ล้วนๆ ตามเจตนาเดิมที่ให้
+// ยืดหยุ่นได้เมื่อลูกค้าต่อรองยอด) ทุก Field ที่ Autofill มายังแก้ไขเองต่อได้เสมอ ไม่ Lock
 export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (formData: FormData) => void }) {
   const [items, setItems] = useState<ManualItem[]>([]);
   const [draft, setDraft] = useState<ManualItem>({ description: "", size: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
   const [err, setErr] = useState("");
+  const [pickerResetToken, setPickerResetToken] = useState(0);
+  const { showError } = useToast();
+  const [isPending, startTransition] = useTransition();
+  const [thrownError, setThrownError] = useState<unknown>(null);
+
+  if (thrownError) throw thrownError;
+
+  // customerId/branchId/taxInvoiceDate อยู่นอก Component นี้ (Field ของ Parent Server
+  // Component เชื่อมกันผ่าน form="taxInvoiceForm" เดิม ไม่ใช่ React State ร่วมกัน) —
+  // อ่านค่าปัจจุบันจาก DOM ตรงๆ ตอนเลือกสินค้า สอดคล้องกับ Pattern Vanilla Script ที่
+  // หน้านี้ใช้อยู่แล้วสำหรับ Customer→Branch Cascade (ไม่ใช่ Pattern ใหม่)
+  function handlePick(p: PickedProduct) {
+    const customerId = (document.getElementById("customerSelect") as HTMLSelectElement | null)?.value || undefined;
+    const branchId = (document.getElementById("branchSelect") as HTMLSelectElement | null)?.value || undefined;
+    const taxInvoiceDate =
+      (document.querySelector('input[name="taxInvoiceDate"]') as HTMLInputElement | null)?.value || undefined;
+
+    startTransition(async () => {
+      try {
+        const suggested = await getSuggestedTaxInvoiceItem({ productId: p.id, customerId, branchId, taxInvoiceDate });
+        setDraft((prev) => ({
+          ...prev,
+          description: suggested.description,
+          size: suggested.size,
+          unit: suggested.unit,
+          unitPrice: suggested.unitPrice,
+        }));
+        setErr("");
+      } catch (err) {
+        unstable_rethrow(err);
+        showError("ดึงราคาแนะนำไม่สำเร็จ — กรอกรายการ/ราคาเองได้ตามปกติ");
+      }
+    });
+  }
 
   function addItem() {
     if (!draft.description.trim()) {
@@ -21,6 +66,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
     setErr("");
     setItems((prev) => [...prev, draft]);
     setDraft({ description: "", size: "", quantity: 1, unit: "หลัง", unitPrice: 0 });
+    setPickerResetToken((t) => t + 1);
   }
 
   function removeItem(idx: number) {
@@ -34,6 +80,12 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
       <div className="bg-white border rounded-lg p-3 mb-3">
         <div className="grid grid-cols-12 gap-2 items-end">
           <div className="col-span-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการ/ราคาอัตโนมัติ
+            </label>
+            <ProductSearchPicker onPick={handlePick} placeholder="ค้นหาสินค้า/รุ่น..." resetToken={pickerResetToken} />
+          </div>
+          <div className="col-span-3">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
@@ -42,7 +94,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">ขนาด</label>
             <input
               value={draft.size}
@@ -61,7 +113,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">หน่วย</label>
             <input
               value={draft.unit}
@@ -69,7 +121,7 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">ราคา/หน่วย</label>
             <input
               type="number"
@@ -83,7 +135,8 @@ export function ManualTaxInvoiceItemEntry({ createAction }: { createAction: (for
             <button
               type="button"
               onClick={addItem}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-2 py-1.5"
+              disabled={isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-2 py-1.5"
             >
               เพิ่ม
             </button>
