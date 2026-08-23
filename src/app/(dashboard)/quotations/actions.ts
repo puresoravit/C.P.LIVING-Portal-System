@@ -224,11 +224,10 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
 
   try {
     await db.$transaction(async (tx) => {
-      const fresh = await tx.quotation.findUniqueOrThrow({ where: { id: quotationId } });
-      if (fresh.status !== "DRAFT") throw new Error("Quotation นี้ถูก Confirm ไปแล้ว (อาจถูกกดซ้ำ)");
-
-      await tx.quotation.update({
-        where: { id: quotationId },
+      // Stabilization — Concurrency Hardening (Pattern เดียวกับ confirmOrder): Compare-and-Set
+      // ด้วย WHERE status='DRAFT' แทน "อ่านแล้วค่อย update" ที่ Request ซ้อนผ่านเช็คได้ทั้งคู่
+      const cas = await tx.quotation.updateMany({
+        where: { id: quotationId, status: "DRAFT" },
         data: {
           customerNameSnapshot: quotation.customer.companyName,
           customerTaxIdSnapshot: quotation.customer.taxId,
@@ -248,6 +247,7 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
           status: "CONFIRMED",
         },
       });
+      if (cas.count !== 1) throw new Error("Quotation นี้ถูก Confirm ไปแล้ว (อาจถูกกดซ้ำ)");
 
       // calc.items มาจาก quotation.items ตามลำดับเดิมเป๊ะ (ส่งเข้า computeQuotationCalc
       // ตรงๆ ไม่ผ่านการ Sort/Filter ใดๆ) จับคู่ด้วย Index จึงถูกต้องเสมอ แม้มี Product+

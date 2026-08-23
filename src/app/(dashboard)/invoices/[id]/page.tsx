@@ -27,12 +27,20 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
 
   const invoice = await db.invoice.findUnique({
     where: { id: params.id },
-    include: { items: true, order: true, billingNote: { select: { id: true, billingNoteNumber: true } } },
+    include: {
+      items: true,
+      order: true,
+      billingNote: { select: { id: true, billingNoteNumber: true } },
+      // Stabilization — ใช้กฎเดียวกับหน้า /tax-invoices/from-invoice: Invoice ที่มีใบกำกับภาษี
+      // Active อยู่แล้ว ห้ามออกซ้ำ (Server Action บังคับอีกชั้นใน createTaxInvoiceFromInvoice)
+      taxInvoices: { where: { status: { not: "CANCELLED" } }, select: { id: true, taxInvoiceNumber: true }, take: 1 },
+    },
   });
   if (!invoice) notFound();
 
   const status = STATUS_LABEL[invoice.status];
   const cancelAction = cancelInvoice.bind(null, invoice.id);
+  const existingTaxInvoice = invoice.taxInvoices[0] ?? null;
 
   return (
     <div className="max-w-3xl">
@@ -160,11 +168,21 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           >
             พิมพ์เอกสาร
           </a>
-          <form action={createTaxInvoiceFromInvoice.bind(null, invoice.id)}>
-            <button className="text-sm text-gray-700 hover:text-gray-900 border rounded px-4 py-2">
-              สร้างใบกำกับภาษีจากใบนี้ (VAT 100%)
-            </button>
-          </form>
+          {existingTaxInvoice ? (
+            <a
+              href={`/tax-invoices/${existingTaxInvoice.id}`}
+              className="text-sm text-gray-700 hover:text-gray-900 border rounded px-4 py-2"
+              title="Invoice นี้มีใบกำกับภาษีอยู่แล้ว — ยกเลิกใบเดิมก่อนถ้าต้องการออกใหม่"
+            >
+              ดูใบกำกับภาษี {existingTaxInvoice.taxInvoiceNumber}
+            </a>
+          ) : (
+            <form action={createTaxInvoiceFromInvoice.bind(null, invoice.id)}>
+              <button className="text-sm text-gray-700 hover:text-gray-900 border rounded px-4 py-2">
+                สร้างใบกำกับภาษีจากใบนี้ (VAT 100%)
+              </button>
+            </form>
+          )}
           <CancelButton
             action={cancelAction}
             confirmMessage="ยืนยันยกเลิก Invoice ใบนี้?"

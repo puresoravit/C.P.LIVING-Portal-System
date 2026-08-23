@@ -33,3 +33,19 @@ describe("endOfCurrentMonth", () => {
     expect(endOfCurrentMonth(new Date(2026, 11, 15))).toBe("2026-12-31");
   });
 });
+
+// Stabilization — Invalid URL date param must fall back instead of crashing the page
+import { safeDateParam } from "./date-utils";
+describe("safeDateParam", () => {
+  it("passes valid YYYY-MM-DD through unchanged", () => {
+    expect(safeDateParam("2026-08-23", "FALLBACK")).toBe("2026-08-23");
+  });
+  it("falls back on missing, malformed, impossible and overflowing dates", () => {
+    expect(safeDateParam(undefined, "F")).toBe("F");
+    expect(safeDateParam("", "F")).toBe("F");
+    expect(safeDateParam("not-a-date", "F")).toBe("F");
+    expect(safeDateParam("2026-99-99", "F")).toBe("F");
+    expect(safeDateParam("2026-02-31", "F")).toBe("F"); // JS would silently roll to Mar 3
+    expect(safeDateParam("23/08/2026", "F")).toBe("F");
+  });
+});

@@ -12,7 +12,7 @@ import { can } from "@/lib/permissions";
 import { CustomerHoverCard } from "@/components/customer-hover-card";
 import { MonthlySalesChart } from "@/components/monthly-sales-chart";
 import { SalesGrowthChart } from "@/components/sales-growth-chart";
-import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 
 const BUDDHIST_YEAR_OFFSET = 543;
 
@@ -63,8 +63,8 @@ export default async function HomePage(
     );
   }
 
-  const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
+  const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
 
   // Phase R1 — Monthly Sales Chart: ปี (ค.ศ.) ใช้กรองข้อมูลจริง, แสดงผลเป็น พ.ศ. ตาม
   // ตัวอย่างที่อนุมัติ ("ปี: [2569 ▼]") — Reuse getSalesByGroup(..., "month") เดิม ไม่มี

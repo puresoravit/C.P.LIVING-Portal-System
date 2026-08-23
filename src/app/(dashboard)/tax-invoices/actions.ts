@@ -40,7 +40,22 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
   const vatPct = await getEffectiveVatRate(today);
   const period = currentPeriod(today);
 
+  // Stabilization — Duplicate Guard: กฎ "Invoice หนึ่งใบมีใบกำกับภาษีที่ยังไม่ยกเลิกได้ใบเดียว"
+  // มีอยู่แล้วในระบบ (หน้า /tax-invoices/from-invoice บล็อกปุ่มพร้อมข้อความ "มีใบกำกับภาษี
+  // จากใบนี้อยู่แล้ว") แต่ Server Action นี้ไม่เคยบังคับ และหน้า Invoice Detail โชว์ปุ่มสร้าง
+  // เสมอ → กดซ้ำ/กดจากหน้า Detail ออกใบกำกับภาษีซ้ำซ้อนได้ (ตรวจ DB ณ ตอนแก้ยังไม่มี
+  // เคสซ้ำเกิดจริง — Latent Bug) — เช็คภายใน Transaction ระดับ Serializable: Postgres SSI
+  // ตรวจจับ "อ่านว่ายังไม่มี → เขียนเพิ่ม" ที่ชนกันจาก 2 Request พร้อมกันแล้ว Fail อีกฝั่ง
+  // (ไม่ต้องเพิ่ม Unique Index = ไม่แตะ Schema) — ใบที่ถูก Cancel แล้วไม่นับ ออกใหม่ได้ตามเดิม
   const taxInvoice = await db.$transaction(async (tx) => {
+    const existing = await tx.taxInvoice.findFirst({
+      where: { referenceInvoiceId: invoice.id, status: { not: "CANCELLED" } },
+      select: { taxInvoiceNumber: true },
+    });
+    if (existing) {
+      throw new Error(`Invoice นี้มีใบกำกับภาษี ${existing.taxInvoiceNumber} อยู่แล้ว — ยกเลิกใบเดิมก่อนถ้าต้องการออกใหม่`);
+    }
+
     const seq = await getNextSeq("TX", period, tx);
     const taxInvoiceNumber = formatDocNumber("TX", period, seq, 3);
 
@@ -90,7 +105,7 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
     });
 
     return created;
-  });
+  }, { isolationLevel: "Serializable" });
 
   revalidatePath("/tax-invoices");
   redirect(`/tax-invoices/${taxInvoice.id}`);

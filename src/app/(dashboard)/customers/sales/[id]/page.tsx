@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getSalesByGroup } from "@/lib/reports";
 import { UNSPECIFIED_TYPE_CODE, displayProductTypeCode } from "@/lib/order-preview";
-import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 import { deriveOrderPrintState } from "@/lib/order-doc-center";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -53,8 +53,8 @@ export default async function CustomerSalesDrillDownPage(
   const customer = await db.customer.findUnique({ where: { id: params.id } });
   if (!customer) notFound();
 
-  const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
+  const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
 
   const groups = await getSalesByGroup(
     { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo), customerId: customer.id },

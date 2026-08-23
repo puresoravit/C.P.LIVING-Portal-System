@@ -59,9 +59,23 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
         totalAmount,
         status: "CONFIRMED",
         createdById: user.id,
-        invoices: { connect: invoiceIds.map((id) => ({ id })) },
       },
     });
+
+    // Stabilization — Concurrency Hardening: เดิมเช็ค "billingNoteId IS NULL" นอก Transaction
+    // แล้วค่อย connect ข้างใน → 2 Request พร้อมกัน (Double-submit) ผ่านเช็คทั้งคู่ สร้างใบวางบิล
+    // 2 ใบที่ connect Invoice ชุดเดียวกัน ใบที่ 2 เขียนทับ billingNoteId ทำให้ใบแรกกลายเป็น
+    // ใบวางบิล Active ที่ไม่มี Invoice เลย — แก้เป็น Compare-and-Set: อัปเดตเฉพาะ Invoice ที่
+    // "ยังว่าง" จริง ณ วินาทีนั้น ถ้าจำนวนไม่ครบ = มีคนชิงไปก่อน Rollback ทั้งหมด (รวมเลขรัน)
+    const attached = await tx.invoice.updateMany({
+      where: { id: { in: invoiceIds }, customerId, billingNoteId: null, status: { not: "CANCELLED" } },
+      data: { billingNoteId: created.id },
+    });
+    if (attached.count !== invoiceIds.length) {
+      throw new Error(
+        "มี Invoice บางใบที่เลือกไว้ถูกวางบิลไปแล้ว หรือถูกยกเลิกไปแล้ว — กรุณารีเฟรชหน้าแล้วเลือกใหม่"
+      );
+    }
 
     await tx.auditLog.create({
       data: {

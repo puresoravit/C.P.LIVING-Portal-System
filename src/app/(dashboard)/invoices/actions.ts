@@ -81,11 +81,18 @@ export async function markInvoicePrinted(invoiceId: string, formData: FormData) 
   if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
   if (invoice.status === "CONFIRMED" && printProfile === "continuous") {
     const printedAt = new Date();
-    await db.invoice.update({
-      where: { id: invoiceId },
+    // Stabilization — Concurrency Hardening (Pattern เดียวกับ confirmOrder): CAS ด้วย
+    // WHERE status='CONFIRMED' ให้ Transition CONFIRMED→PRINTED เกิดได้ครั้งเดียวเป๊ะ —
+    // กัน Request ซ้อน (Double-click "มาร์คว่าพิมพ์แล้ว") เขียนทับ printedAt/printedById
+    // ของครั้งแรก + Audit Log ซ้ำ 2 แถว — ถ้าแพ้ CAS (count=0) = มีคน Mark ไปก่อนแล้ว
+    // ออกเงียบๆ เหมือนกรณี status≠CONFIRMED เดิม (ไม่ Throw เพราะผลลัพธ์ปลายทางถูกต้อง
+    // อยู่แล้ว คือใบนี้เป็น PRINTED) — Sales SOT ไม่เคย Double-count อยู่แล้ว (นับจาก
+    // status ไม่ใช่จำนวนครั้งที่ Mark) จุดนี้ปกป้อง printedAt/printedBy + Audit เท่านั้น
+    const cas = await db.invoice.updateMany({
+      where: { id: invoiceId, status: "CONFIRMED" },
       data: { status: "PRINTED", printedAt, printedById: user.id },
     });
-    await db.auditLog.create({
+    if (cas.count === 1) await db.auditLog.create({
       data: {
         userId: user.id,
         action: "UPDATE",

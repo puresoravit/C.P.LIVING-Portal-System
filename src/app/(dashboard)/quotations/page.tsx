@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
-import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 import { toQueryObject } from "@/lib/search-params";
 import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { StatusTabs } from "@/components/status-tabs";
@@ -31,8 +31,8 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "quotation.view")) redirect("/");
 
-  const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
+  const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
   const q = searchParams.q?.trim();
   const status = searchParams.status;
   const page = Math.max(1, Number(searchParams.page) || 1);

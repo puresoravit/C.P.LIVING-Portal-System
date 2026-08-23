@@ -282,10 +282,14 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
 
   try {
     await db.$transaction(async (tx) => {
-    const fresh = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
-    if (fresh.status !== "DRAFT") throw new Error("Order นี้ถูก Confirm ไปแล้ว (อาจถูกกดซ้ำ)");
-
-    await tx.order.update({ where: { id: orderId }, data: { status: "CONFIRMED" } });
+    // Stabilization — Concurrency Hardening: เดิม "อ่าน status แล้วค่อย update" ซึ่งที่
+    // READ COMMITTED (Default ของ Postgres) ไม่ล็อก Row — Reproduce ได้จริงว่า 2 Request
+    // พร้อมกัน (Double-click/Double-submit) ผ่านเช็ค DRAFT ทั้งคู่แล้ว Confirm ซ้ำ → สร้าง
+    // Invoice ซ้ำชุด + กินเลขรันซ้ำ — แก้เป็น Compare-and-Set: UPDATE ... WHERE status='DRAFT'
+    // เป็น Atomic ระดับ Row ใน Statement เดียว ถ้า count ไม่ใช่ 1 แปลว่ามีคนชิง Confirm
+    // ไปก่อนแล้ว Rollback ทั้ง Transaction — พฤติกรรมกรณีปกติ (Request เดียว) เหมือนเดิมเป๊ะ
+    const cas = await tx.order.updateMany({ where: { id: orderId, status: "DRAFT" }, data: { status: "CONFIRMED" } });
+    if (cas.count !== 1) throw new Error("Order นี้ถูก Confirm ไปแล้ว (อาจถูกกดซ้ำ)");
     await tx.auditLog.create({
       data: {
         userId: user.id,

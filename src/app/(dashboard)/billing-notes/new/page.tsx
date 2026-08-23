@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { createBillingNoteAction } from "../actions";
-import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -32,8 +32,8 @@ export default async function NewBillingNotePage(props: {
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
 
   const selectedCustomerId = searchParams.customerId;
-  const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
+  const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
   // Owner UAT — ต้องดู/สลับได้ทั้ง 2 สถานะของ PRINTED Invoice ในหน้านี้เลย (ยังไม่วางบิล
   // / วางบิลแล้ว) ตาม Customer+ช่วงวันที่เดียวกัน ไม่ใช่แค่เห็นฝั่งที่เลือกได้อย่างเดียว —
   // "วางบิลแล้ว" เป็น View-only (เชื่อมไปดู Billing Note ที่ผูกอยู่ได้) ห้ามเลือกสร้างซ้ำ

@@ -20,3 +20,17 @@ export function startOfMonth(now: Date = new Date()): string {
 export function endOfCurrentMonth(now: Date = new Date()): string {
   return toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 }
+
+// Stabilization — Invalid URL Date Param Hardening: ทุกหน้า List/Report รับ dateFrom/dateTo
+// จาก Query String แล้วส่งเข้า `new Date(x)` ตรงๆ — ค่าผิดรูปแบบ (พิมพ์ URL ผิด/Bookmark
+// เก่า/Query ถูกแก้) กลายเป็น Invalid Date → Prisma Throw → ทั้งหน้าลงไป Error Boundary
+// (Reproduce: /orders?dateFrom=not-a-date) — Helper นี้รับเฉพาะรูปแบบ YYYY-MM-DD ที่เป็น
+// วันที่จริง (ปฏิเสธ 2026-99-99 ด้วย ไม่ใช่แค่ Regex) นอกนั้นตกไปใช้ Default ของหน้านั้นๆ
+// เหมือนกรณีไม่ส่ง Param มาเลย — ค่าที่ถูกต้องผ่านไปโดยไม่เปลี่ยนแปลงใดๆ (Zero Regression)
+export function safeDateParam(value: string | undefined, fallback: string): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return fallback;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return fallback;
+  // กัน Overflow เช่น 2026-02-31 ที่ JS ปัดเป็น 3 มี.ค. เงียบๆ — ต้อง Round-trip กลับเป็นค่าเดิม
+  return d.toISOString().slice(0, 10) === value ? value : fallback;
+}

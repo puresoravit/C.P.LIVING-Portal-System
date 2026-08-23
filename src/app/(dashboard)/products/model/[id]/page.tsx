@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getProductModelSizeBreakdown } from "@/lib/reports";
-import { startOfMonth, endOfCurrentMonth } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 
 function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -52,8 +52,8 @@ export default async function ProductModelDrillDownPage(
       : await db.productModel.findUnique({ where: { id: rawId }, include: { productType: true } });
   if (!entity) notFound();
 
-  const dateFrom = searchParams.dateFrom || startOfMonth();
-  const dateTo = searchParams.dateTo || endOfCurrentMonth();
+  const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
+  const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
 
   const { bySize, total } = await getProductModelSizeBreakdown(
     { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) },
