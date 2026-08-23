@@ -33,7 +33,9 @@ export const APP_REGISTRY: AppDefinition[] = [
     nameEn: "Account & Sales Billing",
     description: "จัดการลูกค้า ใบส่งของ ใบกำกับภาษี ใบวางบิล และรายงานยอดขาย",
     icon: "billing",
-    route: "/",
+    // หน้าแรกของแอพ Billing (/dashboard แสดง Dashboard ยอดขายสำหรับ Role ที่มีสิทธิ์ดู
+    // หรือหน้าทางลัดใช้งานประจำวันสำหรับ BILLING_STAFF — Logic เดิมของหน้านั้นเอง)
+    route: "/dashboard",
     status: "enabled",
   },
   {

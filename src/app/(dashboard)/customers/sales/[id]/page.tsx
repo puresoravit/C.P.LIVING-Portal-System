@@ -106,7 +106,7 @@ export default async function CustomerSalesDrillDownPage(
 
   return (
     <div className="max-w-2xl">
-      <a href="/" className="text-sm text-blue-600 hover:underline">
+      <a href="/dashboard" className="text-sm text-blue-600 hover:underline">
         ← กลับไปแดชบอร์ด
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-1">{customer.companyName}</h1>

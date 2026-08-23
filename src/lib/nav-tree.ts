@@ -17,7 +17,9 @@ export type NavGroup = { type: "group"; label: string; items: NavNode[] };
 export type NavNode = NavLink | NavGroup | NavSignOut;
 
 export const NAV_TREE: NavNode[] = [
-  { type: "link", href: "/", label: "ข้อมูลทั่วไป / Dashboard", perm: "report.view" },
+  // R6 Phase F (Follow-up) — Dashboard ย้ายจาก "/" มาที่ "/dashboard" (Root กลายเป็น
+  // ทางเข้า Application Portal ตาม Flow ใหม่ — ดู src/app/page.tsx)
+  { type: "link", href: "/dashboard", label: "ข้อมูลทั่วไป / Dashboard", perm: "report.view" },
   {
     type: "group",
     label: "สร้างเอกสาร / Create Document",
