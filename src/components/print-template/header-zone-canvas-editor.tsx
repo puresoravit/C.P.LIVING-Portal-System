@@ -38,7 +38,14 @@ function rowSpanBoundsFor(key: HeaderElementKey) {
   return key === "logo" ? { min: LOGO_ROW_SPAN_MIN, max: LOGO_ROW_SPAN_MAX } : { min: ROW_SPAN_MIN, max: ROW_SPAN_MAX };
 }
 
-function nearestSnap(value: number, candidates: number[], threshold: number): { value: number; snappedAt: number | null } {
+// R6 Phase E.2 Follow-up UAT — เดิม Snap เคย "บังคับ" ค่าตำแหน่งให้กระโดดไปตรง Candidate
+// ทันทีที่เข้าเขต Threshold (Owner รายงานว่าลากแล้วบางช่วง "สมูท" ทีละบรรทัด บางช่วง
+// "กระโดด 2 บรรทัดพร้อมกัน" เพราะ Candidate ไม่ได้อยู่ตรงตำแหน่งที่ Rounding ปกติจะได้พอดี
+// เสมอไป) — แก้โดยแยกบทบาทชัดเจน: คืนแค่ Candidate ที่ "ใกล้พอจะแสดงเส้น Guide" แต่ไม่คืน
+// ค่าตำแหน่งทับ Raw Value เลย — ตำแหน่งจริงที่ใช้ยังมาจาก Rounding ตรงๆ เสมอ (สมูทเท่ากัน
+// ทุกจังหวะ) เส้น Guide ทำหน้าที่ "บอกใบ้" ให้ User หยุดลากตรงนั้นเองเท่านั้น ตรงกับ
+// Requirement เดิมที่เขียนไว้ตรงๆ ว่า "แต่ผู้ใช้ยังวางตำแหน่งเองได้"
+function findGuide(value: number, candidates: number[], threshold: number): number | null {
   let best: number | null = null;
   let bestDist = threshold + 1;
   for (const c of candidates) {
@@ -48,7 +55,7 @@ function nearestSnap(value: number, candidates: number[], threshold: number): { 
       bestDist = dist;
     }
   }
-  return best === null ? { value, snappedAt: null } : { value: best, snappedAt: best };
+  return best;
 }
 
 export function HeaderZoneCanvasEditor({
@@ -102,13 +109,13 @@ export function HeaderZoneCanvasEditor({
       const deltaRowUnits = Math.round((ev.clientY - startClientY) / (HEADER_ROW_UNIT_MM * MM_TO_PX));
 
       if (mode === "move") {
-        const rawCol = clamp(startColStart + deltaColUnits, 1, HEADER_GRID_COLUMNS - startColSpan + 1);
-        const rawRow = clamp(startRowStart + deltaRowUnits, 1, HEADER_MAX_ROWS - startRowSpan + 1);
-        const colSnap = nearestSnap(rawCol, colSnapCandidates(key), SNAP_COL_THRESHOLD);
-        const rowSnap = nearestSnap(rawRow, rowSnapCandidates(key), SNAP_ROW_THRESHOLD);
-        const colStart = clamp(colSnap.value, 1, HEADER_GRID_COLUMNS - startColSpan + 1);
-        const rowStart = clamp(rowSnap.value, 1, HEADER_MAX_ROWS - startRowSpan + 1);
-        setGuides({ col: colSnap.snappedAt, row: rowSnap.snappedAt });
+        // ตำแหน่งจริงที่ใช้ = Rounding ตรงๆ เสมอ (สมูทเท่ากันทุกจังหวะ ไม่มีการกระโดด) —
+        // Guide Line เป็นแค่ตัวช่วยแสดงผล ไม่ได้แก้ไขค่านี้เลย (ดู findGuide ด้านบน)
+        const colStart = clamp(startColStart + deltaColUnits, 1, HEADER_GRID_COLUMNS - startColSpan + 1);
+        const rowStart = clamp(startRowStart + deltaRowUnits, 1, HEADER_MAX_ROWS - startRowSpan + 1);
+        const colGuide = findGuide(colStart, colSnapCandidates(key), SNAP_COL_THRESHOLD);
+        const rowGuide = findGuide(rowStart, rowSnapCandidates(key), SNAP_ROW_THRESHOLD);
+        setGuides({ col: colGuide, row: rowGuide });
         onChange(key, { colStart, rowStart });
       } else if (mode === "resize-col") {
         const colSpan = clamp(startColSpan + deltaColUnits, COL_SPAN_MIN, HEADER_GRID_COLUMNS - startColStart + 1);

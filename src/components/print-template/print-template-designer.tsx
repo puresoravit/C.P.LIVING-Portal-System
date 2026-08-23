@@ -346,6 +346,13 @@ export function PrintTemplateDesigner({
               </div>
             )}
 
+            {/* Follow-up UAT — ย้ายมาไว้เหนือ Canvas เสมอ (แทนที่จะอยู่ท้ายสุดหลังตาราง
+                รายการ/ลายเซ็นที่อาจยาวมาก) กันปัญหา "หาปุ่มปรับ Font Size ไม่เจอ" เพราะเดิม
+                ต้อง Scroll ผ่านทั้งหน้าเอกสารตัวอย่างก่อนถึงจะเห็น */}
+            {selectedElement && selectedStyle && (
+              <HeaderElementPropertiesBar elementKey={selectedElement} style={selectedStyle} onUpdate={(patch) => updateHeaderElement(selectedElement, patch)} />
+            )}
+
             <PrintTemplateDesignerCanvas
               docType={previewDocType}
               settings={previewSettings}
@@ -357,10 +364,6 @@ export function PrintTemplateDesigner({
               onSelectElement={setSelectedElement}
               onChangeElement={updateHeaderElement}
             />
-
-            {selectedElement && selectedStyle && (
-              <HeaderElementPropertiesBar elementKey={selectedElement} style={selectedStyle} onUpdate={(patch) => updateHeaderElement(selectedElement, patch)} />
-            )}
 
             <p className="text-xs text-gray-400">
               * พื้นที่ตัวอย่างนี้เป็นความสูงยืดหยุ่นตามเนื้อหา ไม่ได้จำลองการตัดหน้า (Pagination) จริง — ต้องตรวจสอบ
