@@ -71,7 +71,7 @@ export default async function NewTaxInvoicePage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">สถานที่ส่งสินค้า</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)</label>
           <input
             name="placeToDelivery"
             form="taxInvoiceForm"
@@ -106,6 +106,7 @@ export default async function NewTaxInvoicePage() {
               if (!customer || customer.branches.length === 0) {
                 emptyOpt.textContent = 'ลูกค้ารายนี้ยังไม่มีสาขา — ไม่ต้องเลือก';
                 branchSelect.appendChild(emptyOpt);
+                placeToDeliveryInput.value = '';
                 return;
               }
               emptyOpt.textContent = '— ไม่ระบุสาขา —';
@@ -116,12 +117,17 @@ export default async function NewTaxInvoicePage() {
                 opt.textContent = b.name;
                 branchSelect.appendChild(opt);
               });
+              // Owner UAT (2026-08-23) — ลูกค้ามีสาขาเดียว: เลือกสาขานั้นให้ทันทีตั้งแต่
+              // เลือกลูกค้า เพื่อให้ที่อยู่ถูกดึงจากฐานข้อมูลเลย (ไม่ต้องกดเลือกสาขาซ้ำ)
+              if (customer.branches.length === 1) branchSelect.value = customer.branches[0].id;
               updatePlace();
             }
             function updatePlace() {
               const customer = customersData.find(c => c.id === customerSelect.value);
               const branch = customer && customer.branches.find(b => b.id === branchSelect.value);
-              if (branch) placeToDeliveryInput.value = branch.address;
+              // เลือกสาขา = ดึงที่อยู่สาขา (ค่าสด ณ ตอนโหลดหน้า) — ไม่เลือกสาขา = ล้างช่อง
+              // ให้พิมพ์เอง — พิมพ์แก้ด้วยมือทับได้ตลอดหลังดึงมาแล้ว (Input ธรรมดา ไม่ล็อก)
+              placeToDeliveryInput.value = branch ? branch.address : '';
             }
             customerSelect.addEventListener('change', updateBranches);
             branchSelect.addEventListener('change', updatePlace);

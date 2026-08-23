@@ -35,7 +35,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
   const preview = order.items.length > 0 ? await computeOrderPreview(order.id) : null;
 
   return (
-    <PrintPage>
+    <PrintPage backHref={`/orders/${order.id}`}>
       <PrintDocumentHeader company={company} />
       <PrintDocumentTitle titleTh="ใบสั่งขาย (เอกสารภายใน ไม่ใช่เอกสารสำหรับลูกค้า)" titleEn="SALES ORDER (INTERNAL USE ONLY)" />
 

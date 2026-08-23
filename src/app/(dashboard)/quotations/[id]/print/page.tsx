@@ -124,7 +124,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="QUOTATION" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
+    <PrintPage templateSettings={template} docType="QUOTATION" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/quotations/${quotation.id}`}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

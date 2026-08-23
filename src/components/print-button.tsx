@@ -18,11 +18,17 @@ export function PrintButton({
   markPrintedAction,
   isPrinted,
   printedAtLabel,
+  backHref,
 }: {
   markPrintedAction?: (formData: FormData) => void;
   /** true = เอกสารนี้ผ่าน PRINTED Checkpoint แล้ว (โชว์วันที่แทนปุ่ม) */
   isPrinted?: boolean;
   printedAtLabel?: string;
+  // Owner UAT (2026-08-23) — เดิมปุ่ม "← กลับ" ใช้ history.back() ซึ่งพากลับไป "หน้าที่มา
+  // ล่าสุด" — ถ้าเพิ่งกลับมาจากหน้าแก้ไขฟอร์ม (Document Designer) จะวนกลับไปหน้าแก้ไขฟอร์ม
+  // อีกรอบแทนที่จะกลับหน้าเอกสาร — แก้เป็นลิงก์ตรงไปหน้า Detail ของเอกสาร (หน้าคีย์สินค้า)
+  // เสมอเมื่อหน้า Print ระบุมา — ไม่ระบุ = Fallback history.back() เดิม (กันหน้าเก่าพัง)
+  backHref?: string;
 }) {
   const [profile, setProfile] = useState<PrintProfileKey>(DEFAULT_PRINT_PROFILE);
 
@@ -66,12 +72,18 @@ export function PrintButton({
         </span>
       )}
 
-      <button
-        onClick={() => window.history.back()}
-        className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2"
-      >
-        ← กลับ
-      </button>
+      {backHref ? (
+        <a href={backHref} className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2">
+          ← กลับ
+        </a>
+      ) : (
+        <button
+          onClick={() => window.history.back()}
+          className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2"
+        >
+          ← กลับ
+        </button>
+      )}
     </div>
   );
 }

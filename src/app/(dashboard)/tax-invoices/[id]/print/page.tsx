@@ -115,7 +115,7 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="TAX_INVOICE" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
+    <PrintPage templateSettings={template} docType="TAX_INVOICE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/tax-invoices/${taxInvoice.id}`}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

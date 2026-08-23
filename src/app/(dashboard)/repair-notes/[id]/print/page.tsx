@@ -112,7 +112,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="REPAIR_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
+    <PrintPage templateSettings={template} docType="REPAIR_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/repair-notes/${note.id}`}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

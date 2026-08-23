@@ -47,7 +47,9 @@ export default async function NewOrderPage() {
           <TextareaField label="หมายเหตุ" name="note" />
         </div>
         <div className="col-span-2 flex items-center gap-1.5 text-sm">
-          <input id="applyDiscount" type="checkbox" name="applyDiscount" defaultChecked />
+          {/* Owner UAT (2026-08-23) — ค่าเริ่มต้นต้อง "ไม่ติ้ก" ใช้ส่วนลด (เดิม defaultChecked)
+              — ติ้กเองเมื่อต้องการใช้จริงเท่านั้น (เหมือนกันทุกประเภทเอกสารที่มี Toggle นี้) */}
+          <input id="applyDiscount" type="checkbox" name="applyDiscount" />
           <label htmlFor="applyDiscount">ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)</label>
         </div>
         <div className="col-span-2">
@@ -80,6 +82,7 @@ export default async function NewOrderPage() {
               if (!customer || customer.branches.length === 0) {
                 emptyOpt.textContent = 'ลูกค้ารายนี้ยังไม่มีสาขา — ไม่ต้องเลือก';
                 branchSelect.appendChild(emptyOpt);
+                placeToDeliveryInput.value = '';
                 return;
               }
               emptyOpt.textContent = '— ไม่ระบุสาขา —';
@@ -90,12 +93,18 @@ export default async function NewOrderPage() {
                 opt.textContent = b.name;
                 branchSelect.appendChild(opt);
               });
+              // Owner UAT (2026-08-23) — ลูกค้ามีสาขาเดียว: เลือกสาขานั้นให้ทันทีตั้งแต่
+              // เลือกลูกค้า เพื่อให้ที่อยู่ถูกดึงจากฐานข้อมูลเลย (ไม่ต้องกดเลือกสาขาซ้ำ)
+              if (customer.branches.length === 1) branchSelect.value = customer.branches[0].id;
               updatePlaceToDelivery();
             }
             function updatePlaceToDelivery() {
               const customer = customersData.find(c => c.id === customerSelect.value);
               const branch = customer && customer.branches.find(b => b.id === branchSelect.value);
-              if (branch) placeToDeliveryInput.value = branch.address;
+              // เลือกสาขา = ดึงที่อยู่สาขา (ค่าสด ณ ตอนโหลดหน้า — แก้ข้อมูลลูกค้าแล้วกลับมา
+              // หน้านี้ใหม่จะได้ค่าใหม่เสมอ) — ไม่เลือกสาขา = ล้างช่องให้พิมพ์เอง — พิมพ์
+              // แก้ด้วยมือทับได้ตลอดหลังดึงมาแล้ว (Input ธรรมดา ไม่ล็อก)
+              placeToDeliveryInput.value = branch ? branch.address : '';
             }
             customerSelect.addEventListener('change', updateBranches);
             branchSelect.addEventListener('change', updatePlaceToDelivery);

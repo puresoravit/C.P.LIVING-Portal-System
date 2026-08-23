@@ -21,6 +21,7 @@ export function PrintPage({
   templateSettings,
   docType,
   canEditTemplate,
+  backHref,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
@@ -42,6 +43,9 @@ export function PrintPage({
    * ต้องการ user.manage — ไม่ Render ลิงก์เลยถ้าไม่มีสิทธิ์ กัน Dead-end ลิงก์ที่กดแล้ว
    * โดน Redirect ออกเฉยๆ */
   canEditTemplate?: boolean;
+  /** Owner UAT (2026-08-23) — ปลายทางของปุ่ม "← กลับ" (หน้า Detail ของเอกสาร) — ดูเหตุผล
+   * เต็มใน print-button.tsx */
+  backHref?: string;
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
@@ -52,7 +56,7 @@ export function PrintPage({
       />
       <div className="print:hidden flex items-center justify-between gap-3 mb-2">
         <div className="flex items-center gap-3">
-          <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} />
+          <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} backHref={backHref} />
           {canEditTemplate && docType && <EditTemplateLink docType={docType} />}
         </div>
         <PrintProfileSelector />

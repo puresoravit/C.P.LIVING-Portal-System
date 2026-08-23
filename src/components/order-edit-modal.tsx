@@ -367,8 +367,8 @@ export function OrderEditModal({
                     <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0.01"
+                      step="1"
+                      min="1"
                       value={qty}
                       onChange={(e) => setQty(e.target.value)}
                       className="w-full border rounded px-3 py-1.5 text-sm"

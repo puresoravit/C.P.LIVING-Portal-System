@@ -202,8 +202,10 @@ export function OrderItemEntryForm({
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             type="number"
-            step="0.01"
-            min="0.01"
+            // Owner UAT (2026-08-23) — จำนวนสินค้าเป็นจำนวนเต็มเสมอ: ลูกศรขึ้น/ลงต้องขยับ
+            // ทีละ 1 (เดิม step 0.01 ขยับเป็นทศนิยม) — เหมือนกันทุกฟอร์มคีย์สินค้า
+            step="1"
+            min="1"
             required
             onKeyDown={handleQtyKeyDown}
             className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

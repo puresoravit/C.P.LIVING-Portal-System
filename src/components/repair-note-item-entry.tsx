@@ -104,7 +104,8 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน</label>
             <input
               type="number"
-              step="0.01"
+              step="1"
+              min="1"
               value={draft.quantity}
               onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
               className="w-full border rounded px-3 py-1.5 text-sm"

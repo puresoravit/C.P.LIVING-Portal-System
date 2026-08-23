@@ -108,7 +108,7 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="BILLING_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
+    <PrintPage templateSettings={template} docType="BILLING_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/billing-notes/${note.id}`}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

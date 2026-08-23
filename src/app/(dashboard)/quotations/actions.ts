@@ -86,7 +86,11 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
         placeToDelivery: parsed.placeToDelivery,
         vatMode: parsed.vatMode as QuotationVatModeValue,
         // R3 — applyDiscount ตั้งค่าหลังสร้างที่หน้า Detail (ตาม Requirement ที่ไม่ให้
-        // ตัดสินใจ VAT/ส่วนลดตั้งแต่หน้า Create) จึงใช้ Default true ของ Schema เสมอตอนสร้าง
+        // ตัดสินใจ VAT/ส่วนลดตั้งแต่หน้า Create) — Owner UAT (2026-08-23): ค่าเริ่มต้นต้อง
+        // "ไม่ใช้ส่วนลด" เสมอ (เดิมพึ่ง Default true ของ Schema) — ติ้กเองที่หน้า Detail
+        // เมื่อต้องการใช้จริงเท่านั้น (ไม่แก้ Schema Default เพื่อเลี่ยง Migration — เอกสาร
+        // เดิมในระบบไม่ถูกกระทบเลย มีผลเฉพาะใบที่สร้างใหม่หลังจากนี้)
+        applyDiscount: false,
         status: "DRAFT",
         createdById: user.id,
       },
