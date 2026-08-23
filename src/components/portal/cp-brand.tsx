@@ -21,7 +21,7 @@ export const CP_MOTTO_2 = "TOGETHER, EVERY DAY.";
 // เดียว (Premium/Calm: ease มาตรฐาน Material แบบนุ่ม ไม่เด้ง) — ทุกจุดที่ประกาศ Animation
 // ต้องมี @media (prefers-reduced-motion: reduce) ปิดเสมอ
 export const MOTION_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
-export const MOTION_PAGE_MS = 600; // Fade เข้า/ออกระดับหน้า
+export const MOTION_PAGE_MS = 900; // Fade เข้า/ออกระดับหน้า (Owner ขอนุ่ม/ช้าขึ้น)
 export const MOTION_CARD_MS = 220; // Micro-interaction ของ Card/ปุ่ม
 
 /** Master Logo — Render จากไฟล์ PNG ต้นฉบับตรงๆ เท่านั้น กำหนดได้เฉพาะความกว้าง

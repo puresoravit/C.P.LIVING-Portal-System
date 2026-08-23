@@ -21,8 +21,6 @@ import { CPLogo, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_G
 //   Requirement ห้ามสร้าง Fake Flow
 // ==========================================================================
 
-const SPLASH_KEY = "cpfSplashShown";
-
 export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolean; sessionExpired: boolean }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -38,21 +36,26 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
+    // Owner UAT Polish — Root Cause ที่ Splash โดนข้าม: เดิม Gate ด้วย sessionStorage
+    // "ครั้งเดียวต่อ Tab" ทำให้เปิดเว็บรอบถัดไปใน Tab เดิม (รวมถึงหลัง Logout) ไม่เห็น
+    // Splash เลย — เจตนาจริงของ Owner คือ "ไม่มี Session แล้วเข้าเว็บ = เห็น Splash เสมอ"
+    // ซึ่งการมาถึงหน้านี้คือกรณีไม่มี Session โดยนิยามอยู่แล้ว (Middleware กันคนมี Session
+    // ไม่ให้หลุดมาที่นี่ ยกเว้นเข้า /login ตรงๆ) — จึงเล่น Splash ทุกครั้งที่ Mount ยกเว้น:
+    // (a) Redirect จาก Session หมดอายุ (?expired=1) — ผู้ใช้ควร Login กลับได้เร็ว ไม่ต้อง
+    //     ดู Splash ซ้ำ (b) prefers-reduced-motion
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const seen = window.sessionStorage.getItem(SPLASH_KEY) === "1";
-    if (reduced || seen) {
+    if (reduced || sessionExpired) {
       setStage("login");
       return;
     }
-    window.sessionStorage.setItem(SPLASH_KEY, "1");
     setStage("splash");
-    // Owner UAT Polish — จังหวะใหม่ให้ Premium/Calm: โลโก้เข้านุ่ม (~1.3s) → Tagline ตาม
-    // → Hold ให้เห็นแบรนด์ชัดๆ → เริ่ม Cross-fade ที่ 3.8s ใช้เวลา 1.2s (ไม่กระชาก
-    // และไม่ค้างจนน่ารำคาญ) — Login Layer อยู่ใต้ Splash ตลอด Background จึงต่อเนื่อง
-    timers.current.push(setTimeout(() => setStage("fading"), 3800));
-    timers.current.push(setTimeout(() => setStage("login"), 5000));
+    // จังหวะ Premium/Calm (Owner ขอช้าลงจากรอบก่อนอย่างเห็นได้ชัด): โลโก้ลอยเข้า ~1.8s
+    // → Tagline/Motto ตามทีละจังหวะ → Hold ให้ซึมซับแบรนด์ → เริ่ม Cross-fade ที่ 5.2s
+    // ยาว 1.6s (จบ ~6.8s) — Login Layer อยู่ใต้ Splash ตลอด Background ต่อเนื่องไม่มี Flash
+    timers.current.push(setTimeout(() => setStage("fading"), 5200));
+    timers.current.push(setTimeout(() => setStage("login"), 6800));
     return () => timers.current.forEach(clearTimeout);
-  }, []);
+  }, [sessionExpired]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +74,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
     window.setTimeout(() => {
       router.push("/portal");
       router.refresh();
-    }, 350);
+    }, 620);
   }
 
   const splashVisible = stage === "splash" || stage === "fading";
@@ -81,12 +84,12 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
       <style>{`
         @keyframes cpfFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
         @keyframes cpfLogoIn { from { opacity: 0; transform: scale(0.94) translateY(8px); } to { opacity: 1; transform: none; } }
-        .cpf-logo-in { animation: cpfLogoIn 1.3s ${MOTION_EASE} both; }
-        .cpf-t2 { animation: cpfFadeUp 0.9s ${MOTION_EASE} 1.1s both; }
-        .cpf-t3 { animation: cpfFadeUp 0.9s ${MOTION_EASE} 1.6s both; }
-        .cpf-card-in { animation: cpfFadeUp 0.8s ${MOTION_EASE} 0.15s both; }
-        .cpf-splash-out { opacity: 0; transition: opacity 1.2s ${MOTION_EASE}; }
-        .cpf-leave { opacity: 0; transition: opacity 0.35s ${MOTION_EASE}; }
+        .cpf-logo-in { animation: cpfLogoIn 1.8s ${MOTION_EASE} both; }
+        .cpf-t2 { animation: cpfFadeUp 1.1s ${MOTION_EASE} 1.5s both; }
+        .cpf-t3 { animation: cpfFadeUp 1.1s ${MOTION_EASE} 2.2s both; }
+        .cpf-card-in { animation: cpfFadeUp 1.1s ${MOTION_EASE} 0.2s both; }
+        .cpf-splash-out { opacity: 0; transition: opacity 1.6s ${MOTION_EASE}; }
+        .cpf-leave { opacity: 0; transition: opacity 0.6s ${MOTION_EASE}; }
         @media (prefers-reduced-motion: reduce) {
           .cpf-logo-in, .cpf-t2, .cpf-t3, .cpf-card-in { animation: none; }
           .cpf-splash-out, .cpf-leave { transition: none; }
@@ -112,7 +115,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
             >
               <div className="flex flex-col items-center mb-5">
                 {/* Master Logo (มี C.P. LIVING GROUP + เส้นทองในตัวครบ) */}
-                <CPLogo width={230} />
+                <CPLogo width={207} />
                 <h1 className="mt-5 text-3xl font-bold" style={{ color: CP_NAVY }}>
                   Welcome
                 </h1>
