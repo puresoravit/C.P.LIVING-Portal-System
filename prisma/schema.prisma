@@ -32,12 +32,36 @@ model User {
   displayName   String
   role          Role
   active        Boolean  @default(true)
+  // R6 Phase F — Owner ตัวจริงของธุรกิจ (คนละแนวคิดกับ Role OWNER_ADMIN ซึ่งเป็นชุด
+  // Permission ภายในแอพ Billing): เฉพาะ isOwner=true เท่านั้นที่เห็น/ใช้ Access
+  // Management บน Application Portal ได้ — ตาม Requirement ตรงๆ ว่า "Admin/User Manager
+  // ห้ามได้สิทธิ์นี้อัตโนมัติ" จึงต้องเป็น Flag ชัดเจนที่ DB ไม่ผูกกับ Role/Permission เดิม
+  // — Owner มีสิทธิ์เข้าทุก Application โดยปริยาย (ไม่ต้องมีแถว UserAppAccess)
+  isOwner       Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   auditLogs     AuditLog[]
+  appAccess     UserAppAccess[]
 
   @@map("users")
+}
+
+// R6 Phase F — App Access ชั้นที่ 1 (เข้า Application ไหนได้บ้าง) — แยกชัดจาก Permission
+// Matrix เดิม (ชั้นที่ 2: เข้าแอพแล้วทำอะไรได้ ยังใช้ Role/can() เดิมทุกประการ ไม่แตะเลย)
+// มีแถว = ได้สิทธิ์เข้าแอพนั้น (appId อ้างอิง Central App Registry ในโค้ด —
+// src/lib/app-registry.ts — ไม่มี Table Application แยกเพราะรายชื่อแอพเป็นเรื่องของ
+// Codebase/Route ที่มีจริง ไม่ใช่ข้อมูลที่ผู้ใช้สร้างเองได้)
+model UserAppAccess {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  appId       String
+  grantedById String?  // User id ของ Owner ที่กดให้สิทธิ์ (Audit ฉบับเต็มอยู่ใน AuditLog)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, appId])
+  @@map("user_app_access")
 }
 
 // ---------- Phase 1: CUSTOMER / BRANCH ----------

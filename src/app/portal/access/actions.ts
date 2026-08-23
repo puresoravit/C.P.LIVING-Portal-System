@@ -1,0 +1,90 @@
+"use server";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { getGrantableApps } from "@/lib/app-registry";
+import type { ActionResult } from "@/lib/action-result";
+
+// ==========================================================================
+// R6 Phase F — Grant/Revoke App Access — เฉพาะ Owner (isOwner=true จาก DB สด) เท่านั้น
+// ห้ามผูกกับ Role/Permission เดิม (OWNER_ADMIN/user.manage ไม่ได้สิทธิ์นี้อัตโนมัติ
+// ตาม Requirement ตรงๆ) — ทุกการเปลี่ยนแปลงบันทึก AuditLog ครบ: actor / target /
+// app / before / after / timestamp (createdAt ของ AuditLog เดิม)
+// ==========================================================================
+
+async function requireOwner() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id as string | undefined;
+  if (!userId) throw new Error("UNAUTHORIZED");
+  // อ่าน isOwner สดจาก DB เสมอ — ไม่เชื่อค่าใดๆ ใน JWT/Session (Flag นี้ไม่เคยถูก Cache)
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, isOwner: true, active: true, username: true } });
+  if (!user || !user.active || !user.isOwner) throw new Error("FORBIDDEN");
+  return user;
+}
+
+/** ตั้งชุดสิทธิ์ App Access ของ User ปลายทางให้ตรงกับ desiredAppIds (Server คำนวณ
+ * Diff เองจากสถานะจริงใน DB — Grant ส่วนที่ขาด / Revoke ส่วนที่เกิน — Atomic ทั้งชุด) */
+export async function updateUserAppAccess(targetUserId: string, formData: FormData): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  // ห้ามแก้สิทธิ์ตัวเอง (กัน Owner ล็อกตัวเองออกจาก Portal/Access Management) และห้ามแก้
+  // สิทธิ์ของ Owner คนอื่น (Owner เข้าได้ทุกแอพโดยปริยายอยู่แล้ว — แถว UserAppAccess ของ
+  // Owner ไม่มีความหมาย การเปิดให้แก้มีแต่ชวนให้เข้าใจผิด)
+  if (targetUserId === owner.id) {
+    return { success: false, error: "ไม่สามารถแก้ไขสิทธิ์ของตัวเองได้" };
+  }
+  const target = await db.user.findUnique({ where: { id: targetUserId }, select: { id: true, username: true, isOwner: true } });
+  if (!target) return { success: false, error: "ไม่พบผู้ใช้" };
+  if (target.isOwner) return { success: false, error: "เจ้าของกิจการเข้าได้ทุกแอปพลิเคชันอยู่แล้ว — ไม่ต้องกำหนดสิทธิ์" };
+
+  const grantableIds = new Set(getGrantableApps().map((a) => a.id));
+  const desired = new Set(
+    formData
+      .getAll("appIds")
+      .map(String)
+      .filter((id) => grantableIds.has(id)) // Defense-in-depth: id นอก Registry/ownerOnly ถูกทิ้งเงียบๆ
+  );
+
+  const currentRows = await db.userAppAccess.findMany({ where: { userId: targetUserId }, select: { appId: true } });
+  const current = new Set(currentRows.map((r) => r.appId));
+
+  const toGrant = [...desired].filter((id) => !current.has(id));
+  const toRevoke = [...current].filter((id) => grantableIds.has(id) && !desired.has(id));
+
+  if (toGrant.length === 0 && toRevoke.length === 0) {
+    return { success: true };
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const appId of toGrant) {
+      await tx.userAppAccess.create({ data: { userId: targetUserId, appId, grantedById: owner.id } });
+      await tx.auditLog.create({
+        data: {
+          userId: owner.id,
+          action: "GRANT_APP_ACCESS",
+          module: "AppAccess",
+          recordId: targetUserId,
+          newValue: { targetUsername: target.username, appId, before: false, after: true },
+        },
+      });
+    }
+    for (const appId of toRevoke) {
+      await tx.userAppAccess.deleteMany({ where: { userId: targetUserId, appId } });
+      await tx.auditLog.create({
+        data: {
+          userId: owner.id,
+          action: "REVOKE_APP_ACCESS",
+          module: "AppAccess",
+          recordId: targetUserId,
+          newValue: { targetUsername: target.username, appId, before: true, after: false },
+        },
+      });
+    }
+  });
+
+  // ล้าง Cache ทั้ง Layout ให้ Portal/Route Guard ของทุกหน้าเห็นสิทธิ์ใหม่ทันที
+  revalidatePath("/", "layout");
+  return { success: true };
+}
