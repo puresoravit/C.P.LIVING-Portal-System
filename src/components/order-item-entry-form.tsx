@@ -125,7 +125,11 @@ export function OrderItemEntryForm({
     const formData = new FormData();
     formData.set("productId", effectiveProductId);
     formData.set("quantity", quantity);
-    const desc = descriptionOverride.trim() || (unresolvedInfo ? `${unresolvedInfo.modelName} ${overrideSize.trim()}`.trim() : "");
+    // Owner UAT (2026-08-23) — เดิมต่อท้าย Description ด้วยขนาด (`${modelName} ${size}`)
+    // ทำให้คอลัมน์ "รายการ" กับ "ขนาด" ซ้ำข้อมูลกันบนหน้าพิมพ์/หน้าคีย์เอกสาร (ขนาดมีคอลัมน์
+    // ของตัวเองอยู่แล้ว) — ใช้ modelName เดี่ยวๆ เหมือน Pattern เดียวกับ Manual Tax
+    // Invoice/Repair Note Entry ที่ไม่เคยมีปัญหานี้
+    const desc = descriptionOverride.trim() || (unresolvedInfo ? unresolvedInfo.modelName : "");
     if (desc) formData.set("descriptionOverride", desc);
     const sizeToSend = unresolvedInfo ? overrideSize.trim() : standaloneSize.trim();
     if (sizeToSend) formData.set("sizeOverride", sizeToSend);

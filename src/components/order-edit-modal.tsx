@@ -171,7 +171,9 @@ export function OrderEditModal({
           key: `${unresolvedInfo.anchorProductId}-${Date.now()}`,
           productId: unresolvedInfo.anchorProductId!,
           sku: "-",
-          name: descriptionOverride.trim() || `${unresolvedInfo.modelName} ${overrideSize.trim()}`.trim(),
+          // Owner UAT (2026-08-23) — ห้ามต่อท้ายขนาดใน name (คอลัมน์ "ขนาด" แยกแสดงอยู่แล้ว
+          // ใน items.map ด้านล่าง — ดู sizeDisplay) กันซ้ำซ้อนกับคอลัมน์ "รายการ"
+          name: descriptionOverride.trim() || unresolvedInfo.modelName,
           unit: unresolvedInfo.unit,
           productTypeName: unresolvedInfo.productTypeName,
           quantity,

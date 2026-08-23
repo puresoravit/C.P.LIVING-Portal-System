@@ -70,6 +70,17 @@ export const NAV_TREE: NavNode[] = [
       { type: "link", href: "/quotations", label: "เอกสารใบเสนอราคา", perm: "quotation.view" },
       { type: "link", href: "/invoices", label: "เอกสารใบส่งของชั่วคราว", perm: "invoice.create" },
       { type: "link", href: "/tax-invoices", label: "เอกสารใบกำกับภาษี", perm: "taxInvoice.create" },
+      // Owner UAT (2026-08-23) — /billing-notes และ /repair-notes (List Page) มีอยู่แล้ว
+      // จริง (Business Logic เดิม ไม่ใช่หน้าใหม่) แต่ไม่เคยมี Sidebar Link ชี้ไปเลยตั้งแต่
+      // สร้าง — ทางเดียวที่จะไปถึงคือกด "ใบวางบิล"/"ใบส่งคืนสินค้าฝากซ่อม" ใน "สร้างเอกสาร"
+      // (พาตรงไปหน้า /new) แล้วกดลิงก์ "← กลับไปรายการ..." ย้อนกลับมาเท่านั้น — สลับกับ
+      // เอกสารประเภทอื่นทุกตัวที่ Sidebar ชี้ไปหน้า List ตรงๆ ทำให้ Owner หาหน้านี้เองไม่
+      // เจอ (บั๊กหมวดเดียวกับที่เคยพลาดมาก่อน — ต้องเช็ค Nav Reachability ทุกครั้งที่มีหน้า
+      // ใหม่/หน้าเดิมที่ยังไม่เคยผูก Sidebar) — Permission ใช้ตัวเดียวกับที่หน้า List เอง
+      // เช็คอยู่แล้ว (billingNote.create/repairNote.create) เหมือน Pattern ของ /orders ที่
+      // ใช้ order.create ข้างบนนี้ทุกประการ (ไม่มี .view แยกต่างหากในระบบนี้)
+      { type: "link", href: "/billing-notes", label: "เอกสารใบวางบิล", perm: "billingNote.create" },
+      { type: "link", href: "/repair-notes", label: "เอกสารใบส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create" },
     ],
   },
   { type: "link", href: "/reports", label: "รายงานยอดขาย / Sales Report", perm: "report.view" },
