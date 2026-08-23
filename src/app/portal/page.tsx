@@ -38,7 +38,8 @@ export default async function PortalPage() {
       {/* ---------- Header ---------- */}
       <header className="flex items-center justify-between gap-4 px-5 md:px-10 py-4 border-b border-white/10">
         <div className="flex items-center gap-4 min-w-0">
-          <CPLogo width={118} className="shrink-0" />
+          {/* Owner UAT Polish — ขยาย ~10% จากเดิม (118 → 130) */}
+          <CPLogo width={130} className="shrink-0" />
           <div className="hidden sm:block h-8 w-px bg-white/15" aria-hidden />
           <div className="hidden sm:block text-sm md:text-base tracking-[0.25em] text-slate-200 whitespace-nowrap">APPLICATION PORTAL</div>
         </div>
@@ -63,7 +64,9 @@ export default async function PortalPage() {
       <main className="flex-1 flex flex-col items-center px-5 md:px-10 py-10 md:py-14">
         <div className="text-center">
           <div className="text-lg md:text-xl text-slate-300">Welcome back,</div>
-          <h1 className="mt-1 text-3xl md:text-4xl font-semibold" style={{ color: "#E8CE8C" }}>
+          {/* Owner UAT Polish — ลดความหนาจาก font-semibold → font-medium ให้เบา/เรียบหรู
+              ขึ้น ไม่ให้ชื่อ "ตะโกน" เกินข้อความรอบข้าง (สี/ขนาดคงเดิม) */}
+          <h1 className="mt-1 text-3xl md:text-4xl font-medium" style={{ color: "#E8CE8C" }}>
             {user.displayName}
           </h1>
           <div className="mt-4">
@@ -115,13 +118,15 @@ export default async function PortalPage() {
               </>
             );
 
-            // Micro-interaction ตาม Requirement: ยก+ขยายเล็กน้อย + ขอบทองจางตอน Hover,
-            // กดแล้วยุบเบาๆ — Transition 200ms — Touch/Reduced-motion ไม่พึ่ง Hover
-            // (Card กดได้ตรงๆ) และปิด Transform ผ่าน motion-reduce
+            // Owner UAT Polish — Hover ขยายให้เห็นชัดขึ้นกว่าเดิม (1.02→1.06) + ยกสูงขึ้น
+            // เล็กน้อย (-1→-1.5), Transition นุ่มขึ้น/ยาวขึ้น (200ms→320ms, Ease เดียวกับ
+            // Motion System ของ Splash/Login) — Transform ไม่กระทบ Layout Flow ของ Card
+            // ข้างเคียงอยู่แล้ว (ไม่ใช้ margin/size จริงเปลี่ยน) แค่เพิ่ม z-10 กัน Card ที่
+            // ขยายทับเงาซ้อนใต้ Card ข้างๆ ดูค้าง — Active/Focus/Reduced-motion คงพฤติกรรมเดิม
             const cardClass =
               "flex flex-col items-center rounded-2xl border px-6 py-8 min-h-[300px] bg-white/[0.04] " +
               (accessible
-                ? "border-white/15 transition-all duration-200 hover:-translate-y-1 hover:scale-[1.02] hover:border-[#C9A24B]/70 hover:bg-white/[0.07] hover:shadow-[0_8px_30px_rgba(201,162,75,0.15)] active:scale-[0.99] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24B] motion-reduce:transform-none motion-reduce:transition-none"
+                ? "relative border-white/15 transition-all duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:z-10 hover:-translate-y-1.5 hover:scale-[1.06] hover:border-[#C9A24B]/70 hover:bg-white/[0.07] hover:shadow-[0_14px_40px_rgba(201,162,75,0.2)] active:scale-[1.03] active:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24B] motion-reduce:transform-none motion-reduce:transition-none"
                 : "border-white/10 opacity-70");
 
             return accessible && app.route ? (

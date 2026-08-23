@@ -49,11 +49,12 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
       return;
     }
     setStage("splash");
-    // จังหวะ Premium/Calm (Owner ขอช้าลงจากรอบก่อนอย่างเห็นได้ชัด): โลโก้ลอยเข้า ~1.8s
-    // → Tagline/Motto ตามทีละจังหวะ → Hold ให้ซึมซับแบรนด์ → เริ่ม Cross-fade ที่ 5.2s
-    // ยาว 1.6s (จบ ~6.8s) — Login Layer อยู่ใต้ Splash ตลอด Background ต่อเนื่องไม่มี Flash
-    timers.current.push(setTimeout(() => setStage("fading"), 5200));
-    timers.current.push(setTimeout(() => setStage("login"), 6800));
+    // Owner UAT Polish — ลดระยะเวลาที่เห็น Splash ลง ~1s จากรอบก่อน (Hold สั้นลง เริ่ม
+    // Cross-fade เร็วขึ้นที่ 4.2s แทน 5.2s) — ความ "นุ่ม" ของ Cross-fade เองไม่ถูกตัดทอน
+    // เลย (ระยะเวลา Fade ยังคง 1.6s เท่าเดิมเป๊ะ แค่ขยับจุดเริ่มเร็วขึ้น) โลโก้ลอยเข้า ~1.8s
+    // → Tagline/Motto ตามทีละจังหวะ → Hold สั้นๆ → Cross-fade 1.6s (จบ ~5.8s รวม)
+    timers.current.push(setTimeout(() => setStage("fading"), 4200));
+    timers.current.push(setTimeout(() => setStage("login"), 5800));
     return () => timers.current.forEach(clearTimeout);
   }, [sessionExpired]);
 
@@ -114,12 +115,16 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
               className="cpf-card-in w-full max-w-md rounded-2xl bg-white/95 backdrop-blur shadow-2xl px-8 py-9"
             >
               <div className="flex flex-col items-center mb-5">
-                {/* Master Logo (มี C.P. LIVING GROUP + เส้นทองในตัวครบ) */}
-                <CPLogo width={207} />
-                <h1 className="mt-5 text-3xl font-bold" style={{ color: CP_NAVY }}>
+                {/* Owner UAT Polish — Master Logo ขยาย ~10% (207 → 228, มี
+                    C.P. LIVING GROUP + เส้นทองในตัวครบ) */}
+                <CPLogo width={228} />
+                {/* Owner UAT Polish — ลดความหนา (font-bold → font-semibold) ให้ Premium
+                    ขึ้น + ขยับขึ้นชิดโลโก้กว่าเดิม (mt-5 → mt-2) ให้ระยะ Logo→Welcome
+                    กระชับสมดุล — Subtitle ตามชิดในชุดเดียวกัน (mt-1 → mt-0.5) */}
+                <h1 className="mt-2 text-3xl font-semibold" style={{ color: CP_NAVY }}>
                   Welcome
                 </h1>
-                <p className="mt-1 text-sm text-gray-500">Sign in to continue to C.P. Living Group</p>
+                <p className="mt-0.5 text-sm text-gray-500">Sign in to continue to C.P. Living Group</p>
               </div>
 
               {sessionExpired && !error && (
