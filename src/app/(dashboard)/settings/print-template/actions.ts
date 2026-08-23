@@ -31,6 +31,18 @@ function checkboxValue(formData: FormData, name: string): boolean {
   return formData.get(name) === "1";
 }
 
+// R6 Phase E.3 Follow-up — เดิมทุก Action Revalidate เฉพาะ "/settings/print-template"
+// (หน้า Designer เอง) แต่ Template Settings มีผลกับหน้าพิมพ์จริงทุกประเภท/ทุกเลขที่เอกสาร
+// ด้วย — ผลคือ Client Router Cache ของ Next.js ยังเสิร์ฟหน้าพิมพ์เวอร์ชันเก่าเมื่อผู้ใช้
+// กด Back/นำทางกลับไปหน้าพิมพ์ที่เคยเปิดไว้หลัง Apply (Owner รายงานตรงๆ ว่า "ฟอร์มที่แก้ใน
+// Designer ยังไม่เชื่อมข้อมูลกัน" — Server Render จริงถูกต้องเสมอ แต่ Cache ฝั่ง Client ไม่
+// ถูกล้าง) — หน้าพิมพ์เป็น Dynamic Route ([id]) นับเลขที่เอกสารไม่ถ้วน จึง Revalidate ทั้ง
+// Root Layout ทีเดียว (ทุกหน้าในระบบเป็น Dynamic Render อยู่แล้ว ต้นทุนจริงมีแค่การล้าง
+// Cache ซึ่งคือสิ่งที่ต้องการพอดี) — เรียกจากทุก Action ที่แตะ Template/Logo เสมอ
+function revalidateTemplateConsumers() {
+  revalidatePath("/", "layout");
+}
+
 // R6 Phase E — Visual Document Designer ส่ง blockOrder มาเป็น Hidden Field JSON เดียว
 // (Array ของ 3 Key) — Parse แบบปลอดภัยเสมอ (Fallback ไป Default ถ้าไม่มี/Parse ไม่ได้)
 // ก่อนส่งต่อให้ Zod ตรวจ Permutation อีกชั้นหนึ่ง (Defense-in-depth เหมือน Field อื่น)
@@ -92,7 +104,7 @@ export async function updateGlobalTemplateSettings(formData: FormData): Promise<
     data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "template.global", newValue: raw.data },
   });
 
-  revalidatePath("/settings/print-template");
+  revalidateTemplateConsumers();
   return { success: true };
 }
 
@@ -111,7 +123,7 @@ export async function resetGlobalTemplateSettings(): Promise<ActionResult> {
     data: { userId: user.id, action: "DELETE", module: "AppSetting", recordId: TEMPLATE_SETTING_KEYS.global },
   });
 
-  revalidatePath("/settings/print-template");
+  revalidateTemplateConsumers();
   return { success: true };
 }
 
@@ -142,7 +154,7 @@ export async function updateLogo(formData: FormData): Promise<ActionResult> {
     data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "template.logo", newValue: { updated: true } },
   });
 
-  revalidatePath("/settings/print-template");
+  revalidateTemplateConsumers();
   return { success: true };
 }
 
@@ -156,7 +168,7 @@ export async function removeLogo(): Promise<ActionResult> {
     data: { userId: user.id, action: "DELETE", module: "AppSetting", recordId: "template.logo" },
   });
 
-  revalidatePath("/settings/print-template");
+  revalidateTemplateConsumers();
   return { success: true };
 }
 
@@ -175,7 +187,7 @@ export async function updateDocumentOverride(docType: DocumentTypeKey, formData:
     await db.auditLog.create({
       data: { userId: user.id, action: "DELETE", module: "AppSetting", recordId: key },
     });
-    revalidatePath("/settings/print-template");
+    revalidateTemplateConsumers();
     return { success: true };
   }
 
@@ -203,6 +215,6 @@ export async function updateDocumentOverride(docType: DocumentTypeKey, formData:
     data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: key, newValue: raw.data },
   });
 
-  revalidatePath("/settings/print-template");
+  revalidateTemplateConsumers();
   return { success: true };
 }

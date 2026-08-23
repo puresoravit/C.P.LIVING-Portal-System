@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
@@ -72,12 +73,17 @@ export function PrintTemplateDesigner({
   logo,
   globalSettings,
   overrides,
+  backHref,
   actions,
 }: {
   company: CompanySettings;
   logo: string | null;
   globalSettings: GlobalTemplateSettings;
   overrides: Record<DocumentTypeKey, DocumentTemplateOverride | null>;
+  // R6 Phase E.3 Follow-up — Path หน้าเอกสารต้นทางเมื่อเข้ามาจากลิงก์ "แก้ไขรูปแบบเอกสาร"
+  // บนหน้าพิมพ์ (Validate แล้วจากฝั่ง Server Page ว่าเป็น Path ภายในเท่านั้น) — null เมื่อ
+  // เข้าจากเมนูปกติ (ไม่แสดงปุ่มกลับ)
+  backHref?: string | null;
   actions: {
     updateGlobalTemplateSettings: (formData: FormData) => Promise<ActionResult>;
     resetGlobalTemplateSettings: () => Promise<ActionResult>;
@@ -304,6 +310,16 @@ export function PrintTemplateDesigner({
       </div>
 
       <div className="hidden lg:block">
+        {/* R6 Phase E.3 Follow-up — ปุ่มกลับหน้าเอกสารต้นทาง (แสดงเฉพาะเมื่อเข้ามาจากลิงก์
+            "แก้ไขรูปแบบเอกสาร" บนหน้าพิมพ์) — Next Link (Client Navigation) เพื่อให้
+            Interceptor เตือน Unsaved Changes เดิมครอบให้ครั้งเดียว (ถ้าเป็น <a> เต็มรูปแบบ
+            จะโดน beforeunload เตือนซ้ำอีกชั้น) — ข้อมูลหน้าพิมพ์สดเสมอเพราะ Server Action
+            เรียก revalidateTemplateConsumers() ล้าง Router Cache หลัง Apply แล้ว */}
+        {backHref && (
+          <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-3">
+            ← กลับไปหน้าเอกสาร / Back to Document
+          </Link>
+        )}
         <div className="flex flex-wrap items-center gap-1.5 mb-3 border-b pb-3">
           <TabButton active={activeTab === "GLOBAL"} onClick={() => setActiveTab("GLOBAL")}>
             ค่าเริ่มต้น (Global)

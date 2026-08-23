@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { printPageStyleFor, DEFAULT_PRINT_PROFILE } from "@/lib/print-settings";
 import { PrintProfileSelector } from "./print-profile-selector";
 import { PrintButton } from "@/components/print-button";
+import { EditTemplateLink } from "./edit-template-link";
 import { buildPrintCssVars, type OverridableTemplateSettings, type DocumentTypeKey } from "@/lib/print-template-settings";
 
 // Shared print page shell — ใช้ร่วมกันทุกประเภทเอกสาร (ข้อ 11) มีแค่ส่วน "โครง"
@@ -53,11 +53,7 @@ export function PrintPage({
       <div className="print:hidden flex items-center justify-between gap-3 mb-2">
         <div className="flex items-center gap-3">
           <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} />
-          {canEditTemplate && docType && (
-            <Link href={`/settings/print-template#${docType}`} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-              แก้ไขรูปแบบเอกสาร / Edit Template
-            </Link>
-          )}
+          {canEditTemplate && docType && <EditTemplateLink docType={docType} />}
         </div>
         <PrintProfileSelector />
       </div>
