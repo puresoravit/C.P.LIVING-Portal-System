@@ -37,11 +37,11 @@ export default async function AccessManagementPage() {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen cpf-page-in"
       style={{ background: `radial-gradient(1400px 800px at 70% -10%, #16305c 0%, ${CP_NAVY} 45%, ${CP_NAVY_DEEP} 100%)` }}
     >
       <header className="flex items-center gap-4 px-5 md:px-10 py-4 border-b border-white/10">
-        <CPLogo size={40} idSuffix="acc" />
+        <CPLogo width={96} className="shrink-0" />
         <div className="text-sm md:text-base tracking-[0.2em] text-slate-200">ACCESS MANAGEMENT</div>
         <Link href="/portal" className="ml-auto text-xs text-slate-300 hover:text-white border border-white/15 rounded-lg px-3 py-1.5">
           ← กลับ Application Portal

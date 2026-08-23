@@ -21,5 +21,9 @@ export default withAuth({
 // Windows Task Scheduler / cron) route handler ของมันเองมี BACKUP_SECRET
 // token ป้องกันอยู่แล้ว (ผ่าน Authorization header) เป็นกลไกยืนยันตัวตนแยกต่างหาก
 export const config = {
-  matcher: ["/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico).*)"],
+  // R6 Phase F Owner UAT Polish — เพิ่ม "brand" (public/brand/* — Master Logo) เข้า
+  // ข้อยกเว้น: หน้า Splash/Login ต้องโหลดโลโก้ได้ก่อน Login (เดิม Middleware เด้ง
+  // Request รูปไปหน้า Login ทำให้โลโก้ไม่ขึ้นตอนยังไม่มี Session) — เป็น Static Asset
+  // สาธารณะของแบรนด์ ไม่มีข้อมูลอ่อนไหว
+  matcher: ["/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand).*)"],
 };

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getPortalUser, getVisibleApps } from "@/lib/app-access";
-import { CPLogo, GoldDivider, GoldWordmark, CP_TAGLINE, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
+import { CPLogo, GoldDivider, CP_TAGLINE, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { SignOutButton } from "@/components/sign-out-button";
 import { AppIcon } from "@/components/portal/app-icon";
 
@@ -32,16 +32,13 @@ export default async function PortalPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="min-h-screen flex flex-col cpf-page-in"
       style={{ background: `radial-gradient(1400px 800px at 70% -10%, #16305c 0%, ${CP_NAVY} 45%, ${CP_NAVY_DEEP} 100%)` }}
     >
       {/* ---------- Header ---------- */}
       <header className="flex items-center justify-between gap-4 px-5 md:px-10 py-4 border-b border-white/10">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="flex flex-col items-center shrink-0">
-            <CPLogo size={44} idSuffix="hdr" />
-            <GoldWordmark className="text-[8px] tracking-[0.2em] mt-0.5">C.P. LIVING GROUP</GoldWordmark>
-          </div>
+          <CPLogo width={118} className="shrink-0" />
           <div className="hidden sm:block h-8 w-px bg-white/15" aria-hidden />
           <div className="hidden sm:block text-sm md:text-base tracking-[0.25em] text-slate-200 whitespace-nowrap">APPLICATION PORTAL</div>
         </div>

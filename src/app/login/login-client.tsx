@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { CPLogo, GoldDivider, GoldWordmark, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_GOLD } from "@/components/portal/cp-brand";
+import { CPLogo, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_GOLD, MOTION_EASE } from "@/components/portal/cp-brand";
 
 // ==========================================================================
 // R6 Phase F — Branded Entry: Splash Screen → Cross-fade → Login
@@ -30,6 +30,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   // "boot" = ยังไม่ตัดสินใจ (พื้น Navy เปล่า กันกระพริบ), "splash" = กำลังเล่น Splash,
   // "fading" = Splash กำลัง Cross-fade ออก, "login" = ฟอร์มพร้อมใช้
@@ -45,8 +46,11 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
     }
     window.sessionStorage.setItem(SPLASH_KEY, "1");
     setStage("splash");
-    timers.current.push(setTimeout(() => setStage("fading"), 2600));
-    timers.current.push(setTimeout(() => setStage("login"), 3300));
+    // Owner UAT Polish — จังหวะใหม่ให้ Premium/Calm: โลโก้เข้านุ่ม (~1.3s) → Tagline ตาม
+    // → Hold ให้เห็นแบรนด์ชัดๆ → เริ่ม Cross-fade ที่ 3.8s ใช้เวลา 1.2s (ไม่กระชาก
+    // และไม่ค้างจนน่ารำคาญ) — Login Layer อยู่ใต้ Splash ตลอด Background จึงต่อเนื่อง
+    timers.current.push(setTimeout(() => setStage("fading"), 3800));
+    timers.current.push(setTimeout(() => setStage("login"), 5000));
     return () => timers.current.forEach(clearTimeout);
   }, []);
 
@@ -60,9 +64,14 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
       setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
       return;
     }
-    // Requirement: Login สำเร็จต้องเข้า Application Portal ก่อนเสมอ
-    router.push("/portal");
-    router.refresh();
+    // Requirement: Login สำเร็จต้องเข้า Application Portal ก่อนเสมอ — Fade การ์ดออก
+    // สั้นๆ (350ms) ให้การเปลี่ยนหน้านุ่ม ไม่ตัดฉับ (Auth สำเร็จไปแล้ว ณ จุดนี้ —
+    // Animation ไม่ได้หน่วง Security ใดๆ และปุ่มถูก disable ระหว่างนี้ กันกดซ้ำ)
+    setLeaving(true);
+    window.setTimeout(() => {
+      router.push("/portal");
+      router.refresh();
+    }, 350);
   }
 
   const splashVisible = stage === "splash" || stage === "fading";
@@ -70,23 +79,23 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: `linear-gradient(160deg, ${CP_NAVY} 0%, ${CP_NAVY_DEEP} 70%)` }}>
       <style>{`
-        @keyframes cpfFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-        @keyframes cpfLogoIn { from { opacity: 0; transform: scale(0.88); } to { opacity: 1; transform: scale(1); } }
-        .cpf-logo-in { animation: cpfLogoIn 0.9s ease-out both; }
-        .cpf-t1 { animation: cpfFadeUp 0.7s ease-out 0.5s both; }
-        .cpf-t2 { animation: cpfFadeUp 0.7s ease-out 0.9s both; }
-        .cpf-t3 { animation: cpfFadeUp 0.7s ease-out 1.2s both; }
-        .cpf-card-in { animation: cpfFadeUp 0.55s ease-out both; }
-        .cpf-splash-out { opacity: 0; transition: opacity 0.7s ease; }
+        @keyframes cpfFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+        @keyframes cpfLogoIn { from { opacity: 0; transform: scale(0.94) translateY(8px); } to { opacity: 1; transform: none; } }
+        .cpf-logo-in { animation: cpfLogoIn 1.3s ${MOTION_EASE} both; }
+        .cpf-t2 { animation: cpfFadeUp 0.9s ${MOTION_EASE} 1.1s both; }
+        .cpf-t3 { animation: cpfFadeUp 0.9s ${MOTION_EASE} 1.6s both; }
+        .cpf-card-in { animation: cpfFadeUp 0.8s ${MOTION_EASE} 0.15s both; }
+        .cpf-splash-out { opacity: 0; transition: opacity 1.2s ${MOTION_EASE}; }
+        .cpf-leave { opacity: 0; transition: opacity 0.35s ${MOTION_EASE}; }
         @media (prefers-reduced-motion: reduce) {
-          .cpf-logo-in, .cpf-t1, .cpf-t2, .cpf-t3, .cpf-card-in { animation: none; }
-          .cpf-splash-out { transition: none; }
+          .cpf-logo-in, .cpf-t2, .cpf-t3, .cpf-card-in { animation: none; }
+          .cpf-splash-out, .cpf-leave { transition: none; }
         }
       `}</style>
 
       {/* ---------- LOGIN LAYER (อยู่ล่าง Splash เสมอ — Cross-fade เนียนไม่มีจอว่าง) ---------- */}
       {(stage === "fading" || stage === "login") && (
-        <div className="absolute inset-0 flex flex-col">
+        <div className={`absolute inset-0 flex flex-col ${leaving ? "cpf-leave" : ""}`}>
           {/* พื้นหลังภาพโรงงาน: วางไฟล์ที่ public/login-bg.jpg — Server ตรวจว่ามีไฟล์จริง
               ก่อนแล้วส่ง hasBgImage ลงมา (ไม่มีไฟล์ = ไม่ยิง Request เลย เหลือพื้น Navy
               Premium เป็น Fallback โดยไม่มี 404 ใน Console) */}
@@ -102,12 +111,9 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
               className="cpf-card-in w-full max-w-md rounded-2xl bg-white/95 backdrop-blur shadow-2xl px-8 py-9"
             >
               <div className="flex flex-col items-center mb-5">
-                <CPLogo size={72} idSuffix="login" />
-                <GoldWordmark className="mt-2 text-lg font-semibold tracking-[0.18em]">C.P. LIVING GROUP</GoldWordmark>
-                <div className="mt-2 w-full">
-                  <GoldDivider width={240} />
-                </div>
-                <h1 className="mt-4 text-3xl font-bold" style={{ color: CP_NAVY }}>
+                {/* Master Logo (มี C.P. LIVING GROUP + เส้นทองในตัวครบ) */}
+                <CPLogo width={230} />
+                <h1 className="mt-5 text-3xl font-bold" style={{ color: CP_NAVY }}>
                   Welcome
                 </h1>
                 <p className="mt-1 text-sm text-gray-500">Sign in to continue to C.P. Living Group</p>
@@ -212,15 +218,10 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
           {stage !== "boot" && (
             <div className="text-center px-6">
               <div className="cpf-logo-in inline-block">
-                <CPLogo size={150} idSuffix="splash" />
+                {/* Animate ทั้ง Asset เป็นก้อนเดียวตาม Requirement — ห้ามแยกชิ้นส่วนโลโก้ */}
+                <CPLogo width={380} className="max-w-[82vw]" />
               </div>
-              <div className="cpf-t1 mt-5">
-                <GoldWordmark className="text-2xl md:text-3xl font-semibold tracking-[0.3em]">C.P. LIVING GROUP</GoldWordmark>
-              </div>
-              <div className="cpf-t1 mt-5">
-                <GoldDivider width={320} />
-              </div>
-              <div className="cpf-t2 mt-6 text-xs md:text-sm tracking-[0.35em]" style={{ color: CP_GOLD }}>
+              <div className="cpf-t2 mt-8 text-xs md:text-sm tracking-[0.35em]" style={{ color: CP_GOLD }}>
                 {CP_TAGLINE}
               </div>
               <div className="cpf-t3 mt-5 text-[11px] md:text-xs tracking-[0.25em] text-slate-300/80 leading-relaxed">
