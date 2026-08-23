@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { CPLogo, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_GOLD, MOTION_EASE } from "@/components/portal/cp-brand";
 
 // ==========================================================================
@@ -40,6 +41,51 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Phase G — Passkey: null = ยังไม่ตรวจ (Render ปุ่มไว้ก่อนกัน Layout Shift) / false = ไม่รองรับ
+  const [passkeySupported, setPasskeySupported] = useState<boolean | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  useEffect(() => {
+    setPasskeySupported(browserSupportsWebAuthn());
+  }, []);
+
+  // Phase G — เข้าสู่ระบบด้วย Passkey: ขอ Challenge จาก Server → OS Prompt จริง (Face ID/
+  // Touch ID/ลายนิ้วมือ) ผ่าน navigator.credentials.get → ส่ง Assertion เข้า NextAuth Provider
+  // "passkey" (ดู src/lib/auth.ts) → ได้ Session/JWT เดียวกับ Password Login ทุกประการ —
+  // ยกเลิก/ล้มเหลว = กลับมาหน้านี้เฉยๆ ฟอร์มรหัสผ่านยังใช้ได้เสมอ (Fallback)
+  async function handlePasskeySignIn() {
+    if (passkeyBusy || loading) return;
+    setPasskeyBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/passkey/options", { method: "POST" });
+      if (!res.ok) throw new Error("options");
+      const { options, challengeId } = await res.json();
+      let assertion;
+      try {
+        assertion = await startAuthentication({ optionsJSON: options });
+      } catch (err) {
+        const name = err instanceof Error ? err.name : "";
+        // NotAllowedError = ผู้ใช้กดยกเลิก/หมดเวลา — ไม่ใช่ความผิดพลาดของระบบ ไม่โชว์ Error แดง
+        if (name !== "NotAllowedError") setError("ไม่สามารถใช้ Passkey บนอุปกรณ์นี้ได้ — กรุณาเข้าสู่ระบบด้วยรหัสผ่าน");
+        return;
+      }
+      const result = await signIn("passkey", { challengeId, response: JSON.stringify(assertion), redirect: false });
+      if (result?.error) {
+        setError("Passkey ไม่ถูกต้องหรือถูกยกเลิกไปแล้ว — กรุณาเข้าสู่ระบบด้วยรหัสผ่าน");
+        return;
+      }
+      setLeaving(true);
+      window.setTimeout(() => {
+        router.push("/portal");
+        router.refresh();
+      }, 620);
+    } catch {
+      setError("ไม่สามารถเริ่มการเข้าสู่ระบบด้วย Passkey ได้ — กรุณาลองใหม่หรือใช้รหัสผ่าน");
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
 
   // "boot" = ยังไม่ตัดสินใจ (พื้น Navy เปล่า กันกระพริบ), "splash" = กำลังเล่น Splash,
   // "fading" = Splash กำลัง Cross-fade ออก, "login" = ฟอร์มพร้อมใช้
@@ -280,6 +326,31 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
               >
                 {loading ? "กำลังเข้าสู่ระบบ..." : "Sign In"}
               </button>
+
+              {/* Phase G — Passkey: แสดงเฉพาะเมื่อ Browser รองรับ WebAuthn (ตรวจหลัง Mount) —
+                  ไม่รองรับ = ซ่อนเงียบๆ หน้าตาเหมือนเดิมทุกประการ (Graceful Degrade) */}
+              {passkeySupported !== false && (
+                <>
+                  <div className="flex items-center gap-3 my-4" aria-hidden>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-[11px] tracking-widest text-gray-400">หรือ / OR</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePasskeySignIn}
+                    disabled={passkeyBusy || loading || passkeySupported === null}
+                    className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-3 border transition-colors disabled:opacity-60 hover:bg-gray-50"
+                    style={{ borderColor: CP_GOLD, color: CP_NAVY }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                      <circle cx="8" cy="12" r="4" />
+                      <path d="M12 12h9M18 12v3M21 12v2" />
+                    </svg>
+                    {passkeyBusy ? "รอการยืนยันจากอุปกรณ์..." : (<>เข้าสู่ระบบด้วย Passkey<span className="hidden sm:inline"> / Sign in with Passkey</span></>)}
+                  </button>
+                </>
+              )}
 
               <div className="mt-6 pt-4 border-t text-center text-xs text-gray-400">
                 © 2026 C.P. Living Group. All rights reserved.

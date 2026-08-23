@@ -22,7 +22,8 @@ import path from "path";
 
 const LOG_DIR = path.join(process.cwd(), "logs");
 const LOG_FILE = path.join(LOG_DIR, "app.log");
-const SENSITIVE_KEYS = ["password", "passwordHash", "token", "secret", "nextauth_secret"];
+// Phase G — เพิ่ม WebAuthn Material: Challenge (Replay ได้ถ้าหลุดก่อนหมดอายุ), Signature/authenticatorData/clientDataJSON (Assertion ดิบ) — ไม่ควรอยู่ใน Log เลย
+const SENSITIVE_KEYS = ["password", "passwordHash", "token", "secret", "nextauth_secret", "challenge", "signature", "authenticatordata", "clientdatajson", "attestationobject"];
 
 function redact(obj: unknown): unknown {
   if (obj === null || typeof obj !== "object") return obj;

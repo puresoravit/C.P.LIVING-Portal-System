@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { isRateLimited, recordFailedAttempt, resetAttempts } from "@/lib/rate-limit";
 import { isProduction } from "@/lib/auth-cookies";
+import { finishAuthentication, safeCredentialRef } from "@/lib/webauthn";
+import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 
 // ---------------------------------------------------------------
 // Authentication config (ข้อ 3 User Management, ข้อ 51 Security)
@@ -58,6 +60,80 @@ export const authOptions: NextAuthOptions = {
           name: user.displayName,
           email: user.email ?? undefined,
           role: user.role,
+        };
+      },
+    }),
+
+    // Phase G — Passkey/WebAuthn: Provider ที่ 2 ใน NextAuth "เดิม" (ไม่ใช่ Session System
+    // คู่ขนาน) — Client ทำ navigator.credentials.get() กับ OS Prompt จริง (Face ID/Touch ID/
+    // Fingerprint) แล้วส่ง Assertion JSON + challengeId มาที่ authorize() นี้ → Verify ฝั่ง
+    // Server ทั้งหมดผ่าน finishAuthentication() (challenge single-use/expiry, origin, rpID,
+    // signature, counter, เจ้าของ credential) → คืน User Object รูปแบบเดียวกับ Credentials
+    // Provider เป๊ะ → jwt/session callbacks ด้านล่างตั้ง role/uid เหมือนเดิม → Middleware/
+    // requireUser/can()/App Access/isOwner/Inactivity Logout ทำงานเหมือน Password Login
+    // ทุกประการ (Passkey = Authentication เท่านั้น ไม่แตะ Authorization)
+    CredentialsProvider({
+      id: "passkey",
+      name: "passkey",
+      credentials: {
+        challengeId: { label: "challengeId", type: "text" },
+        response: { label: "response", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.challengeId || !credentials?.response) return null;
+
+        let response: AuthenticationResponseJSON;
+        try {
+          response = JSON.parse(credentials.response);
+          if (!response || typeof response.id !== "string" || !response.response) return null;
+        } catch {
+          return null;
+        }
+
+        // Rate limit ต่อ credentialId (Brute-force Assertion ปลอมต่อ Credential เดียว) — Key คนละ
+        // Namespace กับ Username ของ Password Login
+        const rateLimitKey = `passkey:${response.id}`;
+        if (isRateLimited(rateLimitKey)) return null;
+
+        const result = await finishAuthentication(credentials.challengeId, response);
+
+        if (!result.ok) {
+          recordFailedAttempt(rateLimitKey);
+          // Audit เฉพาะกรณีที่รู้ว่า Credential ไหน (ข้อมูลปลอดภัย: reason + ref ย่อ) — ไม่เก็บ
+          // Assertion/Challenge/Signature ใดๆ — ใช้ userId ของเจ้าของ Credential ถ้าหาเจอ
+          if (result.credentialId && result.reason !== "unknown_credential") {
+            const owner = await db.webAuthnCredential.findUnique({ where: { id: result.credentialId }, select: { userId: true } });
+            if (owner) {
+              await db.auditLog.create({
+                data: {
+                  userId: owner.userId,
+                  action: "PASSKEY_LOGIN_FAILED",
+                  module: "Auth",
+                  recordId: owner.userId,
+                  newValue: { reason: result.reason, credentialRef: safeCredentialRef(result.credentialId) },
+                },
+              });
+            }
+          }
+          return null;
+        }
+
+        resetAttempts(rateLimitKey);
+        await db.auditLog.create({
+          data: {
+            userId: result.user.id,
+            action: "PASSKEY_LOGIN_SUCCESS",
+            module: "Auth",
+            recordId: result.user.id,
+            newValue: { credentialRef: safeCredentialRef(result.credentialId) },
+          },
+        });
+
+        return {
+          id: result.user.id,
+          name: result.user.displayName,
+          email: result.user.email ?? undefined,
+          role: result.user.role,
         };
       },
     }),

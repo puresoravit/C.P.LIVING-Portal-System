@@ -52,8 +52,49 @@ model User {
 
   auditLogs     AuditLog[]
   appAccess     UserAppAccess[]
+  passkeys      WebAuthnCredential[]
 
   @@map("users")
+}
+
+// Phase G — Passkey/WebAuthn: Public Credential ของ Authenticator (Face ID/Touch ID/
+// Fingerprint/Passkey Provider) — เก็บ "เฉพาะ" สิ่งที่ WebAuthn Spec ต้องใช้ตอน Verify:
+// credentialId + publicKey (COSE, ฝั่ง Public เท่านั้น) + signCount + transports/flags —
+// Private Key อยู่กับ Authenticator/Device เสมอ ไม่เคยออกจากเครื่อง, ข้อมูล Biometric
+// (ลายนิ้วมือ/ใบหน้า) ไม่เคยถูกส่งมาที่ Server ตาม Spec จึงไม่มีคอลัมน์ให้เก็บได้เลย —
+// User หนึ่งคนมีได้หลาย Credential (iPhone/Samsung/Mac แยกแถวกัน Revoke ทีละตัวได้)
+model WebAuthnCredential {
+  id           String   @id                 // credentialID (base64url) — Authenticator กำหนด, Unique ระดับโลก
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  publicKey    Bytes                         // COSE Public Key (ฝั่ง Public เท่านั้น)
+  counter      BigInt   @default(0)          // signCount กัน Cloned Authenticator (Passkey แบบ Sync มักเป็น 0 เสมอ)
+  transports   String[] @default([])         // ["internal","hybrid",...] ช่วย Browser เลือก Authenticator ให้ถูก
+  deviceType   String                        // "singleDevice" | "multiDevice" (Synced Passkey)
+  backedUp     Boolean  @default(false)
+  label        String                        // ชื่อที่ User ตั้ง เช่น "iPhone ของฉัน"
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+// Phase G — Challenge ชั่วคราวสำหรับ Registration/Authentication — เก็บใน DB (ไม่ใช่
+// In-memory) ให้รอดข้าม Process Restart/หลาย Instance และลบทิ้งเมื่อใช้แล้ว (Single-use)
+// — userId มีเฉพาะ Registration (ผูกกับ Session ที่ขอ) ส่วน Authentication เป็น null
+// เพราะยังไม่รู้ว่าใคร (Discoverable Credential/Usernameless) แต่ตรวจผูกกับ Credential
+// ที่ตอบกลับมาอีกชั้นตอน Verify — แถวหมดอายุถูกกวาดทิ้งทุกครั้งที่ออก Challenge ใหม่
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  challenge String                           // base64url random 32 bytes (จาก Library)
+  type      String                           // "registration" | "authentication"
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
 }
 
 // R6 Phase F — App Access ชั้นที่ 1 (เข้า Application ไหนได้บ้าง) — แยกชัดจาก Permission

@@ -5,6 +5,9 @@ import { getPortalUser } from "@/lib/app-access";
 import { CPLogo, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { ProfileForm } from "./profile-form";
 import { updateMyProfile, changeMyPassword } from "./actions";
+import { PasskeySection } from "./passkey-section";
+import { beginPasskeyRegistration, finishPasskeyRegistration, renamePasskey, removePasskey } from "./passkey-actions";
+import { db } from "@/lib/db";
 import Link from "next/link";
 
 // R6 Phase F — Owner UAT: My Profile — เข้าถึงได้ทุก User ที่ Login แล้ว (ไม่ผูกกับ
@@ -22,6 +25,15 @@ export default async function MyProfilePage() {
     VIEWER: "ผู้ดูรายงาน",
   };
   const roleLabel = ROLE_LABEL[user.role] ?? user.role;
+
+  // Phase G — Passkey ของ "ตัวเอง" เท่านั้น (where userId = session user) — ส่งลงไปแค่ Metadata
+  // ที่ UI ต้องใช้ ไม่ส่ง publicKey/counter ลง Client (ไม่จำเป็นและไม่ควร)
+  const passkeyRows = await db.webAuthnCredential.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, label: true, deviceType: true, backedUp: true, createdAt: true, lastUsedAt: true },
+  });
+  const fmt = (d: Date) => d.toLocaleDateString("th-TH") + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="min-h-screen cpf-page-in" style={{ background: `radial-gradient(1400px 800px at 70% -10%, #16305c 0%, ${CP_NAVY} 45%, ${CP_NAVY_DEEP} 100%)` }}>
@@ -50,6 +62,22 @@ export default async function MyProfilePage() {
           updateProfileAction={updateMyProfile}
           changePasswordAction={changeMyPassword}
         />
+        <div className="mt-6">
+          <PasskeySection
+            passkeys={passkeyRows.map((p) => ({
+              id: p.id,
+              label: p.label,
+              deviceType: p.deviceType,
+              backedUp: p.backedUp,
+              createdAtLabel: fmt(p.createdAt),
+              lastUsedAtLabel: p.lastUsedAt ? fmt(p.lastUsedAt) : null,
+            }))}
+            beginAction={beginPasskeyRegistration}
+            finishAction={finishPasskeyRegistration}
+            renameAction={renamePasskey}
+            removeAction={removePasskey}
+          />
+        </div>
       </main>
     </div>
   );
