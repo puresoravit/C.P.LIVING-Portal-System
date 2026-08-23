@@ -119,7 +119,9 @@ export async function resetUserPassword(targetUserId: string, formData: FormData
     db.auditLog.create({
       data: {
         userId: owner.id,
-        action: "RESET_PASSWORD",
+        // Owner Spec: action = PASSWORD_RESET (actor=userId, target=recordId,
+        // timestamp=createdAt เดิมของ AuditLog) — ห้ามมีค่ารหัสผ่านใดๆ ใน Log
+        action: "PASSWORD_RESET",
         module: "UserProfile",
         recordId: targetUserId,
         // ห้าม Log ค่ารหัสผ่าน/Hash ใดๆ — บันทึกแค่ metadata ว่ามีการ Reset

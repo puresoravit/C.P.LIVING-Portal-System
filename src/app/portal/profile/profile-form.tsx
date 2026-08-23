@@ -158,13 +158,14 @@ export function ProfileForm({
   return (
     <div className="space-y-6">
       {/* ---------- Avatar + Profile Fields ---------- */}
-      <section className="bg-white/[0.04] border border-white/10 rounded-2xl p-6">
+      <section className="bg-white/[0.04] border border-white/10 rounded-2xl p-5 sm:p-6">
         <h2 className="text-sm font-medium text-slate-200 mb-5">ข้อมูลโปรไฟล์ / Profile Information</h2>
 
-        <div className="flex items-center gap-5 mb-6">
+        {/* Mobile: Avatar+ปุ่ม Stack แนวตั้ง (แถวเดียวล้นจอแคบ) — ปุ่ม Wrap ได้เสมอ */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5 mb-6">
           <UserAvatar avatarDataUri={avatarPreview} displayName={displayName || user.displayName} size={88} />
           <div className="space-y-2">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -202,7 +203,7 @@ export function ProfileForm({
             <select
               value={titlePrefix}
               onChange={(e) => setTitlePrefix(e.target.value)}
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: CP_GOLD }}
             >
               <option value="" className="text-gray-900">
@@ -220,7 +221,7 @@ export function ProfileForm({
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: CP_GOLD }}
             />
           </div>
@@ -239,7 +240,7 @@ export function ProfileForm({
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1.5">บทบาท / Role</label>
-            <div className="flex items-center gap-2 h-[42px]">
+            <div className="flex flex-wrap items-center gap-2 min-h-[42px]">
               <span className="text-sm text-slate-200 border border-white/15 rounded-lg px-3 py-2">{user.roleLabel}</span>
               {user.isOwner && (
                 <span className="text-xs font-medium rounded-lg px-3 py-2" style={{ color: CP_GOLD, border: `1px solid ${CP_GOLD}` }}>
@@ -250,7 +251,7 @@ export function ProfileForm({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 mt-6">
+        <div className="flex flex-wrap items-center gap-3 mt-6">
           <button
             type="button"
             onClick={handleSave}
@@ -291,7 +292,7 @@ export function ProfileForm({
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: CP_GOLD }}
             />
           </div>
@@ -303,7 +304,7 @@ export function ProfileForm({
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: CP_GOLD }}
             />
           </div>
@@ -315,7 +316,7 @@ export function ProfileForm({
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: CP_GOLD }}
             />
           </div>

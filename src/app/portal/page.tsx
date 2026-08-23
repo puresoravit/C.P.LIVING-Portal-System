@@ -37,10 +37,11 @@ export default async function PortalPage() {
       style={{ background: `radial-gradient(1400px 800px at 70% -10%, #16305c 0%, ${CP_NAVY} 45%, ${CP_NAVY_DEEP} 100%)` }}
     >
       {/* ---------- Header ---------- */}
-      <header className="flex items-center justify-between gap-4 px-5 md:px-10 py-4 border-b border-white/10">
-        <div className="flex items-center gap-4 min-w-0">
-          {/* Owner UAT Polish — ขยาย ~10% จากเดิม (118 → 130) */}
-          <CPLogo width={130} className="shrink-0" />
+      <header className="flex items-center justify-between gap-3 sm:gap-4 px-4 sm:px-5 md:px-10 py-4 border-b border-white/10">
+        <div className="flex items-center gap-4 min-w-0 shrink-0">
+          {/* Owner UAT Polish — ขยาย ~10% จากเดิม (118 → 130) — Mobile ย่อลงเล็กน้อย
+              ให้ Profile Menu ด้านขวามีพื้นที่แสดงชื่อ (Ratio โลโก้คงเดิม) */}
+          <CPLogo width={130} className="shrink-0 max-w-[104px] sm:max-w-none" />
           <div className="hidden sm:block h-8 w-px bg-white/15" aria-hidden />
           <div className="hidden sm:block text-sm md:text-base tracking-[0.25em] text-slate-200 whitespace-nowrap">APPLICATION PORTAL</div>
         </div>

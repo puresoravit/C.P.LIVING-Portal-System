@@ -25,11 +25,15 @@ export default async function MyProfilePage() {
 
   return (
     <div className="min-h-screen cpf-page-in" style={{ background: `radial-gradient(1400px 800px at 70% -10%, #16305c 0%, ${CP_NAVY} 45%, ${CP_NAVY_DEEP} 100%)` }}>
-      <header className="flex items-center gap-4 px-5 md:px-10 py-4 border-b border-white/10">
-        <CPLogo width={96} className="shrink-0" />
-        <div className="text-sm md:text-base tracking-[0.2em] text-slate-200">MY PROFILE</div>
-        <Link href="/portal" className="ml-auto text-xs text-slate-300 hover:text-white border border-white/15 rounded-lg px-3 py-1.5">
-          ← กลับ Application Portal
+      {/* Mobile: โลโก้ย่อ + ลิงก์กลับตัดคำยาวออกบนจอเล็ก กัน Header ล้นแนวนอน */}
+      <header className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 md:px-10 py-4 border-b border-white/10">
+        <CPLogo width={96} className="shrink-0 max-w-[72px] sm:max-w-none" />
+        <div className="text-xs sm:text-sm md:text-base tracking-[0.2em] text-slate-200">MY PROFILE</div>
+        <Link
+          href="/portal"
+          className="ml-auto shrink-0 whitespace-nowrap text-xs text-slate-300 hover:text-white border border-white/15 rounded-lg px-3 py-2 sm:py-1.5"
+        >
+          ← กลับ<span className="hidden sm:inline"> Application Portal</span>
         </Link>
       </header>
 

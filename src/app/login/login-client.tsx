@@ -98,8 +98,10 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
       `}</style>
 
       {/* ---------- LOGIN LAYER (อยู่ล่าง Splash เสมอ — Cross-fade เนียนไม่มีจอว่าง) ---------- */}
+      {/* Mobile: overflow-y-auto ให้ Scroll ได้เมื่อ Keyboard เปิดแล้วพื้นที่แนวตั้งไม่พอ
+          (iOS/Android Keyboard กินครึ่งจอ — ฟอร์มต้องเลื่อนถึงทุก Field เสมอ ไม่โดน Clip) */}
       {(stage === "fading" || stage === "login") && (
-        <div className={`absolute inset-0 flex flex-col ${leaving ? "cpf-leave" : ""}`}>
+        <div className={`absolute inset-0 flex flex-col overflow-y-auto ${leaving ? "cpf-leave" : ""}`}>
           {/* พื้นหลังภาพโรงงาน: วางไฟล์ที่ public/login-bg.jpg — Server ตรวจว่ามีไฟล์จริง
               ก่อนแล้วส่ง hasBgImage ลงมา (ไม่มีไฟล์ = ไม่ยิง Request เลย เหลือพื้น Navy
               Premium เป็น Fallback โดยไม่มี 404 ใน Console) */}
@@ -109,15 +111,18 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
           {/* Overlay ให้อ่านการ์ดง่ายไม่ว่าภาพพื้นหลังจะสว่างแค่ไหน */}
           <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(7,18,40,0.35) 0%, rgba(7,18,40,0.55) 100%)" }} />
 
-          <div className="relative flex-1 flex items-center justify-center p-4">
+          <div className="relative flex-1 flex items-center justify-center p-4 py-6">
+            {/* Mobile: ลด Padding การ์ดลงบนจอเล็ก (จอ 320px การ์ดเหลือ ~288px — px-8 เดิม
+                กินที่จนเนื้อหาแคบกว่าโลโก้) — Desktop คงเดิมทุกค่า */}
             <form
               onSubmit={handleSubmit}
-              className="cpf-card-in w-full max-w-md rounded-2xl bg-white/95 backdrop-blur shadow-2xl px-8 py-9"
+              className="cpf-card-in w-full max-w-md rounded-2xl bg-white/95 backdrop-blur shadow-2xl px-6 py-8 sm:px-8 sm:py-9"
             >
               <div className="flex flex-col items-center mb-5">
                 {/* Owner UAT — Master Logo ขยายอีก ~10% จากรอบก่อน (228 → 251) — ใช้ width
-                    เดียว Aspect Ratio เดิมของ Asset เป๊ะ ไม่ตัดต่อ/แก้ไฟล์โลโก้ */}
-                <CPLogo width={251} />
+                    เดียว Aspect Ratio เดิมของ Asset เป๊ะ ไม่ตัดต่อ/แก้ไฟล์โลโก้ —
+                    max-w-full: จอแคบกว่าโลโก้ให้ Scale ลงตามการ์ด (Ratio คงเดิม) ไม่ล้น */}
+                <CPLogo width={251} className="max-w-full" />
                 {/* Owner UAT — ขยับ Welcome ขึ้นชิดโลโก้กว่าเดิม (mt-2 → mt-1) ลด Empty
                     Space ระหว่าง Logo/Welcome — Subtitle ตามชิด Welcome ในสัดส่วนเดิม */}
                 <h1 className="mt-1 text-3xl font-semibold" style={{ color: CP_NAVY }}>
@@ -150,7 +155,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
                     required
                     placeholder="ชื่อผู้ใช้ / Username"
                     autoComplete="username"
-                    className="flex-1 outline-none text-sm bg-transparent"
+                    className="flex-1 min-w-0 outline-none text-base sm:text-sm bg-transparent"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
@@ -169,7 +174,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
                     type={showPassword ? "text" : "password"}
                     placeholder="รหัสผ่าน / Password"
                     autoComplete="current-password"
-                    className="flex-1 outline-none text-sm bg-transparent"
+                    className="flex-1 min-w-0 outline-none text-base sm:text-sm bg-transparent"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -180,7 +185,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
                     onClick={() => setShowPassword((s) => !s)}
                     aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                     aria-pressed={showPassword}
-                    className="p-1 text-gray-400 hover:text-gray-700 focus:outline-none focus:ring-2 rounded"
+                    className="p-2 -my-1.5 -mr-1 text-gray-400 hover:text-gray-700 focus:outline-none focus:ring-2 rounded"
                     style={{ ["--tw-ring-color" as string]: CP_GOLD }}
                   >
                     {showPassword ? (
@@ -225,8 +230,9 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
           {stage !== "boot" && (
             <div className="text-center px-6">
               <div className="cpf-logo-in inline-block">
-                {/* Animate ทั้ง Asset เป็นก้อนเดียวตาม Requirement — ห้ามแยกชิ้นส่วนโลโก้ */}
-                <CPLogo width={380} className="max-w-[82vw]" />
+                {/* Animate ทั้ง Asset เป็นก้อนเดียวตาม Requirement — ห้ามแยกชิ้นส่วนโลโก้ —
+                    Mobile Landscape: จำกัดด้วย vh เพิ่ม กันโลโก้+Tagline สูงเกินจอเตี้ย */}
+                <CPLogo width={380} className="max-w-[min(82vw,52vh)]" />
               </div>
               <div className="cpf-t2 mt-8 text-xs md:text-sm tracking-[0.35em]" style={{ color: CP_GOLD }}>
                 {CP_TAGLINE}

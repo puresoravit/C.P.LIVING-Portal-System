@@ -112,7 +112,7 @@ export function AccessManager({
         <select
           value={selectedId}
           onChange={(e) => pickUser(e.target.value)}
-          className="w-full max-w-sm rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
+          className="w-full max-w-sm rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 focus:outline-none focus:ring-2"
           style={{ ["--tw-ring-color" as string]: goldColor }}
         >
           <option value="" disabled className="text-gray-900">
@@ -201,7 +201,7 @@ export function AccessManager({
                 setPwMessage(null);
               }}
               placeholder="รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)"
-              className="rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 placeholder:text-slate-500 focus:outline-none focus:ring-2"
+              className="rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 placeholder:text-slate-500 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: goldColor }}
             />
             <input
@@ -212,7 +212,7 @@ export function AccessManager({
                 setPwMessage(null);
               }}
               placeholder="ยืนยันรหัสผ่านใหม่"
-              className="rounded-lg bg-white/10 border border-white/20 text-white text-sm px-3 py-2.5 placeholder:text-slate-500 focus:outline-none focus:ring-2"
+              className="rounded-lg bg-white/10 border border-white/20 text-white text-base sm:text-sm px-3 py-2.5 placeholder:text-slate-500 focus:outline-none focus:ring-2"
               style={{ ["--tw-ring-color" as string]: goldColor }}
             />
           </div>

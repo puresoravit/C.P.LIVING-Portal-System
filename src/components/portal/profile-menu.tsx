@@ -39,13 +39,15 @@ export function ProfileMenu({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    // Mobile: min-w-0 ทั้ง Chain (root → button → text) ให้ชื่อยาว Truncate ได้จริงบนจอแคบ
+    // แทนที่จะดัน Header ล้น — Dropdown ยึด right-0 กับ Trigger ที่ชิดขอบขวาจอ ไม่หลุด Viewport
+    <div ref={rootRef} className="relative min-w-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-3 min-w-0 rounded-xl px-2 py-1.5 -mx-2 transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2"
+        className="flex items-center gap-2.5 sm:gap-3 min-w-0 rounded-xl px-2 py-1.5 -mx-2 transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2"
         style={{ ["--tw-ring-color" as string]: CP_GOLD, transitionDuration: `${MOTION_CARD_MS}ms`, transitionTimingFunction: MOTION_EASE }}
       >
         <UserAvatar avatarDataUri={avatarDataUri} displayName={displayName} size={40} />
@@ -88,7 +90,7 @@ export function ProfileMenu({
           href="/portal/profile"
           role="menuitem"
           onClick={() => setOpen(false)}
-          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/[0.06] transition-colors"
+          className="flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.06] transition-colors"
           style={{ transitionDuration: "140ms" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -101,7 +103,7 @@ export function ProfileMenu({
           type="button"
           role="menuitem"
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:text-red-300 hover:bg-white/[0.06] transition-colors border-t border-white/10"
+          className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-red-300 hover:bg-white/[0.06] transition-colors border-t border-white/10"
           style={{ transitionDuration: "140ms" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
