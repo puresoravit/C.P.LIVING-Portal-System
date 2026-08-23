@@ -66,26 +66,30 @@ export function HeaderZoneCanvasEditor({
   onChange,
 }: {
   layout: HeaderLayoutConfig;
-  elements: Record<HeaderElementKey, React.ReactNode>;
+  // Partial — ไม่ใช่ทุก Element มีข้อมูลจริงในทุกประเภทเอกสาร (ดู HeaderZone จริงสำหรับ
+  // เหตุผลเต็ม — Editor ต้อง Skip เหมือนกันทุกจุด กัน Element ว่างโผล่ให้ลากได้ทั้งที่ไม่มี
+  // ข้อมูลจริงมารองรับ)
+  elements: Partial<Record<HeaderElementKey, React.ReactNode>>;
   selected: HeaderElementKey | null;
   onSelect: (key: HeaderElementKey | null) => void;
   onChange: (key: HeaderElementKey, patch: Partial<HeaderElementStyle>) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<{ col: number | null; row: number | null }>({ col: null, row: null });
+  const presentKeys = HEADER_ELEMENT_KEYS.filter((k) => layout[k].visible && elements[k] != null);
 
   function colSnapCandidates(excludeKey: HeaderElementKey): number[] {
     const list = [1, HEADER_GRID_COLUMNS + 1];
-    for (const k of HEADER_ELEMENT_KEYS) {
-      if (k === excludeKey || !layout[k].visible) continue;
+    for (const k of presentKeys) {
+      if (k === excludeKey) continue;
       list.push(layout[k].colStart, layout[k].colStart + layout[k].colSpan);
     }
     return list;
   }
   function rowSnapCandidates(excludeKey: HeaderElementKey): number[] {
     const list = [1];
-    for (const k of HEADER_ELEMENT_KEYS) {
-      if (k === excludeKey || !layout[k].visible) continue;
+    for (const k of presentKeys) {
+      if (k === excludeKey) continue;
       list.push(layout[k].rowStart, layout[k].rowStart + layout[k].rowSpan);
     }
     return list;
@@ -145,9 +149,8 @@ export function HeaderZoneCanvasEditor({
         gridAutoRows: `minmax(${HEADER_ROW_UNIT_MM}mm, auto)`,
       }}
     >
-      {HEADER_ELEMENT_KEYS.map((key) => {
+      {presentKeys.map((key) => {
         const style = layout[key];
-        if (!style.visible) return null;
         const isSelected = selected === key;
         const justify = style.align === "left" ? "flex-start" : style.align === "right" ? "flex-end" : "center";
         return (

@@ -20,7 +20,11 @@ export function HeaderZone({
   elements,
 }: {
   layout: HeaderLayoutConfig;
-  elements: Record<HeaderElementKey, React.ReactNode>;
+  // R6 Phase E.3 — Partial โดยเจตนา: ไม่ใช่ทุกประเภทเอกสารมีข้อมูลจริงครบทั้ง 15 Element
+  // (เช่น Billing Note ไม่มี customerAddress) — หน้า Print แต่ละประเภทจะไม่ใส่ Key ที่ไม่มี
+  // ข้อมูลจริงเข้ามาเลย (Data-driven) ซ้อนกับ visible Flag ที่ผู้ใช้กำหนดเอง (User-driven)
+  // ต้องผ่านทั้งสองเงื่อนไขถึงจะ Render
+  elements: Partial<Record<HeaderElementKey, React.ReactNode>>;
 }) {
   return (
     <div
@@ -34,7 +38,7 @@ export function HeaderZone({
     >
       {HEADER_ELEMENT_KEYS.map((key) => {
         const style = layout[key];
-        if (!style.visible) return null;
+        if (!style.visible || elements[key] == null) return null;
         const justify = style.align === "left" ? "flex-start" : style.align === "right" ? "flex-end" : "center";
         return (
           <div

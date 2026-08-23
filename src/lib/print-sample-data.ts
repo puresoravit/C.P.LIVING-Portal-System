@@ -242,18 +242,23 @@ const SAMPLE_ADDRESS = "123 ถนนตัวอย่าง แขวงตั
 const SAMPLE_SHIPPING = "456 ถนนสมมติ ตำบลสมมติ อำเภอสมมติ ชลบุรี 20000";
 
 // ---------------------------------------------------------------------------
-// R6 Phase E.1 — Header Zone (โหมด Custom) ต้องการข้อมูลแบ่งเป็น 3 กลุ่มแทน left/
-// right/shippingAddress เดิม (ชื่อลูกค้า / เลขที่+วันที่เอกสาร / รายละเอียดอื่นๆ) ตรงกับ
-// การแตก Field แบบเดียวกับที่หน้า Print จริงทั้ง 5 ทำ (ดู HeaderZone ใน quotations/[id]/
-// print/page.tsx เป็นตัวอย่างอ้างอิง) — เนื้อหาข้อมูลเหมือน getSampleDocInfo ทุกประการ
-// แค่จัดกลุ่มใหม่ ไม่ใช่ข้อมูลชุดใหม่
+// R6 Phase E.3 — Semantic Element Free Layout ต้องการข้อมูลแบ่งระดับ Field เดียว (1
+// Element = 1 บรรทัด) ตรงกับที่หน้า Print จริงทั้ง 5 ส่งให้ HeaderZone (ดู
+// quotations/[id]/print/page.tsx เป็นตัวอย่างอ้างอิง) — เนื้อหาข้อมูลเหมือนเดิมทุกประการ
+// แค่จัดกลุ่มละเอียดขึ้น ไม่ใช่ข้อมูลชุดใหม่ — Field ที่ประเภทเอกสารนั้นไม่มีจริง (เช่น
+// Billing Note ไม่มี customerAddress) จะเป็น undefined ตรงกับที่หน้า Print จริงไม่ส่ง Key
+// นั้นเข้า HeaderZone เช่นกัน (Data-driven Suppression เดียวกัน)
 // ---------------------------------------------------------------------------
 export type SampleHeaderZoneInfo = {
   titleTh: string;
   titleEn: string;
+  docNumber: string;
+  docDate: string;
+  customerCode?: string;
+  reference?: string;
   customerName: string;
-  docNumberDateRows: { label: string; value: string }[];
-  customerDetailsRows: { label: string; value: string }[];
+  customerAddress?: string;
+  customerTaxId?: string;
   shippingAddress?: string;
 };
 
@@ -263,67 +268,55 @@ export function getSampleHeaderZoneInfo(docType: DocumentTypeKey): SampleHeaderZ
       return {
         titleTh: "ใบเสนอราคา",
         titleEn: "QUOTATION",
+        docNumber: "QT-SAMPLE-001",
+        docDate: "22/08/2569",
+        customerCode: "C-0001",
         customerName: SAMPLE_CUSTOMER_NAME,
-        docNumberDateRows: [
-          { label: "เลขที่", value: "QT-SAMPLE-001" },
-          { label: "วันที่", value: "22/08/2569" },
-          { label: "รหัสลูกค้า", value: "C-0001" },
-        ],
-        customerDetailsRows: [{ label: "ที่อยู่", value: SAMPLE_ADDRESS }],
+        customerAddress: SAMPLE_ADDRESS,
         shippingAddress: SAMPLE_SHIPPING,
       };
     case "INVOICE":
       return {
         titleTh: "ใบส่งของชั่วคราว",
         titleEn: "INVOICE",
+        docNumber: "IV-SAMPLE-001",
+        docDate: "22/08/2569",
+        customerCode: "C-0001",
         customerName: SAMPLE_CUSTOMER_NAME,
-        docNumberDateRows: [
-          { label: "เลขที่", value: "IV-SAMPLE-001" },
-          { label: "วันที่", value: "22/08/2569" },
-          { label: "รหัสลูกค้า", value: "C-0001" },
-        ],
-        customerDetailsRows: [{ label: "ที่อยู่", value: SAMPLE_ADDRESS }],
+        customerAddress: SAMPLE_ADDRESS,
         shippingAddress: SAMPLE_SHIPPING,
       };
     case "TAX_INVOICE":
       return {
         titleTh: "ใบกำกับภาษี / ใบเสร็จรับเงิน",
         titleEn: "TAX INVOICE / RECEIPT",
+        docNumber: "TX-SAMPLE-001",
+        docDate: "22/08/2569",
+        customerCode: "C-0001",
         customerName: SAMPLE_CUSTOMER_NAME,
-        docNumberDateRows: [
-          { label: "เลขที่", value: "TX-SAMPLE-001" },
-          { label: "วันที่", value: "22/08/2569" },
-          { label: "รหัสลูกค้า", value: "C-0001" },
-        ],
-        customerDetailsRows: [
-          { label: "เลขประจำตัวผู้เสียภาษี", value: "0-1055-55555-55-5" },
-          { label: "ที่อยู่", value: SAMPLE_ADDRESS },
-        ],
+        customerAddress: SAMPLE_ADDRESS,
+        customerTaxId: "0-1055-55555-55-5",
         shippingAddress: SAMPLE_SHIPPING,
       };
     case "BILLING_NOTE":
       return {
         titleTh: "ใบวางบิล",
         titleEn: "BILLING NOTE",
+        docNumber: "BN-SAMPLE-001",
+        docDate: "22/08/2569",
         customerName: SAMPLE_CUSTOMER_NAME,
-        docNumberDateRows: [
-          { label: "เลขที่", value: "BN-SAMPLE-001" },
-          { label: "วันที่", value: "22/08/2569" },
-        ],
-        customerDetailsRows: [{ label: "เลขประจำตัวผู้เสียภาษี", value: "0-1055-55555-55-5" }],
+        customerTaxId: "0-1055-55555-55-5",
       };
     case "REPAIR_NOTE":
       return {
         titleTh: "ใบส่งคืนสินค้าฝากซ่อม",
         titleEn: "REPAIR / RETURN NOTE",
+        docNumber: "RN-SAMPLE-001",
+        docDate: "22/08/2569",
+        customerCode: "C-0001",
+        reference: "IV-SAMPLE-001",
         customerName: SAMPLE_CUSTOMER_NAME,
-        docNumberDateRows: [
-          { label: "เลขที่", value: "RN-SAMPLE-001" },
-          { label: "วันที่", value: "22/08/2569" },
-          { label: "รหัสลูกค้า", value: "C-0001" },
-          { label: "อ้างถึง", value: "IV-SAMPLE-001" },
-        ],
-        customerDetailsRows: [{ label: "ที่อยู่", value: SAMPLE_ADDRESS }],
+        customerAddress: SAMPLE_ADDRESS,
         shippingAddress: SAMPLE_SHIPPING,
       };
   }

@@ -14,14 +14,7 @@ import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
-import {
-  HeaderLogoElement,
-  HeaderCompanyInfoElement,
-  HeaderTitleElement,
-  HeaderDocNumberDateElement,
-  HeaderCustomerNameElement,
-  HeaderCustomerDetailsElement,
-} from "@/components/print/header-elements";
+import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
@@ -82,64 +75,46 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
     ),
   };
 
-  // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
-  const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
+  // R6 Phase E.3 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
+  const hl = template.headerLayout;
+  const headerElements: Partial<Record<HeaderElementKey, React.ReactNode>> = hl
     ? {
-        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(template.headerLayout.logo)} />,
-        companyInfo: (
-          <HeaderCompanyInfoElement
-            company={company}
-            showAddress={template.showAddress}
-            showPhone={template.showPhone}
-            showTaxId={template.showTaxId}
-            fontSizePx={template.headerLayout.companyInfo.fontSizePx}
-            lineHeight={template.headerLayout.companyInfo.lineHeight}
+        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
+        companyName: <HeaderTitleLine text={company.name} bold style={hl.companyName} />,
+        ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
+        ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
+        ...(company.taxId
+          ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
+          : {}),
+        titleTh: <HeaderTitleLine text="ใบส่งของชั่วคราว" bold style={hl.titleTh} />,
+        titleEn: <HeaderTitleLine text="INVOICE" style={hl.titleEn} />,
+        docNumber: (
+          <HeaderTextLine
+            label="เลขที่"
+            value={
+              <span className="inline-flex items-center gap-1">
+                {invoice.invoiceNumber}
+                <CopyDocumentNumber value={invoice.invoiceNumber} />
+              </span>
+            }
+            style={hl.docNumber}
           />
         ),
-        title: (
-          <HeaderTitleElement
-            titleTh="ใบส่งของชั่วคราว"
-            titleEn="INVOICE"
-            fontSizePx={template.headerLayout.title.fontSizePx}
-            lineHeight={template.headerLayout.title.lineHeight}
-          />
-        ),
-        docNumberDate: (
-          <HeaderDocNumberDateElement
-            rows={[
-              {
-                label: "เลขที่",
-                value: (
-                  <span className="inline-flex items-center gap-1">
-                    {invoice.invoiceNumber}
-                    <CopyDocumentNumber value={invoice.invoiceNumber} />
-                  </span>
-                ),
-              },
-              { label: "วันที่", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
-              { label: "รหัสลูกค้า", value: invoice.customer.code },
-            ]}
-            fontSizePx={template.headerLayout.docNumberDate.fontSizePx}
-            lineHeight={template.headerLayout.docNumberDate.lineHeight}
-          />
-        ),
-        customerName: (
-          <HeaderCustomerNameElement
-            name={invoice.customerNameSnapshot}
-            fontSizePx={template.headerLayout.customerName.fontSizePx}
-            lineHeight={template.headerLayout.customerName.lineHeight}
-          />
-        ),
-        customerDetails: (
-          <HeaderCustomerDetailsElement
-            rows={[{ label: "ที่อยู่", value: invoice.addressSnapshot ?? "-" }]}
-            shippingAddress={invoice.placeToDelivery}
-            fontSizePx={template.headerLayout.customerDetails.fontSizePx}
-            lineHeight={template.headerLayout.customerDetails.lineHeight}
-          />
-        ),
+        docDate: <HeaderTextLine label="วันที่" value={invoice.invoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={invoice.customer.code} style={hl.customerCode} />,
+        customerName: <HeaderTextLine label="ลูกค้า" value={invoice.customerNameSnapshot} style={hl.customerName} />,
+        ...(invoice.addressSnapshot
+          ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={invoice.addressSnapshot} style={hl.customerAddress} /> }
+          : {}),
+        ...(invoice.placeToDelivery
+          ? {
+              shippingAddress: (
+                <HeaderTextLine label="สถานที่ส่งสินค้า / Shipping Address" value={invoice.placeToDelivery} style={hl.shippingAddress} />
+              ),
+            }
+          : {}),
       }
-    : ({} as Record<HeaderElementKey, React.ReactNode>);
+    : {};
 
   return (
     <PrintPage

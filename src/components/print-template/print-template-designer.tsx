@@ -418,6 +418,11 @@ export function PrintTemplateDesigner({
                       แสดงเลขผู้เสียภาษี
                     </label>
                   </div>
+                  {effective.headerLayout && (
+                    <p className="text-xs text-gray-400">
+                      * โหมด Custom ใช้ปุ่ม &quot;แสดง&quot; ของแต่ละ Element เอง (คลิก Element บน Canvas) — Checkbox ด้านบนมีผลเฉพาะโหมด Classic
+                    </p>
+                  )}
                 </Section>
 
                 <Section title="โครงสร้าง Header">

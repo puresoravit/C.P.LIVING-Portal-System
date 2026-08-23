@@ -1,14 +1,24 @@
-import type { CompanySettings } from "@/lib/company-settings";
+import { FONT_FAMILY_CSS, type FontFamilyKey, type HeaderElementStyle } from "@/lib/print-template-settings";
 
-// R6 Phase E.1/E.2 — Header Free Layout: 6 Element อะตอมที่ HeaderZone (header-zone.tsx)
-// จัดวางลง Grid ให้ — แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography ของตัวเอง" เท่านั้น
-// (fontSizePx/lineHeight/heightMm) ไม่รู้เรื่อง Alignment/ตำแหน่ง/ความกว้างเลย (HeaderZone
-// เป็นคนห่อ Wrapper ที่คุมเรื่องนั้นให้แทน จุดเดียว) — Reuse เดิมกับหน้า Print จริงและ
-// Designer's Live Preview ทั้งคู่ (Single Rendering Source เหมือน Phase E เดิมทุกประการ)
+// R6 Phase E.1/E.2/E.3 — Element อะตอมที่ HeaderZone (header-zone.tsx) จัดวางลง Grid ให้ —
+// แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography ของตัวเอง" เท่านั้น ไม่รู้เรื่อง Alignment/
+// ตำแหน่ง/ความกว้างเลย (HeaderZone เป็นคนห่อ Wrapper ที่คุมเรื่องนั้นให้แทน จุดเดียว) —
+// Reuse เดิมกับหน้า Print จริงและ Designer's Live Preview ทั้งคู่เสมอ (Single Rendering
+// Source เหมือน Phase E เดิมทุกประการ)
+//
+// R6 Phase E.3 — Semantic Element Free Layout แตกจาก 6 Block เดิมเป็น 15 Element ระดับ
+// บรรทัดเดียว (ดู HEADER_ELEMENT_KEYS ใน print-template-settings.ts) — ใช้ 2 Component
+// อะตอมกลาง (HeaderTextLine/HeaderTitleLine) แทนการเขียน Component แยกทุก Element (ซึ่งจะ
+// เกือบซ้ำกันหมด ต่างแค่ Label) — รับ Prop "style" เป็นก้อนเดียว (Pick จาก
+// HeaderElementStyle) แทนแยก fontSizePx/lineHeight/fontFamily 3 Prop ลด Boilerplate ที่
+// จุดเรียกใช้ (หน้า Print จริง 5 ไฟล์ + Designer Canvas ที่ต้องเรียก 15 Element ต่อไฟล์)
 
-// R6 Phase E.2 — heightMm (มม.) แทน heightPx เดิม เพราะ Logo ถูกวางด้วย rowSpan ของ Fine
-// Grid (หน่วยจริงคงที่ = HEADER_ROW_UNIT_MM มม./แถว) ไม่ใช่ Preset เดิม — Physical Unit
-// เดียวกับที่ CSS Grid Row ใช้จริง ทำให้รูปพอดีกับ Track ของตัวเองเป๊ะเสมอ
+export type TextLineStyle = Pick<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily">;
+
+function applyFontFamily(style: React.CSSProperties, fontFamily?: FontFamilyKey): React.CSSProperties {
+  return fontFamily ? { ...style, fontFamily: FONT_FAMILY_CSS[fontFamily] } : style;
+}
+
 export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; heightMm: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Data URI จาก AppSetting หรือไฟล์ static ธรรมดา
@@ -16,118 +26,28 @@ export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; he
   );
 }
 
-export function HeaderCompanyInfoElement({
-  company,
-  showAddress,
-  showPhone,
-  showTaxId,
-  fontSizePx,
-  lineHeight,
-}: {
-  company: CompanySettings;
-  showAddress?: boolean;
-  showPhone?: boolean;
-  showTaxId?: boolean;
-  fontSizePx: number;
-  lineHeight: number;
-}) {
+/** Element ข้อความทั่วไป 1 บรรทัด — ใช้กับ Element ส่วนใหญ่ (Company/Customer/Document
+ * Meta ฯลฯ) — label เป็น Optional (ไม่มี Label = แสดงแค่ Value เฉยๆ เช่น ที่อยู่บริษัท) */
+export function HeaderTextLine({ label, value, style }: { label?: string; value: React.ReactNode; style: TextLineStyle }) {
   return (
-    <div style={{ fontSize: `${fontSizePx}px`, lineHeight }}>
-      <div className="font-semibold">{company.name}</div>
-      {showAddress && company.address && <div className="text-gray-600" style={{ fontSize: "0.83em" }}>{company.address}</div>}
-      {(showPhone || showTaxId) && (
-        <div className="text-gray-600" style={{ fontSize: "0.83em" }}>
-          {showPhone && company.phone && <>โทร {company.phone}</>}
-          {showPhone && company.phone && showTaxId && company.taxId && "  ·  "}
-          {showTaxId && company.taxId && <>เลขประจำตัวผู้เสียภาษี {company.taxId}</>}
-        </div>
-      )}
+    <div style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}>
+      {label && <span className="text-gray-500">{label}: </span>}
+      {value}
     </div>
   );
 }
 
-export function HeaderTitleElement({
-  titleTh,
-  titleEn,
-  fontSizePx,
-  lineHeight,
-}: {
-  titleTh: string;
-  titleEn: string;
-  fontSizePx: number;
-  lineHeight: number;
-}) {
+/** Element ชื่อเอกสาร (ไทย/อังกฤษ) — แยกเป็นคนละ Element ตั้งแต่ R6 Phase E.3 (เดิมรวมกัน
+ * เป็น "title" Block เดียว) เพื่อให้จัดกึ่งกลาง/ขนาด/ระยะห่างแยกจากกันได้อิสระตามที่ Owner
+ * ระบุตรงๆ ("Thai/English title ต้องเป็นคนละ Element") — bold แยกให้ไทย (หัวเรื่องหลัก)
+ * หนากว่าอังกฤษ (หัวเรื่องรอง) ตาม Zero-Regression จาก Layout เดิม */
+export function HeaderTitleLine({ text, bold, style }: { text: string; bold?: boolean; style: TextLineStyle }) {
   return (
-    <div style={{ lineHeight }}>
-      <div className="font-semibold" style={{ fontSize: `${fontSizePx}px` }}>
-        {titleTh}
-      </div>
-      <div className="text-gray-700" style={{ fontSize: `${fontSizePx * 0.86}px` }}>
-        {titleEn}
-      </div>
-    </div>
-  );
-}
-
-export function HeaderDocNumberDateElement({
-  rows,
-  fontSizePx,
-  lineHeight,
-}: {
-  rows: { label: string; value: React.ReactNode }[];
-  fontSizePx: number;
-  lineHeight: number;
-}) {
-  return (
-    <div style={{ fontSize: `${fontSizePx}px`, lineHeight }}>
-      {rows.map((row, i) => (
-        <div key={i}>
-          <span className="text-gray-500">{row.label}:</span> {row.value}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function HeaderCustomerNameElement({
-  name,
-  fontSizePx,
-  lineHeight,
-}: {
-  name: React.ReactNode;
-  fontSizePx: number;
-  lineHeight: number;
-}) {
-  return (
-    <div style={{ fontSize: `${fontSizePx}px`, lineHeight }}>
-      <span className="text-gray-500">ลูกค้า:</span> {name}
-    </div>
-  );
-}
-
-export function HeaderCustomerDetailsElement({
-  rows,
-  shippingAddress,
-  fontSizePx,
-  lineHeight,
-}: {
-  rows: { label: string; value: React.ReactNode }[];
-  shippingAddress?: string | null;
-  fontSizePx: number;
-  lineHeight: number;
-}) {
-  return (
-    <div style={{ fontSize: `${fontSizePx}px`, lineHeight }}>
-      {rows.map((row, i) => (
-        <div key={i}>
-          <span className="text-gray-500">{row.label}:</span> {row.value}
-        </div>
-      ))}
-      {shippingAddress && (
-        <div>
-          <span className="text-gray-500">สถานที่ส่งสินค้า / Shipping Address:</span> {shippingAddress}
-        </div>
-      )}
+    <div
+      className={bold ? "font-semibold" : "text-gray-700"}
+      style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}
+    >
+      {text}
     </div>
   );
 }

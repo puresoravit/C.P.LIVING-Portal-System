@@ -8,10 +8,15 @@ import {
   HEADER_FONT_SIZE_BOUNDS,
   LINE_HEIGHT_MIN,
   LINE_HEIGHT_MAX,
+  COL_SPAN_MIN,
+  COL_SPAN_MAX,
+  FONT_FAMILY_OPTIONS,
+  FONT_FAMILY_LABELS,
   type HeaderElementKey,
   type HeaderElementStyle,
   type HeaderLogoStyle,
   type HeaderAlignKey,
+  type FontFamilyKey,
 } from "@/lib/print-template-settings";
 
 // R6 Phase E.2 — Properties Panel แบบ Compact/Collapsible: แสดงเฉพาะ Element ที่เลือกอยู่
@@ -65,6 +70,16 @@ export function HeaderElementPropertiesBar({
             </div>
           </div>
 
+          <CompactRange
+            label="ความกว้าง"
+            value={style.colSpan}
+            min={COL_SPAN_MIN}
+            max={COL_SPAN_MAX}
+            step={1}
+            unit="%"
+            onChange={(v) => onUpdate({ colSpan: v })}
+          />
+
           {!isLogo && bounds && (
             <>
               <CompactRange
@@ -85,6 +100,21 @@ export function HeaderElementPropertiesBar({
                 unit=""
                 onChange={(v) => onUpdate({ lineHeight: v })}
               />
+              <div className="min-w-[140px]">
+                <div className="text-xs text-gray-500 mb-1">แบบตัวอักษร</div>
+                <select
+                  value={(style as HeaderElementStyle).fontFamily ?? ""}
+                  onChange={(e) => onUpdate({ fontFamily: (e.target.value || undefined) as FontFamilyKey | undefined })}
+                  className="w-full border rounded px-2 py-1 text-xs"
+                >
+                  <option value="">ค่าเริ่มต้น (ตามส่วนกลาง)</option>
+                  {FONT_FAMILY_OPTIONS.map((f) => (
+                    <option key={f} value={f}>
+                      {FONT_FAMILY_LABELS[f]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
 

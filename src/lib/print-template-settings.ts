@@ -164,22 +164,56 @@ export function resolveBlockOrder(order: unknown): PrintBlockKey[] {
 // Element ในนี้ครอบคลุมเฉพาะพื้นที่เหนือ Item Table เท่านั้น เหมือน E.1 ทุกประการ
 // ==========================================================================
 
+// R6 Phase E.3 — Semantic Element Free Layout: แตกจาก 6 Block (บาง Block รวมหลาย
+// บรรทัด/ความหมายไว้ในกล่องเดียว เช่น "title" เคยมีทั้งไทย+อังกฤษ, "customerDetails"
+// เคยมีทั้งที่อยู่+ภาษี+สถานที่ส่ง) เป็น 15 Element ระดับความหมายเดียว (1 Element = 1
+// บรรทัด/1 ข้อมูล) ตามที่ Owner ระบุตรงๆ ("Thai/English title ต้องเป็นคนละ Element
+// เพื่อจัดกึ่งกลางและระยะห่างแยกกันได้") — เพิ่ม customerCode/reference นอกเหนือจาก 13
+// รายการที่ Owner ระบุ เพื่อไม่ให้ Field จริงที่เคยแสดงอยู่แล้ว (รหัสลูกค้า, อ้างถึงของ
+// Repair Note) หายไปจาก Header โดยไม่มี Element รองรับ — สอดคล้องกับเจตนา "Semantic
+// Element" ที่ Owner วางไว้ (1 ข้อมูลจริง 1 Element) มากกว่าการทิ้งข้อมูลไปเฉยๆ
+//
+// ไม่ใช่ทุก Element จะมีอยู่จริงในทุกประเภทเอกสาร (เช่น Billing Note ไม่มี
+// customerAddress/shippingAddress, Repair Note ไม่มี customerTaxId) — Layout Config
+// ยังเก็บตำแหน่งของทั้ง 15 Element ไว้เหมือนกันหมดทุกประเภทเอกสาร/Global (Type เดียว
+// ใช้ร่วมกัน ไม่ต้องมี Schema แยกตามประเภทเอกสาร) แต่หน้า Print จริงแต่ละประเภทจะส่ง
+// Content เป็น undefined สำหรับ Element ที่ไม่มีข้อมูลจริงในเอกสารนั้น — HeaderZone จะไม่
+// Render Element ที่ไม่มี Content ให้เลย (Data-driven) ซ้อนกับ visible Flag ที่ผู้ใช้
+// กำหนดเอง (User-driven) — ทั้งสองเงื่อนไขต้องผ่านถึงจะแสดง
 export const HEADER_ELEMENT_KEYS = [
   "logo",
-  "companyInfo",
-  "title",
-  "docNumberDate",
+  "companyName",
+  "companyAddress",
+  "companyPhone",
+  "companyTaxId",
+  "titleTh",
+  "titleEn",
+  "docNumber",
+  "docDate",
+  "customerCode",
   "customerName",
-  "customerDetails",
+  "customerAddress",
+  "customerTaxId",
+  "shippingAddress",
+  "reference",
 ] as const;
 export type HeaderElementKey = (typeof HEADER_ELEMENT_KEYS)[number];
 export const HEADER_ELEMENT_LABELS: Record<HeaderElementKey, string> = {
   logo: "โลโก้",
-  companyInfo: "ชื่อ + ข้อมูลบริษัท",
-  title: "ชื่อเอกสาร",
-  docNumberDate: "เลขที่ + วันที่เอกสาร",
+  companyName: "ชื่อบริษัท",
+  companyAddress: "ที่อยู่บริษัท",
+  companyPhone: "เบอร์โทรบริษัท",
+  companyTaxId: "เลขผู้เสียภาษีบริษัท",
+  titleTh: "ชื่อเอกสาร (ไทย)",
+  titleEn: "ชื่อเอกสาร (อังกฤษ)",
+  docNumber: "เลขที่เอกสาร",
+  docDate: "วันที่เอกสาร",
+  customerCode: "รหัสลูกค้า",
   customerName: "ชื่อลูกค้า",
-  customerDetails: "ที่อยู่ / เลขผู้เสียภาษี / สถานที่ส่งสินค้า",
+  customerAddress: "ที่อยู่ลูกค้า",
+  customerTaxId: "เลขผู้เสียภาษีลูกค้า",
+  shippingAddress: "สถานที่ส่งสินค้า",
+  reference: "อ้างถึง",
 };
 
 export const HEADER_ALIGN_OPTIONS = ["left", "center", "right"] as const;
@@ -191,8 +225,12 @@ export const HEADER_GRID_COLUMNS = 100; // % ของความกว้า�
 export const HEADER_ROW_UNIT_MM = 2; // มม./แถว (หน่วยจริง คงที่ไม่ผูกกับหน้าจอ/Viewport)
 export const HEADER_MAX_ROWS = 60; // เพดานเชิงโครงสร้างเท่านั้น (=120มม. กว้างขวางกว่า Header จริงมาก)
 // สูงกว่านี้ถือว่าเสี่ยงกิน "พื้นที่พิมพ์" ของ Item Table ไปมาก — แสดง Warning ใน Designer
-// (ไม่ Block เพราะยังพิมพ์ได้จริง แค่เตือนให้ Owner ทราบ ตาม Precedent เดิมของ Phase E)
-export const HEADER_HEIGHT_WARNING_MM = 60;
+// (ไม่ Block เพราะยังพิมพ์ได้จริง แค่เตือนให้ Owner ทราบ ตาม Precedent เดิมของ Phase E) —
+// R6 Phase E.3 — ปรับขึ้นจาก 60→100มม. เพราะแตกเป็น 15 Element ระดับบรรทัดแล้ว Default ที่
+// ไม่ Overlap กันเองจริงต้องใช้พื้นที่มากกว่า Model เดิม (6 Block) ตามธรรมชาติ — ยืนยันว่า
+// DEFAULT_HEADER_LAYOUT ด้านล่างสูงรวมไม่เกิน 90มม. (ต่ำกว่าเกณฑ์นี้เสมอ ไม่ Warning เท็จ
+// ตอนเพิ่งเปิดโหมด Custom ครั้งแรก)
+export const HEADER_HEIGHT_WARNING_MM = 100;
 
 export const LINE_HEIGHT_MIN = 1.0;
 export const LINE_HEIGHT_MAX = 2.0;
@@ -204,14 +242,23 @@ export const LOGO_ROW_SPAN_MIN = 3; // 6มม.
 export const LOGO_ROW_SPAN_MAX = 12; // 24มม. (เทียบเท่าเพดานเดิมของ E.1 ~90px)
 
 /** ขอบเขต Font Size ปลอดภัยของแต่ละ Element แยกกัน (ตามที่ Owner ระบุตรงๆ ว่าแต่ละ
- * Element ต้องมี Min/Max ของตัวเอง) — title กว้างสุดเพราะเป็นหัวเรื่องเด่นของเอกสาร,
- * customerDetails แคบสุดเพราะเป็นข้อมูลรองที่มักมีหลายบรรทัด (คงค่าเดิมจาก E.1 ทุกตัว)*/
+ * Element ต้องมี Min/Max ของตัวเอง) — titleTh กว้างสุดเพราะเป็นหัวเรื่องเด่นของเอกสาร,
+ * Element รองลงมา (ที่อยู่/เลขภาษี/สถานที่ส่ง) แคบสุดเพราะเป็นข้อมูลรอง */
 export const HEADER_FONT_SIZE_BOUNDS: Record<Exclude<HeaderElementKey, "logo">, { min: number; max: number }> = {
-  companyInfo: { min: 8, max: 20 },
-  title: { min: 10, max: 28 },
-  docNumberDate: { min: 8, max: 16 },
+  companyName: { min: 8, max: 20 },
+  companyAddress: { min: 6, max: 14 },
+  companyPhone: { min: 6, max: 14 },
+  companyTaxId: { min: 6, max: 14 },
+  titleTh: { min: 10, max: 28 },
+  titleEn: { min: 8, max: 22 },
+  docNumber: { min: 8, max: 16 },
+  docDate: { min: 8, max: 16 },
+  customerCode: { min: 7, max: 14 },
   customerName: { min: 8, max: 18 },
-  customerDetails: { min: 7, max: 14 },
+  customerAddress: { min: 7, max: 14 },
+  customerTaxId: { min: 7, max: 14 },
+  shippingAddress: { min: 7, max: 14 },
+  reference: { min: 7, max: 14 },
 };
 
 export type HeaderElementStyle = {
@@ -223,28 +270,35 @@ export type HeaderElementStyle = {
   fontSizePx: number;
   lineHeight: number;
   visible: boolean;
+  // R6 Phase E.3 — "Font family ถ้าเหมาะสม" (Owner ระบุเป็น Optional เอง) — undefined =
+  // สืบทอด Font Family ระดับ Global ตามปกติ (--print-font-family) เหมือน Zero-Regression
+  // เดิมทุกประการ ตั้งค่าเฉพาะเมื่อ Owner ต้องการ Override เป็นรายElement จริงๆ เท่านั้น
+  fontFamily?: FontFamilyKey;
 };
-export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx" | "lineHeight">;
+export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily">;
 
-export type HeaderLayoutConfig = {
-  logo: HeaderLogoStyle;
-  companyInfo: HeaderElementStyle;
-  title: HeaderElementStyle;
-  docNumberDate: HeaderElementStyle;
-  customerName: HeaderElementStyle;
-  customerDetails: HeaderElementStyle;
-};
+export type HeaderLayoutConfig = Record<Exclude<HeaderElementKey, "logo">, HeaderElementStyle> & { logo: HeaderLogoStyle };
 
-// ตำแหน่งเริ่มต้นเมื่อ Owner เปิดโหมด Custom ครั้งแรก (หรือกด Reset) — จัดเรียงคล้าย
-// Default เดิมของ E.1: แถวบน=แบรนด์ (โลโก้ซ้าย, บริษัทขวา), แถวกลาง=เอกสาร (ชื่อเอกสาร
-// ซ้าย, เลขที่/วันที่ขวา), แถวล่าง=ลูกค้า (ชื่อซ้าย, รายละเอียดขวา) — ไม่ Overlap กันเอง
+// ตำแหน่งเริ่มต้นเมื่อ Owner เปิดโหมด Custom ครั้งแรก (หรือกด Reset) — จัดเป็น 4 กลุ่มตาม
+// แถว (ไม่ Overlap กันเองโดยโครงสร้าง เพราะแต่ละกลุ่มอยู่คนละช่วงแถว): แบรนด์ (โลโก้+ชื่อ/
+// ที่อยู่/เบอร์/ภาษีบริษัท) → ชื่อเอกสาร (ไทย/อังกฤษ แยกบรรทัด กึ่งกลางทั้งคู่) → ข้อมูล
+// เอกสาร (เลขที่/วันที่/รหัสลูกค้า) → ข้อมูลลูกค้า (ชื่อ/ที่อยู่/ภาษี/สถานที่ส่ง/อ้างถึง)
 export const DEFAULT_HEADER_LAYOUT: HeaderLayoutConfig = {
-  logo: { colStart: 1, colSpan: 20, rowStart: 1, rowSpan: 8, align: "left", visible: true },
-  companyInfo: { colStart: 24, colSpan: 50, rowStart: 1, rowSpan: 8, align: "center", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  title: { colStart: 1, colSpan: 48, rowStart: 10, rowSpan: 8, align: "left", fontSizePx: 14, lineHeight: 1.2, visible: true },
-  docNumberDate: { colStart: 52, colSpan: 48, rowStart: 10, rowSpan: 8, align: "right", fontSizePx: 12, lineHeight: 1.4, visible: true },
-  customerName: { colStart: 1, colSpan: 48, rowStart: 19, rowSpan: 5, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  customerDetails: { colStart: 52, colSpan: 48, rowStart: 19, rowSpan: 10, align: "left", fontSizePx: 11, lineHeight: 1.4, visible: true },
+  logo: { colStart: 1, colSpan: 20, rowStart: 1, rowSpan: 9, align: "left", visible: true },
+  companyName: { colStart: 24, colSpan: 77, rowStart: 1, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, visible: true },
+  companyAddress: { colStart: 24, colSpan: 77, rowStart: 5, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
+  companyPhone: { colStart: 24, colSpan: 37, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
+  companyTaxId: { colStart: 62, colSpan: 39, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
+  titleTh: { colStart: 1, colSpan: 100, rowStart: 14, rowSpan: 4, align: "center", fontSizePx: 14, lineHeight: 1.2, visible: true },
+  titleEn: { colStart: 1, colSpan: 100, rowStart: 18, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, visible: true },
+  docNumber: { colStart: 55, colSpan: 46, rowStart: 22, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  docDate: { colStart: 55, colSpan: 46, rowStart: 26, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  customerCode: { colStart: 1, colSpan: 54, rowStart: 26, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  customerName: { colStart: 1, colSpan: 100, rowStart: 30, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  customerAddress: { colStart: 1, colSpan: 100, rowStart: 34, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
+  customerTaxId: { colStart: 1, colSpan: 48, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
+  shippingAddress: { colStart: 50, colSpan: 51, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
+  reference: { colStart: 1, colSpan: 48, rowStart: 42, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
 };
 
 function clampNum(n: unknown, min: number, max: number, fallback: number): number {
@@ -278,6 +332,8 @@ function resolveBox(
  * Default ของแต่ละ Field เอง) จึงเป็น Safe Fallback ให้ทั้งข้อมูลเก่าและข้อมูลเสียโดย
  * อัตโนมัติ ไม่ต้อง Detect Shape เป็นพิเศษ — ทุก Field ตัวเลข Clamp ภายใน Safe Bounds
  * ของตัวเองเสมอ กัน Font Size/ตำแหน่ง/ขนาดที่ผิดพลาดทำให้ Header ล้นพื้นที่พิมพ์ */
+const TEXT_ELEMENT_KEYS = HEADER_ELEMENT_KEYS.filter((k): k is Exclude<HeaderElementKey, "logo"> => k !== "logo");
+
 export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw !== "object") return DEFAULT_HEADER_LAYOUT;
@@ -287,28 +343,29 @@ export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
     const bounds = HEADER_FONT_SIZE_BOUNDS[key];
     const fallback = DEFAULT_HEADER_LAYOUT[key];
     const r = obj[key] && typeof obj[key] === "object" ? obj[key] : {};
+    const fontFamily = (FONT_FAMILY_OPTIONS as readonly string[]).includes(r.fontFamily) ? (r.fontFamily as FontFamilyKey) : undefined;
     return {
       ...resolveBox(r, fallback, { min: ROW_SPAN_MIN, max: ROW_SPAN_MAX }),
       align: resolveAlign(r.align, fallback.align),
       fontSizePx: clampNum(r.fontSizePx, bounds.min, bounds.max, fallback.fontSizePx),
       lineHeight: clampNum(r.lineHeight * 10, LINE_HEIGHT_MIN * 10, LINE_HEIGHT_MAX * 10, fallback.lineHeight * 10) / 10,
       visible: typeof r.visible === "boolean" ? r.visible : true,
+      ...(fontFamily ? { fontFamily } : {}),
     };
   }
 
   const logoRaw = obj.logo && typeof obj.logo === "object" ? obj.logo : {};
-  return {
+  const result: Partial<HeaderLayoutConfig> = {
     logo: {
       ...resolveBox(logoRaw, DEFAULT_HEADER_LAYOUT.logo, { min: LOGO_ROW_SPAN_MIN, max: LOGO_ROW_SPAN_MAX }),
       align: resolveAlign(logoRaw.align, DEFAULT_HEADER_LAYOUT.logo.align),
       visible: typeof logoRaw.visible === "boolean" ? logoRaw.visible : true,
     },
-    companyInfo: resolveTextElement("companyInfo"),
-    title: resolveTextElement("title"),
-    docNumberDate: resolveTextElement("docNumberDate"),
-    customerName: resolveTextElement("customerName"),
-    customerDetails: resolveTextElement("customerDetails"),
   };
+  for (const key of TEXT_ELEMENT_KEYS) {
+    result[key] = resolveTextElement(key);
+  }
+  return result as HeaderLayoutConfig;
 }
 
 /** แปลง rowSpan ของ Logo เป็นความสูงจริง (มม.) — จุดเดียวที่ทุก Caller (หน้า Print จริง
@@ -409,6 +466,7 @@ const headerElementStyleSchema = z.object({
   fontSizePx: z.number(),
   lineHeight: z.number(),
   visible: z.boolean(),
+  fontFamily: z.enum(FONT_FAMILY_OPTIONS).optional(),
 });
 const headerLogoStyleSchema = z.object({
   colStart: z.number().int().min(1).max(HEADER_GRID_COLUMNS),
@@ -418,15 +476,16 @@ const headerLogoStyleSchema = z.object({
   align: z.enum(HEADER_ALIGN_OPTIONS),
   visible: z.boolean(),
 });
+// R6 Phase E.3 — 15 Element ระดับความหมายเดียว (ดู HEADER_ELEMENT_KEYS ด้านบนสำหรับ
+// เหตุผลเต็ม) — สร้าง Schema แบบ Generic จาก TEXT_ELEMENT_KEYS แทนพิมพ์ 14 บรรทัดซ้ำ
 const headerLayoutSchema = z
-  .object({
-    logo: headerLogoStyleSchema,
-    companyInfo: headerElementStyleSchema,
-    title: headerElementStyleSchema,
-    docNumberDate: headerElementStyleSchema,
-    customerName: headerElementStyleSchema,
-    customerDetails: headerElementStyleSchema,
-  })
+  .object(
+    Object.fromEntries(TEXT_ELEMENT_KEYS.map((k) => [k, headerElementStyleSchema])) as Record<
+      Exclude<HeaderElementKey, "logo">,
+      typeof headerElementStyleSchema
+    >
+  )
+  .extend({ logo: headerLogoStyleSchema })
   .nullable();
 
 const overridableSchema = z.object({

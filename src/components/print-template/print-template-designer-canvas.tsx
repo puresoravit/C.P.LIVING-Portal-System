@@ -28,14 +28,7 @@ import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderZoneCanvasEditor } from "./header-zone-canvas-editor";
-import {
-  HeaderLogoElement,
-  HeaderCompanyInfoElement,
-  HeaderTitleElement,
-  HeaderDocNumberDateElement,
-  HeaderCustomerNameElement,
-  HeaderCustomerDetailsElement,
-} from "@/components/print/header-elements";
+import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
 import { TaxInvoicePrintBody } from "@/components/print/tax-invoice-print-body";
@@ -155,49 +148,38 @@ function DesignerHeaderZone({
   onSelectElement?: (key: HeaderElementKey | null) => void;
   onChangeElement?: (key: HeaderElementKey, patch: Partial<HeaderElementStyle>) => void;
 }) {
+  // R6 Phase E.3 — Element เดียวกับที่หน้า Print จริงทั้ง 5 เรียก (header-elements.tsx)
+  // แค่ป้อน Sample Data แทน DB จริง — Field ที่ประเภทเอกสารนี้ไม่มีจริง (undefined) จะไม่
+  // ใส่ Key นั้นเข้า elements เลย เหมือนหน้า Print จริงทุกประการ (Data-driven Suppression)
   const info = getSampleHeaderZoneInfo(docType);
-  const elements: Record<HeaderElementKey, React.ReactNode> = {
+  const elements: Partial<Record<HeaderElementKey, React.ReactNode>> = {
     logo: <HeaderLogoElement logo={settings.logo} heightMm={logoHeightMm(headerLayout.logo)} />,
-    companyInfo: (
-      <HeaderCompanyInfoElement
-        company={company}
-        showAddress={settings.showAddress}
-        showPhone={settings.showPhone}
-        showTaxId={settings.showTaxId}
-        fontSizePx={headerLayout.companyInfo.fontSizePx}
-        lineHeight={headerLayout.companyInfo.lineHeight}
-      />
-    ),
-    title: (
-      <HeaderTitleElement
-        titleTh={info.titleTh}
-        titleEn={info.titleEn}
-        fontSizePx={headerLayout.title.fontSizePx}
-        lineHeight={headerLayout.title.lineHeight}
-      />
-    ),
-    docNumberDate: (
-      <HeaderDocNumberDateElement
-        rows={info.docNumberDateRows}
-        fontSizePx={headerLayout.docNumberDate.fontSizePx}
-        lineHeight={headerLayout.docNumberDate.lineHeight}
-      />
-    ),
-    customerName: (
-      <HeaderCustomerNameElement
-        name={info.customerName}
-        fontSizePx={headerLayout.customerName.fontSizePx}
-        lineHeight={headerLayout.customerName.lineHeight}
-      />
-    ),
-    customerDetails: (
-      <HeaderCustomerDetailsElement
-        rows={info.customerDetailsRows}
-        shippingAddress={info.shippingAddress}
-        fontSizePx={headerLayout.customerDetails.fontSizePx}
-        lineHeight={headerLayout.customerDetails.lineHeight}
-      />
-    ),
+    companyName: <HeaderTitleLine text={company.name} bold style={headerLayout.companyName} />,
+    ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={headerLayout.companyAddress} /> } : {}),
+    ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={headerLayout.companyPhone} /> } : {}),
+    ...(company.taxId
+      ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={headerLayout.companyTaxId} /> }
+      : {}),
+    titleTh: <HeaderTitleLine text={info.titleTh} bold style={headerLayout.titleTh} />,
+    titleEn: <HeaderTitleLine text={info.titleEn} style={headerLayout.titleEn} />,
+    docNumber: <HeaderTextLine label="เลขที่" value={info.docNumber} style={headerLayout.docNumber} />,
+    docDate: <HeaderTextLine label="วันที่" value={info.docDate} style={headerLayout.docDate} />,
+    ...(info.customerCode ? { customerCode: <HeaderTextLine label="รหัสลูกค้า" value={info.customerCode} style={headerLayout.customerCode} /> } : {}),
+    ...(info.reference ? { reference: <HeaderTextLine label="อ้างถึง" value={info.reference} style={headerLayout.reference} /> } : {}),
+    customerName: <HeaderTextLine label="ลูกค้า" value={info.customerName} style={headerLayout.customerName} />,
+    ...(info.customerAddress
+      ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={info.customerAddress} style={headerLayout.customerAddress} /> }
+      : {}),
+    ...(info.customerTaxId
+      ? { customerTaxId: <HeaderTextLine label="เลขผู้เสียภาษี" value={info.customerTaxId} style={headerLayout.customerTaxId} /> }
+      : {}),
+    ...(info.shippingAddress
+      ? {
+          shippingAddress: (
+            <HeaderTextLine label="สถานที่ส่งสินค้า / Shipping Address" value={info.shippingAddress} style={headerLayout.shippingAddress} />
+          ),
+        }
+      : {}),
   };
   if (editable && onSelectElement && onChangeElement) {
     return (
