@@ -22,7 +22,7 @@ import {
   HeaderCustomerDetailsElement,
 } from "@/components/print/header-elements";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
@@ -87,7 +87,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   // เดิม — เป็น null (Default) ใช้ Path Classic เดิมด้านบนเป๊ะ ไม่เปลี่ยนอะไรเลย
   const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
     ? {
-        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(template.headerLayout.logo)} />,
         companyInfo: (
           <HeaderCompanyInfoElement
             company={company}

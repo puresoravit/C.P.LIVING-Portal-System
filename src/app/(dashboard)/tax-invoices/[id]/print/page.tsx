@@ -21,7 +21,7 @@ import {
   HeaderCustomerDetailsElement,
 } from "@/components/print/header-elements";
 import { TaxInvoicePrintBody } from "@/components/print/tax-invoice-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 // Tax Invoice มี VAT จริง (extractVat ใน tax-invoices/actions.ts) — Phase D ไม่แตะ
 // สูตร VAT/Value/Net ใดๆ เปลี่ยนเฉพาะ Presentation
@@ -80,7 +80,7 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
   // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
   const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
     ? {
-        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(template.headerLayout.logo)} />,
         companyInfo: (
           <HeaderCompanyInfoElement
             company={company}

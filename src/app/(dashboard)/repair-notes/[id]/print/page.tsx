@@ -20,7 +20,7 @@ import {
   HeaderCustomerDetailsElement,
 } from "@/components/print/header-elements";
 import { RepairNotePrintBody } from "@/components/print/repair-note-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 // Repair/Return Note ไม่มีราคา/VAT เลย (ไม่ใช่เอกสารขาย) — ไม่มี Size column เพราะ
 // RepairReturnNoteItem ยังไม่มี field นี้ (ตามที่ตกลงไว้ ยังไม่แก้ Data Model รอบนี้)
@@ -78,7 +78,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
   // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
   const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
     ? {
-        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(template.headerLayout.logo)} />,
         companyInfo: (
           <HeaderCompanyInfoElement
             company={company}

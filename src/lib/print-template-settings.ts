@@ -134,21 +134,34 @@ export function resolveBlockOrder(order: unknown): PrintBlockKey[] {
 }
 
 // ==========================================================================
-// R6 Phase E.1 — Header Free Layout Enhancement
-// เฉพาะพื้นที่ "เหนือ Item Table" (เดิมคือ Block header/title/customerInfo ของ Phase E)
-// แตกละเอียดขึ้นเป็น 6 Element อิสระ วางได้ใน Grid 3 แถว × 2 คอลัมน์ = 6 ช่อง (Safe
-// Zone แบบปิด ไม่ใช่ Pixel Coordinate อิสระ) — ทุก Element ครองคนละช่องเสมอ (Bijection
-// เต็มจำนวน 6:6) ทำให้ "ห้าม Overlap" เป็นจริงโดยโครงสร้าง Grid เอง ไม่ต้องมี Collision
-// Detection แยกต่างหาก — แต่ละช่องเป็น CSS Grid Row แบบ height:auto จึงสูงตามเนื้อหาจริง
-// เสมอ (ไม่มี Absolute Positioning ที่ไหนเลย) ทำให้ Item Table ที่ตามมาหลัง Grid นี้ถูก
-// "ดัน" ลงตามธรรมชาติของ Document Flow โดยไม่ต้องคำนวณ Offset เอง
+// R6 Phase E.2 — Controlled Free-position Header Designer
+// (แทนที่ Grid 3×2 Cell-swap ของ Phase E.1 ทั้งหมด — Data Shape เปลี่ยน แต่ Key
+// AppSetting เดิม/Field เดิม "headerLayout" ไม่เปลี่ยน ไม่มี Migration ใหม่)
 //
-// headerLayout = null (Default ของทุกเอกสารที่ไม่เคยตั้งค่า) หมายถึง "ยังไม่ใช้ระบบใหม่"
-// — หน้า Print จริงทั้ง 5 จะ Render ผ่าน Path เดิมของ Phase E เป๊ะ (PrintOrderedBlocks +
-// header/title/customerInfo 3 Block เดิม) ไม่แตะโค้ดเดิมแม้แต่บรรทัดเดียว = Zero
-// Regression รับประกันโดยไม่ต้อง Diff สายตา — เฉพาะเอกสารที่ Owner เปิดโหมด "Header
-// Layout แบบละเอียด" ผ่าน Designer เท่านั้นที่จะมี headerLayout ไม่เป็น null แล้วเปลี่ยน
-// ไป Render ผ่าน HeaderZone Component ใหม่แทน
+// สถาปัตยกรรมที่เลือก: "Fine Grid" แทนที่จะเป็น Pixel Coordinate อิสระจริง —
+// คอลัมน์ 100 ช่อง (% ของความกว้าง Header — Scale ตาม A4/9×11 อัตโนมัติเพราะเป็น
+// สัดส่วนสัมพัทธ์) × แถวละเอียด HEADER_ROW_UNIT_MM มม./แถว (หน่วยจริงคงที่ไม่ผูกกับ
+// Viewport) ใช้ grid-auto-rows: minmax(Xmm, auto) — "minmax" คือกุญแจสำคัญ: ให้แถว
+// สูงขั้นต่ำ Xmm แต่ "auto" ยอมให้โตขึ้นถ้าเนื้อหา (ข้อความยาวหลายบรรทัด) ต้องการพื้นที่
+// มากกว่านั้นจริง จึงไม่มีทาง Overflow ออกนอกกรอบ Grid ของตัวเองได้เลย — เป็นกลไกเดียวกับ
+// ที่ Phase E.1 ใช้ (grid-template-rows: auto) เพียงแค่ละเอียดขึ้นมาก (Resolution สูงพอ
+// ให้ลาก/Resize รู้สึกอิสระต่อเนื่องด้วยเมาส์จริง) — ผลคือ:
+//   1. ไม่มี Absolute Positioning ที่ไหนเลย (เหมือน E/E.1 ทุกประการ)
+//   2. Header สูงตามเนื้อหาจริงเสมอ (Content ต่ำสุด + Row สุดท้ายที่ใช้) ไม่ต้องวัดด้วย
+//      JavaScript เลย — Item Table ที่ตามมาหลัง Grid ถูก "ดัน" ลงตาม Document Flow ปกติ
+//      โดยอัตโนมัติ เหมือน E.1 เป๊ะ (Print Pipeline เดิมของ Item Table/Summary/
+//      Signature/Footer ไม่ถูกแตะเลยแม้แต่บรรทัดเดียว)
+//   3. พิกัดเป็น Grid-unit (Integer) ไม่ใช่ Pixel จึงเป็น "Normalized/Relative
+//      Coordinate" ตรงตาม Requirement — Layout เดียวกันแสดงผลถูกสัดส่วนทั้ง A4/9×11
+//      โดยไม่ต้องแปลงหน่วยเองที่ไหนเลย
+// พิจารณาทางเลือกอื่น (True Absolute-pixel Positioning + JS-measured Height เพื่อดัน
+// Table ลง) แล้วตัดสินใจไม่ใช้ เพราะจะเปลี่ยนกลไก Pagination-safety จาก CSS ล้วนๆ (ที่
+// พิสูจน์แล้วว่าเชื่อถือได้ตลอด Phase E/E.1) ไปเป็นการวัด DOM ด้วย JS ก่อน Print ซึ่งเพิ่ม
+// ความเสี่ยงต่อ Print Pipeline โดยไม่จำเป็น — แนวทาง Fine Grid นี้ได้ Experience แบบ
+// "ลากอิสระ" ตามที่ Owner ต้องการ โดยไม่ต้องแลกกับความเสี่ยงนั้นเลย
+//
+// headerLayout = null (Default) = โหมด Classic เดิมของ Phase E ทุกประการ (ไม่แตะ) —
+// Element ในนี้ครอบคลุมเฉพาะพื้นที่เหนือ Item Table เท่านั้น เหมือน E.1 ทุกประการ
 // ==========================================================================
 
 export const HEADER_ELEMENT_KEYS = [
@@ -173,21 +186,26 @@ export const HEADER_ALIGN_OPTIONS = ["left", "center", "right"] as const;
 export type HeaderAlignKey = (typeof HEADER_ALIGN_OPTIONS)[number];
 export const HEADER_ALIGN_LABELS: Record<HeaderAlignKey, string> = { left: "ซ้าย", center: "กลาง", right: "ขวา" };
 
-/** ช่องใน Grid 3 แถว×2 คอลัมน์ ระบุด้วย Index 0-5 (row = floor(cell/2), col = cell%2) */
-export type HeaderGridCell = 0 | 1 | 2 | 3 | 4 | 5;
-export const HEADER_GRID_ROWS = 3;
-export const HEADER_GRID_COLS = 2;
+// ความละเอียดของ Fine Grid — ดู Comment ใหญ่ด้านบนสำหรับเหตุผลสถาปัตยกรรมเต็ม
+export const HEADER_GRID_COLUMNS = 100; // % ของความกว้าง Header Zone
+export const HEADER_ROW_UNIT_MM = 2; // มม./แถว (หน่วยจริง คงที่ไม่ผูกกับหน้าจอ/Viewport)
+export const HEADER_MAX_ROWS = 60; // เพดานเชิงโครงสร้างเท่านั้น (=120มม. กว้างขวางกว่า Header จริงมาก)
+// สูงกว่านี้ถือว่าเสี่ยงกิน "พื้นที่พิมพ์" ของ Item Table ไปมาก — แสดง Warning ใน Designer
+// (ไม่ Block เพราะยังพิมพ์ได้จริง แค่เตือนให้ Owner ทราบ ตาม Precedent เดิมของ Phase E)
+export const HEADER_HEIGHT_WARNING_MM = 60;
 
 export const LINE_HEIGHT_MIN = 1.0;
 export const LINE_HEIGHT_MAX = 2.0;
-export const MAX_WIDTH_PCT_MIN = 30;
-export const MAX_WIDTH_PCT_MAX = 100;
-export const LOGO_HEIGHT_MIN_PX = 20;
-export const LOGO_HEIGHT_MAX_PX = 90;
+export const COL_SPAN_MIN = 10; // 10% ความกว้างขั้นต่ำ กัน Element แคบจนอ่านไม่ได้
+export const COL_SPAN_MAX = HEADER_GRID_COLUMNS;
+export const ROW_SPAN_MIN = 3; // 6มม. ขั้นต่ำ
+export const ROW_SPAN_MAX = HEADER_MAX_ROWS;
+export const LOGO_ROW_SPAN_MIN = 3; // 6มม.
+export const LOGO_ROW_SPAN_MAX = 12; // 24มม. (เทียบเท่าเพดานเดิมของ E.1 ~90px)
 
 /** ขอบเขต Font Size ปลอดภัยของแต่ละ Element แยกกัน (ตามที่ Owner ระบุตรงๆ ว่าแต่ละ
  * Element ต้องมี Min/Max ของตัวเอง) — title กว้างสุดเพราะเป็นหัวเรื่องเด่นของเอกสาร,
- * customerDetails แคบสุดเพราะเป็นข้อมูลรองที่มักมีหลายบรรทัด */
+ * customerDetails แคบสุดเพราะเป็นข้อมูลรองที่มักมีหลายบรรทัด (คงค่าเดิมจาก E.1 ทุกตัว)*/
 export const HEADER_FONT_SIZE_BOUNDS: Record<Exclude<HeaderElementKey, "logo">, { min: number; max: number }> = {
   companyInfo: { min: 8, max: 20 },
   title: { min: 10, max: 28 },
@@ -197,14 +215,16 @@ export const HEADER_FONT_SIZE_BOUNDS: Record<Exclude<HeaderElementKey, "logo">, 
 };
 
 export type HeaderElementStyle = {
-  cell: HeaderGridCell;
+  colStart: number; // 1-100
+  colSpan: number; // 1-100, colStart+colSpan-1 <= 100
+  rowStart: number; // 1-HEADER_MAX_ROWS
+  rowSpan: number; // 1-HEADER_MAX_ROWS, rowStart+rowSpan-1 <= HEADER_MAX_ROWS
   align: HeaderAlignKey;
   fontSizePx: number;
   lineHeight: number;
-  maxWidthPct: number;
   visible: boolean;
 };
-export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx"> & { heightPx: number };
+export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx" | "lineHeight">;
 
 export type HeaderLayoutConfig = {
   logo: HeaderLogoStyle;
@@ -215,71 +235,72 @@ export type HeaderLayoutConfig = {
   customerDetails: HeaderElementStyle;
 };
 
-// Default Cell Arrangement เมื่อ Owner เพิ่งเปิดโหมด Custom ครั้งแรก (จุดเริ่มต้นที่
-// สมเหตุสมผล ไม่จำเป็นต้องตรงกับ Layout เดิมของ Path Classic เป๊ะ เพราะเป็นคนละ Mode ที่
-// ต้องเปิดใช้งานเองอย่างชัดเจน): แถวบน=แบรนด์ (โลโก้ซ้าย, บริษัทกลาง), แถวกลาง=เอกสาร
-// (ชื่อเอกสารซ้าย, เลขที่/วันที่ขวา), แถวล่าง=ลูกค้า (ชื่อซ้าย, รายละเอียดขวา)
+// ตำแหน่งเริ่มต้นเมื่อ Owner เปิดโหมด Custom ครั้งแรก (หรือกด Reset) — จัดเรียงคล้าย
+// Default เดิมของ E.1: แถวบน=แบรนด์ (โลโก้ซ้าย, บริษัทขวา), แถวกลาง=เอกสาร (ชื่อเอกสาร
+// ซ้าย, เลขที่/วันที่ขวา), แถวล่าง=ลูกค้า (ชื่อซ้าย, รายละเอียดขวา) — ไม่ Overlap กันเอง
 export const DEFAULT_HEADER_LAYOUT: HeaderLayoutConfig = {
-  logo: { cell: 0, align: "left", heightPx: 44, lineHeight: 1, maxWidthPct: 100, visible: true },
-  companyInfo: { cell: 1, align: "center", fontSizePx: 12, lineHeight: 1.3, maxWidthPct: 100, visible: true },
-  title: { cell: 2, align: "left", fontSizePx: 14, lineHeight: 1.2, maxWidthPct: 100, visible: true },
-  docNumberDate: { cell: 3, align: "right", fontSizePx: 12, lineHeight: 1.4, maxWidthPct: 100, visible: true },
-  customerName: { cell: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, maxWidthPct: 100, visible: true },
-  customerDetails: { cell: 5, align: "left", fontSizePx: 11, lineHeight: 1.4, maxWidthPct: 100, visible: true },
+  logo: { colStart: 1, colSpan: 20, rowStart: 1, rowSpan: 8, align: "left", visible: true },
+  companyInfo: { colStart: 24, colSpan: 50, rowStart: 1, rowSpan: 8, align: "center", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  title: { colStart: 1, colSpan: 48, rowStart: 10, rowSpan: 8, align: "left", fontSizePx: 14, lineHeight: 1.2, visible: true },
+  docNumberDate: { colStart: 52, colSpan: 48, rowStart: 10, rowSpan: 8, align: "right", fontSizePx: 12, lineHeight: 1.4, visible: true },
+  customerName: { colStart: 1, colSpan: 48, rowStart: 19, rowSpan: 5, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
+  customerDetails: { colStart: 52, colSpan: 48, rowStart: 19, rowSpan: 10, align: "left", fontSizePx: 11, lineHeight: 1.4, visible: true },
 };
 
 function clampNum(n: unknown, min: number, max: number, fallback: number): number {
   const num = Number(n);
-  return Number.isFinite(num) ? Math.min(max, Math.max(min, num)) : fallback;
+  return Number.isFinite(num) ? Math.min(max, Math.max(min, Math.round(num))) : fallback;
 }
 
 function resolveAlign(raw: unknown, fallback: HeaderAlignKey): HeaderAlignKey {
   return (HEADER_ALIGN_OPTIONS as readonly string[]).includes(raw as string) ? (raw as HeaderAlignKey) : fallback;
 }
 
+/** Clamp colStart/colSpan (และ rowStart/rowSpan ด้วย Bound ที่ส่งมา) ให้อยู่ในขอบเขต
+ * ปลอดภัยเสมอ — colStart+colSpan-1 ต้องไม่เกิน HEADER_GRID_COLUMNS/HEADER_MAX_ROWS
+ * (Clamp colStart ลงถ้าจำเป็นแทนที่จะปฏิเสธทั้งก้อน กัน Element หลุดจอไปเงียบๆ) */
+function resolveBox(
+  r: Record<string, any>,
+  fallback: Pick<HeaderElementStyle, "colStart" | "colSpan" | "rowStart" | "rowSpan">,
+  rowSpanBounds: { min: number; max: number }
+): Pick<HeaderElementStyle, "colStart" | "colSpan" | "rowStart" | "rowSpan"> {
+  const colSpan = clampNum(r.colSpan, COL_SPAN_MIN, COL_SPAN_MAX, fallback.colSpan);
+  const colStart = clampNum(r.colStart, 1, HEADER_GRID_COLUMNS - colSpan + 1, Math.min(fallback.colStart, HEADER_GRID_COLUMNS - colSpan + 1));
+  const rowSpan = clampNum(r.rowSpan, rowSpanBounds.min, rowSpanBounds.max, fallback.rowSpan);
+  const rowStart = clampNum(r.rowStart, 1, HEADER_MAX_ROWS - rowSpan + 1, Math.min(fallback.rowStart, HEADER_MAX_ROWS - rowSpan + 1));
+  return { colStart, colSpan, rowStart, rowSpan };
+}
+
 /** ตรวจ + Clamp HeaderLayoutConfig ที่ได้จาก AppSetting/Client เสมอก่อนใช้งานจริง —
- * null/undefined = โหมด Classic (ไม่ใช่ข้อมูลเสีย) คืน null ตรงๆ — ถ้ามีค่าแต่ Cell ไม่
- * ครบเป็น Permutation ของ 0-5 (ข้อมูลเสีย/แก้ DB มือ) Fallback ทั้งชุดไป
- * DEFAULT_HEADER_LAYOUT (ยังอยู่ใน Custom Mode แต่กลับไปที่ค่าเริ่มต้นที่ปลอดภัย ไม่ใช่
- * หลุดกลับไป Classic Mode เงียบๆ) — ทุก Field ตัวเลข Clamp ภายใน Safe Bounds ของตัวเอง
- * เสมอ กัน Font Size/ความสูงโลโก้ที่ผิดพลาด/ถูกแก้เกินขอบเขตทำให้ Header ล้นพื้นที่พิมพ์ */
+ * null/undefined = โหมด Classic (ไม่ใช่ข้อมูลเสีย) คืน null ตรงๆ — ข้อมูลรูปแบบเก่า
+ * (E.1 Grid-cell Shape ที่ไม่มี colStart) หรือข้อมูลเสีย/แก้ DB มือ จะไม่ผ่าน Validation
+ * ของ resolveBox/resolveTextElement (อ่าน field ที่ไม่มีอยู่ได้ NaN → Fallback ไปค่า
+ * Default ของแต่ละ Field เอง) จึงเป็น Safe Fallback ให้ทั้งข้อมูลเก่าและข้อมูลเสียโดย
+ * อัตโนมัติ ไม่ต้อง Detect Shape เป็นพิเศษ — ทุก Field ตัวเลข Clamp ภายใน Safe Bounds
+ * ของตัวเองเสมอ กัน Font Size/ตำแหน่ง/ขนาดที่ผิดพลาดทำให้ Header ล้นพื้นที่พิมพ์ */
 export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw !== "object") return DEFAULT_HEADER_LAYOUT;
   const obj = raw as Record<string, any>;
 
-  const cells = HEADER_ELEMENT_KEYS.map((k) => Number(obj[k]?.cell));
-  const validCellSet =
-    cells.every((c) => Number.isInteger(c) && c >= 0 && c <= 5) && new Set(cells).size === HEADER_ELEMENT_KEYS.length;
-  if (!validCellSet) return DEFAULT_HEADER_LAYOUT;
-
-  const cellByKey = Object.fromEntries(HEADER_ELEMENT_KEYS.map((k, i) => [k, cells[i] as HeaderGridCell])) as Record<
-    HeaderElementKey,
-    HeaderGridCell
-  >;
-
   function resolveTextElement(key: Exclude<HeaderElementKey, "logo">): HeaderElementStyle {
     const bounds = HEADER_FONT_SIZE_BOUNDS[key];
     const fallback = DEFAULT_HEADER_LAYOUT[key];
-    const r = obj[key] ?? {};
+    const r = obj[key] && typeof obj[key] === "object" ? obj[key] : {};
     return {
-      cell: cellByKey[key],
+      ...resolveBox(r, fallback, { min: ROW_SPAN_MIN, max: ROW_SPAN_MAX }),
       align: resolveAlign(r.align, fallback.align),
       fontSizePx: clampNum(r.fontSizePx, bounds.min, bounds.max, fallback.fontSizePx),
-      lineHeight: clampNum(r.lineHeight, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, fallback.lineHeight),
-      maxWidthPct: clampNum(r.maxWidthPct, MAX_WIDTH_PCT_MIN, MAX_WIDTH_PCT_MAX, fallback.maxWidthPct),
+      lineHeight: clampNum(r.lineHeight * 10, LINE_HEIGHT_MIN * 10, LINE_HEIGHT_MAX * 10, fallback.lineHeight * 10) / 10,
       visible: typeof r.visible === "boolean" ? r.visible : true,
     };
   }
 
-  const logoRaw = obj.logo ?? {};
+  const logoRaw = obj.logo && typeof obj.logo === "object" ? obj.logo : {};
   return {
     logo: {
-      cell: cellByKey.logo,
+      ...resolveBox(logoRaw, DEFAULT_HEADER_LAYOUT.logo, { min: LOGO_ROW_SPAN_MIN, max: LOGO_ROW_SPAN_MAX }),
       align: resolveAlign(logoRaw.align, DEFAULT_HEADER_LAYOUT.logo.align),
-      heightPx: clampNum(logoRaw.heightPx, LOGO_HEIGHT_MIN_PX, LOGO_HEIGHT_MAX_PX, DEFAULT_HEADER_LAYOUT.logo.heightPx),
-      lineHeight: 1,
-      maxWidthPct: 100,
       visible: typeof logoRaw.visible === "boolean" ? logoRaw.visible : true,
     },
     companyInfo: resolveTextElement("companyInfo"),
@@ -288,6 +309,22 @@ export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
     customerName: resolveTextElement("customerName"),
     customerDetails: resolveTextElement("customerDetails"),
   };
+}
+
+/** แปลง rowSpan ของ Logo เป็นความสูงจริง (มม.) — จุดเดียวที่ทุก Caller (หน้า Print จริง
+ * ทั้ง 5 + Designer Canvas) ต้องเรียก กัน Physical Unit เพี้ยนกันระหว่างจุด */
+export function logoHeightMm(logoStyle: Pick<HeaderLogoStyle, "rowSpan">): number {
+  return logoStyle.rowSpan * HEADER_ROW_UNIT_MM;
+}
+
+/** รวมความสูงประมาณของ Header (มม.) จาก Layout — ใช้แสดง Warning ใน Designer เท่านั้น
+ * (ไม่ใช่ค่าที่ใช้ Render จริง — Render จริงมาจาก CSS auto-height เสมอ) Pure Function
+ * Unit Test ได้ตรงๆ */
+export function estimateHeaderHeightMm(layout: HeaderLayoutConfig): number {
+  const maxBottomRow = Math.max(
+    ...HEADER_ELEMENT_KEYS.filter((k) => layout[k].visible).map((k) => layout[k].rowStart + layout[k].rowSpan - 1)
+  );
+  return Number.isFinite(maxBottomRow) ? maxBottomRow * HEADER_ROW_UNIT_MM : 0;
 }
 
 const FOOTER_NOTE_MAX_LENGTH = 200;
@@ -358,22 +395,27 @@ const blockOrderSchema = z
   .length(PRINT_BLOCK_KEYS.length)
   .refine((arr) => new Set(arr).size === PRINT_BLOCK_KEYS.length, "ลำดับ Block ไม่ถูกต้อง");
 
-// R6 Phase E.1 — Structural Sanity Check เท่านั้น (ค่าตัวเลขจริงถูก Clamp อีกชั้นผ่าน
-// resolveHeaderLayout ก่อนเก็บเสมอ — Defense-in-depth เหมือน blockOrder ด้านบน)
+// R6 Phase E.2 — Structural Sanity Check เท่านั้น (ค่าตัวเลขจริงถูก Clamp อีกชั้นผ่าน
+// resolveHeaderLayout ก่อนเก็บเสมอ — Defense-in-depth เหมือน blockOrder ด้านบน) —
+// ข้อมูลรูปแบบเก่าของ E.1 (มี cell แทน colStart) จะไม่ผ่าน Schema นี้ (ไม่มี colStart)
+// แต่ safeParse ที่ actions.ts เรียกผ่าน resolveHeaderLayout ก่อนเสมออยู่แล้ว ไม่ส่ง Raw
+// เข้า Schema ตรงๆ — Schema นี้แค่ตรวจ "ค่าที่ Resolve แล้ว" มีรูปร่างถูกต้องก่อนเก็บ
 const headerElementStyleSchema = z.object({
-  cell: z.number().int().min(0).max(5),
+  colStart: z.number().int().min(1).max(HEADER_GRID_COLUMNS),
+  colSpan: z.number().int().min(1).max(HEADER_GRID_COLUMNS),
+  rowStart: z.number().int().min(1).max(HEADER_MAX_ROWS),
+  rowSpan: z.number().int().min(1).max(HEADER_MAX_ROWS),
   align: z.enum(HEADER_ALIGN_OPTIONS),
   fontSizePx: z.number(),
   lineHeight: z.number(),
-  maxWidthPct: z.number(),
   visible: z.boolean(),
 });
 const headerLogoStyleSchema = z.object({
-  cell: z.number().int().min(0).max(5),
+  colStart: z.number().int().min(1).max(HEADER_GRID_COLUMNS),
+  colSpan: z.number().int().min(1).max(HEADER_GRID_COLUMNS),
+  rowStart: z.number().int().min(1).max(HEADER_MAX_ROWS),
+  rowSpan: z.number().int().min(1).max(HEADER_MAX_ROWS),
   align: z.enum(HEADER_ALIGN_OPTIONS),
-  heightPx: z.number(),
-  lineHeight: z.number(),
-  maxWidthPct: z.number(),
   visible: z.boolean(),
 });
 const headerLayoutSchema = z

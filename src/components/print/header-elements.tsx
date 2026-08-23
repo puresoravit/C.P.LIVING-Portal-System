@@ -1,16 +1,18 @@
 import type { CompanySettings } from "@/lib/company-settings";
 
-// R6 Phase E.1 — Header Free Layout Enhancement: 6 Element อะตอมที่ HeaderZone
-// (header-zone.tsx) จัดวางลง Grid Cell ให้ — แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography
-// ของตัวเอง" เท่านั้น (fontSizePx/lineHeight/heightPx) ไม่รู้เรื่อง Alignment/ตำแหน่ง/
-// Max-width เลย (HeaderZone เป็นคนห่อ Wrapper ที่คุมเรื่องนั้นให้แทน จุดเดียว) — Reuse
-// เดิมกับหน้า Print จริงและ Designer's Live Preview ทั้งคู่ (Single Rendering Source
-// เหมือน Phase E เดิมทุกประการ)
+// R6 Phase E.1/E.2 — Header Free Layout: 6 Element อะตอมที่ HeaderZone (header-zone.tsx)
+// จัดวางลง Grid ให้ — แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography ของตัวเอง" เท่านั้น
+// (fontSizePx/lineHeight/heightMm) ไม่รู้เรื่อง Alignment/ตำแหน่ง/ความกว้างเลย (HeaderZone
+// เป็นคนห่อ Wrapper ที่คุมเรื่องนั้นให้แทน จุดเดียว) — Reuse เดิมกับหน้า Print จริงและ
+// Designer's Live Preview ทั้งคู่ (Single Rendering Source เหมือน Phase E เดิมทุกประการ)
 
-export function HeaderLogoElement({ logo, heightPx }: { logo?: string | null; heightPx: number }) {
+// R6 Phase E.2 — heightMm (มม.) แทน heightPx เดิม เพราะ Logo ถูกวางด้วย rowSpan ของ Fine
+// Grid (หน่วยจริงคงที่ = HEADER_ROW_UNIT_MM มม./แถว) ไม่ใช่ Preset เดิม — Physical Unit
+// เดียวกับที่ CSS Grid Row ใช้จริง ทำให้รูปพอดีกับ Track ของตัวเองเป๊ะเสมอ
+export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; heightMm: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Data URI จาก AppSetting หรือไฟล์ static ธรรมดา
-    <img src={logo || "/logo.jpg"} alt="" style={{ height: `${heightPx}px`, width: "auto" }} className="object-contain" />
+    <img src={logo || "/logo.jpg"} alt="" style={{ height: `${heightMm}mm`, width: "auto" }} className="object-contain" />
   );
 }
 

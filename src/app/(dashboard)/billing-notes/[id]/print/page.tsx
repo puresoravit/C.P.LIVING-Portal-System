@@ -21,7 +21,7 @@ import {
   HeaderCustomerDetailsElement,
 } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
 
@@ -84,7 +84,7 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
   // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
   const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
     ? {
-        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(template.headerLayout.logo)} />,
         companyInfo: (
           <HeaderCompanyInfoElement
             company={company}

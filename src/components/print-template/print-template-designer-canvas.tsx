@@ -5,6 +5,8 @@ import {
   type ResolvedTemplateSettings,
   type PrintBlockKey,
   type HeaderElementKey,
+  type HeaderElementStyle,
+  logoHeightMm,
 } from "@/lib/print-template-settings";
 import type { PrintProfileKey } from "@/lib/print-settings";
 import { PRINT_PROFILES } from "@/lib/print-settings";
@@ -25,6 +27,7 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
+import { HeaderZoneCanvasEditor } from "./header-zone-canvas-editor";
 import {
   HeaderLogoElement,
   HeaderCompanyInfoElement,
@@ -54,12 +57,23 @@ export function PrintTemplateDesignerCanvas({
   company,
   profile,
   density,
+  editable,
+  selectedElement,
+  onSelectElement,
+  onChangeElement,
 }: {
   docType: DocumentTypeKey;
   settings: ResolvedTemplateSettings;
   company: CompanySettings;
   profile: PrintProfileKey;
   density: SampleDensity;
+  // R6 Phase E.2 — เมื่อ true ให้ Render Header ผ่าน HeaderZoneCanvasEditor (ลาก/Resize
+  // ได้จริงบน Canvas) แทน HeaderZone อ่านอย่างเดียว — ใช้เฉพาะภายใน Designer เท่านั้น
+  // (หน้า Print จริงไม่มีทางส่ง Prop ชุดนี้มาเลย เพราะไม่ได้ Import Component นี้)
+  editable?: boolean;
+  selectedElement?: HeaderElementKey | null;
+  onSelectElement?: (key: HeaderElementKey | null) => void;
+  onChangeElement?: (key: HeaderElementKey, patch: Partial<HeaderElementStyle>) => void;
 }) {
   const cssVars = buildPrintCssVars(settings);
   const pageWidthMm = PRINT_PROFILES[profile].pageSize === "A4" ? 210 : 228.6;
@@ -71,7 +85,16 @@ export function PrintTemplateDesignerCanvas({
         style={{ width: `${pageWidthMm}mm`, minHeight: "150mm", ...cssVars } as React.CSSProperties}
       >
         {settings.headerLayout ? (
-          <DesignerHeaderZone docType={docType} settings={settings} company={company} headerLayout={settings.headerLayout} />
+          <DesignerHeaderZone
+            docType={docType}
+            settings={settings}
+            company={company}
+            headerLayout={settings.headerLayout}
+            editable={editable}
+            selectedElement={selectedElement}
+            onSelectElement={onSelectElement}
+            onChangeElement={onChangeElement}
+          />
         ) : (
           <DesignerClassicHeader docType={docType} settings={settings} company={company} />
         )}
@@ -118,15 +141,23 @@ function DesignerHeaderZone({
   settings,
   company,
   headerLayout,
+  editable,
+  selectedElement,
+  onSelectElement,
+  onChangeElement,
 }: {
   docType: DocumentTypeKey;
   settings: ResolvedTemplateSettings;
   company: CompanySettings;
   headerLayout: NonNullable<ResolvedTemplateSettings["headerLayout"]>;
+  editable?: boolean;
+  selectedElement?: HeaderElementKey | null;
+  onSelectElement?: (key: HeaderElementKey | null) => void;
+  onChangeElement?: (key: HeaderElementKey, patch: Partial<HeaderElementStyle>) => void;
 }) {
   const info = getSampleHeaderZoneInfo(docType);
   const elements: Record<HeaderElementKey, React.ReactNode> = {
-    logo: <HeaderLogoElement logo={settings.logo} heightPx={headerLayout.logo.heightPx} />,
+    logo: <HeaderLogoElement logo={settings.logo} heightMm={logoHeightMm(headerLayout.logo)} />,
     companyInfo: (
       <HeaderCompanyInfoElement
         company={company}
@@ -168,6 +199,17 @@ function DesignerHeaderZone({
       />
     ),
   };
+  if (editable && onSelectElement && onChangeElement) {
+    return (
+      <HeaderZoneCanvasEditor
+        layout={headerLayout}
+        elements={elements}
+        selected={selectedElement ?? null}
+        onSelect={onSelectElement}
+        onChange={onChangeElement}
+      />
+    );
+  }
   return <HeaderZone layout={headerLayout} elements={elements} />;
 }
 

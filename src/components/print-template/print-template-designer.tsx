@@ -21,20 +21,27 @@ import {
   LOGO_SIZE_OPTIONS,
   LOGO_SIZE_LABELS,
   DEFAULT_HEADER_LAYOUT,
+  HEADER_HEIGHT_WARNING_MM,
+  estimateHeaderHeightMm,
   type DocumentTypeKey,
   type DocumentTemplateOverride,
   type GlobalTemplateSettings,
   type OverridableTemplateSettings,
+  type HeaderElementKey,
+  type HeaderElementStyle,
 } from "@/lib/print-template-settings";
 import { LogoUploadForm } from "./logo-upload-form";
 import { BlockOrderEditor } from "./block-order-editor";
-import { HeaderZoneEditor } from "./header-zone-editor";
+import { HeaderElementPropertiesBar } from "./header-element-properties-bar";
 import { PrintTemplateDesignerCanvas } from "./print-template-designer-canvas";
 
 const DOC_TYPES: DocumentTypeKey[] = ["QUOTATION", "INVOICE", "TAX_INVOICE", "BILLING_NOTE", "REPAIR_NOTE"];
 type DesignerTab = "GLOBAL" | DocumentTypeKey;
+const ALL_TABS: DesignerTab[] = ["GLOBAL", ...DOC_TYPES];
 
 type OverrideState = { useGlobal: boolean; values: OverridableTemplateSettings };
+
+const UNSAVED_WARNING = "คุณมีการแก้ไขที่ยังไม่ได้ยืนยัน (Apply Changes) — ต้องการออกจากหน้านี้และทิ้งการแก้ไขหรือไม่?";
 
 function buildFormData(values: OverridableTemplateSettings): FormData {
   const fd = new FormData();
@@ -48,17 +55,18 @@ function buildFormData(values: OverridableTemplateSettings): FormData {
   fd.set("spacingDensity", values.spacingDensity);
   fd.set("contentPadding", values.contentPadding);
   fd.set("blockOrder", JSON.stringify(values.blockOrder));
-  // R6 Phase E.1 — ไม่ส่ง Field นี้เลยเมื่อเป็น null (โหมด Classic) — ตรงกับที่
-  // parseHeaderLayoutField ฝั่ง Server ตีความ "ไม่มี Field" = null เหมือนกัน
+  // ไม่ส่ง Field นี้เลยเมื่อเป็น null (โหมด Classic) — ตรงกับที่ parseHeaderLayoutField
+  // ฝั่ง Server ตีความ "ไม่มี Field" = null เหมือนกัน
   if (values.headerLayout) fd.set("headerLayout", JSON.stringify(values.headerLayout));
   return fd;
 }
 
-// R6 Phase E — Visual Document Designer: Client Component เดียวคุม State การแก้ไขทั้ง
-// 6 แท็บ (Global + 5 ประเภทเอกสาร) พร้อมกัน แต่ละแท็บมี Unsaved State อิสระของตัวเอง
-// (สลับแท็บไปมาไม่ทำ State ของแท็บอื่นหาย) — บันทึกจริงเมื่อกดปุ่ม "บันทึก" ของแท็บนั้น
-// เท่านั้น เรียก Server Action เดิมของ R5 ตรงๆ (updateGlobalTemplateSettings/
-// updateDocumentOverride) ไม่มี Schema/Action ใหม่นอกจาก resetGlobalTemplateSettings
+// R6 Phase E.2 — Controlled Free-position Header Designer: เพิ่ม Draft → Apply/Discard
+// Workflow ครอบทั้ง Designer (Global + 5 แท็บเอกสาร) — ทุกการแก้ไข (พิมพ์/ลาก/Reset) เป็น
+// Local State ล้วนๆ (Draft) จนกว่าจะกด "ยืนยันการแก้ไข / Apply Changes" ถึงจะเรียก Server
+// Action จริง — เก็บ "ค่าที่บันทึกล่าสุด" (saved*) แยกจาก "ค่าที่กำลังแก้ไข" (Draft State
+// เดิม) เพื่อให้ "ยกเลิกการแก้ไข / Discard" คืนค่าได้แม่นยำ และเพื่อ Detect ว่ามี Unsaved
+// Changes อยู่หรือไม่ (เทียบ JSON string ของทั้งคู่) — ใช้เตือนก่อน Refresh/Navigate ออก
 export function PrintTemplateDesigner({
   company,
   logo,
@@ -84,21 +92,33 @@ export function PrintTemplateDesigner({
   if (thrownError) throw thrownError;
 
   const [activeTab, setActiveTab] = useState<DesignerTab>("GLOBAL");
-  const [globalValues, setGlobalValues] = useState<GlobalTemplateSettings>(globalSettings);
-  const [overrideStates, setOverrideStates] = useState<Record<DocumentTypeKey, OverrideState>>(() => {
+
+  const initialOverrideStates = (): Record<DocumentTypeKey, OverrideState> => {
     const { logoSize: _logoSize, ...globalOverridable } = globalSettings;
     return Object.fromEntries(
       DOC_TYPES.map((dt) => [dt, { useGlobal: overrides[dt] === null, values: { ...globalOverridable, ...overrides[dt] } }])
     ) as Record<DocumentTypeKey, OverrideState>;
-  });
+  };
+
+  // saved* = ค่าที่ Persist บน Server จริงล่าสุด (Baseline สำหรับ Discard/Dirty-check)
+  const [savedGlobal, setSavedGlobal] = useState<GlobalTemplateSettings>(globalSettings);
+  const [savedOverrides, setSavedOverrides] = useState<Record<DocumentTypeKey, OverrideState>>(initialOverrideStates);
+  // Draft = ค่าที่กำลังแก้ไขอยู่บนจอ (ยังไม่ Persist จนกว่าจะกด Apply)
+  const [globalValues, setGlobalValues] = useState<GlobalTemplateSettings>(globalSettings);
+  const [overrideStates, setOverrideStates] = useState<Record<DocumentTypeKey, OverrideState>>(initialOverrideStates);
+  // true เฉพาะตอนกด "รีเซ็ตเป็นค่าเริ่มต้น" บนแท็บ Global ค้างรอ Apply อยู่ — ให้ Apply
+  // เรียก resetGlobalTemplateSettings() (ลบแถวทิ้งจริง) แทน updateGlobalTemplateSettings
+  // ธรรมดา (เขียนค่า Default ทับ) รักษาพฤติกรรมเดิมของปุ่ม Reset ก่อนมี Draft Workflow
+  const [globalResetPending, setGlobalResetPending] = useState(false);
+
+  const [selectedElement, setSelectedElement] = useState<HeaderElementKey | null>(null);
   const [previewDocType, setPreviewDocType] = useState<DocumentTypeKey>("QUOTATION");
   const [previewProfile, setPreviewProfile] = useState<PrintProfileKey>("a4");
   const [density, setDensity] = useState<SampleDensity>("short");
 
-  // Deep-link จากเมนู "แก้ไข / Edit Form" (#QUOTATION ฯลฯ — ดู nav-tree.ts) — คงพฤติกรรมเดิม
-  // ต้องฟัง "hashchange" ด้วย ไม่ใช่แค่ตอน Mount ครั้งแรก: การเปลี่ยน URL Fragment ระหว่าง
-  // อยู่ในหน้าเดิม (เช่นกด Sidebar Link ไปอีกประเภทเอกสารขณะเปิด Designer ค้างอยู่) ไม่ทำให้
-  // Browser Reload หน้า (Hash-only Navigation) จึง useEffect([]) เดิมจะไม่ทำงานซ้ำ
+  // Deep-link จากเมนู "แก้ไข / Edit Form" (#QUOTATION ฯลฯ — ดู nav-tree.ts) — ต้องฟัง
+  // "hashchange" ด้วย ไม่ใช่แค่ตอน Mount ครั้งแรก เพราะเปลี่ยน Hash ระหว่างอยู่หน้าเดิมไม่ทำ
+  // ให้ Browser Reload (Hash-only Navigation)
   useEffect(() => {
     function applyHash() {
       const hash = window.location.hash.slice(1);
@@ -111,7 +131,47 @@ export function PrintTemplateDesigner({
 
   useEffect(() => {
     if (activeTab !== "GLOBAL") setPreviewDocType(activeTab);
+    setSelectedElement(null);
   }, [activeTab]);
+
+  function isTabDirty(tab: DesignerTab): boolean {
+    if (tab === "GLOBAL") return JSON.stringify(globalValues) !== JSON.stringify(savedGlobal);
+    return JSON.stringify(overrideStates[tab]) !== JSON.stringify(savedOverrides[tab]);
+  }
+  const anyDirty = ALL_TABS.some(isTabDirty);
+  const currentTabDirty = isTabDirty(activeTab);
+
+  // R6 Phase E.2 — เตือนก่อน Refresh/ปิด Tab ถ้ามี Unsaved Changes ค้างอยู่ (ทุกแท็บ ไม่
+  // ใช่แค่แท็บปัจจุบัน เพราะ Draft ของแท็บอื่นก็จะหายไปด้วยถ้า Refresh จริง)
+  useEffect(() => {
+    function handler(e: BeforeUnloadEvent) {
+      if (!anyDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [anyDirty]);
+
+  // R6 Phase E.2 — เตือนก่อน Navigate ออกจากหน้านี้ผ่าน Link ภายในระบบ (Next.js Client-side
+  // Navigation ไม่ Trigger beforeunload เพราะไม่ใช่ Browser Navigation จริง) — ยกเว้น Link
+  // Hash ไปแท็บอื่นในหน้าเดียวกันเอง (#QUOTATION ฯลฯ) เพราะไม่ทำ Draft หายจริง (สลับแท็บ
+  // ใน Designer เก็บ Draft ของทุกแท็บไว้ใน Memory อยู่แล้ว)
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (!anyDirty) return;
+      const target = (e.target as HTMLElement | null)?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!target) return;
+      if (target.origin !== window.location.origin) return;
+      if (target.pathname === window.location.pathname && target.hash) return;
+      if (!window.confirm(UNSAVED_WARNING)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [anyDirty]);
 
   const isDocTab = activeTab !== "GLOBAL";
   const currentOverride = isDocTab ? overrideStates[activeTab as DocumentTypeKey] : null;
@@ -121,6 +181,7 @@ export function PrintTemplateDesigner({
   function updateField(patch: Partial<OverridableTemplateSettings>) {
     if (activeTab === "GLOBAL") {
       setGlobalValues((prev) => ({ ...prev, ...patch }));
+      setGlobalResetPending(false);
       return;
     }
     const docType = activeTab;
@@ -131,20 +192,33 @@ export function PrintTemplateDesigner({
     });
   }
 
+  function updateHeaderElement(key: HeaderElementKey, patch: Partial<HeaderElementStyle>) {
+    const layout = effective.headerLayout ?? DEFAULT_HEADER_LAYOUT;
+    updateField({ headerLayout: { ...layout, [key]: { ...layout[key], ...patch } } });
+  }
+
   function setUseGlobal(next: boolean) {
     if (activeTab === "GLOBAL") return;
     const docType = activeTab;
     setOverrideStates((prev) => ({ ...prev, [docType]: { ...prev[docType], useGlobal: next } }));
   }
 
-  function handleSave() {
+  function handleApply() {
     startTransition(async () => {
       try {
         let result: ActionResult;
         if (activeTab === "GLOBAL") {
-          const fd = buildFormData(globalValues);
-          fd.set("logoSize", globalValues.logoSize);
-          result = await actions.updateGlobalTemplateSettings(fd);
+          if (globalResetPending) {
+            result = await actions.resetGlobalTemplateSettings();
+          } else {
+            const fd = buildFormData(globalValues);
+            fd.set("logoSize", globalValues.logoSize);
+            result = await actions.updateGlobalTemplateSettings(fd);
+          }
+          if (result.success) {
+            setSavedGlobal(globalValues);
+            setGlobalResetPending(false);
+          }
         } else {
           const state = overrideStates[activeTab];
           const fd = new FormData();
@@ -153,8 +227,9 @@ export function PrintTemplateDesigner({
             buildFormData(state.values).forEach((v, k) => fd.set(k, v as string));
           }
           result = await actions.updateDocumentOverride(activeTab, fd);
+          if (result.success) setSavedOverrides((prev) => ({ ...prev, [activeTab]: state }));
         }
-        if (result.success) showSuccess("บันทึกสำเร็จ — มีผลกับหน้าพิมพ์จริงทันที");
+        if (result.success) showSuccess("ยืนยันการแก้ไขสำเร็จ — มีผลกับหน้าพิมพ์จริงทันที");
         else showError(result.error);
       } catch (err) {
         unstable_rethrow(err);
@@ -163,30 +238,36 @@ export function PrintTemplateDesigner({
     });
   }
 
+  // R6 Phase E.2 — ยกเลิกการแก้ไข: คืน Draft ของแท็บปัจจุบันกลับเป็นค่าที่บันทึกล่าสุด
+  // (saved*) เท่านั้น ไม่แตะแท็บอื่น ไม่เรียก Server เลย (Client-only)
+  function handleDiscard() {
+    if (activeTab === "GLOBAL") {
+      setGlobalValues(savedGlobal);
+      setGlobalResetPending(false);
+    } else {
+      setOverrideStates((prev) => ({ ...prev, [activeTab]: savedOverrides[activeTab] }));
+    }
+    setSelectedElement(null);
+    showSuccess("ยกเลิกการแก้ไข — กลับเป็นค่าที่บันทึกล่าสุด");
+  }
+
+  // R6 Phase E.2 — Reset เป็นแค่ Draft (ไม่เรียก Server ทันทีเหมือนเดิม) — ต้องกด Apply
+  // ต่อถึงจะมีผลจริง ตรงตาม Requirement ใหม่
   function handleResetToDefault() {
-    startTransition(async () => {
-      try {
-        let result: ActionResult;
-        if (activeTab === "GLOBAL") {
-          result = await actions.resetGlobalTemplateSettings();
-          if (result.success) setGlobalValues(DEFAULT_GLOBAL_TEMPLATE_SETTINGS);
-        } else {
-          const docType = activeTab;
-          const fd = new FormData();
-          fd.set("useGlobal", "1");
-          result = await actions.updateDocumentOverride(docType, fd);
-          if (result.success) setOverrideStates((prev) => ({ ...prev, [docType]: { useGlobal: true, values: prev[docType].values } }));
-        }
-        if (result.success) showSuccess("รีเซ็ตเป็นค่าเริ่มต้นสำเร็จ");
-        else showError(result.error);
-      } catch (err) {
-        unstable_rethrow(err);
-        setThrownError(err);
-      }
-    });
+    if (activeTab === "GLOBAL") {
+      setGlobalValues(DEFAULT_GLOBAL_TEMPLATE_SETTINGS);
+      setGlobalResetPending(true);
+    } else {
+      const docType = activeTab;
+      setOverrideStates((prev) => ({ ...prev, [docType]: { useGlobal: true, values: prev[docType].values } }));
+    }
+    setSelectedElement(null);
+    showSuccess("รีเซ็ตเป็นค่าเริ่มต้นแล้ว (ยังเป็น Draft — กด \"ยืนยันการแก้ไข\" เพื่อให้มีผลจริง)");
   }
 
   const previewSettings = { ...effective, logo, logoSize: globalValues.logoSize };
+  const headerHeightMm = effective.headerLayout ? estimateHeaderHeightMm(effective.headerLayout) : 0;
+  const selectedStyle = selectedElement && effective.headerLayout ? effective.headerLayout[selectedElement] : null;
 
   return (
     <div>
@@ -197,19 +278,26 @@ export function PrintTemplateDesigner({
       </div>
 
       <div className="hidden lg:block">
-        <div className="flex flex-wrap gap-1.5 mb-3 border-b pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 border-b pb-3">
           <TabButton active={activeTab === "GLOBAL"} onClick={() => setActiveTab("GLOBAL")}>
             ค่าเริ่มต้น (Global)
+            {isTabDirty("GLOBAL") && <span className="ml-1 text-amber-500">●</span>}
           </TabButton>
           {DOC_TYPES.map((dt) => (
             <TabButton key={dt} active={activeTab === dt} onClick={() => setActiveTab(dt)}>
               {DOCUMENT_TYPE_LABELS[dt]}
               {overrideStates[dt].useGlobal === false && <span className="ml-1 text-blue-600">●</span>}
+              {isTabDirty(dt) && <span className="ml-1 text-amber-500">●</span>}
             </TabButton>
           ))}
+          {anyDirty && (
+            <span className="ml-auto text-xs text-amber-600 font-medium">
+              ● มีการแก้ไขที่ยังไม่ได้ยืนยัน (Apply Changes)
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               {activeTab === "GLOBAL" && (
@@ -251,13 +339,28 @@ export function PrintTemplateDesigner({
               </label>
             </div>
 
+            {effective.headerLayout && headerHeightMm > HEADER_HEIGHT_WARNING_MM && (
+              <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-800">
+                ⚠️ Header สูงประมาณ {Math.round(headerHeightMm)}มม. — ค่อนข้างสูง อาจเหลือพื้นที่พิมพ์สำหรับตารางรายการน้อยลงมาก
+                ลองย่อขนาด/ย้าย Element ให้กระชับขึ้น
+              </div>
+            )}
+
             <PrintTemplateDesignerCanvas
               docType={previewDocType}
               settings={previewSettings}
               company={company}
               profile={previewProfile}
               density={density}
+              editable
+              selectedElement={selectedElement}
+              onSelectElement={setSelectedElement}
+              onChangeElement={updateHeaderElement}
             />
+
+            {selectedElement && selectedStyle && (
+              <HeaderElementPropertiesBar elementKey={selectedElement} style={selectedStyle} onUpdate={(patch) => updateHeaderElement(selectedElement, patch)} />
+            )}
 
             <p className="text-xs text-gray-400">
               * พื้นที่ตัวอย่างนี้เป็นความสูงยืดหยุ่นตามเนื้อหา ไม่ได้จำลองการตัดหน้า (Pagination) จริง — ต้องตรวจสอบ
@@ -265,7 +368,7 @@ export function PrintTemplateDesigner({
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 xl:max-h-[calc(100vh-160px)] xl:overflow-y-auto xl:pr-1">
             {isDocTab && (
               <div className="bg-white border rounded-lg p-3">
                 <label className="flex items-center gap-2 text-sm">
@@ -285,7 +388,7 @@ export function PrintTemplateDesigner({
                   <Section title="โลโก้ (ใช้ร่วมกันทุกเอกสาร)">
                     <LogoUploadForm currentLogo={logo} updateLogoAction={actions.updateLogo} removeLogoAction={actions.removeLogo} />
                     <PropSelect
-                      label="ขนาดโลโก้"
+                      label="ขนาดโลโก้ (Preset — ใช้เมื่ออยู่โหมด Classic เท่านั้น)"
                       value={globalValues.logoSize}
                       onChange={(v) => setGlobalValues((p) => ({ ...p, logoSize: v as GlobalTemplateSettings["logoSize"] }))}
                       options={LOGO_SIZE_OPTIONS}
@@ -323,17 +426,19 @@ export function PrintTemplateDesigner({
                         updateField({ headerLayout: e.target.checked ? (effective.headerLayout ?? DEFAULT_HEADER_LAYOUT) : null })
                       }
                     />
-                    ใช้ Header Layout แบบละเอียด (Custom — วาง/ปรับขนาด Element อิสระ)
+                    ใช้ Header Layout แบบละเอียด (Custom — ลาก/Resize Element อิสระบน Canvas)
                   </label>
                   {effective.headerLayout ? (
-                    <HeaderZoneEditor layout={effective.headerLayout} onChange={(next) => updateField({ headerLayout: next })} />
+                    <p className="text-xs text-gray-500">
+                      คลิก Element บน Canvas ด้านซ้ายเพื่อเลือกและแก้ไข — ลากตัว Element เพื่อย้าย ลากขอบเพื่อปรับขนาด
+                    </p>
                   ) : (
                     <BlockOrderEditor order={effective.blockOrder} onChange={(next) => updateField({ blockOrder: next })} />
                   )}
-                  {effective.headerLayout && <LockedBlocksHint />}
+                  <LockedBlocksHint />
                 </Section>
 
-                <Section title="ตัวอักษร">
+                <Section title="ตัวอักษร (ค่าตั้งต้น — ไม่ใช้กับ Header โหมด Custom)">
                   <PropSelect
                     label="Font Family"
                     value={effective.fontFamily}
@@ -387,14 +492,22 @@ export function PrintTemplateDesigner({
               </>
             )}
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1 sticky bottom-0 bg-gray-50 py-2 -mx-1 px-1">
               <button
                 type="button"
-                disabled={isPending}
-                onClick={handleSave}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded px-4 py-2"
+                disabled={isPending || !currentTabDirty}
+                onClick={handleApply}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
               >
-                {isPending ? "กำลังบันทึก..." : "บันทึก"}
+                {isPending ? "กำลังยืนยัน..." : "ยืนยันการแก้ไข / Apply Changes"}
+              </button>
+              <button
+                type="button"
+                disabled={isPending || !currentTabDirty}
+                onClick={handleDiscard}
+                className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2 disabled:opacity-40"
+              >
+                ยกเลิกการแก้ไข / Discard
               </button>
               <button
                 type="button"
@@ -412,8 +525,7 @@ export function PrintTemplateDesigner({
   );
 }
 
-// R6 Phase E.1 — เตือนซ้ำในโหมด Header Layout แบบละเอียดด้วยว่า Block ล่างยังตรึงเหมือนเดิม
-// (BlockOrderEditor เองก็มี Hint นี้อยู่แล้วสำหรับโหมด Classic — ที่นี่คือฝั่ง Custom)
+// R6 Phase E.1/E.2 — เตือนซ้ำเสมอว่า Block ล่างยังตรึงเหมือนเดิมไม่ว่าจะโหมดไหน
 function LockedBlocksHint() {
   return (
     <div className="space-y-1.5 mt-2">
