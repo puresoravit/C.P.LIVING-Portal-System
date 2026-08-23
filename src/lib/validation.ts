@@ -7,6 +7,8 @@ export const customerSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email("อีเมลไม่ถูกต้อง").optional().or(z.literal("")),
   creditTerm: z.enum(["CASH", "NET30", "NET60", "NET90"]),
+  // Owner UAT (2026-08-23) — สถานที่ส่งสินค้าของลูกค้าเอง (Fallback เมื่อไม่เลือกสาขา)
+  address: z.string().optional(),
   note: z.string().optional(),
 });
 

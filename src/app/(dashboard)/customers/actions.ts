@@ -29,6 +29,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult> 
     phone: formData.get("phone") || undefined,
     email: formData.get("email") || undefined,
     creditTerm: formData.get("creditTerm") || "CASH",
+    address: formData.get("address") || undefined,
     note: formData.get("note") || undefined,
   });
   if (!raw.success) {
@@ -71,6 +72,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Ac
     phone: formData.get("phone") || undefined,
     email: formData.get("email") || undefined,
     creditTerm: formData.get("creditTerm") || "CASH",
+    address: formData.get("address") || undefined,
     note: formData.get("note") || undefined,
   });
   if (!raw.success) {

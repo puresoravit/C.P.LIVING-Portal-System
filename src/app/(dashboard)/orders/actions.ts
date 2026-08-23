@@ -319,7 +319,7 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
           // Owner UAT Fix Batch 1 — ข้อ 3: Order ไม่มีสาขาได้แล้ว (order.branch เป็น
           // null ได้) — Snapshot เป็น null ไปด้วยตามข้อเท็จจริง ไม่เดา/ไม่ fallback ข้อความ
           branchNameSnapshot: order.branch?.name ?? null,
-          addressSnapshot: order.branch?.address ?? null,
+          addressSnapshot: order.branch?.address ?? order.customer.address ?? null,
           placeToDelivery: order.placeToDelivery,
           grossAmount: group.grossAmount,
           discountPct: group.discountPct,
@@ -569,7 +569,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
             customerNameSnapshot: order.customer.companyName,
             taxIdSnapshot: order.customer.taxId,
             branchNameSnapshot: order.branch?.name ?? null,
-            addressSnapshot: order.branch?.address ?? null,
+            addressSnapshot: order.branch?.address ?? order.customer.address ?? null,
             placeToDelivery: order.placeToDelivery,
             grossAmount: group.grossAmount,
             discountPct: group.discountPct,

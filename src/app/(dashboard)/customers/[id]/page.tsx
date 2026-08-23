@@ -35,6 +35,9 @@ export default async function EditCustomerPage(props: { params: Promise<{ id: st
           <option value="NET90">เครดิต 90 วัน</option>
         </SelectField>
         <div className="col-span-2">
+          <TextareaField label="สถานที่ส่งสินค้า (ใช้เมื่อสร้างเอกสารโดยไม่เลือกสาขา)" name="address" defaultValue={customer.address ?? ""} />
+        </div>
+        <div className="col-span-2">
           <TextareaField label="หมายเหตุ" name="note" defaultValue={customer.note ?? ""} />
         </div>
         <div className="col-span-2 flex gap-2">

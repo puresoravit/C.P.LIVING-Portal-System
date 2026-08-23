@@ -161,7 +161,7 @@ export async function createManualTaxInvoice(formData: FormData) {
         customerNameSnapshot: customer.companyName,
         taxIdSnapshot: customer.taxId,
         branchNameSnapshot: branch?.name ?? null,
-        addressSnapshot: branch?.address ?? null,
+        addressSnapshot: branch?.address ?? customer.address ?? null,
         placeToDelivery: parsed.placeToDelivery,
         valueAmount: netBeforeVat,
         vatPct,

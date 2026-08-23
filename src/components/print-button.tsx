@@ -43,16 +43,20 @@ export function PrintButton({
   }, []);
 
   return (
-    <div className="print:hidden flex items-center gap-2 mb-4 sticky top-0 bg-gray-50 py-2 z-10">
+    // Owner UAT (2026-08-23) — พื้นที่ Toolbar แคบ (Sidebar กินความกว้าง) เคยทำให้ข้อความใน
+    // ปุ่ม/ป้ายถูกบีบตัดขึ้นบรรทัดใหม่จนเป็นแนวตั้งอ่านยาก — ใส่ whitespace-nowrap ทุกชิ้น
+    // (ข้อความชิ้นหนึ่งอยู่บรรทัดเดียวเสมอ) + flex-wrap ที่ Container (พื้นที่ไม่พอให้ตัดขึ้น
+    // แถวใหม่ "ทั้งชิ้น" แทนการบีบตัวอักษร)
+    <div className="print:hidden flex flex-wrap items-center gap-2 mb-4 sticky top-0 bg-gray-50 py-2 z-10">
       <button
         onClick={() => window.print()}
-        className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2"
+        className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2 whitespace-nowrap"
       >
         พิมพ์ / บันทึกเป็น PDF
       </button>
 
       {markPrintedAction && isPrinted && (
-        <span className="text-sm text-green-700 border border-green-200 bg-green-50 rounded px-3 py-2">
+        <span className="text-sm text-green-700 border border-green-200 bg-green-50 rounded px-3 py-2 whitespace-nowrap">
           ✓ พิมพ์แล้ว{printedAtLabel ? ` เมื่อ ${printedAtLabel}` : ""}
         </span>
       )}
@@ -60,26 +64,26 @@ export function PrintButton({
       {markPrintedAction && !isPrinted && profile === "continuous" && (
         <form action={markPrintedAction}>
           <input type="hidden" name="printProfile" value={profile} />
-          <button className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2">
+          <button className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2 whitespace-nowrap">
             มาร์คว่าพิมพ์แล้ว (9×11)
           </button>
         </form>
       )}
 
       {markPrintedAction && !isPrinted && profile !== "continuous" && (
-        <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 rounded px-3 py-2">
+        <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 rounded px-3 py-2 whitespace-nowrap">
           เปลี่ยนเป็น &quot;กระดาษต่อเนื่อง 9×11&quot; ก่อน จึงจะมาร์คว่าพิมพ์แล้วได้
         </span>
       )}
 
       {backHref ? (
-        <a href={backHref} className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2">
+        <a href={backHref} className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2 whitespace-nowrap">
           ← กลับ
         </a>
       ) : (
         <button
           onClick={() => window.history.back()}
-          className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2"
+          className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2 whitespace-nowrap"
         >
           ← กลับ
         </button>

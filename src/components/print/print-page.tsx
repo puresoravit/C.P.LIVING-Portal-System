@@ -54,8 +54,8 @@ export function PrintPage({
         id="print-page-style"
         dangerouslySetInnerHTML={{ __html: `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }` }}
       />
-      <div className="print:hidden flex items-center justify-between gap-3 mb-2">
-        <div className="flex items-center gap-3">
+      <div className="print:hidden flex flex-wrap items-center justify-between gap-3 mb-2">
+        <div className="flex flex-wrap items-center gap-3">
           <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} backHref={backHref} />
           {canEditTemplate && docType && <EditTemplateLink docType={docType} />}
         </div>

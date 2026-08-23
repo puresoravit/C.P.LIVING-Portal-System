@@ -76,7 +76,7 @@ export async function createRepairReturnNote(formData: FormData) {
         customerId: parsed.customerId,
         branchId: parsed.branchId ?? null,
         customerNameSnapshot: customer.companyName,
-        addressSnapshot: branch?.address ?? null,
+        addressSnapshot: branch?.address ?? customer.address ?? null,
         placeToDelivery: parsed.placeToDelivery,
         reference: parsed.reference,
         remark: parsed.remark,

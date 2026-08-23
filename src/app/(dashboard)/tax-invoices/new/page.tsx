@@ -71,7 +71,7 @@ export default async function NewTaxInvoicePage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขา/ลูกค้าอัตโนมัติ แก้ไขได้)</label>
           <input
             name="placeToDelivery"
             form="taxInvoiceForm"
@@ -91,6 +91,8 @@ export default async function NewTaxInvoicePage() {
             const customersData = ${safeJsonForScript(
               customers.map((c) => ({
                 id: c.id,
+                // Owner UAT (2026-08-23) — address ของลูกค้าเอง: Fallback เมื่อไม่เลือกสาขา
+                address: c.address ?? "",
                 branches: c.branches.map((b) => ({ id: b.id, name: b.name, address: b.address ?? "" })),
               }))
             )};
@@ -106,7 +108,7 @@ export default async function NewTaxInvoicePage() {
               if (!customer || customer.branches.length === 0) {
                 emptyOpt.textContent = 'ลูกค้ารายนี้ยังไม่มีสาขา — ไม่ต้องเลือก';
                 branchSelect.appendChild(emptyOpt);
-                placeToDeliveryInput.value = '';
+                placeToDeliveryInput.value = customer ? customer.address : '';
                 return;
               }
               emptyOpt.textContent = '— ไม่ระบุสาขา —';
@@ -127,7 +129,7 @@ export default async function NewTaxInvoicePage() {
               const branch = customer && customer.branches.find(b => b.id === branchSelect.value);
               // เลือกสาขา = ดึงที่อยู่สาขา (ค่าสด ณ ตอนโหลดหน้า) — ไม่เลือกสาขา = ล้างช่อง
               // ให้พิมพ์เอง — พิมพ์แก้ด้วยมือทับได้ตลอดหลังดึงมาแล้ว (Input ธรรมดา ไม่ล็อก)
-              placeToDeliveryInput.value = branch ? branch.address : '';
+              placeToDeliveryInput.value = branch ? branch.address : (customer ? customer.address : '');
             }
             customerSelect.addEventListener('change', updateBranches);
             branchSelect.addEventListener('change', updatePlace);

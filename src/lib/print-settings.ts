@@ -40,7 +40,16 @@ export const DEFAULT_PRINT_PROFILE: PrintProfileKey = "continuous";
 
 export function printPageStyleFor(profile: PrintProfileKey): string {
   const p = PRINT_PROFILES[profile];
-  return `@page { size: ${p.pageSize}; margin: ${p.margin}; }`;
+  // Owner UAT (2026-08-23) — วันที่/ชื่อเว็บ/URL/เลขหน้า ตัวเล็กๆ ที่ติดมาบนกระดาษเป็น
+  // "Headers and footers" ที่ Browser พิมพ์เองในพื้นที่ Margin (ไม่ใช่เนื้อหาจากแอพ) —
+  // กำหนด CSS Page Margin Box ทุกตำแหน่งเป็นค่าว่าง เพื่อทับค่า Default ของ Browser
+  // (Chromium รองรับตั้งแต่ v131) — ไม่แตะขนาด Margin/พื้นที่พิมพ์เดิมแม้แต่นิดเดียว
+  // (Pagination/ความสูงพื้นที่พิมพ์เดิมไม่เปลี่ยน) — Browser เวอร์ชันเก่าที่ไม่รองรับจะ
+  // เห็นเหมือนเดิม (ปิดได้เองที่ Print Dialog > More settings > Headers and footers)
+  const emptyMarginBoxes =
+    "@top-left { content: '' } @top-center { content: '' } @top-right { content: '' } " +
+    "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
+  return `@page { size: ${p.pageSize}; margin: ${p.margin}; ${emptyMarginBoxes} }`;
 }
 
 // เผื่อโค้ดเก่าที่ยัง import ชื่อนี้อยู่ระหว่างการ refactor — เท่ากับ profile default

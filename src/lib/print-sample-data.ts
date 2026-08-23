@@ -273,6 +273,11 @@ export function getSampleHeaderZoneInfo(docType: DocumentTypeKey): SampleHeaderZ
         customerCode: "C-0001",
         customerName: SAMPLE_CUSTOMER_NAME,
         customerAddress: SAMPLE_ADDRESS,
+        // Owner UAT (2026-08-23) — หน้าพิมพ์ใบเสนอราคาจริงแสดงเลขผู้เสียภาษีลูกค้าได้ (เมื่อ
+        // ลูกค้ามี taxId) แต่ Sample เดิมไม่มี Field นี้ → Element ไม่โผล่บน Designer เลย
+        // ทำให้ Owner จัดตำแหน่ง/ซ่อนไม่ได้ทั้งที่ของจริงพิมพ์ออกมา — Invariant สำคัญ:
+        // Sample ของแต่ละประเภทเอกสารต้องมีครบทุก Field ที่หน้าพิมพ์จริง "มีโอกาสแสดง"
+        customerTaxId: "0-1055-55555-55-5",
         shippingAddress: SAMPLE_SHIPPING,
       };
     case "INVOICE":

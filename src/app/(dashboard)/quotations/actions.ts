@@ -234,7 +234,7 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
           customerTaxIdSnapshot: quotation.customer.taxId,
           // Owner UAT Fix Batch 1 — ข้อ 3: quotation.branch เป็น null ได้แล้ว
           branchNameSnapshot: quotation.branch?.name ?? null,
-          addressSnapshot: quotation.branch?.address ?? null,
+          addressSnapshot: quotation.branch?.address ?? quotation.customer.address ?? null,
           grossAmount: calc.grossAmount,
           discountAmount: calc.discountAmount,
           // R3 — Snapshot ค่า applyDiscount ที่ใช้จริงตอน Confirm (ตอนนี้เท่ากับ

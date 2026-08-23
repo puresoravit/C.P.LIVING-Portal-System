@@ -41,7 +41,7 @@ export default async function NewOrderPage() {
         <Field label="วันที่ออเดอร์ *" name="orderDate" type="date" defaultValue={today} required />
         <Field label="อ้างอิง" name="reference" />
         <div className="col-span-2">
-          <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขาอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
+          <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขา/ลูกค้าอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
         </div>
         <div className="col-span-2">
           <TextareaField label="หมายเหตุ" name="note" />
@@ -65,6 +65,8 @@ export default async function NewOrderPage() {
             const customersData = ${safeJsonForScript(
               customers.map((c) => ({
                 id: c.id,
+                // Owner UAT (2026-08-23) — address ของลูกค้าเอง: Fallback เมื่อไม่เลือกสาขา
+                address: c.address ?? "",
                 branches: c.branches.map((b) => ({ id: b.id, name: b.name, address: b.address ?? "" })),
               }))
             )};
@@ -82,7 +84,7 @@ export default async function NewOrderPage() {
               if (!customer || customer.branches.length === 0) {
                 emptyOpt.textContent = 'ลูกค้ารายนี้ยังไม่มีสาขา — ไม่ต้องเลือก';
                 branchSelect.appendChild(emptyOpt);
-                placeToDeliveryInput.value = '';
+                placeToDeliveryInput.value = customer ? customer.address : '';
                 return;
               }
               emptyOpt.textContent = '— ไม่ระบุสาขา —';
@@ -104,7 +106,7 @@ export default async function NewOrderPage() {
               // เลือกสาขา = ดึงที่อยู่สาขา (ค่าสด ณ ตอนโหลดหน้า — แก้ข้อมูลลูกค้าแล้วกลับมา
               // หน้านี้ใหม่จะได้ค่าใหม่เสมอ) — ไม่เลือกสาขา = ล้างช่องให้พิมพ์เอง — พิมพ์
               // แก้ด้วยมือทับได้ตลอดหลังดึงมาแล้ว (Input ธรรมดา ไม่ล็อก)
-              placeToDeliveryInput.value = branch ? branch.address : '';
+              placeToDeliveryInput.value = branch ? branch.address : (customer ? customer.address : '');
             }
             customerSelect.addEventListener('change', updateBranches);
             branchSelect.addEventListener('change', updatePlaceToDelivery);

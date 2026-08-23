@@ -51,6 +51,8 @@ export async function validateCustomerImport(rows: any[]) {
         phone: raw.phone ? String(raw.phone) : undefined,
         email: raw.email ? String(raw.email) : undefined,
         creditTerm,
+        // Owner UAT (2026-08-23) — สถานที่ส่งสินค้าของลูกค้า (Optional เหมือน Field อื่น)
+        address: raw.address ? String(raw.address) : undefined,
         note: raw.note ? String(raw.note) : undefined,
       },
     };

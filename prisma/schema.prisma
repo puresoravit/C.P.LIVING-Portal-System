@@ -57,6 +57,11 @@ model Customer {
   phone        String?
   email        String?
   creditTerm   CreditTerm @default(CASH)
+  // Owner UAT (2026-08-23) — สถานที่ส่งสินค้า/ที่อยู่ของลูกค้าเอง: ลูกค้าบางรายไม่มีสาขา
+  // (Branch) เลย การดึงที่อยู่ได้จากสาขาอย่างเดียวจึงไม่พอ — ใช้เป็น Fallback ทุกจุดที่เคย
+  // อ่าน branch.address (Auto-fill ตอนสร้างเอกสาร + addressSnapshot ตอน Confirm):
+  // เลือกสาขา → ใช้ที่อยู่สาขา, ไม่เลือกสาขา → ใช้ที่อยู่นี้
+  address      String?
   note         String?
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())

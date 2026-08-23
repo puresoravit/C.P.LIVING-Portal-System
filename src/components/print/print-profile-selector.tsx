@@ -40,7 +40,7 @@ export function PrintProfileSelector() {
 
   return (
     <div className="print:hidden flex items-center gap-2 text-sm">
-      <label className="text-gray-600" htmlFor="print-profile-select">
+      <label className="text-gray-600 whitespace-nowrap" htmlFor="print-profile-select">
         ขนาดกระดาษ:
       </label>
       <select

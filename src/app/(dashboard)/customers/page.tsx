@@ -36,6 +36,12 @@ export default async function CustomersPage() {
             <option value="NET60">เครดิต 60 วัน</option>
             <option value="NET90">เครดิต 90 วัน</option>
           </SelectField>
+          {/* Owner UAT (2026-08-23) — สถานที่ส่งสินค้าของลูกค้าเอง: ใช้ Auto-fill ตอนสร้าง
+              เอกสารเมื่อไม่ได้เลือกสาขา (ลูกค้าบางรายไม่มีสาขาเลย) — เลือกสาขาเมื่อไรใช้
+              ที่อยู่สาขาแทนเสมอ */}
+          <div className="col-span-2">
+            <TextareaField label="สถานที่ส่งสินค้า (ใช้เมื่อสร้างเอกสารโดยไม่เลือกสาขา)" name="address" />
+          </div>
           <div className="col-span-2">
             <TextareaField label="หมายเหตุ" name="note" />
           </div>
