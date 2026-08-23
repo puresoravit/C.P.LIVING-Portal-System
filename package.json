@@ -14,25 +14,26 @@
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "bcryptjs": "^2.4.3",
+    "exceljs": "^4.4.0",
+    "heic-convert": "2.1.0",
     "next": "15.5.23",
     "next-auth": "^4.24.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "bcryptjs": "^2.4.3",
-    "exceljs": "^4.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.6.2",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
-    "@types/bcryptjs": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.45",
     "prisma": "^5.20.0",
     "tailwindcss": "^3.4.10",
-    "postcss": "^8.4.45",
-    "autoprefixer": "^10.4.20",
     "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
     "vitest": "^2.1.1"
   },
   "overrides": {

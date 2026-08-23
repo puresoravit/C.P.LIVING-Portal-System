@@ -1,0 +1,20 @@
+LINE Seed Sans TH — Web font files (WOFF2)
+
+Source: https://seed.line.me/index_en.html (official LY Corp / LINE Corporation
+font distribution page), version 1.003, downloaded 2026-08-23.
+
+License: SIL Open Font License, Version 1.1
+https://scripts.sil.org/OFL
+
+Per the publisher's terms, this font may be used for personal and commercial
+purposes, including self-hosting via @font-face. The font software itself may
+not be sold separately from a larger software product by parties other than
+LY Corp.
+
+Files included here (5 static weight cuts used as CSS font-weight ranges —
+see src/fonts/index.ts):
+- LINESeedSansTH_W_Th.woff2  (Thin,   OS/2 usWeightClass 250)
+- LINESeedSansTH_W_Rg.woff2  (Regular, OS/2 usWeightClass 400)
+- LINESeedSansTH_W_Bd.woff2  (Bold,    OS/2 usWeightClass 700)
+- LINESeedSansTH_W_XBd.woff2 (ExtraBold, OS/2 usWeightClass 800)
+- LINESeedSansTH_W_He.woff2  (Heavy,   OS/2 usWeightClass 900)

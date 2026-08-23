@@ -5,6 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { AVATAR_ALLOWED_MIME_TYPES, AVATAR_MAX_BYTES, TITLE_PREFIX_OPTIONS, TITLE_PREFIX_LABELS } from "@/lib/user-profile";
+import { normalizeImageFileForUpload } from "@/lib/client-image-normalize";
 import { UserAvatar } from "@/components/portal/user-avatar";
 import { AvatarCropper } from "@/components/portal/avatar-cropper";
 import { CP_GOLD, MOTION_EASE } from "@/components/portal/cp-brand";
@@ -46,27 +47,38 @@ export function ProfileForm({
   const [avatarAction, setAvatarAction] = useState<"keep" | "set" | "remove">("keep");
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [isNormalizingAvatar, setIsNormalizingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, startSaving] = useTransition();
 
   const dirty = titlePrefix !== (user.titlePrefix ?? "") || displayName !== user.displayName || avatarAction !== "keep";
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Owner UAT — Image Upload Compatibility: normalizeImageFileForUpload() รับผิดชอบ
+  // Sniff/Convert HEIC-HEIF (กล้อง iPhone) เป็น JPEG ให้ก่อนเสมอ — ไฟล์ปกติ (JPEG/PNG/
+  // WebP) ผ่านตรงไม่มี Overhead — ผลลัพธ์เข้าสู่ setCropSrc() จุดเดียวกับเดิมทุกประการ
+  // (Cropper/Preview/Remove/Save ด้านล่างไม่ต้องรู้เลยว่าไฟล์ต้นทางเป็น HEIC หรือไม่)
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setAvatarError(null);
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!AVATAR_ALLOWED_MIME_TYPES.includes(file.type)) {
-      setAvatarError("รองรับเฉพาะไฟล์ PNG, JPEG หรือ WebP เท่านั้น");
-      return;
-    }
     if (file.size > RAW_UPLOAD_MAX_BYTES) {
       setAvatarError(`ไฟล์ต้นฉบับใหญ่เกินไป (ไม่เกิน ${RAW_UPLOAD_MAX_BYTES / 1024 / 1024}MB)`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setCropSrc(reader.result as string);
-    reader.readAsDataURL(file);
+    setIsNormalizingAvatar(true);
+    try {
+      const normalized = await normalizeImageFileForUpload(file);
+      if (!normalized.convertedFromHeic && !AVATAR_ALLOWED_MIME_TYPES.includes(normalized.file.type)) {
+        setAvatarError("รองรับเฉพาะไฟล์ PNG, JPEG, WebP หรือ HEIC/HEIF (จากกล้อง iPhone) เท่านั้น");
+        return;
+      }
+      setCropSrc(normalized.dataUrl);
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "ไม่สามารถอ่านไฟล์รูปได้");
+    } finally {
+      setIsNormalizingAvatar(false);
+    }
   }
 
   function handleCropConfirm(croppedDataUri: string) {
@@ -169,24 +181,37 @@ export function ProfileForm({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-medium rounded-lg px-3 py-2 transition-colors"
+                disabled={isNormalizingAvatar}
+                className="text-xs font-medium rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
                 style={{ background: CP_GOLD, color: "#071228", transitionDuration: "180ms", transitionTimingFunction: MOTION_EASE }}
               >
-                เปลี่ยนรูป / Change Photo
+                {isNormalizingAvatar ? "กำลังเตรียมรูป..." : "เปลี่ยนรูป / Change Photo"}
               </button>
               {avatarPreview && (
                 <button
                   type="button"
                   onClick={handleRemoveAvatar}
-                  className="text-xs text-slate-300 hover:text-red-300 border border-white/15 rounded-lg px-3 py-2 transition-colors"
+                  disabled={isNormalizingAvatar}
+                  className="text-xs text-slate-300 hover:text-red-300 border border-white/15 rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
                   style={{ transitionDuration: "180ms", transitionTimingFunction: MOTION_EASE }}
                 >
                   ลบรูป / Remove
                 </button>
               )}
             </div>
-            <input ref={fileInputRef} type="file" accept={AVATAR_ALLOWED_MIME_TYPES.join(",")} onChange={handleFileChange} className="hidden" />
-            <p className="text-[11px] text-slate-500">PNG, JPEG, WebP — ไม่เกิน {AVATAR_MAX_BYTES / 1024}KB หลัง Crop</p>
+            {/* Owner UAT — accept รับ .heic/.heif เพิ่ม (บางเบราว์เซอร์มือถือไม่ Map
+                นามสกุลนี้เข้า MIME ที่รู้จัก ต้องระบุนามสกุลตรงๆ ควบคู่ไปด้วยถึงจะให้เลือกไฟล์
+                ได้จาก Picker) — Validate จริงยังอยู่ที่ normalizeImageFileForUpload()
+                (Sniff Magic Byte) ไม่ใช่ accept นี้ ซึ่งเป็นแค่ตัวกรองการแสดงผลของ OS */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={[...AVATAR_ALLOWED_MIME_TYPES, "image/heic", "image/heif", ".heic", ".heif"].join(",")}
+              onChange={handleFileChange}
+              disabled={isNormalizingAvatar}
+              className="hidden"
+            />
+            <p className="text-[11px] text-slate-500">PNG, JPEG, WebP, HEIC/HEIF — ไม่เกิน {AVATAR_MAX_BYTES / 1024}KB หลัง Crop</p>
             {avatarError && <p className="text-xs text-red-400">{avatarError}</p>}
           </div>
         </div>

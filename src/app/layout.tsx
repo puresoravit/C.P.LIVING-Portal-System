@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { manrope, lineSeedSansTH } from "@/fonts";
 
 export const metadata: Metadata = {
   title: "C.P. LIVING Billing",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th">
+    // Owner UAT — Global Typography: ประกาศ CSS Variable ของทั้ง 2 Font ที่ <html> จุดเดียว
+    // ทั้งแอพสืบทอด (globals.css body ใช้ var(--font-latin)/var(--font-thai) ประกอบ Stack)
+    <html lang="th" className={`${manrope.variable} ${lineSeedSansTH.variable}`}>
       <body className="bg-gray-50 text-gray-900">
         <Providers>{children}</Providers>
       </body>

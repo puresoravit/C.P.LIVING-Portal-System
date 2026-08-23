@@ -2,10 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ฟอนต์ไทยสำหรับ UI — ใช้ system font ที่รองรับไทยครบ ไม่ต้องพึ่ง web font ภายนอก
-   (ลด dependency ภายนอก, โหลดเร็ว — ตรงกับหลัก Speed ข้อ 79) */
+/* Owner UAT — Global Typography: English/Latin/ตัวเลข = Manrope, ไทย = LINE Seed Sans TH
+   (ประกาศทั้งคู่ที่ src/fonts/index.ts จุดเดียว, Inject เป็น CSS Variable ผ่าน <html>
+   className ใน app/layout.tsx) — เรียง Manrope ก่อนเสมอ: Manrope ไม่มี Glyph ภาษาไทยเลย
+   Browser จึง "ตก" ไปเลือกจาก LINE Seed Sans TH ให้เองอัตโนมัติทุกตัวอักษรไทย (Font
+   Fallback มาตรฐานของ CSS Spec ต่อ Character ไม่ต้องแยก :lang() เอง) ข้อความ Mixed ไทย+
+   อังกฤษ+ตัวเลขในบรรทัดเดียวกันจึงได้ Glyph ถูก Font เสมอ — Fallback ท้ายสุดเป็น System
+   Font เดิม กันกรณี next/font โหลดไม่ทัน (FOUT ไม่ FOIT เพราะใช้ display:"swap") */
 body {
-  font-family: "Sarabun", "Segoe UI", "Tahoma", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-latin), var(--font-thai), "Segoe UI", "Tahoma", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* คีย์ Enter เพื่อไปช่องถัดไปแบบฟอร์มบิล (ข้อ 60 Keyboard Friendly) */

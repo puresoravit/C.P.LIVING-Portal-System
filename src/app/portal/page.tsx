@@ -52,7 +52,13 @@ export default async function PortalPage() {
       </header>
 
       {/* ---------- Main ---------- */}
-      <main className="flex-1 flex flex-col items-center px-5 md:px-10 py-10 md:py-14">
+      {/* Owner UAT — Welcome Box Vertical Alignment: เดิม pt เท่ากับ pb (py-10 md:py-14)
+          ทำให้ช่องว่าง Header→Welcome (56px ที่ md+) มากกว่าช่องว่าง Welcome→Cards (mt-10
+          = 40px คงที่) อย่างเห็นได้ชัด — ตรึง pt ไว้ที่ 40px (pt-10) ทุก Breakpoint ให้เท่ากับ
+          mt-10 ของ Cards Grid เป๊ะเสมอ (ค่าเดิมที่มีอยู่แล้วในระบบ ไม่ใช่เลข Offset ใหม่ที่
+          คิดเอง) ส่วน pb ยังคง Responsive Scale เดิม (คุมระยะก่อน Footer แยกเรื่องกัน ไม่ใช่
+          สิ่งที่ Owner ติงถึง) — ไม่แตะ Layout Structure/Grid ใดๆ */}
+      <main className="flex-1 flex flex-col items-center px-5 md:px-10 pt-10 pb-10 md:pb-14">
         <div className="text-center">
           <div className="text-lg md:text-xl text-slate-300">Welcome back,</div>
           {/* Owner UAT Polish — ลดความหนาจาก font-semibold → font-medium ให้เบา/เรียบหรู
