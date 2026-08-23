@@ -8,6 +8,7 @@ import { SidebarShell } from "@/components/sidebar-shell";
 import { getPortalUser, hasAppAccess } from "@/lib/app-access";
 import { InactivityLogout } from "@/components/portal/inactivity-logout";
 import { formatDisplayName } from "@/lib/user-profile";
+import { UserAvatar } from "@/components/portal/user-avatar";
 
 const BRAND = "C.P. LIVING Billing";
 
@@ -40,13 +41,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ข้อ 7/10 (Print System): Sidebar ต้องไม่ติดไปกับ Print Preview/เอกสารที่พิมพ์ */}
       <SidebarShell
         brand={BRAND}
+        // Owner UAT — อ่านชื่อ/คำนำหน้า/รูปสดจาก portalUser (getPortalUser) แทน
+        // session.user.name ที่มาจาก JWT ค้าง — Sync ทันทีหลังแก้ My Profile โดยไม่ต้อง
+        // Re-login (Single Source of Truth เดียวกับ Portal) — UserAvatar เป็น Component
+        // เดียวกับ Portal/Profile Menu (มีรูป=รูปจริง ไม่มี=Initial Fallback) — Logo
+        // บริษัทยังเป็น Brand แยกที่บรรทัด brand ด้านบน ไม่ปนกับรูป User
         userInfo={
-          <>
-            {/* Owner UAT — อ่านชื่อ/คำนำหน้าสดจาก portalUser (getPortalUser) แทน
-                session.user.name ที่มาจาก JWT ค้าง — Sync ทันทีหลังแก้ My Profile
-                โดยไม่ต้อง Re-login (Single Source of Truth เดียวกับ Portal) */}
-            {formatDisplayName(portalUser.titlePrefix, portalUser.displayName)} · {roleLabel[role] ?? role}
-          </>
+          <span className="flex items-center gap-2 mt-1.5">
+            <UserAvatar avatarDataUri={portalUser.avatarDataUri} displayName={portalUser.displayName} size={30} />
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-gray-800 truncate leading-tight">
+                {formatDisplayName(portalUser.titlePrefix, portalUser.displayName)}
+              </span>
+              <span className="block text-[11px] text-gray-500 truncate leading-tight">{roleLabel[role] ?? role}</span>
+            </span>
+          </span>
         }
       >
         {/* R6 Phase F — App Switcher: ทางกลับ Application Portal จากในแอพ Billing */}

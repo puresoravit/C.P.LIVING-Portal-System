@@ -35,9 +35,16 @@ export default async function ProductModelDrillDownPage(
   // Key มี Prefix มาจาก getTopProductModels เสมอ (resolveProductFamily เดียวกัน) กันไม่ให้
   // 2 ฝั่งตีความ id เพี้ยนกัน — รองรับ Legacy Link แบบไม่มี Prefix (คือ modelId ตรงๆ) ไว้
   // ด้วย เผื่อมี Bookmark/Link เก่าจากก่อนเปลี่ยน Key Scheme
-  const separatorIdx = params.id.indexOf(":");
-  const kind = separatorIdx === -1 ? "model" : (params.id.slice(0, separatorIdx) as "model" | "family");
-  const rawId = separatorIdx === -1 ? params.id : params.id.slice(separatorIdx + 1);
+  //
+  // Owner UAT Fix — params ของ Dynamic Route มาแบบ Percent-encoded (":" → "%3A") ต้อง
+  // decodeURIComponent ก่อนแยก Prefix เสมอ — เดิมไม่ Decode ทำให้หา ":" ไม่เจอ แล้วเอา
+  // "model%3A..." ทั้งก้อนไปหาเป็น modelId → notFound() (Owner เจอ 404 ตอนกดจาก Top10) —
+  // Legacy Link (modelId เปล่าๆ เป็น cuid ไม่มีอักขระพิเศษ) Decode แล้วได้ค่าเดิมเป๊ะ
+  // ไม่กระทบ
+  const decodedId = decodeURIComponent(params.id);
+  const separatorIdx = decodedId.indexOf(":");
+  const kind = separatorIdx === -1 ? "model" : (decodedId.slice(0, separatorIdx) as "model" | "family");
+  const rawId = separatorIdx === -1 ? decodedId : decodedId.slice(separatorIdx + 1);
 
   const entity =
     kind === "family"

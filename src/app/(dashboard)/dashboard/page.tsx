@@ -168,8 +168,12 @@ export default async function HomePage(
                 <span>
                   {i + 1}.{" "}
                   {p.kind !== "standalone" ? (
+                    // Owner UAT Fix — key มี ":" คั่น prefix ("model:{id}"/"family:{id}")
+                    // ต้อง encodeURIComponent ก่อนใส่ใน Path เสมอ — เดิมใส่ดิบๆ แล้ว ":"
+                    // ถูก Encode เป็น %3A ระหว่างทาง ทำให้ params.id ฝั่งหน้า Drill-down
+                    // หา ":" ไม่เจอ ตีความเป็น Legacy modelId ทั้งก้อน → 404
                     <a
-                      href={`/products/model/${p.key}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
+                      href={`/products/model/${encodeURIComponent(p.key)}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
                       className="text-blue-600 hover:underline"
                     >
                       {p.label}

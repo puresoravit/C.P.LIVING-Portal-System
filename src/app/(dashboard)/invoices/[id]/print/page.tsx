@@ -21,8 +21,12 @@ import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, lo
 // Invoice ในระบบนี้คือ "ใบส่งของชั่วคราว" — ไม่มี VAT ตามที่ยืนยันไว้ตั้งแต่แรก
 // (confirmOrder() ตั้ง vatPct/vatAmount = 0 เสมอ) Phase D ไม่แตะตัวเลข/สูตรใดๆ
 // เปลี่ยนเฉพาะ Presentation — ห้ามเพิ่ม VAT ให้เอกสารประเภทนี้เด็ดขาด
-export default async function InvoicePrintPage(props: { params: Promise<{ id: string }> }) {
+export default async function InvoicePrintPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string; queue?: string }>;
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "invoice.create")) redirect("/");
 
@@ -32,6 +36,28 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
     getPrintTemplateSettings("INVOICE"),
   ]);
   if (!invoice) notFound();
+
+  // Owner UAT Fix — Multi-Invoice Print Queue จากหน้า Order Detail:
+  // - back: ปลายทางปุ่ม "← กลับ" (เช่น /orders/{id}) — Validate เป็น Internal Path เท่านั้น
+  //   (Pattern เดียวกับ settings/print-template/page.tsx กัน Open Redirect) — ไม่ส่งมา =
+  //   Fallback history.back() เดิมของ PrintButton (ทางเข้าจาก Invoice Center/หน้า Invoice
+  //   ยังกลับที่เดิมเป๊ะ ไม่เปลี่ยนพฤติกรรม)
+  // - queue: Invoice id ที่เหลือในคิว (คั่น ",") — กรองเฉพาะรูปแบบ cuid กันค่าปนเปื้อนจาก
+  //   URL + Cap จำนวนกัน URL ยาวผิดปกติ — ใบถัดไปสืบทอด back/queue ที่เหลือต่อใน Link เอง
+  const rawBack = searchParams.back;
+  const backHref = rawBack && rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : undefined;
+  const queueIds = (searchParams.queue ?? "")
+    .split(",")
+    .filter((id) => /^[a-z0-9]{20,32}$/i.test(id))
+    .slice(0, 50);
+  const nextId = queueIds[0];
+  let nextHref: string | undefined;
+  if (nextId) {
+    const nextParams = new URLSearchParams();
+    if (backHref) nextParams.set("back", backHref);
+    if (queueIds.length > 1) nextParams.set("queue", queueIds.slice(1).join(","));
+    nextHref = `/invoices/${nextId}/print?${nextParams.toString()}`;
+  }
 
   const markPrintedAction = invoice.status === "CANCELLED" ? undefined : markInvoicePrinted.bind(null, invoice.id);
   const isPrinted = invoice.status === "PRINTED";
@@ -124,6 +150,9 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
       templateSettings={template}
       docType="INVOICE"
       canEditTemplate={can((session?.user as any)?.role, "user.manage")}
+      backHref={backHref}
+      nextHref={nextHref}
+      nextRemaining={queueIds.length}
     >
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />

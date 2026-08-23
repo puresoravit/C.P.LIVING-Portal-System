@@ -22,6 +22,7 @@ import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -296,25 +297,20 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         </p>
       )}
 
+      {/* Owner UAT Fix — เลือกหลายใบแล้วพิมพ์เรียงคิวจาก Order ได้เลย (Back กลับหน้านี้
+          เสมอ) — Reuse Print Flow/markInvoicePrinted เดิมทุกใบ ดู order-invoice-print-panel */}
       {order.invoices.length > 0 && (
-        <div className="bg-white border rounded-lg p-4 mt-4">
-          <h2 className="font-medium text-sm mb-2">Invoice ที่แตกจาก Order นี้</h2>
-          <ul className="text-sm space-y-1">
-            {order.invoices.map((inv) => (
-              <li key={inv.id} className="flex justify-between">
-                <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
-                  {inv.invoiceNumber}
-                </a>
-                <span>
-                  {displayProductTypeCode(inv.productTypeCode)} · {money(inv.grandTotal)} บาท ·{" "}
-                  <span className={inv.status === "CANCELLED" ? "text-gray-400" : "text-green-600"}>
-                    {inv.status === "CANCELLED" ? "ยกเลิกแล้ว" : "ใช้งานอยู่"}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <OrderInvoicePrintPanel
+          orderId={order.id}
+          invoices={order.invoices.map((inv) => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            typeLabel: displayProductTypeCode(inv.productTypeCode),
+            amountLabel: money(inv.grandTotal),
+            status: inv.status,
+            printedAtLabel: inv.printedAt ? inv.printedAt.toLocaleDateString("th-TH") : null,
+          }))}
+        />
       )}
       <div className="bg-white border rounded-lg p-3 mt-4 flex items-center gap-2">
         <span className="text-sm text-gray-600">คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่ (ราคา/ส่วนลดจะคำนวณใหม่ตามวันที่ที่เลือก):</span>

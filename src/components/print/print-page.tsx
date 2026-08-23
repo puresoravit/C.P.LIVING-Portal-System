@@ -22,6 +22,8 @@ export function PrintPage({
   docType,
   canEditTemplate,
   backHref,
+  nextHref,
+  nextRemaining,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
@@ -46,6 +48,11 @@ export function PrintPage({
   /** Owner UAT (2026-08-23) — ปลายทางของปุ่ม "← กลับ" (หน้า Detail ของเอกสาร) — ดูเหตุผล
    * เต็มใน print-button.tsx */
   backHref?: string;
+  /** Owner UAT Fix — Multi-Invoice Print Queue: ลิงก์ไปหน้า Print ของใบถัดไปในคิว (พร้อม
+   * back/queue ที่เหลือใน Query) — ดู order-invoice-print-panel.tsx สำหรับกลไกคิวเต็ม */
+  nextHref?: string;
+  /** จำนวนใบที่เหลือในคิว (รวมใบที่ nextHref ชี้) — ใช้แสดงบนปุ่มเท่านั้น */
+  nextRemaining?: number;
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
@@ -56,7 +63,14 @@ export function PrintPage({
       />
       <div className="print:hidden flex flex-wrap items-center justify-between gap-3 mb-2">
         <div className="flex flex-wrap items-center gap-3">
-          <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} backHref={backHref} />
+          <PrintButton
+            markPrintedAction={markPrintedAction}
+            isPrinted={isPrinted}
+            printedAtLabel={printedAtLabel}
+            backHref={backHref}
+            nextHref={nextHref}
+            nextRemaining={nextRemaining}
+          />
           {canEditTemplate && docType && <EditTemplateLink docType={docType} />}
         </div>
         <PrintProfileSelector />

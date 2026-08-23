@@ -19,6 +19,8 @@ export function PrintButton({
   isPrinted,
   printedAtLabel,
   backHref,
+  nextHref,
+  nextRemaining,
 }: {
   markPrintedAction?: (formData: FormData) => void;
   /** true = เอกสารนี้ผ่าน PRINTED Checkpoint แล้ว (โชว์วันที่แทนปุ่ม) */
@@ -29,6 +31,10 @@ export function PrintButton({
   // อีกรอบแทนที่จะกลับหน้าเอกสาร — แก้เป็นลิงก์ตรงไปหน้า Detail ของเอกสาร (หน้าคีย์สินค้า)
   // เสมอเมื่อหน้า Print ระบุมา — ไม่ระบุ = Fallback history.back() เดิม (กันหน้าเก่าพัง)
   backHref?: string;
+  // Owner UAT Fix — Multi-Invoice Print Queue: มีค่า = กำลังพิมพ์เรียงคิวจาก Order —
+  // โชว์ปุ่ม "พิมพ์ใบถัดไป" เด่นๆ ให้ทำงานต่อได้ทันทีโดยไม่ต้องกลับไปเลือกใหม่
+  nextHref?: string;
+  nextRemaining?: number;
 }) {
   const [profile, setProfile] = useState<PrintProfileKey>(DEFAULT_PRINT_PROFILE);
 
@@ -74,6 +80,15 @@ export function PrintButton({
         <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 rounded px-3 py-2 whitespace-nowrap">
           เปลี่ยนเป็น &quot;กระดาษต่อเนื่อง 9×11&quot; ก่อน จึงจะมาร์คว่าพิมพ์แล้วได้
         </span>
+      )}
+
+      {nextHref && (
+        <a
+          href={nextHref}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded px-4 py-2 whitespace-nowrap"
+        >
+          พิมพ์ใบถัดไป / Next Invoice{nextRemaining ? ` (เหลือ ${nextRemaining} ใบ)` : ""} →
+        </a>
       )}
 
       {backHref ? (
