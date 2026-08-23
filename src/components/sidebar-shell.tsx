@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CPIcon } from "@/components/portal/cp-brand";
 
 // Phase Nav-1 — Sidebar เดิมเป็น <aside> กว้างคงที่ที่แสดงตลอดเวลา ไม่รองรับจอเล็ก
 // เพราะเมนูตอนนั้นสั้น (Flat List) แต่ตอนนี้เมนูมี Group/Submenu ลึกขึ้น จึงต้องมี
@@ -11,7 +12,10 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
   return (
     <>
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b print:hidden sticky top-0 z-30">
-        <div className="font-semibold">{brand}</div>
+        <div className="flex items-center gap-1.5">
+          <CPIcon height={18} />
+          <span className="font-semibold">{brand}</span>
+        </div>
         <button
           onClick={() => setOpen(true)}
           aria-label="เปิดเมนู"
@@ -33,8 +37,14 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
         }`}
       >
         <div className="px-4 py-4 border-b flex items-start justify-between">
-          <div>
-            <div className="font-semibold">{brand}</div>
+          <div className="min-w-0">
+            {/* Owner UAT — Master Logo (ตัวสัญลักษณ์เท่านั้น ผ่าน CPIcon — ดู cp-brand.tsx)
+                วางหน้าชื่อระบบ เล็ก/กระชับ ไม่แย่งเด่นจากข้อความ — items-center ให้กึ่งกลาง
+                แนวตั้งพอดีกับความสูงบรรทัดข้อความ ไม่ดัน Header สูงขึ้นเห็นได้ชัด */}
+            <div className="flex items-center gap-1.5">
+              <CPIcon height={18} />
+              <span className="font-semibold truncate">{brand}</span>
+            </div>
             <div className="text-xs text-gray-500 mt-0.5">{userInfo}</div>
           </div>
           <button

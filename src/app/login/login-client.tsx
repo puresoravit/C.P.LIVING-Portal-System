@@ -15,17 +15,28 @@ import { CPLogo, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_G
 // - prefers-reduced-motion: ข้าม Animation ทั้งหมด เข้า Login ทันที
 // - Auth Semantics เดิม 100%: signIn("credentials") + Rate Limit เดิม — เปลี่ยนแค่
 //   ปลายทางหลัง Login สำเร็จเป็น /portal (Application Portal) ตาม Requirement
-// - "Remember me" ไม่มี: Session เป็น JWT อายุ 30 วันค่าเดียวของระบบเดิม ไม่มี Semantics
-//   จำ/ไม่จำแยกให้ Toggle จริง — ห้ามหลอก UI // "Forgot password" ไม่มี: ระบบไม่มี
-//   Password Recovery Flow จริง (Reset ทำโดย Owner/ผู้ดูแลระบบเท่านั้น) — ซ่อนตาม
-//   Requirement ห้ามสร้าง Fake Flow
+// - "Remember me" (Session) ไม่มี: Session เป็น JWT อายุ 30 วันค่าเดียวของระบบเดิม ไม่มี
+//   Semantics จำ/ไม่จำ Session แยกให้ Toggle จริง — ห้ามหลอก UI // "Forgot password"
+//   ไม่มี: ระบบไม่มี Password Recovery Flow จริง (Reset ทำโดย Owner/ผู้ดูแลระบบเท่านั้น)
+//   — ซ่อนตาม Requirement ห้ามสร้าง Fake Flow
+// - Owner UAT — "Remember Username" ใหม่: คนละเรื่องกับ Session ด้านบนโดยสิ้นเชิง — แค่
+//   จำ "ชื่อผู้ใช้" (Username เฉยๆ ไม่ใช่ Credential) ไว้ใน localStorage ของ Browser/Device
+//   นั้น เพื่อเติมช่อง Username อัตโนมัติรอบถัดไป — ไม่แตะ NextAuth/JWT/Cookie/Session
+//   ใดๆ เลย, ไม่เก็บ Password/Hash/Token ใดๆ ทั้งสิ้น — Password ยังว่างเสมอทุกครั้งที่
+//   เปิดหน้านี้ (useState("") เดิม ไม่มี Logic ใดมาเติมให้)
 // ==========================================================================
+
+// Owner UAT — Key เดียวที่ใช้เก็บ Username ใน localStorage (ไม่ใช่ Credential/Sensitive
+// Data — เป็นแค่ String ชื่อผู้ใช้เฉยๆ เหมือนที่ Browser เองก็เสนอจำผ่าน Autocomplete
+// อยู่แล้วเป็นปกติ)
+const REMEMBERED_USERNAME_KEY = "cpf-remembered-username";
 
 export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolean; sessionExpired: boolean }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberUsername, setRememberUsername] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -58,6 +69,36 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
     return () => timers.current.forEach(clearTimeout);
   }, [sessionExpired]);
 
+  // Owner UAT — Remember Username: อ่านค่าที่จำไว้ตอน Mount ครั้งเดียว เติมช่อง Username
+  // ให้อัตโนมัติ + ติ๊ก Checkbox ให้ตรงกับสถานะจริง — รันก่อน Splash จบด้วยซ้ำ (ไม่ต้องรอ
+  // Stage เพราะ State ไม่ได้ผูกกับ Splash เลย พอถึงตอน Render ฟอร์มค่าก็พร้อมอยู่แล้ว
+  // ไม่มี Flicker) — try/catch กัน Browser บาง Mode (Private Browsing บาง Engine) Block
+  // localStorage ไว้ ไม่ทำให้ทั้งฟอร์ม Error
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBERED_USERNAME_KEY);
+      if (saved) {
+        setUsername(saved);
+        setRememberUsername(true);
+      }
+    } catch {
+      // localStorage ใช้ไม่ได้ — ข้ามไปเฉยๆ ฟอร์มยังใช้งานได้ปกติ แค่ไม่มี Remember
+    }
+  }, []);
+
+  // ปลด Checkbox = ลบ Username ที่เคยจำไว้ทันที ไม่ต้องรอกด Login สำเร็จก่อน (ตรงตาม
+  // Requirement ข้อ "ถ้า User เอาเครื่องหมายออก ให้ลบ Username ที่เคยจำไว้")
+  function handleRememberToggle(checked: boolean) {
+    setRememberUsername(checked);
+    if (!checked) {
+      try {
+        window.localStorage.removeItem(REMEMBERED_USERNAME_KEY);
+      } catch {
+        // เพิกเฉยเหมือนกัน — ไม่มีอะไรให้ทำต่อถ้า localStorage ใช้ไม่ได้
+      }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -67,6 +108,19 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
     if (res?.error) {
       setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
       return;
+    }
+    // Owner UAT — บันทึก/ลบ Username ที่จำไว้เฉพาะตอน Login "สำเร็จ" เท่านั้น (ไม่ใช่ทุก
+    // ครั้งที่กดปุ่ม — กันจำ Username ผิดจากการกรอกพลาด/ล้มเหลว) — เก็บ Username เปล่าๆ
+    // เท่านั้น ไม่แตะ Password/Token/Session ใดๆ ทั้งสิ้น (Auth ผ่าน NextAuth signIn()
+    // ด้านบนเสร็จสมบูรณ์ไปแล้ว ก่อนถึงบรรทัดนี้)
+    try {
+      if (rememberUsername) {
+        window.localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim());
+      } else {
+        window.localStorage.removeItem(REMEMBERED_USERNAME_KEY);
+      }
+    } catch {
+      // localStorage ใช้ไม่ได้ — ไม่ใช่ปัญหาของ Auth ที่เพิ่ง Login สำเร็จไปแล้ว ปล่อยผ่าน
     }
     // Requirement: Login สำเร็จต้องเข้า Application Portal ก่อนเสมอ — Fade การ์ดออก
     // สั้นๆ (350ms) ให้การเปลี่ยนหน้านุ่ม ไม่ตัดฉับ (Auth สำเร็จไปแล้ว ณ จุดนี้ —
@@ -162,7 +216,7 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
                 </div>
               </label>
 
-              <label className="block mb-6">
+              <label className="block mb-3">
                 <span className="sr-only">รหัสผ่าน / Password</span>
                 <div className="flex items-center gap-2 border rounded-xl px-3 py-2.5 focus-within:ring-2" style={{ ["--tw-ring-color" as string]: CP_GOLD }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" aria-hidden>
@@ -202,6 +256,21 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
                     )}
                   </button>
                 </div>
+              </label>
+
+              {/* Owner UAT — Remember Username: จำเฉพาะ Username ใน localStorage ของ
+                  Browser/Device นี้เท่านั้น — ไม่ใช่ "Remember Session" (Session/JWT ยัง
+                  เป็นอายุ 30 วันเดิมของระบบเสมอ ไม่เกี่ยวกัน) — Password ไม่ถูกจำ/Autofill
+                  ด้วย Logic นี้เด็ดขาด */}
+              <label className="flex items-center gap-2 mb-6 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberUsername}
+                  onChange={(e) => handleRememberToggle(e.target.checked)}
+                  className="w-4 h-4 rounded"
+                  style={{ accentColor: CP_GOLD }}
+                />
+                จำชื่อผู้ใช้ / Remember username
               </label>
 
               <button

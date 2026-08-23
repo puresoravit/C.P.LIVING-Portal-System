@@ -39,6 +39,48 @@ export function CPLogo({ width = 320, className = "" }: { width?: number; classN
   );
 }
 
+// Owner UAT — Billing Sidebar Brand Icon: หน้า Sidebar เดิม (แอพ Billing) ต้องการแค่
+// "ตัวสัญลักษณ์" (ซุ้มโค้งทอง) เล็กๆ วางหน้าชื่อ "C.P. LIVING Billing" ไม่ใช่ Lockup เต็ม
+// (มี "C.P." + "C.P. LIVING GROUP" ในตัวอยู่แล้ว ซ้ำกับข้อความข้างๆ) — Requirement ห้าม
+// สร้างไฟล์ Logo ใหม่/Duplicate Asset จึง "ตัด" ด้วย CSS ล้วนๆ จาก Master File เดียวกัน
+// (/brand/cp-logo.png) ไม่ใช่สร้างไฟล์ Crop แยก — Scale แกน X/Y เท่ากันเสมอ (ไม่ Stretch)
+// จึงรักษาสัดส่วนจริงของสัญลักษณ์ 100% พิกัดด้านล่างวัดจาก Alpha Channel ของไฟล์จริงตรงๆ
+// (Python/PIL หา Bounding Box ของแถบสัญลักษณ์ ก่อนแถบ "C.P." — ไม่ใช่ค่ากะเอาเอง) — ถ้า
+// Master Logo ถูกเปลี่ยนไฟล์ในอนาคต ต้องวัดพิกัดใหม่มาแทนที่ 4 ค่านี้
+const LOGO_NATURAL_W = 1536;
+const LOGO_NATURAL_H = 1024;
+const ICON_SRC_X = 550;
+const ICON_SRC_Y = 230;
+const ICON_SRC_W = 435;
+const ICON_SRC_H = 305;
+
+/** ตัวสัญลักษณ์ (ไม่มีตัวอักษร) ตัดจาก Master Logo ไฟล์เดียวกับ CPLogo — กำหนดได้เฉพาะ
+ * ความสูง Container (สัดส่วนคงเดิมเสมอเพราะ Scale X/Y เท่ากัน) — ใช้เป็น Brand Icon เล็กๆ
+ * เท่านั้น (เช่น หัว Sidebar) ไม่ใช่ Hero Logo แบบ Splash/Login/Portal ที่ยังใช้ CPLogo
+ * เต็ม Lockup ต่อไป */
+export function CPIcon({ height = 20, className = "" }: { height?: number; className?: string }) {
+  const scale = height / ICON_SRC_H;
+  const width = ICON_SRC_W * scale;
+  return (
+    <div aria-hidden className={`relative overflow-hidden shrink-0 ${className}`} style={{ width, height }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- ตัดตำแหน่งด้วย CSS ตรงๆ ไม่ผ่าน Optimizer */}
+      <img
+        src="/brand/cp-logo.png"
+        alt=""
+        draggable={false}
+        style={{
+          position: "absolute",
+          left: -ICON_SRC_X * scale,
+          top: -ICON_SRC_Y * scale,
+          width: LOGO_NATURAL_W * scale,
+          height: LOGO_NATURAL_H * scale,
+          maxWidth: "none",
+        }}
+      />
+    </div>
+  );
+}
+
 /** เส้นแบ่งทองเรียวกลางจาง — ใช้เป็นเส้นคั่น Section ตกแต่ง (ไม่ใช่ส่วนหนึ่งของโลโก้ —
  * ตัวโลโก้มีเส้นของตัวเองอยู่ในไฟล์ Master แล้ว) */
 export function GoldDivider({ width = 280 }: { width?: number }) {
