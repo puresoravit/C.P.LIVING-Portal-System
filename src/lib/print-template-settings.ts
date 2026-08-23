@@ -133,6 +133,163 @@ export function resolveBlockOrder(order: unknown): PrintBlockKey[] {
   return isValidPermutation ? (order as PrintBlockKey[]) : DEFAULT_BLOCK_ORDER;
 }
 
+// ==========================================================================
+// R6 Phase E.1 — Header Free Layout Enhancement
+// เฉพาะพื้นที่ "เหนือ Item Table" (เดิมคือ Block header/title/customerInfo ของ Phase E)
+// แตกละเอียดขึ้นเป็น 6 Element อิสระ วางได้ใน Grid 3 แถว × 2 คอลัมน์ = 6 ช่อง (Safe
+// Zone แบบปิด ไม่ใช่ Pixel Coordinate อิสระ) — ทุก Element ครองคนละช่องเสมอ (Bijection
+// เต็มจำนวน 6:6) ทำให้ "ห้าม Overlap" เป็นจริงโดยโครงสร้าง Grid เอง ไม่ต้องมี Collision
+// Detection แยกต่างหาก — แต่ละช่องเป็น CSS Grid Row แบบ height:auto จึงสูงตามเนื้อหาจริง
+// เสมอ (ไม่มี Absolute Positioning ที่ไหนเลย) ทำให้ Item Table ที่ตามมาหลัง Grid นี้ถูก
+// "ดัน" ลงตามธรรมชาติของ Document Flow โดยไม่ต้องคำนวณ Offset เอง
+//
+// headerLayout = null (Default ของทุกเอกสารที่ไม่เคยตั้งค่า) หมายถึง "ยังไม่ใช้ระบบใหม่"
+// — หน้า Print จริงทั้ง 5 จะ Render ผ่าน Path เดิมของ Phase E เป๊ะ (PrintOrderedBlocks +
+// header/title/customerInfo 3 Block เดิม) ไม่แตะโค้ดเดิมแม้แต่บรรทัดเดียว = Zero
+// Regression รับประกันโดยไม่ต้อง Diff สายตา — เฉพาะเอกสารที่ Owner เปิดโหมด "Header
+// Layout แบบละเอียด" ผ่าน Designer เท่านั้นที่จะมี headerLayout ไม่เป็น null แล้วเปลี่ยน
+// ไป Render ผ่าน HeaderZone Component ใหม่แทน
+// ==========================================================================
+
+export const HEADER_ELEMENT_KEYS = [
+  "logo",
+  "companyInfo",
+  "title",
+  "docNumberDate",
+  "customerName",
+  "customerDetails",
+] as const;
+export type HeaderElementKey = (typeof HEADER_ELEMENT_KEYS)[number];
+export const HEADER_ELEMENT_LABELS: Record<HeaderElementKey, string> = {
+  logo: "โลโก้",
+  companyInfo: "ชื่อ + ข้อมูลบริษัท",
+  title: "ชื่อเอกสาร",
+  docNumberDate: "เลขที่ + วันที่เอกสาร",
+  customerName: "ชื่อลูกค้า",
+  customerDetails: "ที่อยู่ / เลขผู้เสียภาษี / สถานที่ส่งสินค้า",
+};
+
+export const HEADER_ALIGN_OPTIONS = ["left", "center", "right"] as const;
+export type HeaderAlignKey = (typeof HEADER_ALIGN_OPTIONS)[number];
+export const HEADER_ALIGN_LABELS: Record<HeaderAlignKey, string> = { left: "ซ้าย", center: "กลาง", right: "ขวา" };
+
+/** ช่องใน Grid 3 แถว×2 คอลัมน์ ระบุด้วย Index 0-5 (row = floor(cell/2), col = cell%2) */
+export type HeaderGridCell = 0 | 1 | 2 | 3 | 4 | 5;
+export const HEADER_GRID_ROWS = 3;
+export const HEADER_GRID_COLS = 2;
+
+export const LINE_HEIGHT_MIN = 1.0;
+export const LINE_HEIGHT_MAX = 2.0;
+export const MAX_WIDTH_PCT_MIN = 30;
+export const MAX_WIDTH_PCT_MAX = 100;
+export const LOGO_HEIGHT_MIN_PX = 20;
+export const LOGO_HEIGHT_MAX_PX = 90;
+
+/** ขอบเขต Font Size ปลอดภัยของแต่ละ Element แยกกัน (ตามที่ Owner ระบุตรงๆ ว่าแต่ละ
+ * Element ต้องมี Min/Max ของตัวเอง) — title กว้างสุดเพราะเป็นหัวเรื่องเด่นของเอกสาร,
+ * customerDetails แคบสุดเพราะเป็นข้อมูลรองที่มักมีหลายบรรทัด */
+export const HEADER_FONT_SIZE_BOUNDS: Record<Exclude<HeaderElementKey, "logo">, { min: number; max: number }> = {
+  companyInfo: { min: 8, max: 20 },
+  title: { min: 10, max: 28 },
+  docNumberDate: { min: 8, max: 16 },
+  customerName: { min: 8, max: 18 },
+  customerDetails: { min: 7, max: 14 },
+};
+
+export type HeaderElementStyle = {
+  cell: HeaderGridCell;
+  align: HeaderAlignKey;
+  fontSizePx: number;
+  lineHeight: number;
+  maxWidthPct: number;
+  visible: boolean;
+};
+export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx"> & { heightPx: number };
+
+export type HeaderLayoutConfig = {
+  logo: HeaderLogoStyle;
+  companyInfo: HeaderElementStyle;
+  title: HeaderElementStyle;
+  docNumberDate: HeaderElementStyle;
+  customerName: HeaderElementStyle;
+  customerDetails: HeaderElementStyle;
+};
+
+// Default Cell Arrangement เมื่อ Owner เพิ่งเปิดโหมด Custom ครั้งแรก (จุดเริ่มต้นที่
+// สมเหตุสมผล ไม่จำเป็นต้องตรงกับ Layout เดิมของ Path Classic เป๊ะ เพราะเป็นคนละ Mode ที่
+// ต้องเปิดใช้งานเองอย่างชัดเจน): แถวบน=แบรนด์ (โลโก้ซ้าย, บริษัทกลาง), แถวกลาง=เอกสาร
+// (ชื่อเอกสารซ้าย, เลขที่/วันที่ขวา), แถวล่าง=ลูกค้า (ชื่อซ้าย, รายละเอียดขวา)
+export const DEFAULT_HEADER_LAYOUT: HeaderLayoutConfig = {
+  logo: { cell: 0, align: "left", heightPx: 44, lineHeight: 1, maxWidthPct: 100, visible: true },
+  companyInfo: { cell: 1, align: "center", fontSizePx: 12, lineHeight: 1.3, maxWidthPct: 100, visible: true },
+  title: { cell: 2, align: "left", fontSizePx: 14, lineHeight: 1.2, maxWidthPct: 100, visible: true },
+  docNumberDate: { cell: 3, align: "right", fontSizePx: 12, lineHeight: 1.4, maxWidthPct: 100, visible: true },
+  customerName: { cell: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, maxWidthPct: 100, visible: true },
+  customerDetails: { cell: 5, align: "left", fontSizePx: 11, lineHeight: 1.4, maxWidthPct: 100, visible: true },
+};
+
+function clampNum(n: unknown, min: number, max: number, fallback: number): number {
+  const num = Number(n);
+  return Number.isFinite(num) ? Math.min(max, Math.max(min, num)) : fallback;
+}
+
+function resolveAlign(raw: unknown, fallback: HeaderAlignKey): HeaderAlignKey {
+  return (HEADER_ALIGN_OPTIONS as readonly string[]).includes(raw as string) ? (raw as HeaderAlignKey) : fallback;
+}
+
+/** ตรวจ + Clamp HeaderLayoutConfig ที่ได้จาก AppSetting/Client เสมอก่อนใช้งานจริง —
+ * null/undefined = โหมด Classic (ไม่ใช่ข้อมูลเสีย) คืน null ตรงๆ — ถ้ามีค่าแต่ Cell ไม่
+ * ครบเป็น Permutation ของ 0-5 (ข้อมูลเสีย/แก้ DB มือ) Fallback ทั้งชุดไป
+ * DEFAULT_HEADER_LAYOUT (ยังอยู่ใน Custom Mode แต่กลับไปที่ค่าเริ่มต้นที่ปลอดภัย ไม่ใช่
+ * หลุดกลับไป Classic Mode เงียบๆ) — ทุก Field ตัวเลข Clamp ภายใน Safe Bounds ของตัวเอง
+ * เสมอ กัน Font Size/ความสูงโลโก้ที่ผิดพลาด/ถูกแก้เกินขอบเขตทำให้ Header ล้นพื้นที่พิมพ์ */
+export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "object") return DEFAULT_HEADER_LAYOUT;
+  const obj = raw as Record<string, any>;
+
+  const cells = HEADER_ELEMENT_KEYS.map((k) => Number(obj[k]?.cell));
+  const validCellSet =
+    cells.every((c) => Number.isInteger(c) && c >= 0 && c <= 5) && new Set(cells).size === HEADER_ELEMENT_KEYS.length;
+  if (!validCellSet) return DEFAULT_HEADER_LAYOUT;
+
+  const cellByKey = Object.fromEntries(HEADER_ELEMENT_KEYS.map((k, i) => [k, cells[i] as HeaderGridCell])) as Record<
+    HeaderElementKey,
+    HeaderGridCell
+  >;
+
+  function resolveTextElement(key: Exclude<HeaderElementKey, "logo">): HeaderElementStyle {
+    const bounds = HEADER_FONT_SIZE_BOUNDS[key];
+    const fallback = DEFAULT_HEADER_LAYOUT[key];
+    const r = obj[key] ?? {};
+    return {
+      cell: cellByKey[key],
+      align: resolveAlign(r.align, fallback.align),
+      fontSizePx: clampNum(r.fontSizePx, bounds.min, bounds.max, fallback.fontSizePx),
+      lineHeight: clampNum(r.lineHeight, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, fallback.lineHeight),
+      maxWidthPct: clampNum(r.maxWidthPct, MAX_WIDTH_PCT_MIN, MAX_WIDTH_PCT_MAX, fallback.maxWidthPct),
+      visible: typeof r.visible === "boolean" ? r.visible : true,
+    };
+  }
+
+  const logoRaw = obj.logo ?? {};
+  return {
+    logo: {
+      cell: cellByKey.logo,
+      align: resolveAlign(logoRaw.align, DEFAULT_HEADER_LAYOUT.logo.align),
+      heightPx: clampNum(logoRaw.heightPx, LOGO_HEIGHT_MIN_PX, LOGO_HEIGHT_MAX_PX, DEFAULT_HEADER_LAYOUT.logo.heightPx),
+      lineHeight: 1,
+      maxWidthPct: 100,
+      visible: typeof logoRaw.visible === "boolean" ? logoRaw.visible : true,
+    },
+    companyInfo: resolveTextElement("companyInfo"),
+    title: resolveTextElement("title"),
+    docNumberDate: resolveTextElement("docNumberDate"),
+    customerName: resolveTextElement("customerName"),
+    customerDetails: resolveTextElement("customerDetails"),
+  };
+}
+
 const FOOTER_NOTE_MAX_LENGTH = 200;
 // ข้อความเดิมที่ Hardcode อยู่ใน print-signature-block.tsx ตอนนี้ — ใช้เป็น Default
 // \n คงรูปแบบ 2 บรรทัดเดิมไว้เป๊ะ (Render ด้วย white-space: pre-line) เพื่อ
@@ -158,6 +315,10 @@ export type OverridableTemplateSettings = {
   // Per-Document Override ได้เหมือน Field อื่นทุกตัวในนี้ (Consistent กับสถาปัตยกรรม
   // Global→Override เดิมทั้งหมด ไม่ต้องมี Mechanism ใหม่)
   blockOrder: PrintBlockKey[];
+  // R6 Phase E.1 — null = โหมด Classic (ใช้ blockOrder 3-Block เดิมด้านบน) — ไม่ null =
+  // โหมด Header Layout แบบละเอียด (ดู resolveHeaderLayout ด้านบน) — Per-Document
+  // Override ได้เหมือนกัน (Consistent กับ Field อื่นทุกตัว)
+  headerLayout: HeaderLayoutConfig | null;
 };
 
 export type GlobalTemplateSettings = OverridableTemplateSettings & { logoSize: LogoSizeKey };
@@ -176,6 +337,7 @@ export const DEFAULT_GLOBAL_TEMPLATE_SETTINGS: GlobalTemplateSettings = {
   contentPadding: "none",
   logoSize: "normal",
   blockOrder: DEFAULT_BLOCK_ORDER,
+  headerLayout: null,
 };
 
 // Pure function — Merge Override ทับ Global เฉพาะ Field ที่ Override ระบุไว้จริง
@@ -196,6 +358,35 @@ const blockOrderSchema = z
   .length(PRINT_BLOCK_KEYS.length)
   .refine((arr) => new Set(arr).size === PRINT_BLOCK_KEYS.length, "ลำดับ Block ไม่ถูกต้อง");
 
+// R6 Phase E.1 — Structural Sanity Check เท่านั้น (ค่าตัวเลขจริงถูก Clamp อีกชั้นผ่าน
+// resolveHeaderLayout ก่อนเก็บเสมอ — Defense-in-depth เหมือน blockOrder ด้านบน)
+const headerElementStyleSchema = z.object({
+  cell: z.number().int().min(0).max(5),
+  align: z.enum(HEADER_ALIGN_OPTIONS),
+  fontSizePx: z.number(),
+  lineHeight: z.number(),
+  maxWidthPct: z.number(),
+  visible: z.boolean(),
+});
+const headerLogoStyleSchema = z.object({
+  cell: z.number().int().min(0).max(5),
+  align: z.enum(HEADER_ALIGN_OPTIONS),
+  heightPx: z.number(),
+  lineHeight: z.number(),
+  maxWidthPct: z.number(),
+  visible: z.boolean(),
+});
+const headerLayoutSchema = z
+  .object({
+    logo: headerLogoStyleSchema,
+    companyInfo: headerElementStyleSchema,
+    title: headerElementStyleSchema,
+    docNumberDate: headerElementStyleSchema,
+    customerName: headerElementStyleSchema,
+    customerDetails: headerElementStyleSchema,
+  })
+  .nullable();
+
 const overridableSchema = z.object({
   showAddress: z.boolean(),
   showPhone: z.boolean(),
@@ -207,6 +398,7 @@ const overridableSchema = z.object({
   spacingDensity: z.enum(SPACING_DENSITY_OPTIONS),
   contentPadding: z.enum(CONTENT_PADDING_OPTIONS),
   blockOrder: blockOrderSchema,
+  headerLayout: headerLayoutSchema,
 });
 
 export const globalTemplateSettingsSchema = overridableSchema.extend({
@@ -250,8 +442,10 @@ export async function getPrintTemplateSettings(docType: DocumentTypeKey): Promis
   // R6 Phase E — Defense-in-depth: กัน blockOrder ที่เสียหาย (แก้ DB มือ/Bug ในอนาคต)
   // ทำให้ Block หายไปจากหน้า Print เงียบๆ — จุดเดียวที่หน้า Print ทั้ง 5 ประเภทเรียกใช้
   const safeBlockOrder = resolveBlockOrder(merged.blockOrder);
+  // R6 Phase E.1 — เช่นเดียวกัน กัน headerLayout ที่เสียหายทำให้ Header หาย/ล้นพื้นที่พิมพ์
+  const safeHeaderLayout = resolveHeaderLayout(merged.headerLayout);
 
-  return { ...merged, blockOrder: safeBlockOrder, logo: map[APP_SETTING_KEYS.logo] ?? null };
+  return { ...merged, blockOrder: safeBlockOrder, headerLayout: safeHeaderLayout, logo: map[APP_SETTING_KEYS.logo] ?? null };
 }
 
 /** อ่านเฉพาะ Global Settings + Logo ดิบๆ (ไม่ Merge Override ใดๆ) — ใช้แสดงในหน้า
@@ -261,7 +455,11 @@ export async function getGlobalTemplateSettingsRaw(): Promise<{ settings: Global
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const settings = parseJsonSafe<GlobalTemplateSettings>(map[APP_SETTING_KEYS.global], DEFAULT_GLOBAL_TEMPLATE_SETTINGS);
   return {
-    settings: { ...settings, blockOrder: resolveBlockOrder(settings.blockOrder) },
+    settings: {
+      ...settings,
+      blockOrder: resolveBlockOrder(settings.blockOrder),
+      headerLayout: resolveHeaderLayout(settings.headerLayout),
+    },
     logo: map[APP_SETTING_KEYS.logo] ?? null,
   };
 }

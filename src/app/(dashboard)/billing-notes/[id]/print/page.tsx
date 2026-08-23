@@ -11,8 +11,17 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { HeaderZone } from "@/components/print/header-zone";
+import {
+  HeaderLogoElement,
+  HeaderCompanyInfoElement,
+  HeaderTitleElement,
+  HeaderDocNumberDateElement,
+  HeaderCustomerNameElement,
+  HeaderCustomerDetailsElement,
+} from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
 
@@ -72,9 +81,70 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
     ),
   };
 
+  // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
+  const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
+    ? {
+        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        companyInfo: (
+          <HeaderCompanyInfoElement
+            company={company}
+            showAddress={template.showAddress}
+            showPhone={template.showPhone}
+            showTaxId={template.showTaxId}
+            fontSizePx={template.headerLayout.companyInfo.fontSizePx}
+            lineHeight={template.headerLayout.companyInfo.lineHeight}
+          />
+        ),
+        title: (
+          <HeaderTitleElement
+            titleTh="ใบวางบิล"
+            titleEn="BILLING NOTE"
+            fontSizePx={template.headerLayout.title.fontSizePx}
+            lineHeight={template.headerLayout.title.lineHeight}
+          />
+        ),
+        docNumberDate: (
+          <HeaderDocNumberDateElement
+            rows={[
+              {
+                label: "เลขที่",
+                value: (
+                  <span className="inline-flex items-center gap-1">
+                    {note.billingNoteNumber}
+                    <CopyDocumentNumber value={note.billingNoteNumber} />
+                  </span>
+                ),
+              },
+              { label: "วันที่", value: note.billingNoteDate.toLocaleDateString("th-TH") },
+            ]}
+            fontSizePx={template.headerLayout.docNumberDate.fontSizePx}
+            lineHeight={template.headerLayout.docNumberDate.lineHeight}
+          />
+        ),
+        customerName: (
+          <HeaderCustomerNameElement
+            name={note.customerNameSnapshot}
+            fontSizePx={template.headerLayout.customerName.fontSizePx}
+            lineHeight={template.headerLayout.customerName.lineHeight}
+          />
+        ),
+        customerDetails: (
+          <HeaderCustomerDetailsElement
+            rows={[{ label: "เลขประจำตัวผู้เสียภาษี", value: note.taxIdSnapshot ?? "-" }]}
+            fontSizePx={template.headerLayout.customerDetails.fontSizePx}
+            lineHeight={template.headerLayout.customerDetails.lineHeight}
+          />
+        ),
+      }
+    : ({} as Record<HeaderElementKey, React.ReactNode>);
+
   return (
     <PrintPage templateSettings={template}>
-      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      {template.headerLayout ? (
+        <HeaderZone layout={template.headerLayout} elements={headerElements} />
+      ) : (
+        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      )}
 
       <BillingNotePrintBody
         invoices={note.invoices.map((inv) => ({

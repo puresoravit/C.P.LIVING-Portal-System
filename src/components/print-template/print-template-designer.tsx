@@ -20,6 +20,7 @@ import {
   CONTENT_PADDING_LABELS,
   LOGO_SIZE_OPTIONS,
   LOGO_SIZE_LABELS,
+  DEFAULT_HEADER_LAYOUT,
   type DocumentTypeKey,
   type DocumentTemplateOverride,
   type GlobalTemplateSettings,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/print-template-settings";
 import { LogoUploadForm } from "./logo-upload-form";
 import { BlockOrderEditor } from "./block-order-editor";
+import { HeaderZoneEditor } from "./header-zone-editor";
 import { PrintTemplateDesignerCanvas } from "./print-template-designer-canvas";
 
 const DOC_TYPES: DocumentTypeKey[] = ["QUOTATION", "INVOICE", "TAX_INVOICE", "BILLING_NOTE", "REPAIR_NOTE"];
@@ -46,6 +48,9 @@ function buildFormData(values: OverridableTemplateSettings): FormData {
   fd.set("spacingDensity", values.spacingDensity);
   fd.set("contentPadding", values.contentPadding);
   fd.set("blockOrder", JSON.stringify(values.blockOrder));
+  // R6 Phase E.1 — ไม่ส่ง Field นี้เลยเมื่อเป็น null (โหมด Classic) — ตรงกับที่
+  // parseHeaderLayoutField ฝั่ง Server ตีความ "ไม่มี Field" = null เหมือนกัน
+  if (values.headerLayout) fd.set("headerLayout", JSON.stringify(values.headerLayout));
   return fd;
 }
 
@@ -309,8 +314,23 @@ export function PrintTemplateDesigner({
                   </div>
                 </Section>
 
-                <Section title="ลำดับ Block (ลากเพื่อจัดเรียง)">
-                  <BlockOrderEditor order={effective.blockOrder} onChange={(next) => updateField({ blockOrder: next })} />
+                <Section title="โครงสร้าง Header">
+                  <label className="flex items-center gap-2 text-xs mb-2">
+                    <input
+                      type="checkbox"
+                      checked={effective.headerLayout !== null}
+                      onChange={(e) =>
+                        updateField({ headerLayout: e.target.checked ? (effective.headerLayout ?? DEFAULT_HEADER_LAYOUT) : null })
+                      }
+                    />
+                    ใช้ Header Layout แบบละเอียด (Custom — วาง/ปรับขนาด Element อิสระ)
+                  </label>
+                  {effective.headerLayout ? (
+                    <HeaderZoneEditor layout={effective.headerLayout} onChange={(next) => updateField({ headerLayout: next })} />
+                  ) : (
+                    <BlockOrderEditor order={effective.blockOrder} onChange={(next) => updateField({ blockOrder: next })} />
+                  )}
+                  {effective.headerLayout && <LockedBlocksHint />}
                 </Section>
 
                 <Section title="ตัวอักษร">
@@ -387,6 +407,23 @@ export function PrintTemplateDesigner({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// R6 Phase E.1 — เตือนซ้ำในโหมด Header Layout แบบละเอียดด้วยว่า Block ล่างยังตรึงเหมือนเดิม
+// (BlockOrderEditor เองก็มี Hint นี้อยู่แล้วสำหรับโหมด Classic — ที่นี่คือฝั่ง Custom)
+function LockedBlocksHint() {
+  return (
+    <div className="space-y-1.5 mt-2">
+      <div className="border rounded px-2 py-1.5 text-xs bg-gray-50 text-gray-500 flex items-center gap-2">
+        <span aria-hidden>🔒</span>
+        <span>ตารางรายการ + สรุปยอด (ตำแหน่งตรึงถาวร — กันเนื้อหาล้น/ทับหน้าเวลารายการยาว)</span>
+      </div>
+      <div className="border rounded px-2 py-1.5 text-xs bg-gray-50 text-gray-500 flex items-center gap-2">
+        <span aria-hidden>🔒</span>
+        <span>ลายเซ็น + ท้ายเอกสาร (ตำแหน่งตรึงถาวร — ชิดขอบล่างเสมอ)</span>
       </div>
     </div>
   );

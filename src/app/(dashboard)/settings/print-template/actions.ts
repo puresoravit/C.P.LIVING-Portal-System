@@ -13,6 +13,8 @@ import {
   documentTemplateOverrideSchema,
   validateLogoDataUri,
   resolveBlockOrder,
+  resolveHeaderLayout,
+  DEFAULT_HEADER_LAYOUT,
   type DocumentTypeKey,
 } from "@/lib/print-template-settings";
 
@@ -42,6 +44,19 @@ function parseBlockOrderField(formData: FormData) {
   }
 }
 
+// R6 Phase E.1 — headerLayout เดียวกัน: ไม่มี Field นี้เลย (Hidden Input ไม่ถูกส่งมา
+// เพราะยังอยู่โหมด Classic) = null ตรงๆ (โหมด Classic เป็นค่าที่ถูกต้อง ไม่ใช่ Fallback
+// จาก Error) — Parse ไม่ได้ค่อย Fallback ไป Default Custom Layout (ดู resolveHeaderLayout)
+function parseHeaderLayoutField(formData: FormData) {
+  const raw = formData.get("headerLayout");
+  if (!raw) return null;
+  try {
+    return resolveHeaderLayout(JSON.parse(String(raw)));
+  } catch {
+    return DEFAULT_HEADER_LAYOUT;
+  }
+}
+
 // R5 — บันทึก Global Template Settings ทั้งชุด (รวม logoSize) ยกเว้น Logo เอง (แยก
 // Action ต่างหาก กันการส่ง Base64 ก้อนใหญ่ซ้ำทุกครั้งที่แก้แค่ Text/Checkbox)
 export async function updateGlobalTemplateSettings(formData: FormData): Promise<ActionResult> {
@@ -60,6 +75,7 @@ export async function updateGlobalTemplateSettings(formData: FormData): Promise<
     contentPadding: String(formData.get("contentPadding") || ""),
     logoSize: String(formData.get("logoSize") || ""),
     blockOrder: parseBlockOrderField(formData),
+    headerLayout: parseHeaderLayoutField(formData),
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
@@ -174,6 +190,7 @@ export async function updateDocumentOverride(docType: DocumentTypeKey, formData:
     spacingDensity: String(formData.get("spacingDensity") || ""),
     contentPadding: String(formData.get("contentPadding") || ""),
     blockOrder: parseBlockOrderField(formData),
+    headerLayout: parseHeaderLayoutField(formData),
   });
   if (!raw.success) {
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };

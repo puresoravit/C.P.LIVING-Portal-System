@@ -4,11 +4,13 @@ import {
   type DocumentTypeKey,
   type ResolvedTemplateSettings,
   type PrintBlockKey,
+  type HeaderElementKey,
 } from "@/lib/print-template-settings";
 import type { PrintProfileKey } from "@/lib/print-settings";
 import { PRINT_PROFILES } from "@/lib/print-settings";
 import {
   getSampleDocInfo,
+  getSampleHeaderZoneInfo,
   getSampleQuotationData,
   getSampleInvoiceData,
   getSampleTaxInvoiceData,
@@ -22,6 +24,15 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { HeaderZone } from "@/components/print/header-zone";
+import {
+  HeaderLogoElement,
+  HeaderCompanyInfoElement,
+  HeaderTitleElement,
+  HeaderDocNumberDateElement,
+  HeaderCustomerNameElement,
+  HeaderCustomerDetailsElement,
+} from "@/components/print/header-elements";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
 import { TaxInvoicePrintBody } from "@/components/print/tax-invoice-print-body";
@@ -50,10 +61,37 @@ export function PrintTemplateDesignerCanvas({
   profile: PrintProfileKey;
   density: SampleDensity;
 }) {
-  const info = getSampleDocInfo(docType);
   const cssVars = buildPrintCssVars(settings);
   const pageWidthMm = PRINT_PROFILES[profile].pageSize === "A4" ? 210 : 228.6;
 
+  return (
+    <div className="overflow-auto bg-gray-100 rounded border p-4">
+      <div
+        className="print-page-fill bg-white shadow-sm mx-auto p-6 text-sm flex flex-col"
+        style={{ width: `${pageWidthMm}mm`, minHeight: "150mm", ...cssVars } as React.CSSProperties}
+      >
+        {settings.headerLayout ? (
+          <DesignerHeaderZone docType={docType} settings={settings} company={company} headerLayout={settings.headerLayout} />
+        ) : (
+          <DesignerClassicHeader docType={docType} settings={settings} company={company} />
+        )}
+        <DesignerDocBody docType={docType} density={density} footerNote={settings.footerNote} />
+      </div>
+    </div>
+  );
+}
+
+// R6 Phase E — Path เดิม (โหมด Classic, headerLayout === null) — ไม่แตะ Logic นี้เลย
+function DesignerClassicHeader({
+  docType,
+  settings,
+  company,
+}: {
+  docType: DocumentTypeKey;
+  settings: ResolvedTemplateSettings;
+  company: CompanySettings;
+}) {
+  const info = getSampleDocInfo(docType);
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
     header: (
       <PrintDocumentHeader
@@ -70,18 +108,67 @@ export function PrintTemplateDesignerCanvas({
       <PrintCustomerInfo left={info.customerLeft} right={info.customerRight} shippingAddress={info.shippingAddress} />
     ),
   };
+  return <PrintOrderedBlocks order={settings.blockOrder} blocks={blocks} />;
+}
 
-  return (
-    <div className="overflow-auto bg-gray-100 rounded border p-4">
-      <div
-        className="print-page-fill bg-white shadow-sm mx-auto p-6 text-sm flex flex-col"
-        style={{ width: `${pageWidthMm}mm`, minHeight: "150mm", ...cssVars } as React.CSSProperties}
-      >
-        <PrintOrderedBlocks order={settings.blockOrder} blocks={blocks} />
-        <DesignerDocBody docType={docType} density={density} footerNote={settings.footerNote} />
-      </div>
-    </div>
-  );
+// R6 Phase E.1 — Path ใหม่ (โหมด Custom, headerLayout ไม่เป็น null) — Element เดียวกับ
+// ที่หน้า Print จริงทั้ง 5 เรียก (header-elements.tsx) แค่ป้อน Sample Data แทน DB จริง
+function DesignerHeaderZone({
+  docType,
+  settings,
+  company,
+  headerLayout,
+}: {
+  docType: DocumentTypeKey;
+  settings: ResolvedTemplateSettings;
+  company: CompanySettings;
+  headerLayout: NonNullable<ResolvedTemplateSettings["headerLayout"]>;
+}) {
+  const info = getSampleHeaderZoneInfo(docType);
+  const elements: Record<HeaderElementKey, React.ReactNode> = {
+    logo: <HeaderLogoElement logo={settings.logo} heightPx={headerLayout.logo.heightPx} />,
+    companyInfo: (
+      <HeaderCompanyInfoElement
+        company={company}
+        showAddress={settings.showAddress}
+        showPhone={settings.showPhone}
+        showTaxId={settings.showTaxId}
+        fontSizePx={headerLayout.companyInfo.fontSizePx}
+        lineHeight={headerLayout.companyInfo.lineHeight}
+      />
+    ),
+    title: (
+      <HeaderTitleElement
+        titleTh={info.titleTh}
+        titleEn={info.titleEn}
+        fontSizePx={headerLayout.title.fontSizePx}
+        lineHeight={headerLayout.title.lineHeight}
+      />
+    ),
+    docNumberDate: (
+      <HeaderDocNumberDateElement
+        rows={info.docNumberDateRows}
+        fontSizePx={headerLayout.docNumberDate.fontSizePx}
+        lineHeight={headerLayout.docNumberDate.lineHeight}
+      />
+    ),
+    customerName: (
+      <HeaderCustomerNameElement
+        name={info.customerName}
+        fontSizePx={headerLayout.customerName.fontSizePx}
+        lineHeight={headerLayout.customerName.lineHeight}
+      />
+    ),
+    customerDetails: (
+      <HeaderCustomerDetailsElement
+        rows={info.customerDetailsRows}
+        shippingAddress={info.shippingAddress}
+        fontSizePx={headerLayout.customerDetails.fontSizePx}
+        lineHeight={headerLayout.customerDetails.lineHeight}
+      />
+    ),
+  };
+  return <HeaderZone layout={headerLayout} elements={elements} />;
 }
 
 function DesignerDocBody({

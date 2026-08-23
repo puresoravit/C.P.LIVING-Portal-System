@@ -13,8 +13,17 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { HeaderZone } from "@/components/print/header-zone";
+import {
+  HeaderLogoElement,
+  HeaderCompanyInfoElement,
+  HeaderTitleElement,
+  HeaderDocNumberDateElement,
+  HeaderCustomerNameElement,
+  HeaderCustomerDetailsElement,
+} from "@/components/print/header-elements";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
 
 // Invoice ในระบบนี้คือ "ใบส่งของชั่วคราว" — ไม่มี VAT ตามที่ยืนยันไว้ตั้งแต่แรก
 // (confirmOrder() ตั้ง vatPct/vatAmount = 0 เสมอ) Phase D ไม่แตะตัวเลข/สูตรใดๆ
@@ -73,6 +82,65 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
     ),
   };
 
+  // R6 Phase E.1 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
+  const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
+    ? {
+        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        companyInfo: (
+          <HeaderCompanyInfoElement
+            company={company}
+            showAddress={template.showAddress}
+            showPhone={template.showPhone}
+            showTaxId={template.showTaxId}
+            fontSizePx={template.headerLayout.companyInfo.fontSizePx}
+            lineHeight={template.headerLayout.companyInfo.lineHeight}
+          />
+        ),
+        title: (
+          <HeaderTitleElement
+            titleTh="ใบส่งของชั่วคราว"
+            titleEn="INVOICE"
+            fontSizePx={template.headerLayout.title.fontSizePx}
+            lineHeight={template.headerLayout.title.lineHeight}
+          />
+        ),
+        docNumberDate: (
+          <HeaderDocNumberDateElement
+            rows={[
+              {
+                label: "เลขที่",
+                value: (
+                  <span className="inline-flex items-center gap-1">
+                    {invoice.invoiceNumber}
+                    <CopyDocumentNumber value={invoice.invoiceNumber} />
+                  </span>
+                ),
+              },
+              { label: "วันที่", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
+              { label: "รหัสลูกค้า", value: invoice.customer.code },
+            ]}
+            fontSizePx={template.headerLayout.docNumberDate.fontSizePx}
+            lineHeight={template.headerLayout.docNumberDate.lineHeight}
+          />
+        ),
+        customerName: (
+          <HeaderCustomerNameElement
+            name={invoice.customerNameSnapshot}
+            fontSizePx={template.headerLayout.customerName.fontSizePx}
+            lineHeight={template.headerLayout.customerName.lineHeight}
+          />
+        ),
+        customerDetails: (
+          <HeaderCustomerDetailsElement
+            rows={[{ label: "ที่อยู่", value: invoice.addressSnapshot ?? "-" }]}
+            shippingAddress={invoice.placeToDelivery}
+            fontSizePx={template.headerLayout.customerDetails.fontSizePx}
+            lineHeight={template.headerLayout.customerDetails.lineHeight}
+          />
+        ),
+      }
+    : ({} as Record<HeaderElementKey, React.ReactNode>);
+
   return (
     <PrintPage
       markPrintedAction={markPrintedAction}
@@ -80,7 +148,11 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
       printedAtLabel={printedAtLabel}
       templateSettings={template}
     >
-      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      {template.headerLayout ? (
+        <HeaderZone layout={template.headerLayout} elements={headerElements} />
+      ) : (
+        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      )}
 
       <InvoicePrintBody
         items={invoice.items}

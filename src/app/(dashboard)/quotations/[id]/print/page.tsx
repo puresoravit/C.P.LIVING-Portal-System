@@ -12,8 +12,17 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
+import { HeaderZone } from "@/components/print/header-zone";
+import {
+  HeaderLogoElement,
+  HeaderCompanyInfoElement,
+  HeaderTitleElement,
+  HeaderDocNumberDateElement,
+  HeaderCustomerNameElement,
+  HeaderCustomerDetailsElement,
+} from "@/components/print/header-elements";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
-import { getPrintTemplateSettings, type PrintBlockKey } from "@/lib/print-template-settings";
+import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
@@ -73,9 +82,77 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
     ),
   };
 
+  // R6 Phase E.1 — headerLayout ไม่เป็น null = Owner เปิดโหมด Header Layout แบบละเอียด
+  // ไว้แล้วสำหรับเอกสารประเภทนี้ — Render ผ่าน HeaderZone (6 Element อิสระ) แทน 3 Block
+  // เดิม — เป็น null (Default) ใช้ Path Classic เดิมด้านบนเป๊ะ ไม่เปลี่ยนอะไรเลย
+  const headerElements: Record<HeaderElementKey, React.ReactNode> = template.headerLayout
+    ? {
+        logo: <HeaderLogoElement logo={template.logo} heightPx={template.headerLayout.logo.heightPx} />,
+        companyInfo: (
+          <HeaderCompanyInfoElement
+            company={company}
+            showAddress={template.showAddress}
+            showPhone={template.showPhone}
+            showTaxId={template.showTaxId}
+            fontSizePx={template.headerLayout.companyInfo.fontSizePx}
+            lineHeight={template.headerLayout.companyInfo.lineHeight}
+          />
+        ),
+        title: (
+          <HeaderTitleElement
+            titleTh="ใบเสนอราคา"
+            titleEn="QUOTATION"
+            fontSizePx={template.headerLayout.title.fontSizePx}
+            lineHeight={template.headerLayout.title.lineHeight}
+          />
+        ),
+        docNumberDate: (
+          <HeaderDocNumberDateElement
+            rows={[
+              {
+                label: "เลขที่",
+                value: (
+                  <span className="inline-flex items-center gap-1">
+                    {displayNumber}
+                    <CopyDocumentNumber value={displayNumber} />
+                  </span>
+                ),
+              },
+              { label: "วันที่", value: quotation.quotationDate.toLocaleDateString("th-TH") },
+              { label: "รหัสลูกค้า", value: quotation.customer.code },
+            ]}
+            fontSizePx={template.headerLayout.docNumberDate.fontSizePx}
+            lineHeight={template.headerLayout.docNumberDate.lineHeight}
+          />
+        ),
+        customerName: (
+          <HeaderCustomerNameElement
+            name={quotation.customerNameSnapshot}
+            fontSizePx={template.headerLayout.customerName.fontSizePx}
+            lineHeight={template.headerLayout.customerName.lineHeight}
+          />
+        ),
+        customerDetails: (
+          <HeaderCustomerDetailsElement
+            rows={[
+              { label: "ที่อยู่", value: quotation.addressSnapshot ?? "-" },
+              ...(quotation.customerTaxIdSnapshot ? [{ label: "เลขผู้เสียภาษี", value: quotation.customerTaxIdSnapshot }] : []),
+            ]}
+            shippingAddress={quotation.placeToDelivery}
+            fontSizePx={template.headerLayout.customerDetails.fontSizePx}
+            lineHeight={template.headerLayout.customerDetails.lineHeight}
+          />
+        ),
+      }
+    : ({} as Record<HeaderElementKey, React.ReactNode>);
+
   return (
     <PrintPage templateSettings={template}>
-      <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      {template.headerLayout ? (
+        <HeaderZone layout={template.headerLayout} elements={headerElements} />
+      ) : (
+        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+      )}
 
       <QuotationPrintBody
         items={quotation.items}
