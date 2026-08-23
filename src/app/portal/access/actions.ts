@@ -1,10 +1,12 @@
 "use server";
 
 import { getServerSession } from "next-auth";
+import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { getGrantableApps } from "@/lib/app-registry";
+import { validateNewPassword } from "@/lib/user-profile";
 import type { ActionResult } from "@/lib/action-result";
 
 // ==========================================================================
@@ -87,4 +89,44 @@ export async function updateUserAppAccess(targetUserId: string, formData: FormDa
   // ล้าง Cache ทั้ง Layout ให้ Portal/Route Guard ของทุกหน้าเห็นสิทธิ์ใหม่ทันที
   revalidatePath("/", "layout");
   return { success: true };
+}
+
+/** Owner UAT — Password ถูก Hash แบบ bcrypt (One-way) ตั้งแต่ตอน Set จึงไม่มีทาง
+ * "ดูรหัสผ่านปัจจุบัน" ได้จริงโดยไม่เก็บ Plain Text ซึ่งขัดนโยบายความปลอดภัยเดิมของระบบ
+ * (auth.ts ข้อ 51) — ใช้ Owner-initiated Password Reset แทน: Owner ตั้งรหัสผ่านใหม่ให้ User
+ * ที่ลืมรหัสได้ทันทีโดยไม่ต้องรู้รหัสเดิม (เทียบเท่าการ "กู้สิทธิ์เข้าใช้งาน" ในทางปฏิบัติ) —
+ * Exclude ตัวเอง/Owner คนอื่น ตาม Pattern เดียวกับ updateUserAppAccess */
+export async function resetUserPassword(targetUserId: string, formData: FormData): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  if (targetUserId === owner.id) {
+    return { success: false, error: "กรุณาใช้หน้า My Profile เพื่อเปลี่ยนรหัสผ่านของตัวเอง" };
+  }
+  const target = await db.user.findUnique({ where: { id: targetUserId }, select: { id: true, username: true, isOwner: true, active: true } });
+  if (!target) return { success: false, error: "ไม่พบผู้ใช้" };
+  if (target.isOwner) return { success: false, error: "ไม่สามารถตั้งรหัสผ่านให้เจ้าของกิจการคนอื่นได้" };
+
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const check = validateNewPassword(newPassword, confirmPassword);
+  if (!check.valid) {
+    return { success: false, error: check.error, fieldErrors: { newPassword: check.error } };
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.$transaction([
+    db.user.update({ where: { id: targetUserId }, data: { passwordHash } }),
+    db.auditLog.create({
+      data: {
+        userId: owner.id,
+        action: "RESET_PASSWORD",
+        module: "UserProfile",
+        recordId: targetUserId,
+        // ห้าม Log ค่ารหัสผ่าน/Hash ใดๆ — บันทึกแค่ metadata ว่ามีการ Reset
+        newValue: { targetUsername: target.username, reset: true },
+      },
+    }),
+  ]);
+
+  return { success: true, message: `ตั้งรหัสผ่านใหม่ให้ ${target.username} สำเร็จ` };
 }

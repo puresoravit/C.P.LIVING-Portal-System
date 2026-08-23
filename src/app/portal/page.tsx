@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getPortalUser, getVisibleApps } from "@/lib/app-access";
 import { CPLogo, GoldDivider, CP_TAGLINE, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
-import { SignOutButton } from "@/components/sign-out-button";
 import { AppIcon } from "@/components/portal/app-icon";
+import { ProfileMenu } from "@/components/portal/profile-menu";
+import { formatDisplayName } from "@/lib/user-profile";
 
 // ==========================================================================
 // R6 Phase F — Application Portal: จุดแรกหลัง Login เสมอ — เลือก Application ก่อนเข้า
@@ -44,20 +45,9 @@ export default async function PortalPage() {
           <div className="hidden sm:block text-sm md:text-base tracking-[0.25em] text-slate-200 whitespace-nowrap">APPLICATION PORTAL</div>
         </div>
 
-        <div className="flex items-center gap-3 min-w-0">
-          <div
-            aria-hidden
-            className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm shrink-0"
-            style={{ background: `linear-gradient(135deg, #E8CE8C, ${CP_GOLD})`, color: CP_NAVY_DEEP }}
-          >
-            {user.displayName.trim().charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-white truncate">{user.displayName}</div>
-            <div className="text-xs text-slate-400 truncate">{roleLabel}</div>
-          </div>
-          <SignOutButton className="text-xs text-slate-400 hover:text-red-300 border border-white/15 rounded-lg px-3 py-1.5 ml-1 whitespace-nowrap" />
-        </div>
+        {/* Owner UAT — Avatar+ชื่อ+Role กดได้ เปิด Profile Menu (My Profile/Sign Out) —
+            ดู profile-menu.tsx */}
+        <ProfileMenu displayName={formatDisplayName(user.titlePrefix, user.displayName)} avatarDataUri={user.avatarDataUri} roleLabel={roleLabel} />
       </header>
 
       {/* ---------- Main ---------- */}
@@ -67,7 +57,7 @@ export default async function PortalPage() {
           {/* Owner UAT Polish — ลดความหนาจาก font-semibold → font-medium ให้เบา/เรียบหรู
               ขึ้น ไม่ให้ชื่อ "ตะโกน" เกินข้อความรอบข้าง (สี/ขนาดคงเดิม) */}
           <h1 className="mt-1 text-3xl md:text-4xl font-medium" style={{ color: "#E8CE8C" }}>
-            {user.displayName}
+            {formatDisplayName(user.titlePrefix, user.displayName)}
           </h1>
           <div className="mt-4">
             <GoldDivider width={300} />

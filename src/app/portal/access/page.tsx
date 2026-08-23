@@ -7,7 +7,7 @@ import { getPortalUser } from "@/lib/app-access";
 import { getGrantableApps } from "@/lib/app-registry";
 import { CPLogo, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { AccessManager } from "./access-manager";
-import { updateUserAppAccess } from "./actions";
+import { updateUserAppAccess, resetUserPassword } from "./actions";
 
 // R6 Phase F — Access Management: เฉพาะ Owner (isOwner=true อ่านสดจาก DB) — Role
 // OWNER_ADMIN/user.manage ธรรมดาเข้าไม่ได้ตาม Requirement — Guard ฝั่ง Server ก่อน
@@ -69,6 +69,7 @@ export default async function AccessManagementPage() {
           }))}
           apps={apps}
           action={updateUserAppAccess}
+          resetPasswordAction={resetUserPassword}
           goldColor={CP_GOLD}
         />
       </main>

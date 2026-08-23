@@ -7,6 +7,7 @@ import { SidebarNav } from "@/components/sidebar-nav";
 import { SidebarShell } from "@/components/sidebar-shell";
 import { getPortalUser, hasAppAccess } from "@/lib/app-access";
 import { InactivityLogout } from "@/components/portal/inactivity-logout";
+import { formatDisplayName } from "@/lib/user-profile";
 
 const BRAND = "C.P. LIVING Billing";
 
@@ -41,7 +42,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         brand={BRAND}
         userInfo={
           <>
-            {session.user?.name} · {roleLabel[role] ?? role}
+            {/* Owner UAT — อ่านชื่อ/คำนำหน้าสดจาก portalUser (getPortalUser) แทน
+                session.user.name ที่มาจาก JWT ค้าง — Sync ทันทีหลังแก้ My Profile
+                โดยไม่ต้อง Re-login (Single Source of Truth เดียวกับ Portal) */}
+            {formatDisplayName(portalUser.titlePrefix, portalUser.displayName)} · {roleLabel[role] ?? role}
           </>
         }
       >

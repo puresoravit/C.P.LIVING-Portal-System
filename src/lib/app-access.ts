@@ -11,21 +11,35 @@ import { APP_REGISTRY, getAppById, type AppDefinition } from "@/lib/app-registry
 
 export type PortalUser = {
   id: string;
+  username: string;
   displayName: string;
+  titlePrefix: string | null;
+  avatarDataUri: string | null;
   role: string;
   isOwner: boolean;
 };
 
 /** อ่านสถานะ User สดจาก DB ด้วย id จาก Session — คืน null ถ้า User หาย/ถูกปิดใช้งาน
- * (Session ค้างของ User ที่ถูกปิด ต้องไม่ผ่าน Guard ใดๆ) */
+ * (Session ค้างของ User ที่ถูกปิด ต้องไม่ผ่าน Guard ใดๆ) — Single Source of Truth ของ
+ * ทุกหน้าที่ต้องแสดงชื่อ/คำนำหน้า/รูป Profile (Portal Header, Welcome, Profile Menu,
+ * My Profile, Billing Sidebar) อ่านจากจุดนี้จุดเดียวเสมอ ไม่ Cache ที่ไหนแยก จึง Sync
+ * กันอัตโนมัติทันทีที่ Save สำเร็จ (Next Request ก็อ่านค่าใหม่แล้ว) */
 export async function getPortalUser(userId: string | undefined): Promise<PortalUser | null> {
   if (!userId) return null;
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, displayName: true, role: true, active: true, isOwner: true },
+    select: { id: true, username: true, displayName: true, titlePrefix: true, avatarDataUri: true, role: true, active: true, isOwner: true },
   });
   if (!user || !user.active) return null;
-  return { id: user.id, displayName: user.displayName, role: user.role, isOwner: user.isOwner };
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    titlePrefix: user.titlePrefix,
+    avatarDataUri: user.avatarDataUri,
+    role: user.role,
+    isOwner: user.isOwner,
+  };
 }
 
 /** User นี้เข้าแอพ appId ได้ไหม — Owner เข้าได้ทุกแอพที่ enabled เสมอ (รวม ownerOnly),

@@ -115,13 +115,12 @@ export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolea
               className="cpf-card-in w-full max-w-md rounded-2xl bg-white/95 backdrop-blur shadow-2xl px-8 py-9"
             >
               <div className="flex flex-col items-center mb-5">
-                {/* Owner UAT Polish — Master Logo ขยาย ~10% (207 → 228, มี
-                    C.P. LIVING GROUP + เส้นทองในตัวครบ) */}
-                <CPLogo width={228} />
-                {/* Owner UAT Polish — ลดความหนา (font-bold → font-semibold) ให้ Premium
-                    ขึ้น + ขยับขึ้นชิดโลโก้กว่าเดิม (mt-5 → mt-2) ให้ระยะ Logo→Welcome
-                    กระชับสมดุล — Subtitle ตามชิดในชุดเดียวกัน (mt-1 → mt-0.5) */}
-                <h1 className="mt-2 text-3xl font-semibold" style={{ color: CP_NAVY }}>
+                {/* Owner UAT — Master Logo ขยายอีก ~10% จากรอบก่อน (228 → 251) — ใช้ width
+                    เดียว Aspect Ratio เดิมของ Asset เป๊ะ ไม่ตัดต่อ/แก้ไฟล์โลโก้ */}
+                <CPLogo width={251} />
+                {/* Owner UAT — ขยับ Welcome ขึ้นชิดโลโก้กว่าเดิม (mt-2 → mt-1) ลด Empty
+                    Space ระหว่าง Logo/Welcome — Subtitle ตามชิด Welcome ในสัดส่วนเดิม */}
+                <h1 className="mt-1 text-3xl font-semibold" style={{ color: CP_NAVY }}>
                   Welcome
                 </h1>
                 <p className="mt-0.5 text-sm text-gray-500">Sign in to continue to C.P. Living Group</p>

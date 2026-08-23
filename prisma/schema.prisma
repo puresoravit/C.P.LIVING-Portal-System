@@ -38,6 +38,15 @@ model User {
   // ห้ามได้สิทธิ์นี้อัตโนมัติ" จึงต้องเป็น Flag ชัดเจนที่ DB ไม่ผูกกับ Role/Permission เดิม
   // — Owner มีสิทธิ์เข้าทุก Application โดยปริยาย (ไม่ต้องมีแถว UserAppAccess)
   isOwner       Boolean  @default(false)
+  // R6 Phase F — Owner UAT: My Profile — คำนำหน้าชื่อ (ค่า "MR"/"MS" ตรวจฝั่ง Server ผ่าน
+  // TITLE_PREFIX_OPTIONS ใน user-profile.ts, ไม่ผูก DB Enum เพื่อขยายตัวเลือกในอนาคตได้
+  // โดยไม่ต้อง Migrate ซ้ำ) — null = ไม่ระบุ (พฤติกรรมเดิมทุกประการ แสดงชื่อเปล่าๆ)
+  titlePrefix   String?
+  // Base64 Data URI ของรูป Profile — Pattern เดียวกับ template.logo ทุกประการ (เก็บตรงๆ
+  // ใน DB ไม่เขียนไฟล์ลง /public, Validate ชนิด/ขนาดฝั่ง Server เสมอ — ดู
+  // AVATAR_MAX_BYTES/validateAvatarDataUri ใน user-profile.ts) — null = ยังไม่มีรูป
+  // แสดง Fallback เป็นตัวอักษรแรกของชื่อ (พฤติกรรมเดิมของ Portal Header)
+  avatarDataUri String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
