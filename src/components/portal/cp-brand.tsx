@@ -39,25 +39,28 @@ export function CPLogo({ width = 320, className = "" }: { width?: number; classN
   );
 }
 
-// Owner UAT — Billing Sidebar Brand Icon: หน้า Sidebar เดิม (แอพ Billing) ต้องการแค่
-// "ตัวสัญลักษณ์" (ซุ้มโค้งทอง) เล็กๆ วางหน้าชื่อ "C.P. LIVING Billing" ไม่ใช่ Lockup เต็ม
-// (มี "C.P." + "C.P. LIVING GROUP" ในตัวอยู่แล้ว ซ้ำกับข้อความข้างๆ) — Requirement ห้าม
-// สร้างไฟล์ Logo ใหม่/Duplicate Asset จึง "ตัด" ด้วย CSS ล้วนๆ จาก Master File เดียวกัน
-// (/brand/cp-logo.png) ไม่ใช่สร้างไฟล์ Crop แยก — Scale แกน X/Y เท่ากันเสมอ (ไม่ Stretch)
-// จึงรักษาสัดส่วนจริงของสัญลักษณ์ 100% พิกัดด้านล่างวัดจาก Alpha Channel ของไฟล์จริงตรงๆ
-// (Python/PIL หา Bounding Box ของแถบสัญลักษณ์ ก่อนแถบ "C.P." — ไม่ใช่ค่ากะเอาเอง) — ถ้า
-// Master Logo ถูกเปลี่ยนไฟล์ในอนาคต ต้องวัดพิกัดใหม่มาแทนที่ 4 ค่านี้
+// Owner UAT — Billing Sidebar Brand Icon: หน้า Sidebar เดิม (แอพ Billing) ต้องการ
+// "สัญลักษณ์ซุ้มโค้ง + C.P." (2 แถวเป็น Visual Unit เดียว ตาม Reference ที่ Owner แนบ) วาง
+// หน้าชื่อ "C.P. LIVING Billing" — ไม่เอาแถว "C.P. LIVING GROUP" กับเส้นคั่นทองด้านล่างสุด
+// ของ Lockup เต็ม (ซ้ำความหมายกับข้อความ "C.P. LIVING Billing" ข้างๆ อยู่แล้ว) —
+// Requirement ห้ามสร้างไฟล์ Logo ใหม่/Duplicate Asset จึง "ตัด" ด้วย CSS ล้วนๆ จาก Master
+// File เดียวกัน (/brand/cp-logo.png) ไม่ใช่สร้างไฟล์ Crop แยก — Scale แกน X/Y เท่ากันเสมอ
+// (ไม่ Stretch) จึงรักษาสัดส่วนจริงของสัญลักษณ์+ตัวอักษร 100% พร้อม Gradient/Highlight/
+// Shadow ของต้นฉบับครบ (เป็น Pixel เดิมของ PNG แค่ถูก Windowing ไม่ได้ผ่าน Filter ใดๆ) —
+// พิกัดด้านล่างวัดจาก Alpha Channel ของไฟล์จริงตรงๆ (Python/PIL สแกนหา Row ว่าง 2 ช่วง
+// คั่นระหว่างสัญลักษณ์/"C.P." กับ "C.P. LIVING GROUP"/เส้นคั่น เพื่อตัดตรงรอยต่อพอดี — ไม่ใช่
+// ค่ากะเอาเอง) — ถ้า Master Logo ถูกเปลี่ยนไฟล์ในอนาคต ต้องวัดพิกัดใหม่มาแทนที่ 4 ค่านี้
 const LOGO_NATURAL_W = 1536;
 const LOGO_NATURAL_H = 1024;
-const ICON_SRC_X = 550;
-const ICON_SRC_Y = 230;
-const ICON_SRC_W = 435;
-const ICON_SRC_H = 305;
+const ICON_SRC_X = 556;
+const ICON_SRC_Y = 236;
+const ICON_SRC_W = 424;
+const ICON_SRC_H = 404;
 
-/** ตัวสัญลักษณ์ (ไม่มีตัวอักษร) ตัดจาก Master Logo ไฟล์เดียวกับ CPLogo — กำหนดได้เฉพาะ
- * ความสูง Container (สัดส่วนคงเดิมเสมอเพราะ Scale X/Y เท่ากัน) — ใช้เป็น Brand Icon เล็กๆ
- * เท่านั้น (เช่น หัว Sidebar) ไม่ใช่ Hero Logo แบบ Splash/Login/Portal ที่ยังใช้ CPLogo
- * เต็ม Lockup ต่อไป */
+/** "สัญลักษณ์ซุ้มโค้ง + C.P." เป็น Visual Unit เดียว ตัดจาก Master Logo ไฟล์เดียวกับ
+ * CPLogo — กำหนดได้เฉพาะความสูง Container (สัดส่วนคงเดิมเสมอเพราะ Scale X/Y เท่ากัน) —
+ * ใช้เป็น Brand Icon เล็กๆ เท่านั้น (เช่น หัว Sidebar) ไม่ใช่ Hero Logo แบบ Splash/Login/
+ * Portal ที่ยังใช้ CPLogo เต็ม Lockup ต่อไป */
 export function CPIcon({ height = 20, className = "" }: { height?: number; className?: string }) {
   const scale = height / ICON_SRC_H;
   const width = ICON_SRC_W * scale;

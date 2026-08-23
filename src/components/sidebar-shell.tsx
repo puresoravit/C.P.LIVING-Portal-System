@@ -12,8 +12,11 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
   return (
     <>
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b print:hidden sticky top-0 z-30">
+        {/* Owner UAT — Logo ขยาย +15% (18→21) แล้วขยับขึ้นเล็กน้อย (-mt-[1.5px]) ให้จุด
+            กึ่งกลางแนวตั้งของ Logo สองบรรทัด (สัญลักษณ์+C.P.) ตรงกับกึ่งกลางบรรทัดข้อความ
+            แบบ Optical (ไม่ใช่ Mathematical Center ของ items-center เฉยๆ ซึ่งดูต่ำไปนิด) */}
         <div className="flex items-center gap-1.5">
-          <CPIcon height={18} />
+          <CPIcon height={21} className="-mt-[1.5px]" />
           <span className="font-semibold">{brand}</span>
         </div>
         <button
@@ -38,11 +41,12 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
       >
         <div className="px-4 py-4 border-b flex items-start justify-between">
           <div className="min-w-0">
-            {/* Owner UAT — Master Logo (ตัวสัญลักษณ์เท่านั้น ผ่าน CPIcon — ดู cp-brand.tsx)
-                วางหน้าชื่อระบบ เล็ก/กระชับ ไม่แย่งเด่นจากข้อความ — items-center ให้กึ่งกลาง
-                แนวตั้งพอดีกับความสูงบรรทัดข้อความ ไม่ดัน Header สูงขึ้นเห็นได้ชัด */}
+            {/* Owner UAT — Master Logo (สัญลักษณ์+C.P. ผ่าน CPIcon — ดู cp-brand.tsx) วางหน้า
+                ชื่อระบบ เล็ก/กระชับ ไม่แย่งเด่นจากข้อความ — ขยาย +15% (18→21) แล้วขยับขึ้น
+                เล็กน้อย (-mt-[1.5px]) ให้กึ่งกลางแนวตั้งของ Logo 2 บรรทัดตรงกับกึ่งกลาง
+                บรรทัดข้อความแบบ Optical — ไม่ดัน Header สูงขึ้นเห็นได้ชัด */}
             <div className="flex items-center gap-1.5">
-              <CPIcon height={18} />
+              <CPIcon height={21} className="-mt-[1.5px]" />
               <span className="font-semibold truncate">{brand}</span>
             </div>
             <div className="text-xs text-gray-500 mt-0.5">{userInfo}</div>
