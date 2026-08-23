@@ -112,6 +112,8 @@ export function PrintTemplateDesigner({
   const [globalResetPending, setGlobalResetPending] = useState(false);
 
   const [selectedElement, setSelectedElement] = useState<HeaderElementKey | null>(null);
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const [copyTargets, setCopyTargets] = useState<Set<DocumentTypeKey>>(new Set());
   const [previewDocType, setPreviewDocType] = useState<DocumentTypeKey>("QUOTATION");
   const [previewProfile, setPreviewProfile] = useState<PrintProfileKey>("a4");
   const [density, setDensity] = useState<SampleDensity>("short");
@@ -195,6 +197,30 @@ export function PrintTemplateDesigner({
   function updateHeaderElement(key: HeaderElementKey, patch: Partial<HeaderElementStyle>) {
     const layout = effective.headerLayout ?? DEFAULT_HEADER_LAYOUT;
     updateField({ headerLayout: { ...layout, [key]: { ...layout[key], ...patch } } });
+  }
+
+  // R6 Phase E.3 Follow-up — Owner ระบุตรงๆ ว่าอยากแก้ Header Pattern ของเอกสารประเภทหนึ่ง
+  // ("แก้ไขใบเสนอราคาเสร็จ") แล้ว Adapt ไปใช้กับประเภทอื่นได้เลย ("ไปใช้กับใบส่งของ ใบกำกับ
+  // บลาๆ") — คัดลอกเฉพาะ headerLayout (Field เดียว ตรงตาม "แพทเทิลนี้ (Heading)" ที่ Owner
+  // ระบุ ไม่ใช่ทั้งชุด Settings) ไปตั้งเป็น Override ของแท็บปลายทางแต่ละแท็บ — ยังคงเป็นแค่
+  // Draft เท่านั้น (setOverrideStates ธรรมดา ไม่เรียก Server เลย) ต้องไปที่แท็บปลายทางแล้วกด
+  // "ยืนยันการแก้ไข" เองอีกทีถึงจะ Persist จริง — สอดคล้องกับ Draft→Apply Workflow เดิมทุก
+  // ประการ ไม่มี Mechanism ใหม่/Bypass การ Apply ทีละแท็บที่มีอยู่แล้ว
+  function copyHeaderLayoutToDocTypes(targets: DocumentTypeKey[]) {
+    const layout = effective.headerLayout;
+    if (!layout || targets.length === 0) return;
+    setOverrideStates((prev) => {
+      const next = { ...prev };
+      for (const dt of targets) {
+        const cur = prev[dt];
+        const base = cur.useGlobal ? globalValues : cur.values;
+        next[dt] = { useGlobal: false, values: { ...base, headerLayout: layout } };
+      }
+      return next;
+    });
+    showSuccess(
+      `คัดลอก Header Layout ไปยัง ${targets.map((dt) => DOCUMENT_TYPE_LABELS[dt]).join(", ")} แล้ว (ฉบับร่าง) — ไปที่แท็บปลายทางแล้วกด "ยืนยันการแก้ไข" เพื่อบันทึกจริง`
+    );
   }
 
   function setUseGlobal(next: boolean) {
@@ -445,6 +471,57 @@ export function PrintTemplateDesigner({
                   )}
                   <LockedBlocksHint />
                 </Section>
+
+                {isDocTab && effective.headerLayout && (
+                  <Section title="ใช้ Header Pattern นี้กับเอกสารประเภทอื่น">
+                    <button
+                      type="button"
+                      onClick={() => setCopyPanelOpen((o) => !o)}
+                      className="text-xs px-2 py-1 rounded border bg-white hover:border-blue-300"
+                    >
+                      {copyPanelOpen ? "▾ ปิด" : "▸ เลือกเอกสารปลายทาง"}
+                    </button>
+                    {copyPanelOpen && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-col gap-1 text-xs">
+                          {DOC_TYPES.filter((dt) => dt !== activeTab).map((dt) => (
+                            <label key={dt} className="flex items-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={copyTargets.has(dt)}
+                                onChange={(e) =>
+                                  setCopyTargets((prev) => {
+                                    const next = new Set(prev);
+                                    if (e.target.checked) next.add(dt);
+                                    else next.delete(dt);
+                                    return next;
+                                  })
+                                }
+                              />
+                              {DOCUMENT_TYPE_LABELS[dt]}
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={copyTargets.size === 0}
+                          onClick={() => {
+                            copyHeaderLayoutToDocTypes(Array.from(copyTargets));
+                            setCopyTargets(new Set());
+                            setCopyPanelOpen(false);
+                          }}
+                          className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          คัดลอก Header Layout ({copyTargets.size})
+                        </button>
+                        <p className="text-xs text-gray-400">
+                          คัดลอกเฉพาะตำแหน่ง/ขนาด/สไตล์ของ Header (ไม่รวมค่าอื่น เช่น ท้ายเอกสาร) เป็นฉบับร่างของแท็บปลายทาง —
+                          ต้องไปที่แท็บนั้นแล้วกด &quot;ยืนยันการแก้ไข&quot; เองอีกทีถึงจะมีผลจริง
+                        </p>
+                      </div>
+                    )}
+                  </Section>
+                )}
 
                 <Section title="ตัวอักษร (ค่าตั้งต้น — ไม่ใช้กับ Header โหมด Custom)">
                   <PropSelect

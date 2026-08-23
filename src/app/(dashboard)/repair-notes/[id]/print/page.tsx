@@ -74,13 +74,13 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
   const headerElements: Partial<Record<HeaderElementKey, React.ReactNode>> = hl
     ? {
         logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
-        companyName: <HeaderTitleLine text={company.name} bold style={hl.companyName} />,
+        companyName: <HeaderTitleLine text={company.name} style={hl.companyName} />,
         ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
         ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
         ...(company.taxId
           ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
           : {}),
-        titleTh: <HeaderTitleLine text="ใบส่งคืนสินค้าฝากซ่อม" bold style={hl.titleTh} />,
+        titleTh: <HeaderTitleLine text="ใบส่งคืนสินค้าฝากซ่อม" style={hl.titleTh} />,
         titleEn: <HeaderTitleLine text="REPAIR / RETURN NOTE" style={hl.titleEn} />,
         docNumber: (
           <HeaderTextLine
@@ -112,7 +112,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template}>
+    <PrintPage templateSettings={template} docType="REPAIR_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

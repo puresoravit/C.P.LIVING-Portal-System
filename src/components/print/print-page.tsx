@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { printPageStyleFor, DEFAULT_PRINT_PROFILE } from "@/lib/print-settings";
 import { PrintProfileSelector } from "./print-profile-selector";
 import { PrintButton } from "@/components/print-button";
-import { buildPrintCssVars, type OverridableTemplateSettings } from "@/lib/print-template-settings";
+import { buildPrintCssVars, type OverridableTemplateSettings, type DocumentTypeKey } from "@/lib/print-template-settings";
 
 // Shared print page shell — ใช้ร่วมกันทุกประเภทเอกสาร (ข้อ 11) มีแค่ส่วน "โครง"
 // (พื้นที่พิมพ์/ปุ่มพิมพ์/เลือก Print Profile/ซ่อน Sidebar ผ่าน layout.tsx) — เนื้อหา
@@ -18,6 +19,8 @@ export function PrintPage({
   isPrinted,
   printedAtLabel,
   templateSettings,
+  docType,
+  canEditTemplate,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
@@ -29,6 +32,16 @@ export function PrintPage({
   // Value (เช่น text-[length:var(--print-body-size)]) โดยไม่ต้องรับ Prop ซ้ำเอง —
   // Optional เพื่อไม่ Break หน้าอื่นที่อาจยังไม่ได้ส่งมา (Fallback ไป Default ใน globals.css)
   templateSettings?: OverridableTemplateSettings;
+  // R6 Phase E.3 Follow-up — Owner ระบุตรงๆ ว่าอยากกดแก้ไขรูปแบบเอกสารได้จากในหน้าเอกสาร
+  // เอง ไม่ใช่ต้องไปที่ Global เท่านั้น — ลิงก์ไปหน้า Designer พร้อม Hash Deep-link เดิมที่มี
+  // อยู่แล้ว (#QUOTATION ฯลฯ — ดู nav-tree.ts/print-template-designer.tsx) จุดเดียวที่นี่
+  // (Shared Shell) กระจายไปทุกหน้า Print ทั้ง 5 อัตโนมัติ ไม่ต้องแก้แยกไฟล์ — Screen-only
+  // (อยู่ใน print:hidden Row เดิม) ไม่กระทบ PDF/Print Pipeline เลย
+  docType?: DocumentTypeKey;
+  /** ต้องเช็คสิทธิ์ฝั่ง Caller (ทุกหน้า Print มี session อยู่แล้ว) เพราะหน้า Designer เอง
+   * ต้องการ user.manage — ไม่ Render ลิงก์เลยถ้าไม่มีสิทธิ์ กัน Dead-end ลิงก์ที่กดแล้ว
+   * โดน Redirect ออกเฉยๆ */
+  canEditTemplate?: boolean;
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
@@ -38,7 +51,14 @@ export function PrintPage({
         dangerouslySetInnerHTML={{ __html: `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }` }}
       />
       <div className="print:hidden flex items-center justify-between gap-3 mb-2">
-        <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} />
+        <div className="flex items-center gap-3">
+          <PrintButton markPrintedAction={markPrintedAction} isPrinted={isPrinted} printedAtLabel={printedAtLabel} />
+          {canEditTemplate && docType && (
+            <Link href={`/settings/print-template#${docType}`} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+              แก้ไขรูปแบบเอกสาร / Edit Template
+            </Link>
+          )}
+        </div>
         <PrintProfileSelector />
       </div>
       <div

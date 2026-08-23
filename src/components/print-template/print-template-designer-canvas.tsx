@@ -154,13 +154,13 @@ function DesignerHeaderZone({
   const info = getSampleHeaderZoneInfo(docType);
   const elements: Partial<Record<HeaderElementKey, React.ReactNode>> = {
     logo: <HeaderLogoElement logo={settings.logo} heightMm={logoHeightMm(headerLayout.logo)} />,
-    companyName: <HeaderTitleLine text={company.name} bold style={headerLayout.companyName} />,
+    companyName: <HeaderTitleLine text={company.name} style={headerLayout.companyName} />,
     ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={headerLayout.companyAddress} /> } : {}),
     ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={headerLayout.companyPhone} /> } : {}),
     ...(company.taxId
       ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={headerLayout.companyTaxId} /> }
       : {}),
-    titleTh: <HeaderTitleLine text={info.titleTh} bold style={headerLayout.titleTh} />,
+    titleTh: <HeaderTitleLine text={info.titleTh} style={headerLayout.titleTh} />,
     titleEn: <HeaderTitleLine text={info.titleEn} style={headerLayout.titleEn} />,
     docNumber: <HeaderTextLine label="เลขที่" value={info.docNumber} style={headerLayout.docNumber} />,
     docDate: <HeaderTextLine label="วันที่" value={info.docDate} style={headerLayout.docDate} />,

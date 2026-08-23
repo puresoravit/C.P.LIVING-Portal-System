@@ -75,13 +75,13 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
   const headerElements: Partial<Record<HeaderElementKey, React.ReactNode>> = hl
     ? {
         logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
-        companyName: <HeaderTitleLine text={company.name} bold style={hl.companyName} />,
+        companyName: <HeaderTitleLine text={company.name} style={hl.companyName} />,
         ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
         ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
         ...(company.taxId
           ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
           : {}),
-        titleTh: <HeaderTitleLine text="ใบกำกับภาษี / ใบเสร็จรับเงิน" bold style={hl.titleTh} />,
+        titleTh: <HeaderTitleLine text="ใบกำกับภาษี / ใบเสร็จรับเงิน" style={hl.titleTh} />,
         titleEn: <HeaderTitleLine text="TAX INVOICE / RECEIPT" style={hl.titleEn} />,
         docNumber: (
           <HeaderTextLine
@@ -115,7 +115,7 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template}>
+    <PrintPage templateSettings={template} docType="TAX_INVOICE" canEditTemplate={can((session?.user as any)?.role, "user.manage")}>
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

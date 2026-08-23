@@ -220,6 +220,14 @@ export const HEADER_ALIGN_OPTIONS = ["left", "center", "right"] as const;
 export type HeaderAlignKey = (typeof HEADER_ALIGN_OPTIONS)[number];
 export const HEADER_ALIGN_LABELS: Record<HeaderAlignKey, string> = { left: "ซ้าย", center: "กลาง", right: "ขวา" };
 
+// R6 Phase E.3 Follow-up — Owner ระบุตรงๆ ว่าต้องเลือกตัวหนา/บางได้เองต่อบรรทัด (ไม่ผูกกับ
+// "เป็น Title หรือเปล่า" อีกต่อไป) — เดิม Bold ผูกอยู่กับ Prop `bold` แบบ Hardcode เฉพาะ
+// companyName/titleTh เท่านั้น (ดู DEFAULT_HEADER_LAYOUT ด้านล่างสำหรับการ Map ค่าเริ่มต้น
+// ให้ตรงกับพฤติกรรมเดิมเป๊ะ — Zero-Regression)
+export const HEADER_FONT_WEIGHT_OPTIONS = ["normal", "bold"] as const;
+export type HeaderFontWeightKey = (typeof HEADER_FONT_WEIGHT_OPTIONS)[number];
+export const HEADER_FONT_WEIGHT_LABELS: Record<HeaderFontWeightKey, string> = { normal: "ปกติ", bold: "หนา" };
+
 // ความละเอียดของ Fine Grid — ดู Comment ใหญ่ด้านบนสำหรับเหตุผลสถาปัตยกรรมเต็ม
 export const HEADER_GRID_COLUMNS = 100; // % ของความกว้าง Header Zone
 export const HEADER_ROW_UNIT_MM = 2; // มม./แถว (หน่วยจริง คงที่ไม่ผูกกับหน้าจอ/Viewport)
@@ -269,13 +277,14 @@ export type HeaderElementStyle = {
   align: HeaderAlignKey;
   fontSizePx: number;
   lineHeight: number;
+  fontWeight: HeaderFontWeightKey;
   visible: boolean;
   // R6 Phase E.3 — "Font family ถ้าเหมาะสม" (Owner ระบุเป็น Optional เอง) — undefined =
   // สืบทอด Font Family ระดับ Global ตามปกติ (--print-font-family) เหมือน Zero-Regression
   // เดิมทุกประการ ตั้งค่าเฉพาะเมื่อ Owner ต้องการ Override เป็นรายElement จริงๆ เท่านั้น
   fontFamily?: FontFamilyKey;
 };
-export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily">;
+export type HeaderLogoStyle = Omit<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily" | "fontWeight">;
 
 export type HeaderLayoutConfig = Record<Exclude<HeaderElementKey, "logo">, HeaderElementStyle> & { logo: HeaderLogoStyle };
 
@@ -285,20 +294,20 @@ export type HeaderLayoutConfig = Record<Exclude<HeaderElementKey, "logo">, Heade
 // เอกสาร (เลขที่/วันที่/รหัสลูกค้า) → ข้อมูลลูกค้า (ชื่อ/ที่อยู่/ภาษี/สถานที่ส่ง/อ้างถึง)
 export const DEFAULT_HEADER_LAYOUT: HeaderLayoutConfig = {
   logo: { colStart: 1, colSpan: 20, rowStart: 1, rowSpan: 9, align: "left", visible: true },
-  companyName: { colStart: 24, colSpan: 77, rowStart: 1, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, visible: true },
-  companyAddress: { colStart: 24, colSpan: 77, rowStart: 5, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
-  companyPhone: { colStart: 24, colSpan: 37, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
-  companyTaxId: { colStart: 62, colSpan: 39, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, visible: true },
-  titleTh: { colStart: 1, colSpan: 100, rowStart: 14, rowSpan: 4, align: "center", fontSizePx: 14, lineHeight: 1.2, visible: true },
-  titleEn: { colStart: 1, colSpan: 100, rowStart: 18, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, visible: true },
-  docNumber: { colStart: 55, colSpan: 46, rowStart: 22, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  docDate: { colStart: 55, colSpan: 46, rowStart: 26, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  customerCode: { colStart: 1, colSpan: 54, rowStart: 26, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  customerName: { colStart: 1, colSpan: 100, rowStart: 30, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, visible: true },
-  customerAddress: { colStart: 1, colSpan: 100, rowStart: 34, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
-  customerTaxId: { colStart: 1, colSpan: 48, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
-  shippingAddress: { colStart: 50, colSpan: 51, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
-  reference: { colStart: 1, colSpan: 48, rowStart: 42, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, visible: true },
+  companyName: { colStart: 24, colSpan: 77, rowStart: 1, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, fontWeight: "bold", visible: true },
+  companyAddress: { colStart: 24, colSpan: 77, rowStart: 5, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, fontWeight: "normal", visible: true },
+  companyPhone: { colStart: 24, colSpan: 37, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, fontWeight: "normal", visible: true },
+  companyTaxId: { colStart: 62, colSpan: 39, rowStart: 9, rowSpan: 4, align: "center", fontSizePx: 9, lineHeight: 1.2, fontWeight: "normal", visible: true },
+  titleTh: { colStart: 1, colSpan: 100, rowStart: 14, rowSpan: 4, align: "center", fontSizePx: 14, lineHeight: 1.2, fontWeight: "bold", visible: true },
+  titleEn: { colStart: 1, colSpan: 100, rowStart: 18, rowSpan: 4, align: "center", fontSizePx: 12, lineHeight: 1.2, fontWeight: "normal", visible: true },
+  docNumber: { colStart: 55, colSpan: 46, rowStart: 22, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  docDate: { colStart: 55, colSpan: 46, rowStart: 26, rowSpan: 4, align: "right", fontSizePx: 12, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  customerCode: { colStart: 1, colSpan: 54, rowStart: 26, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  customerName: { colStart: 1, colSpan: 100, rowStart: 30, rowSpan: 4, align: "left", fontSizePx: 12, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  customerAddress: { colStart: 1, colSpan: 100, rowStart: 34, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  customerTaxId: { colStart: 1, colSpan: 48, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  shippingAddress: { colStart: 50, colSpan: 51, rowStart: 38, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, fontWeight: "normal", visible: true },
+  reference: { colStart: 1, colSpan: 48, rowStart: 42, rowSpan: 4, align: "left", fontSizePx: 11, lineHeight: 1.3, fontWeight: "normal", visible: true },
 };
 
 function clampNum(n: unknown, min: number, max: number, fallback: number): number {
@@ -344,11 +353,15 @@ export function resolveHeaderLayout(raw: unknown): HeaderLayoutConfig | null {
     const fallback = DEFAULT_HEADER_LAYOUT[key];
     const r = obj[key] && typeof obj[key] === "object" ? obj[key] : {};
     const fontFamily = (FONT_FAMILY_OPTIONS as readonly string[]).includes(r.fontFamily) ? (r.fontFamily as FontFamilyKey) : undefined;
+    const fontWeight = (HEADER_FONT_WEIGHT_OPTIONS as readonly string[]).includes(r.fontWeight)
+      ? (r.fontWeight as HeaderFontWeightKey)
+      : fallback.fontWeight;
     return {
       ...resolveBox(r, fallback, { min: ROW_SPAN_MIN, max: ROW_SPAN_MAX }),
       align: resolveAlign(r.align, fallback.align),
       fontSizePx: clampNum(r.fontSizePx, bounds.min, bounds.max, fallback.fontSizePx),
       lineHeight: clampNum(r.lineHeight * 10, LINE_HEIGHT_MIN * 10, LINE_HEIGHT_MAX * 10, fallback.lineHeight * 10) / 10,
+      fontWeight,
       visible: typeof r.visible === "boolean" ? r.visible : true,
       ...(fontFamily ? { fontFamily } : {}),
     };
@@ -465,6 +478,7 @@ const headerElementStyleSchema = z.object({
   align: z.enum(HEADER_ALIGN_OPTIONS),
   fontSizePx: z.number(),
   lineHeight: z.number(),
+  fontWeight: z.enum(HEADER_FONT_WEIGHT_OPTIONS),
   visible: z.boolean(),
   fontFamily: z.enum(FONT_FAMILY_OPTIONS).optional(),
 });

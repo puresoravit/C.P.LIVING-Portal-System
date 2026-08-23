@@ -6,6 +6,8 @@ import {
   HEADER_ALIGN_OPTIONS,
   HEADER_ALIGN_LABELS,
   HEADER_FONT_SIZE_BOUNDS,
+  HEADER_FONT_WEIGHT_OPTIONS,
+  HEADER_FONT_WEIGHT_LABELS,
   LINE_HEIGHT_MIN,
   LINE_HEIGHT_MAX,
   COL_SPAN_MIN,
@@ -17,6 +19,7 @@ import {
   type HeaderLogoStyle,
   type HeaderAlignKey,
   type FontFamilyKey,
+  type HeaderFontWeightKey,
 } from "@/lib/print-template-settings";
 
 // R6 Phase E.2 — Properties Panel แบบ Compact/Collapsible: แสดงเฉพาะ Element ที่เลือกอยู่
@@ -100,6 +103,25 @@ export function HeaderElementPropertiesBar({
                 unit=""
                 onChange={(v) => onUpdate({ lineHeight: v })}
               />
+              <div>
+                <div className="text-xs text-gray-500 mb-1">น้ำหนักตัวอักษร</div>
+                <div className="flex gap-1">
+                  {HEADER_FONT_WEIGHT_OPTIONS.map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => onUpdate({ fontWeight: w as HeaderFontWeightKey })}
+                      className={`text-xs px-2 py-1 rounded border ${
+                        (style as HeaderElementStyle).fontWeight === w
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white hover:border-blue-300"
+                      }`}
+                    >
+                      {HEADER_FONT_WEIGHT_LABELS[w]}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="min-w-[140px]">
                 <div className="text-xs text-gray-500 mb-1">แบบตัวอักษร</div>
                 <select

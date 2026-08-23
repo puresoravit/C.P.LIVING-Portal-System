@@ -95,7 +95,7 @@ export function HeaderZoneCanvasEditor({
     return list;
   }
 
-  function startDrag(e: React.PointerEvent, key: HeaderElementKey, mode: "move" | "resize-col" | "resize-row") {
+  function startDrag(e: React.PointerEvent<HTMLDivElement>, key: HeaderElementKey, mode: "move" | "resize-col" | "resize-row") {
     e.preventDefault();
     e.stopPropagation();
     onSelect(key);
@@ -107,8 +107,30 @@ export function HeaderZoneCanvasEditor({
     const startClientY = e.clientY;
     const { colStart: startColStart, colSpan: startColSpan, rowStart: startRowStart, rowSpan: startRowSpan } = style;
     const rowBounds = rowSpanBoundsFor(key);
+    const pointerId = e.pointerId;
+    // R6 Phase E.3 Bugfix — Owner รายงานว่าบาง Element (เช่นสถานที่ส่งสินค้า) กด/ลากแล้ว
+    // "แก้ไม่ได้เหมือนบัค" — Root Cause: ก่อนหน้านี้ Listener ผูกกับ window เฉยๆ โดยไม่ทำ
+    // Pointer Capture — ถ้า pointerup เกิดขึ้นนอกขอบ window (ลากเร็วๆ แล้วปล่อยเมาส์นอก
+    // Browser พบได้บ่อยกับการลากด้วยเมาส์จริง) Event "pointerup" จะไม่ยิงถึง window เลย
+    // ทำให้ onMove/onUp ของรอบนั้นค้างอยู่ตลอดไป — พอ Drag ครั้งถัดไป (Element เดียวกันหรือ
+    // อื่นก็ตาม) จะมี Listener ผีจากรอบก่อนแอบทำงานซ้อนอยู่ด้วย แย่งกันเรียก onChange จน
+    // ตำแหน่งเพี้ยน/ดูเหมือนลากไม่ได้ — แก้ด้วย setPointerCapture ผูก Event เข้ากับ Target
+    // ตัวเองโดยตรง (รับประกันว่า pointerup/pointercancel ต้องยิงถึงแน่นอนไม่ว่าเมาส์จะอยู่
+    // ตรงไหนตอนปล่อย) และตรวจ pointerId กันปนกับ Pointer อื่น — pointercancel ทำ Cleanup
+    // เหมือน onUp เป็น Safety Net เพิ่มเติม (เช่น Browser ยกเลิก Gesture เอง)
+    const target: HTMLDivElement = e.currentTarget;
+    // Defense-in-depth — Pointer ที่ไม่ใช่ Active จริง (Edge Case ของบาง Input Device/
+    // Browser) จะทำให้ setPointerCapture Throw ได้ — ห้ามให้ทั้ง startDrag ล้มทั้งฟังก์ชัน
+    // (ซึ่งจะข้าม addEventListener ด้านล่างไปเลย ทำให้ลากไม่ได้ทั้งที่ Select ไปแล้ว) แค่
+    // Capture ไม่สำเร็จก็ยัง Fallback ไปพึ่ง Listener บน Target ตามปกติได้
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {
+      // ignore — ยังลากต่อได้แม้ Capture ไม่สำเร็จ
+    }
 
     function onMove(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
       const deltaColUnits = Math.round(((ev.clientX - startClientX) / containerWidthPx) * HEADER_GRID_COLUMNS);
       const deltaRowUnits = Math.round((ev.clientY - startClientY) / (HEADER_ROW_UNIT_MM * MM_TO_PX));
 
@@ -129,19 +151,39 @@ export function HeaderZoneCanvasEditor({
         onChange(key, { rowSpan });
       }
     }
-    function onUp() {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+    function onUp(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    }
+    function onCancel(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    }
+    function cleanup() {
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", onUp);
+      target.removeEventListener("pointercancel", onCancel);
+      if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
       setGuides({ col: null, row: null });
     }
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    target.addEventListener("pointermove", onMove);
+    target.addEventListener("pointerup", onUp);
+    target.addEventListener("pointercancel", onCancel);
   }
 
   return (
+    // R6 Phase E.3 Bugfix (ต่อ) — เดิมใช้ onClick ทั้งฝั่ง Deselect-on-background (ที่นี่)
+    // และ Reselect-on-element (ในแต่ละ Element ด้านล่าง) — แต่ Native "click" เกิดจาก
+    // Hit-test ตำแหน่งเมาส์ ณ จังหวะปล่อยปุ่ม ซึ่งหลัง Drag เสร็จ Element ได้ขยับออกจากใต้
+    // เมาส์ไปแล้ว (เพราะตำแหน่งอัปเดตทันทีระหว่างลาก) ทำให้ Click สุดท้ายมัก Hit อะไรก็ตาม
+    // ที่อยู่ตรงนั้นจริงๆ (พื้นที่ว่าง/Element อื่น) ไม่ใช่ Element ที่เพิ่งลากเสร็จ — จึงดู
+    // เหมือน "เลือกไว้แล้วหาย" หรือ "ลากแล้วแก้ไม่ได้" ตามที่ Owner รายงาน — แก้โดยย้ายทั้ง
+    // Select และ Deselect ไปผูกกับ onPointerDown ทั้งคู่แทน (จังหวะเริ่ม Gesture ก่อน Element
+    // ขยับ ตรงกับเจตนา User เสมอ) — onPointerDown ของ Element (ใน startDrag) เรียก
+    // stopPropagation() อยู่แล้ว จึงไม่มีทาง Bubble มา Deselect ที่นี่ซ้อนกันเอง
     <div
       ref={containerRef}
-      onClick={() => onSelect(null)}
+      onPointerDown={() => onSelect(null)}
       className="relative bg-white"
       style={{
         display: "grid",
@@ -160,10 +202,6 @@ export function HeaderZoneCanvasEditor({
           >
             <div
               onPointerDown={(e) => startDrag(e, key, "move")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(key);
-              }}
               className={`relative cursor-move select-none ${isSelected ? "outline outline-2 outline-blue-500" : "hover:outline hover:outline-1 hover:outline-blue-300"}`}
               style={{ textAlign: style.align, minWidth: 0, maxWidth: "100%" }}
             >

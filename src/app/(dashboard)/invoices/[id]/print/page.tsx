@@ -80,13 +80,13 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
   const headerElements: Partial<Record<HeaderElementKey, React.ReactNode>> = hl
     ? {
         logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
-        companyName: <HeaderTitleLine text={company.name} bold style={hl.companyName} />,
+        companyName: <HeaderTitleLine text={company.name} style={hl.companyName} />,
         ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
         ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
         ...(company.taxId
           ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
           : {}),
-        titleTh: <HeaderTitleLine text="ใบส่งของชั่วคราว" bold style={hl.titleTh} />,
+        titleTh: <HeaderTitleLine text="ใบส่งของชั่วคราว" style={hl.titleTh} />,
         titleEn: <HeaderTitleLine text="INVOICE" style={hl.titleEn} />,
         docNumber: (
           <HeaderTextLine
@@ -122,6 +122,8 @@ export default async function InvoicePrintPage(props: { params: Promise<{ id: st
       isPrinted={isPrinted}
       printedAtLabel={printedAtLabel}
       templateSettings={template}
+      docType="INVOICE"
+      canEditTemplate={can((session?.user as any)?.role, "user.manage")}
     >
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />

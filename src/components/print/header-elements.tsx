@@ -13,7 +13,7 @@ import { FONT_FAMILY_CSS, type FontFamilyKey, type HeaderElementStyle } from "@/
 // HeaderElementStyle) แทนแยก fontSizePx/lineHeight/fontFamily 3 Prop ลด Boilerplate ที่
 // จุดเรียกใช้ (หน้า Print จริง 5 ไฟล์ + Designer Canvas ที่ต้องเรียก 15 Element ต่อไฟล์)
 
-export type TextLineStyle = Pick<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily">;
+export type TextLineStyle = Pick<HeaderElementStyle, "fontSizePx" | "lineHeight" | "fontFamily" | "fontWeight">;
 
 function applyFontFamily(style: React.CSSProperties, fontFamily?: FontFamilyKey): React.CSSProperties {
   return fontFamily ? { ...style, fontFamily: FONT_FAMILY_CSS[fontFamily] } : style;
@@ -30,7 +30,10 @@ export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; he
  * Meta ฯลฯ) — label เป็น Optional (ไม่มี Label = แสดงแค่ Value เฉยๆ เช่น ที่อยู่บริษัท) */
 export function HeaderTextLine({ label, value, style }: { label?: string; value: React.ReactNode; style: TextLineStyle }) {
   return (
-    <div style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}>
+    <div
+      className={style.fontWeight === "bold" ? "font-semibold" : undefined}
+      style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}
+    >
       {label && <span className="text-gray-500">{label}: </span>}
       {value}
     </div>
@@ -39,12 +42,14 @@ export function HeaderTextLine({ label, value, style }: { label?: string; value:
 
 /** Element ชื่อเอกสาร (ไทย/อังกฤษ) — แยกเป็นคนละ Element ตั้งแต่ R6 Phase E.3 (เดิมรวมกัน
  * เป็น "title" Block เดียว) เพื่อให้จัดกึ่งกลาง/ขนาด/ระยะห่างแยกจากกันได้อิสระตามที่ Owner
- * ระบุตรงๆ ("Thai/English title ต้องเป็นคนละ Element") — bold แยกให้ไทย (หัวเรื่องหลัก)
- * หนากว่าอังกฤษ (หัวเรื่องรอง) ตาม Zero-Regression จาก Layout เดิม */
-export function HeaderTitleLine({ text, bold, style }: { text: string; bold?: boolean; style: TextLineStyle }) {
+ * ระบุตรงๆ ("Thai/English title ต้องเป็นคนละ Element") — R6 Phase E.3 Follow-up: fontWeight
+ * ย้ายมาเป็น Field ปกติใน style (ปรับได้อิสระต่อบรรทัดจาก Properties Bar) แทน Prop `bold`
+ * Hardcode เดิม (เคย Fix ไว้ว่าไทยหนา/อังกฤษไม่หนาเสมอ) — ค่าเริ่มต้นใน
+ * DEFAULT_HEADER_LAYOUT ยังคง Map ให้ตรงพฤติกรรมเดิมเป๊ะ (Zero-Regression) */
+export function HeaderTitleLine({ text, style }: { text: string; style: TextLineStyle }) {
   return (
     <div
-      className={bold ? "font-semibold" : "text-gray-700"}
+      className={style.fontWeight === "bold" ? "font-semibold" : "text-gray-700"}
       style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}
     >
       {text}
