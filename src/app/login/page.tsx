@@ -6,7 +6,8 @@ import { LoginClient } from "./login-client";
 // (public/login-bg.jpg) จริงหรือยัง แล้วส่งเป็น Flag ให้ Client — ไม่มีไฟล์ = ไม่ยิง
 // Request ภาพเลย (ไม่มี 404 ใน Console) ใช้พื้น Navy Premium เป็น Fallback — Owner
 // วางไฟล์ภาพเองได้ทุกเมื่อโดยไม่ต้องแก้โค้ด (Restart Server แล้วภาพขึ้นทันที)
-export default function LoginPage() {
+export default async function LoginPage(props: { searchParams: Promise<{ expired?: string }> }) {
+  const { expired } = await props.searchParams;
   const hasBgImage = fs.existsSync(path.join(process.cwd(), "public", "login-bg.jpg"));
-  return <LoginClient hasBgImage={hasBgImage} />;
+  return <LoginClient hasBgImage={hasBgImage} sessionExpired={expired === "1"} />;
 }

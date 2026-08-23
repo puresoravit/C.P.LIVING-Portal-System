@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { CPLogo, GoldDivider, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_GOLD } from "@/components/portal/cp-brand";
+import { CPLogo, GoldDivider, GoldWordmark, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NAVY_DEEP, CP_GOLD } from "@/components/portal/cp-brand";
 
 // ==========================================================================
 // R6 Phase F — Branded Entry: Splash Screen → Cross-fade → Login
@@ -23,7 +23,7 @@ import { CPLogo, GoldDivider, CP_TAGLINE, CP_MOTTO_1, CP_MOTTO_2, CP_NAVY, CP_NA
 
 const SPLASH_KEY = "cpfSplashShown";
 
-export function LoginClient({ hasBgImage }: { hasBgImage: boolean }) {
+export function LoginClient({ hasBgImage, sessionExpired }: { hasBgImage: boolean; sessionExpired: boolean }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -103,9 +103,7 @@ export function LoginClient({ hasBgImage }: { hasBgImage: boolean }) {
             >
               <div className="flex flex-col items-center mb-5">
                 <CPLogo size={72} idSuffix="login" />
-                <div className="mt-2 text-lg font-semibold tracking-[0.18em]" style={{ color: CP_NAVY }}>
-                  C.P. LIVING GROUP
-                </div>
+                <GoldWordmark className="mt-2 text-lg font-semibold tracking-[0.18em]">C.P. LIVING GROUP</GoldWordmark>
                 <div className="mt-2 w-full">
                   <GoldDivider width={240} />
                 </div>
@@ -115,6 +113,12 @@ export function LoginClient({ hasBgImage }: { hasBgImage: boolean }) {
                 <p className="mt-1 text-sm text-gray-500">Sign in to continue to C.P. Living Group</p>
               </div>
 
+              {sessionExpired && !error && (
+                <div role="status" className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  เซสชันหมดอายุเนื่องจากไม่มีการใช้งาน — กรุณาเข้าสู่ระบบใหม่
+                  <span className="block text-xs text-amber-700/80 mt-0.5">Session expired. Please sign in again.</span>
+                </div>
+              )}
               {error && (
                 <div role="alert" className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   {error}
@@ -210,8 +214,8 @@ export function LoginClient({ hasBgImage }: { hasBgImage: boolean }) {
               <div className="cpf-logo-in inline-block">
                 <CPLogo size={150} idSuffix="splash" />
               </div>
-              <div className="cpf-t1 mt-5 text-2xl md:text-3xl font-semibold tracking-[0.3em]" style={{ color: "#E8CE8C" }}>
-                C.P. LIVING GROUP
+              <div className="cpf-t1 mt-5">
+                <GoldWordmark className="text-2xl md:text-3xl font-semibold tracking-[0.3em]">C.P. LIVING GROUP</GoldWordmark>
               </div>
               <div className="cpf-t1 mt-5">
                 <GoldDivider width={320} />

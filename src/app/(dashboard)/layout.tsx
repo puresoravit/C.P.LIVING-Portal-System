@@ -6,6 +6,7 @@ import { NAV_TREE, filterNav } from "@/lib/nav-tree";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { SidebarShell } from "@/components/sidebar-shell";
 import { getPortalUser, hasAppAccess } from "@/lib/app-access";
+import { InactivityLogout } from "@/components/portal/inactivity-logout";
 
 const BRAND = "C.P. LIVING Billing";
 
@@ -33,6 +34,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      {/* R6 Phase F — Auto Logout เมื่อไม่มี Activity 15 นาที (ดู inactivity-logout.tsx) */}
+      <InactivityLogout />
       {/* ข้อ 7/10 (Print System): Sidebar ต้องไม่ติดไปกับ Print Preview/เอกสารที่พิมพ์ */}
       <SidebarShell
         brand={BRAND}
