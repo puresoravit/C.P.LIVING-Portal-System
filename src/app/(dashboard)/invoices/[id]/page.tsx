@@ -94,9 +94,10 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-2">
-          ข้อมูลด้านบนเป็น Snapshot ณ วันที่ออกเอกสาร — แก้ข้อมูลลูกค้า/สาขาในภายหลังจะไม่กระทบ Invoice ใบนี้ (ข้อ 27)
-        </p>
+        {/* Owner UAT (2026-08-23) — เอาข้อความอธิบาย Snapshot ที่เคยแสดงตรงนี้ออกตามคำสั่ง
+            (เป็นโน้ตภายในสำหรับนักพัฒนา ไม่ควรโชว์ผู้ใช้จริง) — พฤติกรรม Snapshot จริงยังคง
+            เดิมทุกประการ แค่ไม่แสดงคำอธิบายบนหน้าจอแล้ว (ตรวจแล้วมีจุดเดียวทั้งระบบ —
+            หน้า Print ทั้ง 6 ไม่เคยมีข้อความนี้) */}
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">

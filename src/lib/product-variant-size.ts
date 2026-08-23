@@ -65,7 +65,13 @@ export async function syncStandardVariants(
       await tx.product.create({
         data: {
           sku,
-          name: `${params.parentName} ${std.label}`,
+          // Owner UAT (2026-08-23) — Root Cause ของ "ชื่อสินค้าติดขนาดซ้ำ" บนเอกสาร: เดิม
+          // ตั้งชื่อ Variant เป็น `${parentName} ${size}` ทำให้คอลัมน์ "รายการ" (มาจาก
+          // Product.name) ซ้ำกับคอลัมน์ "ขนาด" (มาจาก Product.size แยกอยู่แล้ว) ในทุก
+          // เอกสาร — แก้ที่ต้นทางนี้: ชื่อ = ชื่อรุ่น/Anchor เดี่ยวๆ ขนาดอยู่ใน Field size
+          // ของตัวเองเท่านั้น (หน้า Master ที่ต้องแยกแถว Variant แสดง size ควบคู่เอง —
+          // ดู products/page.tsx, prices/page.tsx)
+          name: params.parentName,
           productTypeId: params.productTypeId,
           categoryId: params.categoryId,
           modelId: params.parent.kind === "model" ? params.parent.modelId : undefined,

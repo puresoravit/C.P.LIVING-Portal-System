@@ -88,7 +88,10 @@ export function resolveModelSize(
 }
 
 function sizeOptionToPicked(model: ModelResult, s: ModelSizeOption): PickedProduct {
-  const name = s.size ? `${model.modelName} ${s.size}` : model.modelName;
+  // Owner UAT (2026-08-23) — ห้ามประกอบขนาดต่อท้ายชื่อ (เดิม `${modelName} ${size}`) —
+  // ขนาดมี Field/คอลัมน์ของตัวเองแยกอยู่แล้วทุกจุดที่แสดงผล (ดู Root Cause เต็มใน
+  // product-variant-size.ts)
+  const name = model.modelName;
   return {
     id: s.productId!,
     sku: s.sku!,

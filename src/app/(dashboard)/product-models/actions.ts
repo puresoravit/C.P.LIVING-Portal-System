@@ -299,11 +299,12 @@ export async function batchCreateProductVariants(modelId: string, formData: Form
     if (existingSizes.has(sizeValue ?? "")) continue;
 
     const sku = await generateNextSku();
-    const displayName = sizeValue ? `${model.name} ${sizeValue}` : model.name;
+    // Owner UAT (2026-08-23) — เหมือน syncStandardVariants: ชื่อ Variant = ชื่อรุ่นเดี่ยวๆ
+    // ห้ามต่อท้ายขนาด (ขนาดอยู่ใน Field size แยกแล้ว — กันคอลัมน์ "รายการ" ซ้ำกับ "ขนาด")
     const product = await db.product.create({
       data: {
         sku,
-        name: displayName,
+        name: model.name,
         productTypeId: model.productTypeId,
         categoryId: model.categoryId,
         modelId,
@@ -318,7 +319,7 @@ export async function batchCreateProductVariants(modelId: string, formData: Form
         action: "CREATE",
         module: "Product",
         recordId: product.id,
-        newValue: { sku, name: displayName, size: sizeValue, standardPrice: item.price, modelId, source: "BatchSizeCreate" },
+        newValue: { sku, name: model.name, size: sizeValue, standardPrice: item.price, modelId, source: "BatchSizeCreate" },
       },
     });
     created++;

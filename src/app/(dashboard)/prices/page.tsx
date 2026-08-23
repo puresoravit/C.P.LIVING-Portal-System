@@ -46,6 +46,7 @@ export default async function PricesPage(
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.sku} — {p.name}
+                {p.size ? ` (${p.size})` : ""}
               </option>
             ))}
           </SelectField>
@@ -94,6 +95,7 @@ export default async function PricesPage(
               <tr key={r.id} className="border-t">
                 <td className="px-4 py-2">
                   {r.product.sku} — {r.product.name}
+                  {r.product.size ? ` (${r.product.size})` : ""}
                 </td>
                 <td className="px-4 py-2">
                   {r.customer ? (

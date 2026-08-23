@@ -196,6 +196,10 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               {unassignedOnly && <th className="px-4 py-2 w-8"></th>}
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
+              {/* Owner UAT (2026-08-23) — Variant เลิกฝังขนาดในชื่อแล้ว (ดู
+                  product-variant-size.ts) — ต้องมีคอลัมน์ขนาดแยกให้แถว Variant ของรุ่น
+                  เดียวกันยังแยกกันออกด้วยตา ไม่ใช่พึ่ง SKU อย่างเดียว */}
+              <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">รุ่นสินค้า</th>
@@ -215,6 +219,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 )}
                 <td className="px-4 py-2 font-mono">{p.sku}</td>
                 <td className="px-4 py-2">{p.name}</td>
+                <td className="px-4 py-2">{p.size ?? <span className="text-gray-400">-</span>}</td>
                 <td className="px-4 py-2">
                   {p.productType ? p.productType.name : <span className="text-gray-400">ไม่ระบุกลุ่มส่วนลด</span>}
                 </td>
@@ -302,7 +307,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan={unassignedOnly ? 10 : 9} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={unassignedOnly ? 11 : 10} className="px-4 py-8 text-center text-gray-400">
                   ไม่พบสินค้า
                 </td>
               </tr>

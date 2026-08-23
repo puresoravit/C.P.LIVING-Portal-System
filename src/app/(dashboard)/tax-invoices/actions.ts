@@ -221,12 +221,11 @@ export async function getSuggestedTaxInvoiceItem(params: {
     unitPrice = Number(price);
   }
 
-  // Owner UAT Round 3 — ข้อ 3/4: สินค้าที่เป็น Standard Size Variant ของ Model บางตัวมี
-  // product.name ไม่สมบูรณ์ในข้อมูลเก่า (เช่น เหลือแค่ "4 ฟุต" ไม่มีชื่อรุ่นนำหน้า — Data
-  // เก่าจาก Sync ก่อนหน้า) — ถ้าผูก Model อยู่ ให้ประกอบชื่อจาก Model.name + Size เอง
-  // เหมือนที่ ProductSearchPicker ทำอยู่แล้ว (sizeOptionToPicked) กันไม่ให้ "รายการ"
-  // แนะนำผิดเพี้ยนไปตาม Data เก่าที่ตั้งชื่อไม่ครบ ไม่ใช่ Pricing Logic เปลี่ยนแปลงใดๆ
-  const description = product.model ? (product.size ? `${product.model.name} ${product.size}` : product.model.name) : product.name;
+  // Owner UAT (2026-08-23) — "รายการ" = ชื่อรุ่น/สินค้าหลักเดี่ยวๆ เสมอ ห้ามต่อท้ายขนาด
+  // (เดิมเคยประกอบ `${model.name} ${size}` ทำให้ซ้ำกับ Field size ที่คืนแยกอยู่แล้ว
+  // บรรทัดล่าง — ดู Root Cause เต็มใน product-variant-size.ts) — ยังใช้ Model.name เมื่อ
+  // ผูก Model อยู่ (กัน Data เก่าที่ Variant name ไม่สมบูรณ์) ตามเจตนาเดิมของ Round 3
+  const description = product.model ? product.model.name : product.name;
 
   return {
     description,
