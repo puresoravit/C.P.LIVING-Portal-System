@@ -5,13 +5,15 @@
       "name": "bill-system-prod",
       "runtimeExecutable": "/bin/zsh",
       "runtimeArgs": ["-l", "-c", "export PATH=\"/Users/soravit/.nvm/versions/node/v24.19.0/bin:/Library/PostgreSQL/18/bin:$PATH\" && npm run start"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": false
     },
     {
       "name": "bill-system-dev",
       "runtimeExecutable": "/bin/zsh",
       "runtimeArgs": ["-l", "-c", "export PATH=\"/Users/soravit/.nvm/versions/node/v24.19.0/bin:/Library/PostgreSQL/18/bin:$PATH\" && npm run dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": false
     }
   ]
 }

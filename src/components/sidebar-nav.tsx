@@ -71,14 +71,32 @@ const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับ�
 // Body หลักด้วย animation-duration/easing ชุดเดียวกัน (ดู globals.css) อ่านเป็นก้อนเดียว
 // — Stop มี Ramp 2px (R-2 → R, ขยายจาก 1px) ให้ขอบโค้ง Antialias ทนต่อการ Scale ระหว่าง
 // Transition Interpolate ขนาดได้มากขึ้นโดยไม่เห็นรอยหยัก
+//
+// R7.2 — Owner UAT (Screenshot มาร์ค Top/Bottom Curve ของ Dashboard): ตรวจ getBoundingClientRect
+// จริงแล้วพบว่าขอบขวาของ Tab/Fillet/Content ทั้งหมดอยู่ที่ x=224 ตรงกันเป๊ะทุกจุด (ไม่ใช่
+// Layout Bug) และ Tangent ของวงกลม ณ จุดที่ชน Content Edge เป็นแนวตั้งพอดีทางคณิตศาสตร์
+// (Tangent ⊥ รัศมี, รัศมี ณ จุดนั้นเป็นแนวนอน) — Root Cause จึงไม่ใช่เรขาคณิตผิด แต่เป็น
+// **Rendering Seam**: ขอบ Gradient (Soft, คำนวณ Sub-pixel โดย Rasterizer ของ radial-
+// gradient) ที่ชนกับขอบ Solid ของ Element ข้างเคียง (Tab/Content — คนละ Element, Render
+// คนละ Layer/Pass) มีโอกาส "ไม่สนิท" กันในระดับ Sub-pixel แม้ค่า Layout จะเท่ากันเป๊ะ —
+// แก้ด้วยเทคนิค "Overlap ~1px" ตามที่ Owner แนะนำ: ขยาย Box จาก 28×28 → 29×29 แล้วเลื่อน
+// เฉพาะขอบ "ขวา" (ชน Content) กับขอบ "ที่ชน Tab" (บนของ Fillet-บน / ล่างของ Fillet-ล่าง)
+// ให้ล้ำเข้าไปฝั่งตรงข้าม 1px — มุมตรงข้าม (บน-ซ้าย สำหรับ Fillet-บน / ล่าง-ซ้าย สำหรับ
+// Fillet-ล่าง ซึ่งเป็นจุดศูนย์กลาง Gradient) อยู่ตำแหน่งเดิมทุกประการ (พิสูจน์ทางคณิตศาสตร์:
+// right:-1px + width 29px = ขอบซ้ายเดิม, bottom/top: calc(100% - 1px) + height 29px = ขอบ
+// บนเดิม) — Gradient Stop ยังอ้างอิง FILLET_RADIUS เดิมเป๊ะ (26px/28px) ส่วนที่เกิน 28px
+// (พิกเซลที่ 29) เป็น Cream 100% อยู่แล้วโดยธรรมชาติของสูตร จึงได้ "แถบครีม 1px ทับซ้อน"
+// เข้าไปใน Tab/Content โดยไม่กระทบรูปทรง/รัศมีของโค้งที่เห็นเลยแม้แต่พิกเซลเดียว
 function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   // จุดศูนย์กลาง = มุมตรงข้ามรอยต่อ: Fillet บน → รอยต่ออยู่มุมขวาล่าง → ศูนย์กลาง top left
   const gradientAt = edge === "top" ? "top left" : "bottom left";
   const vtNameClass = edge === "top" ? "[view-transition-name:cp-nav-fillet-top]" : "[view-transition-name:cp-nav-fillet-bottom]";
+  // R7.2 — ขอบที่ชน Tab เลื่อนล้ำเข้าไป 1px (บนของ Fillet-บน / ล่างของ Fillet-ล่าง)
+  const overlapTabEdgeClass = edge === "top" ? "bottom-[calc(100%-1px)]" : "top-[calc(100%-1px)]";
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-7 h-7 pointer-events-none ${vtNameClass}`}
+      className={`hidden md:block absolute -right-px ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none ${vtNameClass}`}
       style={{
         background: `radial-gradient(circle at ${gradientAt}, transparent ${FILLET_RADIUS - 2}px, ${CREAM_HEX} ${FILLET_RADIUS}px)`,
       }}
