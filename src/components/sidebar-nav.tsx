@@ -24,35 +24,48 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 //   - Inactive/Group/Divider/Disabled ทั้งหมดพลิกจาก เทา-บน-ขาว → ขาวโปร่งแสง-บน-Navy
 //     (Requirement ข้อ 3: "ถ้าอยู่บนพื้น Blue/Navy ให้ใช้ตัวอักษร/Icon สีขาวหรือสีอ่อน")
 //
-// Owner UAT — Billing UI Visual Polish R4 (2026-08-24): R3 ทำให้ Sidebar เป็นพื้น Navy
-// จริงแล้ว แต่ขอบ Content (Cream) ที่ชนกับ Active Pill ยังเป็น "เส้นตรงแข็งๆ" — Owner
-// ต้องการให้พื้นครีมของ Content "ไหลเข้าหา/โอบรับ" Active Menu จนดูเป็น Shape เดียวกัน
-// (ไม่ใช่ Glow/ไม่ใช่ยืด Pill ให้ยาว — สั่งห้ามทั้งคู่ตรงๆ) — ใช้เทคนิค "Concave Corner
-// Connector" (Squircle Tab แบบเดียวกับ Sidebar ของ macOS System Settings/หลาย Dashboard
-// พรีเมียม): วาง Quarter-circle 2 ชิ้นเล็กๆ (16×16px) ชิดขอบขวาบนและขวาล่างของ Pill ที่
-// Active เท่านั้น แต่ละชิ้นเป็น radial-gradient ที่ "เจาะ" ส่วนโค้งสีครีม (มุมที่ชิดกับ Pill)
-// ออกจากพื้นหลัง Transparent (ให้เห็น Navy ของ Sidebar จริงๆ ทะลุออกมานอกส่วนโค้ง กันสี
-// เพี้ยนจาก Gradient Navy ของ Sidebar ที่ไล่เฉดตามแนวตั้ง — ไม่ Hardcode สี Navy คงที่)
-// ผลลัพธ์: มองเห็นพื้นครีมโค้งเว้าเข้ามาจากด้านบน วกไปสัมผัส Pill แล้วโค้งเว้ากลับออก
-// ด้านล่าง ต่อเนื่องเป็นเส้นเดียวกับขอบ Pill (Pill ต้อง Flush ชนขอบขวาสุดของ Sidebar
-// พอดี — Reintroduce Bleed Technique จาก R2 แต่รอบนี้เป็นฐานรองรับ Curve ไม่ใช่ตัว
-// เทคนิคหลักเหมือน R2) — **Desktop (md+) เท่านั้น**: Mobile Drawer ไม่ได้ยืนชิด Content
-// จริง Curve จะดูลอย/เสี่ยง Overflow จึงปิดไว้ (hidden md:block) ตามที่ Owner อนุญาตชัดเจน
-// ให้ Mobile คง Shape ปลอดภัยเดิม (rounded-xl ปกติ 2 ข้าง ไม่ Bleed)
-const CONNECTOR_RADIUS = 16; // px — ต้อง <= ความสูง Pill/2 ไม่งั้นโค้งจะทับกันเองดูแปลก (Pill สูง ~34px จาก py-1.5+text-sm สบายๆ)
+// Owner UAT — Billing UI Visual Polish R5 (2026-08-24): R4 (ติ่งโค้งครีม 16px ที่ปลาย
+// ขวาของ Blue Pill) Owner ยืนยันว่ายังไม่ตรง Reference — สิ่งที่ต้องการคือ "Cream
+// Content Surface โอบ Active Menu ทั้งก้อน (Icon+Text)" ไม่ใช่ "Blue Pill ยื่นเข้า
+// Content แล้วมีติ่งครีมเล็กๆ" — Redesign Active Composition เป็น 2 ชั้น:
+//
+//   ชั้นนอก "Cream Slot" (ตัว <a> เอง, Desktop md+ เท่านั้น): แถบสีครีม (สีเดียวกับพื้น
+//   Content เป๊ะ) ครอบทั้งรายการ สูงกว่า/กว้างกว่า Blue Pill รอบด้าน — ขอบซ้ายมน
+//   (rounded-l-2xl) ขอบขวาตัดตรงและ Bleed ชนขอบ Content พอดี (md:mr-[-8px] ชดเชย px-2
+//   ของ <nav>) จึงหลอมเป็นเนื้อเดียวกับพื้นครีมของ Content โดยไม่มีเส้นแบ่งใดๆ (ข้อ 7)
+//   — อ่านเป็น "ช่องเปิดจาก Sidebar เข้าสู่หน้า Content" ตาม Reference
+//
+//   ชั้นใน "Blue Pill" (<span> ข้างใน): Gradient ฟ้า Brand ครอบ Icon+Label ครบทั้งรายการ
+//   เหมือนเดิม (ข้อ 1) แต่ตอนนี้ "ลอยอยู่ภายใน" ช่องครีม — มีครีมล้อมทุกด้าน (บน/ล่าง/
+//   ซ้าย 5px, ขวา 8px ก่อนไหลต่อเข้า Content) = "Cream โอบรอบทั้งข้อความและไอคอน" จริง
+//   — Padding ภายใน Pill (px-3 py-1.5) คงเดิมเป๊ะ ตัวอักษรไม่ชิด Curve (ข้อ 9)
+//
+//   Fillet โค้งเว้า 2 ชิ้น (radial-gradient hard-edge 16px — เทคนิคเดิมจาก R4 แต่ย้ายจุด
+//   เกาะ): ต่อที่มุมขวาบน/ขวาล่างของ "Cream Slot" (ไม่ใช่ของ Blue Pill แบบ R4) ให้ขอบครีม
+//   โค้งกลับเข้าสู่แนวขอบ Content อย่างนุ่มนวลทั้งบนและล่าง — เมื่อรวมกับ Slot ที่สูงเต็ม
+//   รายการ Curve ทั้งชุดจึง "เริ่มก่อนระดับตัวอักษรและจบหลังตัวอักษร" (ข้อ 3) ไม่ใช่ติ่ง
+//   เล็กที่ปลายขวาอีกต่อไป — พื้นที่นอกโค้งเป็น Transparent ให้ Navy Gradient จริงของ
+//   Sidebar ทะลุออกมา (ไม่ Hardcode Navy กันสีเพี้ยนจากการไล่เฉดแนวตั้ง)
+//
+//   ไม่มี Arrow (ข้อ 5), ไม่มี Glow (ข้อ 6 — Shadow ที่เหลืออยู่เป็นของ Blue Pill ตัวเอง
+//   ธรรมดา ไม่ได้ใช้หลอกการเชื่อม), โครงสร้างเดียวใช้ได้ทั้ง Main Menu และ Submenu ทุก
+//   Depth (ข้อ 8 — Bleed ฝั่งขวาเท่ากันทุกชั้นเพราะ Submenu Container เยื้องเฉพาะฝั่งซ้าย)
+//
+//   Mobile (< md): Slot โปร่งใสไม่มี Padding — Blue Pill เต็มแถวเหมือน R3 เป๊ะ (Pill มน
+//   2 ข้าง ไม่ Bleed ไม่มี Curve — Owner อนุญาตชัดเจนให้ Mobile ใช้ Shape ปลอดภัยเดิม)
+const FILLET_RADIUS = 16; // px — รัศมีโค้งเว้าที่ขอบครีมวกกลับเข้าแนว Content
 const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
 
-/** Concave Corner ที่ขอบ Pill กับ Content — ดู Comment ยาวด้านบนของไฟล์สำหรับเหตุผล
- * เต็ม — Render เฉพาะตอน Active + เฉพาะ Desktop (Parent ต้องมี position:relative ผ่าน
- * ACTIVE_CLASS อยู่แล้ว) */
-function ActiveConnector({ edge }: { edge: "top" | "bottom" }) {
+/** โค้งเว้าที่มุมขวาบน/ล่างของ Cream Slot — Render เฉพาะตอน Active + Desktop เท่านั้น
+ * (Parent คือ <a> Slot ที่มี position:relative) — ดู Comment ยาวบนสุดของไฟล์ */
+function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   const gradientAt = edge === "top" ? "bottom right" : "top right";
   return (
     <span
       aria-hidden
       className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-4 h-4 pointer-events-none`}
       style={{
-        background: `radial-gradient(circle at ${gradientAt}, ${CREAM_HEX} ${CONNECTOR_RADIUS}px, transparent ${CONNECTOR_RADIUS}px)`,
+        background: `radial-gradient(circle at ${gradientAt}, ${CREAM_HEX} ${FILLET_RADIUS}px, transparent ${FILLET_RADIUS}px)`,
       }}
     />
   );
@@ -60,13 +73,13 @@ function ActiveConnector({ edge }: { edge: "top" | "bottom" }) {
 
 const LINK_CLASS =
   "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
-// R4 — rounded-l-xl/rounded-r-none + md:mr-[-8px] (Bleed ชดเชย px-2 ของ <nav> พอดี — ดู
-// SidebarNav ด้านล่าง) เฉพาะ md+ ให้ขอบขวา Pill ชนขอบ Sidebar/Content พอดีเป๊ะ เป็นฐาน
-// ให้ ActiveConnector ทั้ง 2 ชิ้นต่อโค้งได้สนิทไม่มีช่องว่าง — Mobile ไม่ Bleed (rounded-xl
-// ปกติทั้ง 2 ข้างจาก Base Class) ปลอดภัยจาก Overflow ตามเดิม
-const ACTIVE_CLASS =
-  "relative bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40 " +
-  "md:rounded-l-xl md:rounded-r-none md:mr-[-8px] md:pr-5";
+// R5 — ตัว <a> ของรายการ Active คือ "Cream Slot" (Desktop) / Wrapper โปร่งใส (Mobile)
+const ACTIVE_SLOT_CLASS =
+  "relative block md:bg-cp-cream md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:py-[5px] md:pl-[5px] md:pr-2";
+// R5 — Blue Pill ชั้นในครอบ Icon+Label (Mobile = เต็มแถวเหมือน R3 เพราะ Slot ไม่มี Padding)
+const ACTIVE_PILL_CLASS =
+  "relative z-10 flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm w-full " +
+  "bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40 md:shadow-md md:shadow-blue-950/30";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
@@ -148,15 +161,23 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
     );
   }
   const active = node.href === activeHref;
+  if (active) {
+    // R5 — โครง 2 ชั้น: <a> = Cream Slot (โอบทั้งก้อน), <span> ข้างใน = Blue Pill
+    // (ดู Comment ยาวบนสุดของไฟล์)
+    return (
+      <a href={node.href} className={ACTIVE_SLOT_CLASS}>
+        <ActiveFillet edge="top" />
+        <ActiveFillet edge="bottom" />
+        <span className={ACTIVE_PILL_CLASS}>
+          <IconSlot name={node.icon} active depth={depth} />
+          {node.label}
+        </span>
+      </a>
+    );
+  }
   return (
-    <a href={node.href} className={`${LINK_CLASS} ${active ? ACTIVE_CLASS : INACTIVE_CLASS}`}>
-      {active && (
-        <>
-          <ActiveConnector edge="top" />
-          <ActiveConnector edge="bottom" />
-        </>
-      )}
-      <IconSlot name={node.icon} active={active} depth={depth} />
+    <a href={node.href} className={`${LINK_CLASS} ${INACTIVE_CLASS}`}>
+      <IconSlot name={node.icon} active={false} depth={depth} />
       {node.label}
     </a>
   );
