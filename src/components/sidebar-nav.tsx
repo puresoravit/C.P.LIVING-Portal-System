@@ -89,13 +89,21 @@ const LINK_CLASS =
 // ตั้งเดียวกันทั้งเส้น (ไม่เชิด/ไม่ห้อย — เป็นแนวตรงระดับเดียวกับขอบ Content ตาม
 // Acceptance) — Mobile: Pill ครีมมนปกติ 2 ข้าง ไม่ Bleed ไม่มี Fillet (เรียบง่ายตามที่
 // Owner กำหนด) — py-2 สูงกว่า Inactive เล็กน้อยให้ Tab มี Presence โดยไม่ต้องพึ่งสีสด
-// R6.1 — Entrance 2 ชั้น (ดู globals.css): `cp-nav-fade-in` บนตัว Tab (Fade อย่างเดียว
-// ไม่มี Transform — เรขาคณิตรอยต่อนิ่งทุก Frame แม้ Animation ถูก Pause ใน Background
-// Tab) + `cp-nav-rise-in` บน Icon+Label ข้างใน (ยกขึ้น 2px — Micro-interaction ตามที่
-// Owner ระบุ) — ปิดอัตโนมัติเมื่อ prefers-reduced-motion
+// R7 — Luxury Sliding Indicator: `[view-transition-name:cp-nav-active]` ผูก Active Tab
+// เข้ากับ Cross-document View Transition (globals.css `@view-transition`) — Browser จับคู่
+// Element ชื่อนี้ระหว่างหน้าเก่า/ใหม่แล้ว Morph ตำแหน่ง+ขนาดให้เอง (Snapshot รวม Fillet
+// ที่เป็นลูกด้วย → Cutout ทั้ง Shape เลื่อนเป็นชิ้นเดียว): Cream Indicator "ไหล" จากเมนู
+// เดิมไปเมนูใหม่ต่อเนื่องจริง ทั้งคลิกและ Back/Forward โดย**ไม่แตะกลไก Navigation ใดๆ**
+// (ยังเป็น <a> Full Page Load เดิม — Middleware/App-Access Check ทำงานทุก Request ตามเดิม
+// เป๊ะ ไม่มี Click Delay เพราะ Transition เล่นหลังหน้าใหม่ Render แล้ว) — ตำแหน่ง/ความสูง
+// อิง Element จริงเสมอ (Browser Interpolate Rect จริง รองรับ Main/Submenu สูงต่างกันโดย
+// ธรรมชาติ ไม่มี Hardcode ต่อเมนู) — Browser ที่ไม่รองรับ (เช่น Firefox) = สลับทันทีแบบ
+// เดิม (Progressive Enhancement) — Micro-interaction: `cp-nav-rise-in` บน Icon+Label
+// ข้างใน (ยก 2px, Delay 90ms ให้ "ตามหลัง Indicator" ตามที่ Owner ระบุ) — ทั้งคู่ปิดเมื่อ
+// prefers-reduced-motion (ดู globals.css)
 const ACTIVE_CLASS =
   "relative flex items-center pl-3 pr-3 py-2 rounded-xl text-sm bg-cp-cream text-cp-navy font-medium " +
-  "cp-nav-fade-in md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
+  "[view-transition-name:cp-nav-active] md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
@@ -207,7 +215,13 @@ export function SidebarNav({ tree }: { tree: NavNode[] }) {
   const pathname = usePathname();
   const activeHref = resolveActiveHref(pathname, collectHrefs(tree));
   return (
-    <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+    // R7 — Root Cause ที่ Owner เห็น "โค้งบนของ Dashboard หัก/ชน Header": <nav> เป็น
+    // overflow-y-auto (Scroll Container จะ Clip ทุกอย่างที่ยื่นพ้นขอบ Padding Box) —
+    // Fillet บนของรายการแรกสูง 28px แต่ py-3 ให้พื้นที่เหนือรายการแรกแค่ 12px → โค้งโดน
+    // ตัดขาดเป็นรอยหักเฉพาะเมนูแรก (เมนูกลางลิสต์มีแถวอื่นอยู่เหนือจึงไม่โดน) — แก้เป็น
+    // py-8 (32px ≥ 28px + เผื่อ) ทั้งบน/ล่าง: Dashboard (แรกสุด) และเมนูท้ายลิสต์ได้
+    // Geometry ครบเหมือนเมนูกลางทุกประการ + ได้ระยะหายใจจาก Header ตามที่ Owner ขอ
+    <nav className="flex-1 px-2 py-8 space-y-0.5 overflow-y-auto">
       {tree.map((node, i) => (
         <NavNodeView key={`${node.type}-${i}`} node={node} activeHref={activeHref} depth={0} />
       ))}

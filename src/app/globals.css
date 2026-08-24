@@ -18,25 +18,47 @@ body {
   scroll-margin-top: 100px;
 }
 
-/* Owner UAT — Billing Sidebar Active Transition (R6.1): Entrance ของ Active Tab ตอน
-   เปลี่ยนเมนู (การนำทางเป็น Full Page Load — Animate "ตำแหน่งข้าม Tab" ไม่ได้ จึงใช้
-   Entrance นุ่มๆ ของ Tab ใหม่แทน) — แยกเป็น 2 ชั้นโดยเจตนา:
-   - fade-in: ตัว Tab ครีม (รวม Fillet ที่เป็นลูก) Fade อย่างเดียว **ห้ามมี Transform**
-     — เรขาคณิตรอยต่อ (ขอบขวาต้องอยู่แกนตั้งเดียวกับ Content เป๊ะ) ต้องนิ่งทุก Frame
-     แม้ Animation ถูก Pause กลางคัน (เช่น Browser Tab อยู่เบื้องหลัง CSS Animation
-     ถูกแช่แข็งได้ — เจอจริงตอน Verify: Frame ค้างทำขอบเลื่อน 6px)
-   - rise-in: เฉพาะ Icon+Label ข้างใน ยกขึ้น 2px (Micro-interaction ตามที่ Owner ระบุ
-     "text/icon ยกขึ้น 1-2px" — Subtle ไม่เด้ง)
-   Easing เดียวกับ MOTION_EASE ของ Brand (cp-brand.tsx), 220ms อยู่ในช่วง 180-280ms
-   ที่กำหนด — ต้องมี prefers-reduced-motion ปิดเสมอ (Convention เดิมของทุก Animation) */
-@keyframes cp-nav-fade-in {
-  from {
-    opacity: 0.5;
-  }
-  to {
-    opacity: 1;
+/* ==========================================================================
+   Owner UAT — Billing Sidebar Luxury Sliding Active Indicator (R7)
+   การนำทางเป็น Full Page Load (<a> เดิม — ห้ามเปลี่ยนกลไก Navigation/Auth) จึงใช้
+   Cross-document View Transitions: Browser จับคู่ Element ที่มี
+   view-transition-name เดียวกัน (`cp-nav-active` — ผูกที่ Active Tab ใน
+   sidebar-nav.tsx) ระหว่างหน้าเก่า/ใหม่ แล้ว Morph ตำแหน่ง+ขนาดให้อัตโนมัติ →
+   Cream Indicator "ไหล" จากเมนูเดิมไปเมนูใหม่ต่อเนื่องจริง (ขึ้น/ลง/ไกล/ใกล้/
+   Main↔Submenu สูงต่างกัน — Browser Interpolate Rect จริง ไม่มี Hardcode) —
+   ทำงานทั้งคลิกและ Back/Forward, ไม่มี Click Delay (Transition เล่นหลังหน้าใหม่
+   พร้อมแล้ว), Browser ไม่รองรับ (Firefox) = สลับทันทีแบบเดิม (Progressive
+   Enhancement) — เปิดเฉพาะเมื่อผู้ใช้ "ไม่ได้" ตั้ง Reduce Motion (Media Query
+   ครอบ @view-transition ทั้งก้อน — ปิดแล้ว Function ปกติทุกอย่าง)
+   ========================================================================== */
+@media not (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: auto;
   }
 }
+
+/* Root (ทั้งหน้า) สลับทันที ไม่ Cross-fade — ให้ "เฉพาะ Indicator" เป็นสิ่งเดียวที่
+   เคลื่อน (ถ้าปล่อย Default Root จะค้างภาพหน้าเก่า Fade ~250ms ทั้งจอ ดูเหมือนหน่วง) */
+::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(root) {
+  animation: none;
+  opacity: 1;
+}
+
+/* จังหวะการไหลของ Indicator: 320ms อยู่ในช่วง 280-380ms ที่ Owner กำหนด — Ease-out
+   นุ่ม ไม่มี Overshoot (ปลายทางไม่เด้ง) */
+::view-transition-group(cp-nav-active) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Micro-interaction (R6.1/R7): Icon+Label ใน Active Tab ยกขึ้น 2px — Delay 90ms +
+   fill backwards ให้ "ตามหลัง" Indicator ที่กำลังไหลมาถึงเล็กน้อยตามที่ Owner ระบุ —
+   Transform อยู่ที่เนื้อในเท่านั้น ตัว Tab/Fillet ไม่ขยับ (เรขาคณิตรอยต่อคงที่ทุก Frame
+   แม้ Animation ถูก Pause ใน Background Tab — บทเรียนจาก R6.1) */
 @keyframes cp-nav-rise-in {
   from {
     opacity: 0.6;
@@ -47,14 +69,10 @@ body {
     transform: translateY(0);
   }
 }
-.cp-nav-fade-in {
-  animation: cp-nav-fade-in 220ms cubic-bezier(0.4, 0, 0.2, 1);
-}
 .cp-nav-rise-in {
-  animation: cp-nav-rise-in 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: cp-nav-rise-in 220ms cubic-bezier(0.4, 0, 0.2, 1) 90ms backwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .cp-nav-fade-in,
   .cp-nav-rise-in {
     animation: none;
   }
