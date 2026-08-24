@@ -112,6 +112,7 @@ export function BatchSizeForm({
       </div>
 
       <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -201,6 +202,7 @@ export function BatchSizeForm({
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <button

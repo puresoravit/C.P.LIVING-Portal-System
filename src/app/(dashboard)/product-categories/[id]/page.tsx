@@ -21,7 +21,7 @@ export default async function EditProductCategoryPage(props: { params: Promise<{
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
         <Field label="รหัสประเภท *" name="code" defaultValue={category.code} required autoFocus />
         <Field label="ชื่อประเภท *" name="name" defaultValue={category.name} required />
@@ -30,7 +30,7 @@ export default async function EditProductCategoryPage(props: { params: Promise<{
           มีขนาด (Size) — ต้องเลือกไซส์ตอนคีย์เอกสาร
         </label>
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(category.sortOrder)} />
-        <div className="col-span-2 flex gap-2">
+        <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/product-categories" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก

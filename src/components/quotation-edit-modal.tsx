@@ -267,6 +267,7 @@ export function QuotationEditModal({
               </div>
 
               <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600 text-left">
                     <tr>
@@ -304,11 +305,12 @@ export function QuotationEditModal({
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
-                <div className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-4">
+                <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end">
+                  <div className="col-span-2 sm:col-span-4">
                     <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า/รุ่น</label>
                     <ProductSearchPicker
                       onPick={pick}
@@ -319,7 +321,7 @@ export function QuotationEditModal({
                       resetToken={pickerResetToken}
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">รายการ (ถ้ามี)</label>
                     <input
                       value={descriptionOverride}
@@ -328,7 +330,7 @@ export function QuotationEditModal({
                       className="w-full border rounded px-3 py-1.5 text-sm"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       ขนาด{unresolvedInfo?.custom ? " *" : ""}
                     </label>
@@ -361,7 +363,7 @@ export function QuotationEditModal({
                       className="w-full border rounded px-3 py-1.5 text-sm"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">ราคา/หน่วย{unresolvedInfo ? " *" : ""}</label>
                     <input
                       type="number"

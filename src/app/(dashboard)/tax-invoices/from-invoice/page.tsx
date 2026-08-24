@@ -158,6 +158,7 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
                 </div>
                 <span className="text-xs text-gray-500">{order.invoices.length} Invoice ลูก</span>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-left">
                   <tr>
@@ -181,6 +182,7 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           ))}
         </div>
@@ -188,6 +190,7 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
 
       {q && (
         <div className="bg-white border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-left">
               <tr>
@@ -215,6 +218,7 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

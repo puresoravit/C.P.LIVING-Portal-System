@@ -146,7 +146,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
       </p>
 
       {!quotation.customer && (
-        <div className="bg-white border rounded-lg p-4 mb-4 text-sm grid grid-cols-2 gap-2">
+        <div className="bg-white border rounded-lg p-4 mb-4 text-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <span className="text-gray-500">เลขผู้เสียภาษี:</span> {quotation.customerTaxIdSnapshot ?? "-"}
           </div>
@@ -191,6 +191,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -248,6 +249,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {(preview || isConfirmed || quotation.status === "CANCELLED") && quotation.items.length > 0 && (

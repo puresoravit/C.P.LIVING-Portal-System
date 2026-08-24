@@ -61,7 +61,7 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
     <div className="max-w-5xl">
       <h1 className="text-lg font-semibold mb-4">รายงานยอดขาย</h1>
 
-      <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4">
+      <form className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
         <input type="hidden" name="groupBy" value={groupBy} />
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่เริ่ม</label>
@@ -104,21 +104,22 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
             ))}
           </select>
         </div>
-        <div className="col-span-2 flex items-end">
+        <div className="col-span-1 sm:col-span-2 flex items-end">
           <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
             ค้นหา
           </button>
         </div>
       </form>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      {/* Mobile Audit — KPI 4 ใบ: มือถือเรียง 2×2 (1 คอลัมน์ยาวเกิน, 4 คอลัมน์บีบเกิน) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <SummaryCard label="จำนวนที่ขาย" value={summary.quantity.toLocaleString("th-TH")} />
         <SummaryCard label="ยอดขาย (จำนวนเงิน)" value={`${money(summary.gross)} บาท`} />
         <SummaryCard label="ส่วนลดรวม" value={`${money(summary.discount)} บาท`} />
         <SummaryCard label="ยอดสุทธิ (Net)" value={`${money(summary.net)} บาท`} highlight />
       </div>
 
-      <div className="flex gap-1 mb-3 border-b">
+      <div className="flex gap-1 mb-3 border-b overflow-x-auto">
         {GROUP_TABS.map((tab) => (
           <a
             key={tab.key}
@@ -145,6 +146,7 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -184,6 +186,7 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mt-3">

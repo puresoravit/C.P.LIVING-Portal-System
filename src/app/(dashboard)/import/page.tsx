@@ -22,7 +22,7 @@ export default async function ImportIndexPage() {
         เลือกประเภทข้อมูลที่จะนำเข้า — แนะนำนำเข้าตามลำดับ: ลูกค้า → สาขา → สินค้า → ราคา/ส่วนลด
         (เพราะราคา/สาขาต้องอ้างอิงลูกค้าที่มีอยู่แล้ว)
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {TYPES.map((t) => (
           <a key={t.href} href={t.href} className="bg-white border rounded-lg p-4 hover:bg-gray-50">
             <div className="font-medium text-sm">นำเข้า{t.label}</div>

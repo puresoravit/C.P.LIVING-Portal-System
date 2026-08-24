@@ -29,7 +29,7 @@ export default async function NewTaxInvoicePage() {
         กรอกรายการตามที่ลูกค้าแจ้ง ระบบจะคำนวณ VAT ให้อัตโนมัติจากยอดรวม
       </p>
 
-      <div className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3 mb-4">
+      <div className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า *</label>
           <select

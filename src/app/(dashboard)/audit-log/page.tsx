@@ -56,7 +56,7 @@ export default async function AuditLogPage(
       <h1 className="text-lg font-semibold mb-1">Audit Log</h1>
       <p className="text-sm text-gray-500 mb-4">ประวัติการแก้ไขข้อมูลสำคัญทั้งหมดในระบบ (แสดงล่าสุด 200 รายการ)</p>
 
-      <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4">
+      <form className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">โมดูล</label>
           <select name="module" defaultValue={searchParams.module ?? ""} className="w-full border rounded px-3 py-1.5 text-sm">
@@ -87,12 +87,13 @@ export default async function AuditLogPage(
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่สิ้นสุด</label>
           <input name="dateTo" type="date" defaultValue={searchParams.dateTo} className="w-full border rounded px-3 py-1.5 text-sm" />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-1 sm:col-span-4">
           <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">ค้นหา</button>
         </div>
       </form>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -148,6 +149,7 @@ export default async function AuditLogPage(
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

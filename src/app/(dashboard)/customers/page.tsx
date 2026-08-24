@@ -24,7 +24,7 @@ export default async function CustomersPage() {
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">
           + เพิ่มลูกค้าใหม่
         </summary>
-        <ActionForm action={createCustomer} successMessage="เพิ่มลูกค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createCustomer} successMessage="เพิ่มลูกค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="รหัสลูกค้า *" name="code" required autoFocus />
           <Field label="ชื่อบริษัท *" name="companyName" required />
           <Field label="เลขประจำตัวผู้เสียภาษี" name="taxId" />
@@ -39,19 +39,20 @@ export default async function CustomersPage() {
           {/* Owner UAT (2026-08-23) — สถานที่ส่งสินค้าของลูกค้าเอง: ใช้ Auto-fill ตอนสร้าง
               เอกสารเมื่อไม่ได้เลือกสาขา (ลูกค้าบางรายไม่มีสาขาเลย) — เลือกสาขาเมื่อไรใช้
               ที่อยู่สาขาแทนเสมอ */}
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <TextareaField label="สถานที่ส่งสินค้า (ใช้เมื่อสร้างเอกสารโดยไม่เลือกสาขา)" name="address" />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <TextareaField label="หมายเหตุ" name="note" />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกลูกค้า</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -104,6 +105,7 @@ export default async function CustomersPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

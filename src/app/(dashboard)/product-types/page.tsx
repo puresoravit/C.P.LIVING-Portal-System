@@ -19,20 +19,21 @@ export default async function ProductTypesPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มกลุ่มส่วนลดใหม่</summary>
-        <ActionForm action={createProductType} successMessage="เพิ่มกลุ่มส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createProductType} successMessage="เพิ่มกลุ่มส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="รหัสกลุ่ม * (เช่น D)" name="code" required />
           <Field label="ชื่อกลุ่ม * (เช่น TYPE D)" name="name" required />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="คำอธิบาย" name="description" />
           </div>
           <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกประเภทสินค้า</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -72,6 +73,7 @@ export default async function ProductTypesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -36,9 +36,9 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
         id="editProductModelForm"
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <SelectField label="กลุ่มส่วนลด *" name="productTypeId" required defaultValue={model.productTypeId}>
             {productTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
@@ -47,7 +47,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
             ))}
           </SelectField>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue={model.categoryId ?? ""}>
             <option value="">— ไม่ระบุประเภทสินค้า —</option>
             {categories.map((c) => (
@@ -57,12 +57,12 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
             ))}
           </SelectField>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <Field label="ชื่อรุ่นสินค้า *" name="name" defaultValue={model.name} required autoFocus />
         </div>
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(model.sortOrder)} />
-        <div className="col-span-2 pricePerFootFields hidden bg-blue-50 border border-blue-200 rounded-lg p-3 grid grid-cols-2 gap-3">
-          <div className="col-span-2 text-xs text-blue-800">
+        <div className="col-span-1 sm:col-span-2 pricePerFootFields hidden bg-blue-50 border border-blue-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="col-span-1 sm:col-span-2 text-xs text-blue-800">
             ประเภทสินค้านี้มีขนาด (Size) — แก้ราคาต่อฟุตแล้วบันทึก ระบบจะสร้าง Standard Variant
             ที่ยังไม่มี และ<b>อัปเดตราคา Standard Variant ที่มีอยู่แล้วให้ตรงราคาต่อฟุตใหม่ทันที</b>{" "}
             (ไม่แตะ PriceRule เฉพาะลูกค้า/สาขา และไม่กระทบเอกสารที่ Confirm ไปแล้ว)
@@ -70,7 +70,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
           <Field label="ราคาต่อฟุต (บาท)" name="pricePerFoot" type="number" defaultValue={model.pricePerFoot != null ? String(model.pricePerFoot) : ""} />
           <Field label="หน่วยนับของ Variant (เช่น หลัง)" name="variantUnit" defaultValue={variants[0]?.unit ?? ""} />
         </div>
-        <div className="col-span-2 flex gap-2">
+        <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/product-models" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก
@@ -84,6 +84,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
         <h2 className="font-medium text-sm mb-3">ไซส์ของรุ่นนี้</h2>
         {variants.length > 0 && (
           <div className="border rounded-lg overflow-hidden mb-4">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-left">
                 <tr>
@@ -112,6 +113,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

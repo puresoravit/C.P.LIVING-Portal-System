@@ -32,7 +32,7 @@ export default async function DiscountsPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งส่วนลดใหม่</summary>
-        <ActionForm action={createDiscountRule} successMessage="บันทึกส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createDiscountRule} successMessage="บันทึกส่วนลดสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SelectField label="ลูกค้า *" name="customerId" required defaultValue="">
             <option value="" disabled>
               เลือกลูกค้า
@@ -64,13 +64,14 @@ export default async function DiscountsPage() {
           <Field label="ส่วนลด (%) *" name="discountPct" type="number" min="0" max="100" required />
           <Field label="มีผลตั้งแต่ *" name="effectiveFrom" type="date" required />
           <Field label="มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)" name="effectiveTo" type="date" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกส่วนลด</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -110,6 +111,7 @@ export default async function DiscountsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

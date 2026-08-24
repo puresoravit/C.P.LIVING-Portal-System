@@ -42,7 +42,7 @@ export default async function HomePage(
     return (
       <div className="max-w-2xl">
         <h1 className="text-lg font-semibold mb-4">หน้าหลัก</h1>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <a href="/orders/new" className="bg-white border rounded-lg p-4 hover:bg-gray-50">
             <div className="font-medium text-sm mb-1">+ สร้างออเดอร์ใหม่</div>
             <div className="text-xs text-gray-500">คีย์รายการขาย แยกบิลอัตโนมัติตามกลุ่มส่วนลด</div>

@@ -21,15 +21,15 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
         <Field label="รหัสกลุ่ม *" name="code" defaultValue={productType.code} required autoFocus />
         <Field label="ชื่อกลุ่ม *" name="name" defaultValue={productType.name} required />
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <Field label="คำอธิบาย" name="description" defaultValue={productType.description ?? ""} />
         </div>
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(productType.sortOrder)} />
-        <div className="col-span-2 flex gap-2">
+        <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/product-types" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก

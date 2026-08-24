@@ -24,9 +24,9 @@ export default async function EditBranchPage(props: { params: Promise<{ id: stri
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <SelectField label="ลูกค้า *" name="customerId" required defaultValue={branch.customerId}>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
@@ -39,13 +39,13 @@ export default async function EditBranchPage(props: { params: Promise<{ id: stri
         <Field label="ชื่อสาขา *" name="name" defaultValue={branch.name} required />
         <Field label="รหัสสาขาใบกำกับภาษี" name="taxBranchCode" defaultValue={branch.taxBranchCode ?? ""} />
         <Field label="เบอร์โทร" name="phone" defaultValue={branch.phone ?? ""} />
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <Field label="ที่อยู่" name="address" defaultValue={branch.address ?? ""} />
         </div>
         <Field label="จังหวัด" name="province" defaultValue={branch.province ?? ""} />
         <Field label="รหัสไปรษณีย์" name="postalCode" defaultValue={branch.postalCode ?? ""} />
         <Field label="ผู้ติดต่อ" name="contactPerson" defaultValue={branch.contactPerson ?? ""} />
-        <div className="col-span-2 flex gap-2">
+        <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/branches" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก

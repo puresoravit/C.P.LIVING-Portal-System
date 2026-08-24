@@ -20,7 +20,7 @@ export default async function ProductCategoriesPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มประเภทสินค้าใหม่</summary>
-        <ActionForm action={createProductCategory} successMessage="เพิ่มประเภทสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createProductCategory} successMessage="เพิ่มประเภทสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="รหัสประเภท * (เช่น MATTRESS)" name="code" required />
           <Field label="ชื่อประเภท * (เช่น ฟูกที่นอน)" name="name" required />
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -28,13 +28,14 @@ export default async function ProductCategoriesPage() {
             มีขนาด (Size) — ต้องเลือกไซส์ตอนคีย์เอกสาร
           </label>
           <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกประเภทสินค้า</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -95,6 +96,7 @@ export default async function ProductCategoriesPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -64,8 +64,8 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
   return (
     <div>
       <div className="bg-white border rounded-lg p-3 mb-3">
-        <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-4">
+        <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end">
+          <div className="col-span-2 sm:col-span-4">
             <label className="block text-xs font-medium text-gray-600 mb-1">
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการอัตโนมัติ
             </label>
@@ -78,7 +78,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
               resetToken={pickerResetToken}
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-1 sm:col-span-3">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
@@ -111,7 +111,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">หน่วย</label>
             <input
               value={draft.unit}
@@ -133,6 +133,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-3">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -166,6 +167,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <form action={createAction} id="repairNoteForm">

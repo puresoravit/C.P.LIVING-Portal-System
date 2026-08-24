@@ -56,6 +56,7 @@ export default async function PermissionsPage() {
       {groups.map((group) => (
         <div key={group} className="bg-white border rounded-lg overflow-hidden mb-4">
           <div className="px-4 py-2 bg-gray-50 text-sm font-medium">{group}</div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-t text-left text-gray-600">
@@ -84,6 +85,7 @@ export default async function PermissionsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
     </div>

@@ -59,7 +59,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
       </p>
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <span className="text-gray-500">ลูกค้า:</span> {taxInvoice.customerNameSnapshot}
           </div>
@@ -76,6 +76,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -103,6 +104,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Phase H — Summary ladder ตามลำดับที่ Owner กำหนด (ใบเก่า grossAmount=null →

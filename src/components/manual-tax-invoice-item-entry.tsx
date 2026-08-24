@@ -270,8 +270,8 @@ export function ManualTaxInvoiceItemEntry({
   return (
     <div>
       <div className="bg-white border rounded-lg p-3 mb-3">
-        <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-5">
+        <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end">
+          <div className="col-span-2 sm:col-span-5">
             <label className="block text-xs font-medium text-gray-600 mb-1">
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการ/ราคาอัตโนมัติ
             </label>
@@ -284,7 +284,7 @@ export function ManualTaxInvoiceItemEntry({
               resetToken={pickerResetToken}
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
@@ -441,6 +441,7 @@ export function ManualTaxInvoiceItemEntry({
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-3">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -506,6 +507,7 @@ export function ManualTaxInvoiceItemEntry({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Phase H — Preview ผลรวมก่อนยืนยัน (ลำดับเดียวกับ Summary บนเอกสารจริง) —

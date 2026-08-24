@@ -21,7 +21,7 @@ export default async function EditCustomerPage(props: { params: Promise<{ id: st
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
         <Field label="รหัสลูกค้า *" name="code" defaultValue={customer.code} required autoFocus />
         <Field label="ชื่อบริษัท *" name="companyName" defaultValue={customer.companyName} required />
@@ -34,13 +34,13 @@ export default async function EditCustomerPage(props: { params: Promise<{ id: st
           <option value="NET60">เครดิต 60 วัน</option>
           <option value="NET90">เครดิต 90 วัน</option>
         </SelectField>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <TextareaField label="สถานที่ส่งสินค้า (ใช้เมื่อสร้างเอกสารโดยไม่เลือกสาขา)" name="address" defaultValue={customer.address ?? ""} />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <TextareaField label="หมายเหตุ" name="note" defaultValue={customer.note ?? ""} />
         </div>
-        <div className="col-span-2 flex gap-2">
+        <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton pendingLabel="กำลังบันทึก...">บันทึกการแก้ไข</SubmitButton>
           <a
             href="/customers"

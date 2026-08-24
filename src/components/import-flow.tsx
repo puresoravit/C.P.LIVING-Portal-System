@@ -92,7 +92,7 @@ export function ImportFlow({
 
       {results && (
         <>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-white border rounded-lg p-3">
               <div className="text-xs text-gray-500">Total Rows</div>
               <div className="text-lg font-medium">{results.length}</div>
@@ -110,6 +110,7 @@ export function ImportFlow({
           {errorRows.length > 0 && (
             <div className="bg-white border rounded-lg overflow-hidden mb-4">
               <div className="px-4 py-2 bg-red-50 text-sm font-medium text-red-700">รายการที่มีปัญหา (จะไม่ถูก Import)</div>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-left">
                   <tr>
@@ -126,6 +127,7 @@ export function ImportFlow({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -134,6 +136,7 @@ export function ImportFlow({
               <div className="px-4 py-2 bg-green-50 text-sm font-medium text-green-700">
                 ตัวอย่างข้อมูลที่จะ Import ({validCount} แถว)
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-left">
                   <tr>
@@ -159,6 +162,7 @@ export function ImportFlow({
                     ))}
                 </tbody>
               </table>
+              </div>
               {validCount > 10 && <div className="px-4 py-2 text-xs text-gray-400">...และอีก {validCount - 10} แถว</div>}
             </div>
           )}

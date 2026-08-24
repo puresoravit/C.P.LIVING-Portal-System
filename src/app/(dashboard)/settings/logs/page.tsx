@@ -23,6 +23,7 @@ export default async function SystemLogsPage() {
         {logs.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400 text-sm">ยังไม่มี Error Log — เป็นสัญญาณที่ดีครับ</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-left">
               <tr>
@@ -43,6 +44,7 @@ export default async function SystemLogsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -42,6 +42,7 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
       </p>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -62,6 +63,7 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {note.remark && <p className="text-sm text-gray-500 mb-4">หมายเหตุ: {note.remark}</p>}

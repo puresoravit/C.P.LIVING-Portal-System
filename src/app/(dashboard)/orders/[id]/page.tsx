@@ -150,6 +150,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -200,6 +201,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {preview && (
@@ -218,7 +220,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                     </li>
                   ))}
                 </ul>
-                <div className="grid grid-cols-3 gap-2 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                   <div>
                     จำนวนเงิน: <b>{money(g.grossAmount)}</b>
                   </div>
@@ -232,7 +234,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               </div>
             ))}
           </div>
-          <div className="border-t mt-3 pt-3 grid grid-cols-3 gap-2 text-sm font-medium">
+          <div className="border-t mt-3 pt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm font-medium">
             <div>
               รวมจำนวนเงิน: <b>{money(preview.grandGross)} บาท</b>
             </div>

@@ -57,6 +57,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
       </p>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -89,6 +90,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
       <div className="flex gap-2">

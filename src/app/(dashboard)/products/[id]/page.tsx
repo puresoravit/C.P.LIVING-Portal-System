@@ -48,10 +48,10 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
       <ActionForm
         action={updateWithId}
         successMessage="บันทึกการแก้ไขสำเร็จ"
-        className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3"
+        className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
       >
         <Field label="รหัสสินค้า / Code *" name="sku" defaultValue={product.sku} required autoFocus />
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>
         <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
@@ -119,10 +119,10 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             required={isSizedAnchor}
           />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-1 sm:col-span-3">
           <Field label="คำอธิบาย" name="description" defaultValue={product.description ?? ""} />
         </div>
-        <div className="col-span-3 flex gap-2">
+        <div className="col-span-1 sm:col-span-3 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
           <a href="/products" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก

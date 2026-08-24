@@ -20,12 +20,12 @@ export default async function NewQuotationPage() {
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างใบเสนอราคาใหม่</h1>
 
-      <ActionForm id="createQuotationForm" action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
+      <ActionForm id="createQuotationForm" action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: เลือกได้ว่าจะใช้ลูกค้าใน
             ระบบเดิม หรือกรอกข้อมูลลูกค้าเองโดยไม่สร้าง Customer Master (ข้อมูล Snapshot
             ติดใบเสนอราคา เปิด/พิมพ์ย้อนหลังได้เสมอ) — สลับโหมดด้วย Vanilla Script ตาม
             Pattern เดิมของหน้านี้ (Customer→Branch Cascade) ไม่ใช่ Client Component ใหม่ */}
-        <div className="col-span-2 flex gap-4 text-sm border-b pb-3">
+        <div className="col-span-1 sm:col-span-2 flex gap-4 text-sm border-b pb-3">
           <label className="flex items-center gap-1.5">
             <input type="radio" name="customerMode" value="MASTER" defaultChecked />
             ลูกค้าในระบบ
@@ -36,7 +36,7 @@ export default async function NewQuotationPage() {
           </label>
         </div>
 
-        <div id="masterCustomerFields" className="col-span-2 grid grid-cols-2 gap-3">
+        <div id="masterCustomerFields" className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SelectField label="ลูกค้า *" name="customerId" autoFocus defaultValue="">
             <option value="" disabled>
               เลือกลูกค้า
@@ -55,14 +55,14 @@ export default async function NewQuotationPage() {
           </SelectField>
         </div>
 
-        <div id="guestCustomerFields" className="col-span-2 hidden grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <div id="guestCustomerFields" className="col-span-1 sm:col-span-2 hidden grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="ชื่อลูกค้า/บริษัท *" name="guestName" />
           </div>
           <Field label="เลขประจำตัวผู้เสียภาษี" name="guestTaxId" />
           <Field label="โทรศัพท์" name="guestPhone" />
           <Field label="ผู้ติดต่อ" name="guestContact" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <TextareaField label="ที่อยู่" name="guestAddress" />
           </div>
         </div>
@@ -70,10 +70,10 @@ export default async function NewQuotationPage() {
         <Field label="วันที่เอกสาร *" name="quotationDate" type="date" defaultValue={today} required />
         <Field label="อ้างอิง" name="reference" />
         <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขา/ลูกค้าอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <TextareaField label="หมายเหตุ" name="note" />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <SubmitButton pendingLabel="กำลังสร้าง...">สร้างใบเสนอราคา → ไปคีย์รายการสินค้า</SubmitButton>
         </div>
       </ActionForm>

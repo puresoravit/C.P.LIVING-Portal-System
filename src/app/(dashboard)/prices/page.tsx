@@ -38,7 +38,7 @@ export default async function PricesPage(
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งราคาพิเศษใหม่</summary>
-        <ActionForm action={createPriceRule} successMessage="บันทึกราคาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <ActionForm action={createPriceRule} successMessage="บันทึกราคาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SelectField label="สินค้า *" name="productId" required defaultValue="">
             <option value="" disabled>
               เลือกสินค้า
@@ -71,13 +71,14 @@ export default async function PricesPage(
           <Field label="ราคา (รวม VAT) *" name="price" type="number" required />
           <Field label="มีผลตั้งแต่ *" name="effectiveFrom" type="date" required />
           <Field label="มีผลถึง (เว้นว่าง = ไม่มีวันหมดอายุ)" name="effectiveTo" type="date" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกราคา</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -134,6 +135,7 @@ export default async function PricesPage(
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

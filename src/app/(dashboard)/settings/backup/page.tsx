@@ -37,6 +37,7 @@ export default async function BackupPage() {
       </form>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-8">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -68,6 +69,7 @@ export default async function BackupPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">

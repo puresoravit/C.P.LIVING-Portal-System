@@ -30,7 +30,7 @@ export default async function BranchReportPage(
       <h1 className="text-lg font-semibold mt-2 mb-1">รายงานแยกตามสาขา (Product Mix)</h1>
       <p className="text-sm text-gray-500 mb-4">ดูสัดส่วนสินค้าแต่ละกลุ่มส่วนลดที่แต่ละสาขาซื้อ</p>
 
-      <form className="bg-white border rounded-lg p-4 grid grid-cols-3 gap-3 mb-4">
+      <form className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่เริ่ม</label>
           <input name="dateFrom" type="date" defaultValue={searchParams.dateFrom} className="w-full border rounded px-3 py-1.5 text-sm" />
@@ -51,7 +51,7 @@ export default async function BranchReportPage(
               <div className="font-medium text-sm">{b.branchName}</div>
               <div className="text-sm text-gray-500">รวม {money(b.total.net)} บาท</div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {b.byType.map((t) => (
                 <div key={t.code} className="bg-gray-50 rounded px-3 py-2 text-xs">
                   <div className="font-medium mb-1">{t.code === "GEN" ? "ไม่ระบุกลุ่มส่วนลด" : `TYPE ${t.code}`}</div>

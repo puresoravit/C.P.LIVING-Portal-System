@@ -21,7 +21,7 @@ export default async function VatSettingsPage() {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ ตั้งอัตรา VAT ใหม่</summary>
-        <form action={createVatRate} className="px-4 pb-4 grid grid-cols-2 gap-3">
+        <form action={createVatRate} className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">อัตรา VAT (%) *</label>
             <input
@@ -42,7 +42,7 @@ export default async function VatSettingsPage() {
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">
               บันทึกอัตรา VAT
             </button>
@@ -51,6 +51,7 @@ export default async function VatSettingsPage() {
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -75,6 +76,7 @@ export default async function VatSettingsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

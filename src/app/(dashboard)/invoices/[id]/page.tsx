@@ -83,7 +83,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
       )}
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <span className="text-gray-500">ลูกค้า:</span> {invoice.customerNameSnapshot}
           </div>
@@ -97,7 +97,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
             <span className="text-gray-500">ที่อยู่:</span> {invoice.addressSnapshot ?? "-"}
           </div>
           {invoice.placeToDelivery && (
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <span className="text-gray-500">สถานที่ส่งสินค้า:</span> {invoice.placeToDelivery}
             </div>
           )}
@@ -109,6 +109,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
       </div>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -137,6 +138,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm ml-auto max-w-xs space-y-1">

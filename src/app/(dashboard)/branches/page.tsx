@@ -34,8 +34,8 @@ export default async function BranchesPage(
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสาขาใหม่</summary>
-        <ActionForm action={createBranch} successMessage="เพิ่มสาขาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <ActionForm action={createBranch} successMessage="เพิ่มสาขาสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="col-span-1 sm:col-span-2">
             <SelectField label="ลูกค้า *" name="customerId" required defaultValue={searchParams.customerId ?? ""}>
               <option value="" disabled>
                 เลือกลูกค้า
@@ -51,19 +51,20 @@ export default async function BranchesPage(
           <Field label="ชื่อสาขา *" name="name" required />
           <Field label="รหัสสาขาใบกำกับภาษี" name="taxBranchCode" />
           <Field label="เบอร์โทร" name="phone" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="ที่อยู่" name="address" />
           </div>
           <Field label="จังหวัด" name="province" />
           <Field label="รหัสไปรษณีย์" name="postalCode" />
           <Field label="ผู้ติดต่อ" name="contactPerson" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกสาขา</SubmitButton>
           </div>
         </ActionForm>
       </details>
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -112,6 +113,7 @@ export default async function BranchesPage(
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

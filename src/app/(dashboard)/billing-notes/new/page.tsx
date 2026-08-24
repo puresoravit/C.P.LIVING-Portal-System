@@ -80,8 +80,8 @@ export default async function NewBillingNotePage(props: {
         เลือกลูกค้าและช่วงวันที่เพื่อดู Invoice ที่พิมพ์แล้ว (9×11) และยังไม่เคยถูกวางบิล แล้วติ๊กใบที่ต้องการรวมเป็นใบวางบิลเดียว
       </p>
 
-      <form method="get" className="bg-white border rounded-lg p-4 mb-4 grid grid-cols-4 gap-3 items-end">
-        <div className="col-span-2">
+      <form method="get" className="bg-white border rounded-lg p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+        <div className="col-span-1 sm:col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">ลูกค้า</label>
           <select
             name="customerId"
@@ -106,7 +106,7 @@ export default async function NewBillingNotePage(props: {
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่สิ้นสุด</label>
           <input name="dateTo" type="date" defaultValue={dateTo} className="w-full border rounded px-3 py-1.5 text-sm" />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-1 sm:col-span-4">
           <button className="text-sm text-blue-600 hover:underline">ดู Invoice ที่ยังไม่วางบิล</button>
         </div>
       </form>
@@ -115,7 +115,7 @@ export default async function NewBillingNotePage(props: {
           ได้เลย: "ยังไม่วางบิล" (เลือกสร้างใบวางบิลได้ — Default) กับ "วางบิลแล้ว" (View-only
           เชื่อมไปดู Billing Note ที่ผูกอยู่ได้ ห้ามเลือกสร้างซ้ำตาม Business Rule เดิม) */}
       {selectedCustomerId && (
-        <div className="flex gap-1 mb-3 border-b">
+        <div className="flex gap-1 mb-3 border-b overflow-x-auto">
           <a
             href={`/billing-notes/new?${viewLinkParams("unbilled")}`}
             className={`px-3 py-2 text-sm border-b-2 ${
@@ -137,6 +137,7 @@ export default async function NewBillingNotePage(props: {
 
       {selectedCustomerId && billingView === "billed" && (
         <div className="bg-white border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-left">
               <tr>
@@ -188,6 +189,7 @@ export default async function NewBillingNotePage(props: {
               </tfoot>
             )}
           </table>
+          </div>
         </div>
       )}
 
@@ -201,6 +203,7 @@ export default async function NewBillingNotePage(props: {
           <input type="hidden" name="billingNoteDate" value={today} />
 
           <div className="bg-white border rounded-lg overflow-hidden mb-4">
+            <div className="overflow-x-auto">
             <table id="billingNoteInvoiceTable" className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-left">
                 <tr>
@@ -254,6 +257,7 @@ export default async function NewBillingNotePage(props: {
                 </tfoot>
               )}
             </table>
+            </div>
           </div>
 
           {eligibleInvoices.length > 0 && (

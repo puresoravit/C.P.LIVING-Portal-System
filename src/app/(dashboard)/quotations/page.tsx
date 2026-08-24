@@ -96,8 +96,8 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
         ใช้สำหรับเสนอราคาลูกค้าเท่านั้น ยังไม่ถือเป็นยอดขายจริง — ไม่นับใน Dashboard/รายงานยอดขาย
       </p>
 
-      <form className="bg-white border rounded-lg p-4 grid grid-cols-4 gap-3 mb-4 items-end">
-        <div className="col-span-2">
+      <form className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 items-end">
+        <div className="col-span-1 sm:col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">ค้นหา (เลขที่/ชื่อลูกค้า/รหัสลูกค้า/อ้างอิง)</label>
           <SearchInputWithClear
             defaultValue={searchParams.q}
@@ -114,7 +114,7 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
           <label className="block text-xs font-medium text-gray-600 mb-1">วันที่สิ้นสุด</label>
           <input name="dateTo" type="date" defaultValue={dateTo} className="w-full border rounded px-3 py-1.5 text-sm" />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-1 sm:col-span-4">
           <button className="bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded px-4 py-2">ค้นหา</button>
         </div>
       </form>
@@ -122,6 +122,7 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
       <StatusTabs tabs={tabs} activeKey={status ?? "all"} basePath="/quotations" preserveParams={preserveParamsNoStatus} />
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -167,6 +168,7 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination page={page} totalPages={totalPages} totalCount={currentCount} basePath="/quotations" preserveParams={preserveParams} />

@@ -72,9 +72,9 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสินค้าใหม่</summary>
-        <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-3 gap-3">
+        <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
           <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
@@ -103,7 +103,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           {/* Owner UAT — ข้อ 1: เตือนเฉพาะกรณีเลือกประเภทสินค้าที่ใช้ขนาด แต่ทั้งไม่ได้ผูก
               รุ่นสินค้า (Legacy) และไม่ได้กรอกราคาต่อฟุตด้านล่างเลย — ชี้ตรงไปที่ช่องราคาต่อ
               ฟุตในฟอร์มนี้เอง ไม่ต้องออกไปหน้าอื่นอีกต่อไป */}
-          <div id="createUsesSizeWarning" className="col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          <div id="createUsesSizeWarning" className="col-span-1 sm:col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
             มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
           </div>
@@ -125,17 +125,17 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               ไว้ด้านบนแล้ว (เลือกได้ทางใดทางหนึ่งเท่านั้น) — Owner UAT Fix Batch 3 — ข้อ 4:
               บังคับกรอก (required) เฉพาะตอนเป็น Source ราคาเดียวจริงๆ (usesSize=true และ
               ไม่ได้ผูกรุ่นสินค้า) */}
-          <div id="createPricePerFootWrap" className="col-span-3 hidden">
+          <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden">
             <Field
               label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
               name="pricePerFoot"
               type="number"
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-1 sm:col-span-3">
             <Field label="คำอธิบาย" name="description" />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-1 sm:col-span-3">
             <SubmitButton>บันทึกสินค้า</SubmitButton>
           </div>
         </ActionForm>
@@ -190,6 +190,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
       <StatusTabs tabs={statusTabs} activeKey={status ?? "all"} basePath="/products" preserveParams={preserveParams} />
 
       <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
@@ -314,6 +315,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Type→Model dependent dropdown บนฟอร์มสร้างสินค้า — Pattern เดียวกับ

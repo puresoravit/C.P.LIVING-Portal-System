@@ -20,7 +20,7 @@ export default async function NewOrderPage() {
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างออเดอร์ใหม่</h1>
 
-      <ActionForm id="createOrderForm" action={createDraftOrder} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
+      <ActionForm id="createOrderForm" action={createDraftOrder} className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SelectField label="ลูกค้า *" name="customerId" required autoFocus defaultValue="">
           <option value="" disabled>
             เลือกลูกค้า
@@ -40,19 +40,19 @@ export default async function NewOrderPage() {
         </SelectField>
         <Field label="วันที่ออเดอร์ *" name="orderDate" type="date" defaultValue={today} required />
         <Field label="อ้างอิง" name="reference" />
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขา/ลูกค้าอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <TextareaField label="หมายเหตุ" name="note" />
         </div>
-        <div className="col-span-2 flex items-center gap-1.5 text-sm">
+        <div className="col-span-1 sm:col-span-2 flex items-center gap-1.5 text-sm">
           {/* Owner UAT (2026-08-23) — ค่าเริ่มต้นต้อง "ไม่ติ้ก" ใช้ส่วนลด (เดิม defaultChecked)
               — ติ้กเองเมื่อต้องการใช้จริงเท่านั้น (เหมือนกันทุกประเภทเอกสารที่มี Toggle นี้) */}
           <input id="applyDiscount" type="checkbox" name="applyDiscount" />
           <label htmlFor="applyDiscount">ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)</label>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <SubmitButton pendingLabel="กำลังสร้าง...">สร้างออเดอร์ → ไปคีย์รายการสินค้า</SubmitButton>
         </div>
       </ActionForm>
