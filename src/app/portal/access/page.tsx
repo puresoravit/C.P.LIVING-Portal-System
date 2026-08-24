@@ -7,7 +7,7 @@ import { getPortalUser } from "@/lib/app-access";
 import { getGrantableApps } from "@/lib/app-registry";
 import { CPLogo, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { AccessManager } from "./access-manager";
-import { updateUserAppAccess, resetUserPassword } from "./actions";
+import { updateUserAppAccess, resetUserPassword, createEmployeeUser } from "./actions";
 
 // R6 Phase F — Access Management: เฉพาะ Owner (isOwner=true อ่านสดจาก DB) — Role
 // OWNER_ADMIN/user.manage ธรรมดาเข้าไม่ได้ตาม Requirement — Guard ฝั่ง Server ก่อน
@@ -57,8 +57,8 @@ export default async function AccessManagementPage() {
           จัดการสิทธิ์การเข้าถึงแอปพลิเคชัน
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          เลือกผู้ใช้ แล้วกำหนดว่าเข้าใช้งานแอปพลิเคชันใดได้บ้าง — สิทธิ์ภายในแต่ละแอป (ทำอะไรได้บ้าง)
-          ยังเป็นไปตามบทบาท (Role) เดิมของผู้ใช้ทุกประการ
+          สร้างบัญชีพนักงานใหม่ และกำหนดว่าผู้ใช้แต่ละคนเข้าใช้งานแอปพลิเคชันใดได้บ้าง — สิทธิ์ภายใน
+          แต่ละแอป (ทำอะไรได้บ้าง) เป็นไปตามบทบาท (Role) ของผู้ใช้
         </p>
 
         <AccessManager
@@ -74,6 +74,7 @@ export default async function AccessManagementPage() {
           apps={apps}
           action={updateUserAppAccess}
           resetPasswordAction={resetUserPassword}
+          createUserAction={createEmployeeUser}
           goldColor={CP_GOLD}
         />
       </main>

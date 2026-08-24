@@ -91,6 +91,100 @@ export async function updateUserAppAccess(targetUserId: string, formData: FormDa
   return { success: true };
 }
 
+// Owner UAT — สร้างบัญชีพนักงานใหม่จากหน้า Access Management (เฉพาะ Owner เท่านั้น —
+// requireOwner เดียวกับทุก Action ในไฟล์นี้): เดิมระบบไม่มีทางสร้าง User จาก UI เลย
+// (มีแต่ Seed Script) — Validation/Hashing ใช้กลไกเดิมของระบบทั้งหมด (validateNewPassword
+// + bcrypt cost 10 ตัวเดียวกับ resetUserPassword) — บัญชีที่สร้างจากหน้านี้เป็นพนักงาน
+// เสมอ: isOwner=false ตายตัว (Owner จริงมีได้จากการตั้งค่าฐานข้อมูลโดยตรงเท่านั้น ไม่มี
+// ทางได้จาก UI) — Role เลือกได้ตาม Matrix เดิม 3 บทบาท — สิทธิ์เข้าแอปให้ติ๊กเลือกได้
+// ตอนสร้างเลย (Insert UserAppAccess ใน Transaction เดียวกัน พร้อม AuditLog ครบทั้ง
+// การสร้างและการ Grant แต่ละแอป — ไม่มีค่ารหัสผ่าน/Hash ใดๆ ใน Log เด็ดขาด)
+const CREATABLE_ROLES = ["OWNER_ADMIN", "BILLING_STAFF", "VIEWER"] as const;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
+
+export async function createEmployeeUser(formData: FormData): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  const username = String(formData.get("username") ?? "").trim();
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const role = String(formData.get("role") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!USERNAME_PATTERN.test(username)) {
+    return {
+      success: false,
+      error: "ชื่อผู้ใช้ต้องเป็นอักษรอังกฤษ/ตัวเลข/จุด/ขีด ยาว 3-32 ตัวอักษร (ไม่มีเว้นวรรค/อักษรไทย)",
+      fieldErrors: { username: "รูปแบบชื่อผู้ใช้ไม่ถูกต้อง" },
+    };
+  }
+  if (displayName.length === 0) {
+    return { success: false, error: "กรุณากรอกชื่อที่แสดง", fieldErrors: { displayName: "กรุณากรอกชื่อที่แสดง" } };
+  }
+  if (!(CREATABLE_ROLES as readonly string[]).includes(role)) {
+    return { success: false, error: "กรุณาเลือกบทบาท (Role)" };
+  }
+  const check = validateNewPassword(newPassword, confirmPassword);
+  if (!check.valid) {
+    return { success: false, error: check.error, fieldErrors: { newPassword: check.error } };
+  }
+
+  const existing = await db.user.findUnique({ where: { username }, select: { id: true } });
+  if (existing) {
+    return {
+      success: false,
+      error: `มีชื่อผู้ใช้ "${username}" อยู่ในระบบแล้ว — กรุณาใช้ชื่ออื่น`,
+      fieldErrors: { username: "ชื่อผู้ใช้นี้ถูกใช้แล้ว" },
+    };
+  }
+
+  // แอปที่ติ๊กให้สิทธิ์ตอนสร้าง — Defense-in-depth เดียวกับ updateUserAppAccess:
+  // id นอก Registry/ownerOnly ถูกทิ้งเงียบๆ
+  const grantableIds = new Set(getGrantableApps().map((a) => a.id));
+  const appIds = [...new Set(formData.getAll("appIds").map(String).filter((id) => grantableIds.has(id)))];
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await db.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        username,
+        displayName,
+        passwordHash,
+        role: role as (typeof CREATABLE_ROLES)[number],
+        isOwner: false,
+        active: true,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: owner.id,
+        action: "CREATE_USER",
+        module: "UserProfile",
+        recordId: created.id,
+        // ห้ามมีค่ารหัสผ่าน/Hash ใดๆ ใน Log — บันทึกแค่ตัวตน/บทบาทที่สร้าง
+        newValue: { username, displayName, role, isOwner: false },
+      },
+    });
+    for (const appId of appIds) {
+      await tx.userAppAccess.create({ data: { userId: created.id, appId, grantedById: owner.id } });
+      await tx.auditLog.create({
+        data: {
+          userId: owner.id,
+          action: "GRANT_APP_ACCESS",
+          module: "AppAccess",
+          recordId: created.id,
+          newValue: { targetUsername: username, appId, before: false, after: true },
+        },
+      });
+    }
+  });
+
+  revalidatePath("/portal/access");
+  revalidatePath("/", "layout");
+  return { success: true, message: `สร้างบัญชี "${username}" สำเร็จ — แจ้งชื่อผู้ใช้และรหัสผ่านให้พนักงานได้เลย` };
+}
+
 /** Owner UAT — Password ถูก Hash แบบ bcrypt (One-way) ตั้งแต่ตอน Set จึงไม่มีทาง
  * "ดูรหัสผ่านปัจจุบัน" ได้จริงโดยไม่เก็บ Plain Text ซึ่งขัดนโยบายความปลอดภัยเดิมของระบบ
  * (auth.ts ข้อ 51) — ใช้ Owner-initiated Password Reset แทน: Owner ตั้งรหัสผ่านใหม่ให้ User
