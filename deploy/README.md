@@ -36,7 +36,7 @@ TTL: Auto
 
 ## ขั้นตอนที่ 1 — สร้าง VPS (Owner เป็นคนสมัคร/ผูกบัตร)
 
-- ผู้ให้บริการ: **Vultr** (มี Datacenter กรุงเทพ) หรือ DigitalOcean (Singapore)
+- ผู้ให้บริการ: **Vultr** หรือ DigitalOcean — เลือก Region **Singapore** (ใกล้ไทยสุดที่มีจริง — เช็คจาก API แล้ว Vultr ไม่มีกรุงเทพ; latency ไทย→สิงคโปร์ ~30-40ms ไม่รู้สึกกับแอปแบบฟอร์ม)
 - Spec: **2 vCPU ไม่จำเป็น — 1 vCPU / 2GB RAM / 50GB SSD ก็พอ** (~$10-12/เดือน)
 - OS: **Ubuntu 24.04 LTS x64**
 - ตอนสร้างให้เพิ่ม **SSH Key** (ห้ามใช้ Password SSH) — สร้างคีย์บนเครื่อง Mac:
