@@ -44,32 +44,41 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 //
 //   Mobile (< md): Tab ครีมมนปกติ 2 ข้าง ไม่ Bleed ไม่มี Fillet (เรียบง่าย ปลอดภัยจาก
 //   Overflow — Owner อนุญาตชัดเจนให้ Mobile ต่างจาก Desktop ได้)
-// Owner UAT R5.1 — Owner มาร์ค Screenshot ชี้ตรงรอยต่อของ Reference: Curve ในตัวอย่าง
-// "กวาดกว้างและยาว" (ราวๆ ครึ่งความสูงของ Tab) ของเรา 16px สั้นเกินไปเลยอ่านเป็นรอยบาก
-// ไม่ใช่รอยต่อไหลลื่น — ขยายเป็น 24px + เพิ่ม Margin แนวตั้งรอบ Slot (md:my-1 ใน
-// ACTIVE_SLOT_CLASS) ให้โค้งมีที่กวาดเต็มวงโดยกินพื้นที่แถวข้างเคียงน้อยลง 4px (กัน
-// วงครีมรัศมีใหม่ที่ใหญ่ขึ้นไปทับ Chevron "›" ของ Group Summary แถวติดกัน — คำนวณระยะ
-// แล้ว: Chevron อยู่ห่างจุดศูนย์กลางวง ~26px > 24px พอดีเมื่อมี my-1)
-const FILLET_RADIUS = 24; // px — รัศมีโค้งเว้าที่ขอบครีมวกกลับเข้าแนว Content
+// Owner UAT R6.1 — Geometry Fix ตาม Screenshot ที่ Owner มาร์คลูกศรแดง: ของเดิม (R4-R6)
+// วางจุดศูนย์กลางวงครีมไว้ที่ "มุมรอยต่อ" เอง → เส้นโค้งวิ่งชน "ตั้งฉาก" กับทั้งขอบบน
+// ของ Tab และแนวตั้งของ Content (คณิตศาสตร์: Tangent ของวง ณ จุดตัดตั้งฉากกับรัศมีเสมอ)
+// ทำให้เกิด "บ่า/Step" ที่จุดชนทั้งสองข้าง และ Silhouette ป่องออกเป็น Bubble มีคอแบบที่
+// Owner ชี้พอดี — แก้เป็นเรขาคณิต Tab-flare ที่ถูกต้อง (แบบแท็บ Browser/macOS จริง):
+// **จุดศูนย์กลางวงอยู่มุมตรงข้ามรอยต่อ + Transparent อยู่ในวง / ครีมอยู่นอกวง** —
+// เส้นโค้งจึง "สัมผัส" (Tangent) ขอบบนของ Tab ที่ปลายหนึ่ง แล้วกวาดไปสัมผัสแนวตั้งของ
+// Content ที่อีกปลายพอดีเป๊ะ: ไม่มีบ่า ไม่มี Step ปลายโค้งบน/ล่างจบบนแนวตั้งเดียวกัน
+// (แนวขอบ Content) แล้วไหลต่อเป็นเส้นตรงเดียว — ครีม "กินเข้าไป" ในซอกมุมระหว่าง Tab
+// กับขอบ Content ตามทิศลูกศรที่ Owner ชี้ — Bonus: พื้นที่ครีมของ Fillet แบบใหม่แนบชิด
+// ขอบเท่านั้น (ส่วนใหญ่ของกล่องเป็น Transparent) จึงไม่มีทางทับ Chevron แถวข้างอีกเลย
+const FILLET_RADIUS = 28; // px — รัศมีโค้ง Tangent (ขยายจาก 24 ให้กวาดยาวตามลูกศร)
 const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
 
-/** โค้งเว้าที่มุมขวาบน/ล่างของ Cream Slot — Render เฉพาะตอน Active + Desktop เท่านั้น
- * (Parent คือ <a> Slot ที่มี position:relative) — ดู Comment ยาวบนสุดของไฟล์ */
+/** โค้ง Tangent ที่มุมขวาบน/ล่างของ Active Tab — Render เฉพาะตอน Active (Desktop
+ * เท่านั้น — Parent คือ <a> ที่มี position:relative) — Stop มี 1px Ramp (R-1 → R)
+ * ให้ขอบโค้ง Antialias เนียน ไม่เป็นบันไดพิกเซล */
 function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
-  const gradientAt = edge === "top" ? "bottom right" : "top right";
+  // จุดศูนย์กลาง = มุมตรงข้ามรอยต่อ: Fillet บน → รอยต่ออยู่มุมขวาล่าง → ศูนย์กลาง top left
+  const gradientAt = edge === "top" ? "top left" : "bottom left";
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-6 h-6 pointer-events-none`}
+      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-7 h-7 pointer-events-none`}
       style={{
-        background: `radial-gradient(circle at ${gradientAt}, ${CREAM_HEX} ${FILLET_RADIUS}px, transparent ${FILLET_RADIUS}px)`,
+        background: `radial-gradient(circle at ${gradientAt}, transparent ${FILLET_RADIUS - 1}px, ${CREAM_HEX} ${FILLET_RADIUS}px)`,
       }}
     />
   );
 }
 
+// R6.1 — Hover ของเมนูที่ยังไม่เลือกใช้ Transition เบา/เร็วกว่า Active (150ms) ไม่แย่ง
+// Hierarchy จาก Active Tab (ตาม Requirement ข้อ 3)
 const LINK_CLASS =
-  "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
+  "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-150";
 // Owner UAT R6 (2026-08-24) — Owner สั่งชัด: "เอากรอบ/พื้นสีน้ำเงินที่ครอบ Active Item
 // ออก" (ไม่เอา Blue Pill ซ้อนในช่องครีมแบบ R5 — Layered Look ทำให้ Fillet ดูเป็นติ่งขาว
 // เกยแปลกๆ และดัน Text แตก 2 บรรทัด) → Active เหลือ **ชั้นเดียว: แถบครีมล้วน** สีเดียว
@@ -80,9 +89,13 @@ const LINK_CLASS =
 // ตั้งเดียวกันทั้งเส้น (ไม่เชิด/ไม่ห้อย — เป็นแนวตรงระดับเดียวกับขอบ Content ตาม
 // Acceptance) — Mobile: Pill ครีมมนปกติ 2 ข้าง ไม่ Bleed ไม่มี Fillet (เรียบง่ายตามที่
 // Owner กำหนด) — py-2 สูงกว่า Inactive เล็กน้อยให้ Tab มี Presence โดยไม่ต้องพึ่งสีสด
+// R6.1 — Entrance 2 ชั้น (ดู globals.css): `cp-nav-fade-in` บนตัว Tab (Fade อย่างเดียว
+// ไม่มี Transform — เรขาคณิตรอยต่อนิ่งทุก Frame แม้ Animation ถูก Pause ใน Background
+// Tab) + `cp-nav-rise-in` บน Icon+Label ข้างใน (ยกขึ้น 2px — Micro-interaction ตามที่
+// Owner ระบุ) — ปิดอัตโนมัติเมื่อ prefers-reduced-motion
 const ACTIVE_CLASS =
-  "relative flex items-center gap-2.5 pl-3 pr-3 py-2 rounded-xl text-sm bg-cp-cream text-cp-navy font-medium " +
-  "md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
+  "relative flex items-center pl-3 pr-3 py-2 rounded-xl text-sm bg-cp-cream text-cp-navy font-medium " +
+  "cp-nav-fade-in md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
@@ -120,7 +133,7 @@ function NavGroupView({
   const [open, setOpen] = useState(() => groupContainsActiveHref(group.items, activeHref));
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="group">
-      <summary className="flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium text-white/85 cursor-pointer list-none hover:bg-white/10 hover:text-white transition-colors duration-200 [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium text-white/85 cursor-pointer list-none hover:bg-white/10 hover:text-white transition-colors duration-150 [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2.5">
           <IconSlot name={group.icon} active={false} depth={depth} />
           {group.label}
@@ -173,8 +186,12 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
       <a href={node.href} className={ACTIVE_CLASS}>
         <ActiveFillet edge="top" />
         <ActiveFillet edge="bottom" />
-        <IconSlot name={node.icon} active depth={depth} />
-        <span className="min-w-0 truncate">{node.label}</span>
+        {/* Wrapper แยกสำหรับ rise-in — Transform อยู่ที่เนื้อในเท่านั้น ตัว Tab/Fillet
+            ไม่ขยับ (เรขาคณิตรอยต่อคงที่ 100%) */}
+        <span className="flex items-center gap-2.5 min-w-0 cp-nav-rise-in">
+          <IconSlot name={node.icon} active depth={depth} />
+          <span className="min-w-0 truncate">{node.label}</span>
+        </span>
       </a>
     );
   }
