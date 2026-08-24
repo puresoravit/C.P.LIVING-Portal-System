@@ -56,3 +56,22 @@ export function printPageStyleFor(profile: PrintProfileKey): string {
 export function printPageStyle(): string {
   return `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }`;
 }
+
+// Owner UAT — Automatic PRINTED Workflow (2026-08-24): Pure Decision Logic แยกออกมา
+// จาก PrintButton (Client Component) เพื่อ Unit Test ได้ตรงๆ โดยไม่ต้องพึ่ง Browser
+// จริง — ครอบคลุม Invariant ที่สำคัญที่สุดของ Feature นี้: "A4 ต้องไม่มาร์ค PRINTED
+// อัตโนมัติเด็ดขาด ไม่ว่ากรณีใด" (canAutoMark ต้องเป็น false เสมอเมื่อ
+// profile !== "continuous" — Short-circuit ที่ Server ก็เช็คซ้ำอีกชั้นใน
+// markInvoicePrinted อยู่แล้ว เป็น Defense-in-depth 2 ชั้นเหมือนเดิม)
+export function resolvePrintMarkUiState(params: {
+  /** false = Invoice ถูกยกเลิกแล้ว (markPrintedAction เป็น undefined จาก Caller) */
+  hasMarkAction: boolean;
+  isPrinted: boolean;
+  profile: PrintProfileKey;
+}): { canAutoMark: boolean; showA4Notice: boolean } {
+  const eligible = params.hasMarkAction && !params.isPrinted;
+  return {
+    canAutoMark: eligible && params.profile === "continuous",
+    showA4Notice: eligible && params.profile !== "continuous",
+  };
+}
