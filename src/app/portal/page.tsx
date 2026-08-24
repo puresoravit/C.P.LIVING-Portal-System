@@ -126,10 +126,25 @@ export default async function PortalPage() {
                 ? "relative border-white/15 transition-all duration-[320ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:z-10 hover:-translate-y-1.5 hover:scale-[1.06] hover:border-[#C9A24B]/70 hover:bg-white/[0.07] hover:shadow-[0_14px_40px_rgba(201,162,75,0.2)] active:scale-[1.03] active:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24B] motion-reduce:transform-none motion-reduce:transition-none"
                 : "border-white/10 opacity-70");
 
+            // Owner UAT — App-Switch Transition: Card ที่พาออกนอกโซน Portal (เข้าแอป
+            // Billing) ต้องเป็น <a> Full Page Load — Cross-document View Transition
+            // (Cross-fade `cp-app-switch` ใน globals.css + public/cp-app-switch.js)
+            // เล่นได้เฉพาะการนำทางข้ามหน้าจริง ไม่ใช่ SPA — ทำให้ทิศทาง Portal→Billing
+            // เหมือน Billing→Portal (ซึ่งเป็น <a> อยู่แล้วใน (dashboard)/layout.tsx) —
+            // Bonus ด้าน Security: เข้าแอปด้วย Full Request = App-Access Check ใน
+            // (dashboard)/layout.tsx ยิงเสมอ — Card ภายในโซน Portal (เช่น Access
+            // Management) ยังเป็น <Link> SPA เดิม (ไม่มี Animation ข้ามแอปให้ต้องเล่น)
+            const leavesPortalZone = app.route && !app.route.startsWith("/portal");
             return accessible && app.route ? (
-              <Link key={app.id} href={app.route} className={cardClass}>
-                {inner}
-              </Link>
+              leavesPortalZone ? (
+                <a key={app.id} href={app.route} className={cardClass}>
+                  {inner}
+                </a>
+              ) : (
+                <Link key={app.id} href={app.route} className={cardClass}>
+                  {inner}
+                </Link>
+              )
             ) : (
               <div key={app.id} className={cardClass} aria-disabled>
                 {inner}

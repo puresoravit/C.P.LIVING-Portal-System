@@ -75,6 +75,39 @@ body {
   opacity: 1;
 }
 
+/* ==========================================================================
+   Owner UAT — App-Switch Transition (Portal ↔ Billing) ให้เหมือนกันทั้ง 2 ทิศทาง
+   Type `cp-app-switch` ถูกติดโดย public/cp-app-switch.js เฉพาะการนำทางที่ "ข้ามโซน
+   แอป" (Portal/Login ↔ Billing) — เปิด Cross-fade นุ่มทั้งหน้า 500ms (Easing ตระกูล
+   เดียวกับ Sidebar Indicator ที่ Owner Approve แล้ว) แทน Instant Swap — Selector มี
+   :active-view-transition-type จึง Specificity สูงกว่ากฎ Root ปกติด้านบน ชนะเฉพาะ
+   ตอนสลับแอปเท่านั้น การนำทางภายใน Billing ยัง Instant Root + Indicator ไหลเหมือนเดิม
+   — ต้องประกาศ from/to เต็มใน Keyframes เพราะกฎ Root ปกติตั้ง opacity 0/1 ค้างไว้
+   (ถ้าปล่อย Implicit ค่าตั้งต้นจะถูกดึงจาก opacity ที่ Cascade แล้ว → Fade เพี้ยน)
+   ========================================================================== */
+@keyframes cp-app-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes cp-app-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+:root:active-view-transition-type(cp-app-switch)::view-transition-old(root) {
+  animation: cp-app-fade-out 500ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+:root:active-view-transition-type(cp-app-switch)::view-transition-new(root) {
+  animation: cp-app-fade-in 500ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
 /* Micro-interaction (R6.1/R7, จังหวะปรับ R7.1 ตาม Indicator ที่ช้าลง): Icon+Label ใน
    Active Tab ยกขึ้น 2px — Delay 110ms + Duration 260ms (จบที่ 370ms) ยัง "ตามหลัง"
    Indicator หลัก (จบที่ 460ms) อยู่เล็กน้อยตามที่ Owner ระบุ ไม่ใช่จบพร้อมกันเป๊ะจนรู้สึก

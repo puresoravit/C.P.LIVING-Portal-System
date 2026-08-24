@@ -14,6 +14,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // ทั้งแอพสืบทอด (globals.css body ใช้ var(--font-latin)/var(--font-thai) ประกอบ Stack)
     <html lang="th" className={`${manrope.variable} ${lineSeedSansTH.variable}`}>
       <body className="bg-gray-50 text-gray-900">
+        {/* Owner UAT — App-Switch Transition (Portal↔Billing): ต้องเป็น Script แบบ
+            Blocking ต้นๆ ของ Body — Listener `pagereveal` ต้องลงทะเบียนก่อนเฟรมแรก
+            ของหน้าใหม่ (ยิงก่อน Render ครั้งแรก) — ไฟล์เล็กมากและ Cache ได้ จึงไม่
+            กระทบความเร็วโหลด (ดูคำอธิบายเต็มใน public/cp-app-switch.js) */}
+        <script src="/cp-app-switch.js" />
         <Providers>{children}</Providers>
       </body>
     </html>
