@@ -9,6 +9,7 @@ import { getPortalUser, hasAppAccess } from "@/lib/app-access";
 import { InactivityLogout } from "@/components/portal/inactivity-logout";
 import { formatDisplayName } from "@/lib/user-profile";
 import { UserAvatar } from "@/components/portal/user-avatar";
+import { NavIcon } from "@/components/nav-icons";
 
 const BRAND = "C.P. LIVING Billing";
 
@@ -58,16 +59,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </span>
         }
       >
-        {/* R6 Phase F — App Switcher: ทางกลับ Application Portal จากในแอพ Billing */}
+        {/* R6 Phase F — App Switcher: ทางกลับ Application Portal จากในแอพ Billing —
+            Owner UAT Visual Polish: เปลี่ยนจาก Unicode Glyph "⊞" ดิบๆ เป็น NavIcon
+            (grid) ตัวเดียวกับชุด Sidebar เพื่อความสม่ำเสมอ (ข้อ 5 Design Consistency) —
+            href/สิทธิ์/พฤติกรรมเดิมทุกประการ ไม่แตะ */}
         <a
           href="/portal"
-          className="block mx-3 mt-3 mb-1 text-xs text-gray-600 hover:text-gray-900 border rounded-lg px-3 py-2 text-center print:hidden"
+          className="flex items-center justify-center gap-1.5 mx-3 mt-3 mb-1 text-xs text-gray-600 hover:text-gray-900 hover:border-cp-navy/30 border rounded-lg px-3 py-2 text-center transition-colors duration-150 print:hidden"
         >
-          ⊞ Application Portal
+          <NavIcon name="grid" className="w-3.5 h-3.5" />
+          Application Portal
         </a>
         <SidebarNav tree={visibleTree} />
       </SidebarShell>
-      <main className="flex-1 p-6 print:p-0">{children}</main>
+      {/* Owner UAT — Billing UI Visual Polish: พื้น Content Area จากขาวล้วน → Warm
+          Off-white (cp-cream, ดู tailwind.config.js) — จุดควบคุมเดียว กระทบทุกหน้าใน
+          Route Group นี้พร้อมกัน — Card/Table/Form ยังเป็น bg-white เดิมทุกใบ จึงยังแยก
+          จาก Background ได้ชัดเจนเหมือนเดิม (ไม่แตะ Component ใดๆ ของแต่ละหน้าเลย) */}
+      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white min-h-screen">{children}</main>
     </div>
   );
 }

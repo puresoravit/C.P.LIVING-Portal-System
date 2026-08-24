@@ -26,13 +26,13 @@ export function StatusTabs({
           <a
             key={tab.key}
             href={href}
-            className={`px-3 py-2 text-sm border-b-2 whitespace-nowrap ${
+            className={`px-3 py-2 text-sm border-b-2 whitespace-nowrap transition-colors duration-150 ${
               isActive
-                ? "border-blue-600 text-blue-600 font-medium"
+                ? "border-cp-navy text-cp-navy font-medium"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab.label} <span className={isActive ? "text-blue-600" : "text-gray-400"}>({tab.count})</span>
+            {tab.label} <span className={isActive ? "text-cp-navy" : "text-gray-400"}>({tab.count})</span>
           </a>
         );
       })}

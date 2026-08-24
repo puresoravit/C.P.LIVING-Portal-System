@@ -29,14 +29,14 @@ export function Pagination({
         <a
           href={hrefFor(Math.max(1, page - 1))}
           aria-disabled={page <= 1}
-          className={`px-3 py-1.5 border rounded ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-gray-50"}`}
+          className={`px-3 py-1.5 border rounded-lg transition-colors duration-150 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-gray-50 hover:border-cp-navy/30"}`}
         >
           ก่อนหน้า
         </a>
         <a
           href={hrefFor(Math.min(totalPages, page + 1))}
           aria-disabled={page >= totalPages}
-          className={`px-3 py-1.5 border rounded ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-gray-50"}`}
+          className={`px-3 py-1.5 border rounded-lg transition-colors duration-150 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-gray-50 hover:border-cp-navy/30"}`}
         >
           ถัดไป
         </a>

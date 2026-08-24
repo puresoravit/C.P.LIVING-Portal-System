@@ -13,6 +13,7 @@ import { CustomerHoverCard } from "@/components/customer-hover-card";
 import { MonthlySalesChart } from "@/components/monthly-sales-chart";
 import { SalesGrowthChart } from "@/components/sales-growth-chart";
 import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
+import { NavIcon } from "@/components/nav-icons";
 
 const BUDDHIST_YEAR_OFFSET = 543;
 
@@ -98,18 +99,42 @@ export default async function HomePage(
         </form>
       </div>
 
+      {/* Owner UAT — Billing UI Visual Polish: KPI Card 3 ใบนี้คือ "Dashboard Statistic
+          Cards" ที่ Owner ระบุตรงๆ ให้เพิ่มสี — ใช้ Subtle Gradient โทน Sky/Teal/Amber
+          (Soft, Premium, ไม่ฉูดฉาด) + Icon Chip ผูกความหมายจริงของแต่ละตัวเลข (ยอดขาย/
+          ยอดสุทธิ/จำนวนสินค้า — Reuse ชุด NavIcon เดียวกับ Sidebar ไม่สร้าง Icon System
+          คู่ขนาน) ตัวเลขยังคงสีเข้ม/ขนาดเดิมเป๊ะ (text-2xl font-medium) เพื่อความชัดเจน
+          เป็นอันดับแรกตามที่ Owner กำชับ — สีมีหน้าที่ "แยก" การ์ดออกจากกันเท่านั้น ไม่ใช่
+          แข่งกับตัวเลข การ์ดอื่นๆ ในหน้านี้ (Customer Card/Top10/Chart) ยังคง bg-white
+          เดิมทุกใบ ไม่ไล่สีตาม เพื่อไม่ให้หน้าดูรกเกินไป (Design Consistency แบบพอดี ไม่
+          Redesign ทั้งหน้า) */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-white border rounded-lg p-4">
-          <div className="text-xs text-gray-500 mb-1">ยอดขาย (จำนวนเงิน)</div>
-          <div className="text-2xl font-medium">{money(summary.gross)} บาท</div>
+        <div className="relative overflow-hidden bg-gradient-to-br from-sky-50 to-white border border-sky-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 shrink-0">
+              <NavIcon name="chart" className="w-4 h-4" />
+            </span>
+            <div className="text-xs text-gray-500">ยอดขาย (จำนวนเงิน)</div>
+          </div>
+          <div className="text-2xl font-medium text-gray-900">{money(summary.gross)} บาท</div>
         </div>
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-xs text-gray-500 mb-1">ยอดสุทธิ (Net)</div>
-          <div className="text-2xl font-medium text-blue-700">{money(summary.net)} บาท</div>
+        <div className="relative overflow-hidden bg-gradient-to-br from-teal-50 to-white border border-teal-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-teal-500/10 text-teal-600 shrink-0">
+              <NavIcon name="receipt" className="w-4 h-4" />
+            </span>
+            <div className="text-xs text-gray-500">ยอดสุทธิ (Net)</div>
+          </div>
+          <div className="text-2xl font-medium text-teal-700">{money(summary.net)} บาท</div>
         </div>
-        <div className="bg-white border rounded-lg p-4">
-          <div className="text-xs text-gray-500 mb-1">จำนวนสินค้าที่ขาย</div>
-          <div className="text-2xl font-medium">{summary.quantity.toLocaleString("th-TH")}</div>
+        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 shrink-0">
+              <NavIcon name="box" className="w-4 h-4" />
+            </span>
+            <div className="text-xs text-gray-500">จำนวนสินค้าที่ขาย</div>
+          </div>
+          <div className="text-2xl font-medium text-gray-900">{summary.quantity.toLocaleString("th-TH")}</div>
         </div>
       </div>
 

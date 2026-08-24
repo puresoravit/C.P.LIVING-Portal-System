@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
+import { NavIcon, type NavIconKey } from "@/components/nav-icons";
 import type { NavNode } from "@/lib/nav-tree";
 import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/nav-active";
 
@@ -10,17 +11,35 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 // Server Component แล้ว (layout.tsx) — ตัว Component นี้รับผิดชอบแค่ Active State
 // (ผ่าน usePathname, Logic จริงอยู่ใน src/lib/nav-active.ts เพื่อ unit test ได้)
 // กับ Expand/Collapse (<details> ล้วนๆ ไม่ต้องมี JS Toggle เอง)
-const LINK_CLASS = "block px-3 py-1.5 rounded text-sm";
-const ACTIVE_CLASS = "bg-blue-50 text-blue-700 font-medium";
+//
+// Owner UAT — Billing UI Visual Polish (2026-08-24): Active Menu เปลี่ยนจาก
+// bg-blue-50/text-blue-700 เดิม → Gradient โทน Company Blue (cp-navy → cp-navy-light,
+// ค่าเดียวกับ Brand Blue ที่ Splash/Login/Portal ใช้อยู่แล้ว — ดู tailwind.config.js)
+// + shadow บางๆ ให้ดูยกตัวขึ้นมาจาก Content เล็กน้อย (Owner: "รู้สึกเชื่อมต่อกับ
+// Content Area อย่างเป็นธรรมชาติ") — Inactive ยังคงพื้นขาว/เทาอ่อนเดิม (Owner สั่งชัด
+// ห้ามใช้พื้นม่วงตาม Reference) เพิ่มแค่ transition-colors ให้ Hover นุ่มขึ้น — Icon สืบสี
+// จาก currentColor ของ <a>/<summary> เอง (Active=ขาว, Inactive=เทาอ่อนผ่าน Span ที่ห่อ
+// แยก) ไม่ต้องส่ง Prop สีซ้ำ
+const LINK_CLASS = "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors duration-150";
+const ACTIVE_CLASS = "bg-gradient-to-r from-cp-navy to-cp-navy-light text-white font-medium shadow-sm shadow-cp-navy/20";
 const INACTIVE_CLASS = "text-gray-700 hover:bg-gray-100";
-const DISABLED_CLASS = "flex items-center justify-between px-3 py-1.5 rounded text-sm text-gray-400 cursor-not-allowed select-none";
+const DISABLED_CLASS =
+  "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-gray-400 cursor-not-allowed select-none";
+
+function IconSlot({ name, active }: { name: NavIconKey | undefined; active: boolean }) {
+  if (!name) return null;
+  return <NavIcon name={name} className={`w-4 h-4 shrink-0 ${active ? "text-white/90" : "text-gray-400"}`} />;
+}
 
 function NavGroupView({ group, activeHref }: { group: Extract<NavNode, { type: "group" }>; activeHref: string | null }) {
   const [open, setOpen] = useState(() => groupContainsActiveHref(group.items, activeHref));
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="group">
-      <summary className="flex items-center justify-between px-3 py-1.5 rounded text-sm font-medium text-gray-600 cursor-pointer list-none hover:bg-gray-100 [&::-webkit-details-marker]:hidden">
-        {group.label}
+      <summary className="flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 cursor-pointer list-none hover:bg-gray-100 transition-colors duration-150 [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-2.5">
+          <IconSlot name={group.icon} active={false} />
+          {group.label}
+        </span>
         <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90 shrink-0 ml-2">
           &rsaquo;
         </span>
@@ -36,7 +55,13 @@ function NavGroupView({ group, activeHref }: { group: Extract<NavNode, { type: "
 
 function NavNodeView({ node, activeHref }: { node: NavNode; activeHref: string | null }) {
   if (node.type === "signout") {
-    return <SignOutButton className={`${LINK_CLASS} ${INACTIVE_CLASS} text-left w-full`} label={node.label} />;
+    return (
+      <SignOutButton
+        className={`${LINK_CLASS} ${INACTIVE_CLASS} text-left w-full`}
+        label={node.label}
+        icon={<IconSlot name={node.icon} active={false} />}
+      />
+    );
   }
 
   if (node.type === "group") {
@@ -46,14 +71,18 @@ function NavNodeView({ node, activeHref }: { node: NavNode; activeHref: string |
   if (node.disabled) {
     return (
       <span className={DISABLED_CLASS}>
-        {node.label}
-        <span className="text-[10px] bg-gray-100 text-gray-400 rounded px-1.5 py-0.5 ml-2 shrink-0">เร็วๆ นี้</span>
+        <span className="flex items-center gap-2.5">
+          <IconSlot name={node.icon} active={false} />
+          {node.label}
+        </span>
+        <span className="text-[10px] bg-gray-100 text-gray-400 rounded-full px-1.5 py-0.5 ml-2 shrink-0">เร็วๆ นี้</span>
       </span>
     );
   }
   const active = node.href === activeHref;
   return (
     <a href={node.href} className={`${LINK_CLASS} ${active ? ACTIVE_CLASS : INACTIVE_CLASS}`}>
+      <IconSlot name={node.icon} active={active} />
       {node.label}
     </a>
   );
