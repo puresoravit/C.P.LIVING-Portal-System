@@ -115,7 +115,7 @@ nano .env        # เติมค่าจริงทุกช่องตา�
 chmod 640 .env && chown root:billing .env
 
 npm ci
-npx prisma migrate deploy       # สร้าง Schema (18 migrations)
+npx prisma migrate deploy       # สร้าง Schema (17 migrations)
 npm run build
 chown -R billing:billing /opt/bill-system
 mkdir -p logs backups && chown billing:billing logs backups
