@@ -48,24 +48,29 @@ export default async function DashboardLayout({ children }: { children: React.Re
         // เดียวกับ Portal/Profile Menu (มีรูป=รูปจริง ไม่มี=Initial Fallback) — Logo
         // บริษัทยังเป็น Brand แยกที่บรรทัด brand ด้านบน ไม่ปนกับรูป User
         userInfo={
+          // Owner UAT — Billing UI Visual Polish R3: Sidebar เป็นพื้น Navy แล้ว (ดู
+          // sidebar-shell.tsx) — ตัวอักษร/ชื่อ/Role ต้องพลิกเป็นสีขาว/อ่อนเพื่ออ่านออก
+          // (Requirement ข้อ 3) — UserAvatar เดิมไม่ต้องแก้ (เป็นรูปวงกลม มี Border ของ
+          // ตัวเองอยู่แล้ว อ่านได้ดีบนพื้นเข้ม)
           <span className="flex items-center gap-2 mt-1.5">
             <UserAvatar avatarDataUri={portalUser.avatarDataUri} displayName={portalUser.displayName} size={30} />
             <span className="min-w-0">
-              <span className="block text-xs font-medium text-gray-800 truncate leading-tight">
+              <span className="block text-xs font-medium text-white truncate leading-tight">
                 {formatDisplayName(portalUser.titlePrefix, portalUser.displayName)}
               </span>
-              <span className="block text-[11px] text-gray-500 truncate leading-tight">{roleLabel[role] ?? role}</span>
+              <span className="block text-[11px] text-white/50 truncate leading-tight">{roleLabel[role] ?? role}</span>
             </span>
           </span>
         }
       >
         {/* R6 Phase F — App Switcher: ทางกลับ Application Portal จากในแอพ Billing —
-            Owner UAT Visual Polish: เปลี่ยนจาก Unicode Glyph "⊞" ดิบๆ เป็น NavIcon
-            (grid) ตัวเดียวกับชุด Sidebar เพื่อความสม่ำเสมอ (ข้อ 5 Design Consistency) —
-            href/สิทธิ์/พฤติกรรมเดิมทุกประการ ไม่แตะ */}
+            Owner UAT Visual Polish R3: พื้นหลัง Sidebar เป็น Navy แล้ว ปุ่มนี้เปลี่ยนเป็น
+            สไตล์ "กระจกฝ้า" (bg-white/10 + border-white/15) แทน border เทาบนพื้นขาวเดิม
+            ให้เข้ากับพื้นผิวใหม่ — href/สิทธิ์/พฤติกรรม/Icon (NavIcon grid จาก R2) เดิม
+            ทุกประการ ไม่แตะ */}
         <a
           href="/portal"
-          className="flex items-center justify-center gap-1.5 mx-3 mt-3 mb-1 text-xs text-gray-600 hover:text-gray-900 hover:border-cp-navy/30 border rounded-lg px-3 py-2 text-center transition-colors duration-150 print:hidden"
+          className="flex items-center justify-center gap-1.5 mx-3 mt-3 mb-1 text-xs text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 rounded-lg px-3 py-2 text-center transition-colors duration-150 print:hidden"
         >
           <NavIcon name="grid" className="w-3.5 h-3.5" />
           Application Portal
@@ -76,12 +81,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
           Off-white (cp-cream, ดู tailwind.config.js) — จุดควบคุมเดียว กระทบทุกหน้าใน
           Route Group นี้พร้อมกัน — Card/Table/Form ยังเป็น bg-white เดิมทุกใบ จึงยังแยก
           จาก Background ได้ชัดเจนเหมือนเดิม (ไม่แตะ Component ใดๆ ของแต่ละหน้าเลย)
-          R2 — มุมซ้ายบนมน (md:rounded-tl-2xl) เฉพาะ Desktop ที่ Sidebar ยืนติดกันจริง
-          ให้อ่านเป็น "Panel เดียวกับ Sidebar" ไม่ใช่กล่อง 2 กล่องแยกเหลี่ยม (คู่กับ Active
-          Pill ที่ Bleed ออกมาจากฝั่ง Sidebar ใน sidebar-nav.tsx) — Mobile ไม่ใส่ (Sidebar
-          เป็น Drawer ลอยทับ ไม่ได้ยืนติดกันจริง มุมมนจะดูแปลก) — print:rounded-none กัน
-          กระทบเอกสารพิมพ์ (เหมือน print:p-0/print:bg-white เดิม) */}
-      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white md:rounded-tl-2xl print:rounded-none min-h-screen">{children}</main>
+          R3 — มุมซ้ายบนมน (md:rounded-tl-[28px], ขยายจาก R2 ให้เห็นชัดขึ้นเพราะตอนนี้
+          Sidebar เป็นพื้น Navy จริงแล้ว ไม่ใช่ขาวจางๆ เหมือนก่อน) คือ "รอยต่อเชิงรูปทรง"
+          ตัวจริงที่ Owner ขอ — พื้น Navy ของ Sidebar จะโผล่ออกมาให้เห็นตรง Corner ที่ถูก
+          เว้าเข้ามา อ่านเป็น Notch ธรรมชาติแบบ Reference โดยไม่ต้องวาด SVG Curve เพิ่ม —
+          Mobile ไม่ใส่ (Sidebar เป็น Drawer ลอยทับ ไม่ได้ยืนติดกันจริง มุมมนจะดูแปลก) —
+          print:rounded-none กันกระทบเอกสารพิมพ์ (เหมือน print:p-0/print:bg-white เดิม) */}
+      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white md:rounded-tl-[28px] print:rounded-none min-h-screen">{children}</main>
     </div>
   );
 }

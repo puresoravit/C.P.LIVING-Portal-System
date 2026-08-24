@@ -12,47 +12,40 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 // (ผ่าน usePathname, Logic จริงอยู่ใน src/lib/nav-active.ts เพื่อ unit test ได้)
 // กับ Expand/Collapse (<details> ล้วนๆ ไม่ต้องมี JS Toggle เอง)
 //
-// Owner UAT — Billing UI Visual Polish R2 (2026-08-24): R1 (bg-blue-50→Gradient
-// Rectangle) ยัง "ลอยอยู่บน Sidebar ขาว" ไม่รู้สึกเชื่อมกับ Content — Requirement หลัก
-// ของ R2 คือให้ Active Menu รู้สึกเป็น "ทางเข้าสู่หน้าปัจจุบัน" ไม่ใช่ปุ่มลอย — เทคนิคที่ใช้
-// (เลือกจาก Layout จริงของระบบ ไม่ใช่ Copy Reference แบบ Pixel-to-pixel):
-//   1. Active Pill "เปิดขอบขวา" ที่ md+ (Desktop เท่านั้น — Sidebar ยืนติดกับ Content
-//      จริง): rounded เฉพาะฝั่งซ้าย (rounded-l-xl) + ไม่มี Margin ขวา (bleed ชนขอบ Nav
-//      พอดี ผ่าน md:mr-[-8px] ชดเชย px-2 ของ <nav> เป๊ะ) ทำให้ตัว Pill "ทะลุ" ไปจรดเส้น
-//      แบ่ง Sidebar/Content แทนที่จะมี Margin ขาวคั่นทั้งสองข้างเหมือน R1 (ซึ่งคือสาเหตุหลัก
-//      ที่ทำให้ดู "ลอย")
-//   2. Directional Glow ที่ md+: shadow เอียงไปทางขวา (ทางเดียวกับ Content) สีน้ำเงินแบรนด์
-//      จางๆ ทำให้แสงจาก Pill "สาด" ข้ามเส้นแบ่งไปยัง Content — จำลองความรู้สึกแบบ
-//      Reference (Panel เชื่อมกัน) โดยไม่ต้องวาด Curve/Notch ที่เสี่ยง Overflow บนจอเล็ก
-//   3. Content Panel (main ใน layout.tsx) มุมซ้ายบนมน (md:rounded-tl-2xl) "รับ" กับ Pill
-//      ให้อ่านเป็น Panel เดียวกัน มากกว่า Sidebar/Content แยกเป็น 2 กล่องเหลี่ยม
-//   4. Mobile (< md, เป็น Drawer ลอยทับ Content ไม่ได้ยืนติดกันจริง): **ไม่ใช้ Bleed/
-//      Glow เลย** (Owner สั่งชัดว่าเทคนิค Desktop Overlap จะทำให้ Overflow ใน Drawer) —
-//      กลับไปเป็น Pill มน 2 ข้างปกติ (rounded-xl เฉย ๆ) ปลอดภัย ไม่มีทาง Overflow
-//
-// Icon Hierarchy (R2 — เดิม R1 "เล็ก/บาง/จางเกินไป"): Main Menu (depth 0 — ทั้ง Link
-// บนสุดและหัว Group) ได้ Chip Container (พื้นหลังกลม/เหลี่ยมมน 28×28px) ให้มี Presence
-// ชัดเจน — Submenu (depth ≥ 1) เป็น Icon เปล่าขนาดเล็กกว่า ไม่มี Container — ระยะห่างนี้
-// เองคือตัวสื่อ Hierarchy Main vs Submenu (ไม่ต้องพึ่ง Font Size/Color ต่างกันเพิ่ม)
+// Owner UAT — Billing UI Visual Polish R3 (2026-08-24): R2 แก้แค่ Margin/Glow ของ
+// Active Pill บน Sidebar ขาว — Owner ยืนยันว่ายังไม่ตรง Requirement เพราะปัญหาจริงคือ
+// Sidebar ทั้งแถบไม่มี "มวลสี" ให้เชื่อมกับ Content ได้ (ดู sidebar-shell.tsx สำหรับ
+// Gradient Navy ใหม่ของพื้น Sidebar) — รอบนี้จึง Redesign "Active-state Shape" ใหม่
+// ทั้งชุดให้เข้ากับพื้น Navy แทนที่จะ Patch ของเดิม:
+//   - พื้นหลัง Sidebar เป็น Navy เข้มแล้ว (ไม่ใช่ขาว) → Active ต้องใช้สี "สว่างกว่า" พื้น
+//     เพื่อให้ Pop เห็นชัดว่ากำลังอยู่ตรงไหน (Requirement ข้อ 2 "ฟ้า/น้ำเงินของ Brand")
+//     — ใช้ Tailwind blue-500→600 (สว่าง+อิ่มสีกว่า cp-navy พื้นหลังชัดเจน) แทน Gradient
+//     cp-navy→cp-navy-light เดิมของ R2 ที่แทบกลืนกับพื้นใหม่นี้พอดี
+//   - Shape กลับมาเป็น rounded-xl ปกติทั้ง 2 ข้าง ทุก Breakpoint (**ไม่มี md:-only Bleed/
+//     Glow Hack แบบ R2 อีกแล้ว** ตามที่ Owner สั่งชัดว่าอย่าแก้แค่ Margin/Glow ซ้ำ) เพราะ
+//     "รอยต่อ" ตอนนี้เกิดจากพื้นที่สี Navy/Cream ที่วางชิดกันทั้งก้อน (Sidebar/Content) รวม
+//     กับมุมโค้งของ Content ที่เผยพื้น Navy ออกมา (layout.tsx) ไม่ต้องพึ่ง Shape ของ Pill
+//     เดี่ยวๆ อีกต่อไป — โค้ดง่ายขึ้นและใช้ Shape เดียวกันทุกจอ (Desktop/Mobile) ปลอดภัย
+//     จาก Overflow โดยธรรมชาติ (ไม่มี Negative Margin/Responsive Override ให้พลาด)
+//   - Inactive/Group/Divider/Disabled ทั้งหมดพลิกจาก เทา-บน-ขาว → ขาวโปร่งแสง-บน-Navy
+//     (Requirement ข้อ 3: "ถ้าอยู่บนพื้น Blue/Navy ให้ใช้ตัวอักษร/Icon สีขาวหรือสีอ่อน")
 const LINK_CLASS =
-  "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-150";
-const ACTIVE_CLASS =
-  "bg-gradient-to-r from-cp-navy to-cp-navy-light text-white font-medium shadow-md shadow-cp-navy/20 " +
-  "md:rounded-l-xl md:rounded-r-none md:mr-[-8px] md:pr-5 md:shadow-[4px_0_14px_-2px_rgba(11,27,58,0.35)]";
-const INACTIVE_CLASS = "text-gray-700 hover:bg-gray-100";
+  "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
+const ACTIVE_CLASS = "bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40";
+const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
-  "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-gray-400 cursor-not-allowed select-none";
+  "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
 
 function IconSlot({ name, active, depth }: { name: NavIconKey | undefined; active: boolean; depth: number }) {
   if (!name) return null;
   if (depth === 0) {
-    // Main Menu — Chip Container (ข้อ 2 R2: "Active icon สามารถมี accent/container ที่
-    // สัมพันธ์กับ active blue surface") — Inactive = เทาอ่อนกลาง, Active = กระจกขาวโปร่ง
-    // แสงบน Gradient Navy
+    // Main Menu — Chip Container กระจกฝ้าบนพื้น Navy (ข้อ 2 R2 ยังใช้ต่อ: "Active icon
+    // มี Container สัมพันธ์กับ Active Surface") — Inactive = ขาวจางกลืนพื้น Navy,
+    // Active = ขาวสว่างขึ้นบน Blue Pill
     return (
       <span
-        className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors duration-150 ${
-          active ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
+        className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors duration-200 ${
+          active ? "bg-white/25 text-white" : "bg-white/10 text-white/70"
         }`}
       >
         <NavIcon name={name} className="w-[18px] h-[18px]" />
@@ -60,7 +53,7 @@ function IconSlot({ name, active, depth }: { name: NavIconKey | undefined; activ
     );
   }
   // Submenu — Icon เปล่า เล็กกว่า ไม่มี Container (แยก Hierarchy จาก Main Menu ชัดเจน)
-  return <NavIcon name={name} className={`w-[15px] h-[15px] shrink-0 ${active ? "text-white/90" : "text-gray-400"}`} />;
+  return <NavIcon name={name} className={`w-[15px] h-[15px] shrink-0 ${active ? "text-white/90" : "text-white/50"}`} />;
 }
 
 function NavGroupView({
@@ -75,16 +68,16 @@ function NavGroupView({
   const [open, setOpen] = useState(() => groupContainsActiveHref(group.items, activeHref));
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="group">
-      <summary className="flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 cursor-pointer list-none hover:bg-gray-100 transition-colors duration-150 [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center justify-between px-3 py-1.5 rounded-lg text-sm font-medium text-white/85 cursor-pointer list-none hover:bg-white/10 hover:text-white transition-colors duration-200 [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2.5">
           <IconSlot name={group.icon} active={false} depth={depth} />
           {group.label}
         </span>
-        <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90 shrink-0 ml-2">
+        <span className="text-white/40 transition-transform duration-200 group-open:rotate-90 shrink-0 ml-2">
           &rsaquo;
         </span>
       </summary>
-      <div className="pl-3 space-y-0.5 mt-0.5 border-l ml-3">
+      <div className="pl-3 space-y-0.5 mt-0.5 border-l border-white/10 ml-3">
         {group.items.map((child, i) => (
           <NavNodeView key={`${child.type}-${i}`} node={child} activeHref={activeHref} depth={depth + 1} />
         ))}
@@ -115,7 +108,7 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
           <IconSlot name={node.icon} active={false} depth={depth} />
           {node.label}
         </span>
-        <span className="text-[10px] bg-gray-100 text-gray-400 rounded-full px-1.5 py-0.5 ml-2 shrink-0">เร็วๆ นี้</span>
+        <span className="text-[10px] bg-white/10 text-white/40 rounded-full px-1.5 py-0.5 ml-2 shrink-0">เร็วๆ นี้</span>
       </span>
     );
   }

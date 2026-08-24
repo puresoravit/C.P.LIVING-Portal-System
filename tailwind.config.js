@@ -27,6 +27,10 @@ module.exports = {
       colors: {
         "cp-navy": "#0B1B3A", // = CP_NAVY
         "cp-navy-light": "#1E3A6E", // Stop ที่ 2 ของ Gradient (เข้มกว่า blue-600 มาตรฐานเล็กน้อย ให้หรูสมกับแบรนด์)
+        // Owner UAT — Billing UI Visual Polish R3 (2026-08-24): = CP_NAVY_DEEP ใน
+        // cp-brand.tsx (Stop ที่ Splash Screen ใช้ไล่เฉดกับ CP_NAVY อยู่แล้ว) — Reuse ทำ
+        // Gradient แนวตั้งให้พื้น Sidebar (ดู sidebar-shell.tsx) แทนที่จะเป็น Solid สีเดียว
+        "cp-navy-deep": "#071228",
         // Owner UAT — Billing UI Visual Polish R2 (2026-08-24): Owner บอกว่า R1 (FAF6EF)
         // "เหลือง/ครีมมากเกินไป" — ปรับให้เย็นลงนิดหน่อย (ลด Gap ระหว่างช่อง R/G/B) ยังคง
         // ความอุ่นแบบ Warm Off-white ไว้แต่ Neutral ขึ้น

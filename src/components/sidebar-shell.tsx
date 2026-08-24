@@ -6,6 +6,22 @@ import { CPIcon } from "@/components/portal/cp-brand";
 // Phase Nav-1 — Sidebar เดิมเป็น <aside> กว้างคงที่ที่แสดงตลอดเวลา ไม่รองรับจอเล็ก
 // เพราะเมนูตอนนั้นสั้น (Flat List) แต่ตอนนี้เมนูมี Group/Submenu ลึกขึ้น จึงต้องมี
 // Hamburger Toggle สำหรับ Mobile — Desktop ยังคงแสดง Sidebar ตลอดเวลาเหมือนเดิม
+//
+// Owner UAT — Billing UI Visual Polish R3 (2026-08-24): R2 ยังตีความ "Sidebar เชื่อม
+// กับ Content" ผิดจุด — แก้แค่ Active Pill ไม่พอ Owner สั่งชัดว่าต้องการ "มวลสีของ
+// Sidebar" ที่เป็น Design Surface จริง (ดู Reference: พื้นสีเข้มเต็มแถบ ไม่ใช่ Sidebar
+// ขาว+จุดสีเล็กๆ) — เปลี่ยน <aside> จาก bg-white → Gradient แนวตั้ง cp-navy→cp-navy-
+// deep (ค่าเดียวกับ CP_NAVY/CP_NAVY_DEEP ที่ Splash Screen ใช้อยู่แล้ว — Reuse Brand
+// ไม่ใช่คิดสีใหม่) ทำให้ Sidebar เป็นพื้นที่สีหลักที่มองเห็นชัดทันที เหมือน Reference แต่
+// เป็นโทน Navy ของ C.P. LIVING เอง — "รอยต่อ" กับ Content ตอนนี้เกิดจาก 2 อย่างรวมกัน:
+// (1) พื้นที่สีสองก้อนวางชิดกัน (Navy/Cream) อ่านเป็น Composition เดียวตั้งแต่มองครั้งแรก
+// (2) มุมโค้งของ Content (md:rounded-tl ใน layout.tsx) "แหว่ง" เข้ามาเห็นพื้น Navy
+// โผล่ออกมาตรง Corner — เกิด Notch จริงแบบ Reference โดยไม่ต้องวาด SVG Curve เพิ่ม
+//
+// Mobile Top Bar (แถบ Hamburger บนสุดที่เห็นตลอดก่อนกด "เปิดเมนู") **ตั้งใจคงเป็นสีขาว
+// เดิม ไม่แปลงเป็น Navy** — แถบนี้เป็น "Page Header" ของทั้งแอพ ไม่ใช่ตัว Sidebar เอง
+// (Sidebar ตัวจริงคือ Drawer navy ที่โผล่มาหลังกดเปิด) แยก Concept กันชัดเจน ลดความ
+// เสี่ยง (ไม่ต้องหา Logo/Icon สีขาวสำรองสำหรับพื้นที่ที่เห็นตลอดเวลาโดยไม่จำเป็น)
 export function SidebarShell({ brand, userInfo, children }: { brand: string; userInfo: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
@@ -36,26 +52,27 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
       {open && <div className="md:hidden fixed inset-0 bg-black/40 z-40 print:hidden" onClick={() => setOpen(false)} />}
 
       <aside
-        className={`w-64 md:w-56 bg-white border-r flex flex-col print:hidden fixed md:static inset-y-0 left-0 z-50 transform transition-transform duration-200 md:translate-x-0 ${
+        className={`w-64 md:w-56 bg-gradient-to-b from-cp-navy to-cp-navy-deep flex flex-col print:hidden fixed md:static inset-y-0 left-0 z-50 shadow-2xl md:shadow-none transform transition-transform duration-200 md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="px-4 py-4 border-b flex items-start justify-between">
+        <div className="px-4 py-4 border-b border-white/10 flex items-start justify-between">
           <div className="min-w-0">
             {/* Owner UAT — Master Logo (สัญลักษณ์+C.P. ผ่าน CPIcon — ดู cp-brand.tsx) วางหน้า
                 ชื่อระบบ — ขยายเป็น 24px (18→21→24 ตามลำดับ Feedback) แล้วขยับขึ้นเล็กน้อย
                 (-mt-[1.5px]) ให้กึ่งกลางแนวตั้งของ Logo 2 บรรทัดตรงกับกึ่งกลางบรรทัดข้อความ
-                แบบ Optical — ไม่ดัน Header สูงขึ้นเห็นได้ชัด */}
+                แบบ Optical — ไม่ดัน Header สูงขึ้นเห็นได้ชัด — Logo Asset เดิมออกแบบให้ใช้
+                บนพื้น Navy อยู่แล้ว (Splash/Login ใช้พื้นเดียวกันนี้) จึงไม่ต้องแก้ไฟล์ */}
             <div className="flex items-center gap-1.5">
               <CPIcon height={24} className="-mt-[1.5px]" />
-              <span className="font-semibold truncate">{brand}</span>
+              <span className="font-semibold truncate text-white">{brand}</span>
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">{userInfo}</div>
+            <div className="text-xs text-white/50 mt-0.5">{userInfo}</div>
           </div>
           <button
             onClick={() => setOpen(false)}
             aria-label="ปิดเมนู"
-            className="md:hidden text-gray-400 hover:text-gray-700 text-xl leading-none -mt-1"
+            className="md:hidden text-white/40 hover:text-white text-xl leading-none -mt-1"
           >
             ×
           </button>
