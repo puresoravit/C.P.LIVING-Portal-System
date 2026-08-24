@@ -27,32 +27,23 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 // Owner UAT — Billing UI Visual Polish R5 (2026-08-24): R4 (ติ่งโค้งครีม 16px ที่ปลาย
 // ขวาของ Blue Pill) Owner ยืนยันว่ายังไม่ตรง Reference — สิ่งที่ต้องการคือ "Cream
 // Content Surface โอบ Active Menu ทั้งก้อน (Icon+Text)" ไม่ใช่ "Blue Pill ยื่นเข้า
-// Content แล้วมีติ่งครีมเล็กๆ" — Redesign Active Composition เป็น 2 ชั้น:
+// Content แล้วมีติ่งครีมเล็กๆ" — R5 เคยลองโครง 2 ชั้น (Cream Slot + Blue Pill ข้างใน) แต่
+// Owner ตัดสินขั้นสุดท้าย (R6): **เอา Blue Pill ออกทั้งหมด** เหลือชั้นเดียว —
 //
-//   ชั้นนอก "Cream Slot" (ตัว <a> เอง, Desktop md+ เท่านั้น): แถบสีครีม (สีเดียวกับพื้น
-//   Content เป๊ะ) ครอบทั้งรายการ สูงกว่า/กว้างกว่า Blue Pill รอบด้าน — ขอบซ้ายมน
-//   (rounded-l-2xl) ขอบขวาตัดตรงและ Bleed ชนขอบ Content พอดี (md:mr-[-8px] ชดเชย px-2
-//   ของ <nav>) จึงหลอมเป็นเนื้อเดียวกับพื้นครีมของ Content โดยไม่มีเส้นแบ่งใดๆ (ข้อ 7)
-//   — อ่านเป็น "ช่องเปิดจาก Sidebar เข้าสู่หน้า Content" ตาม Reference
+//   Active Tab = แถบครีมล้วน (สีเดียวกับพื้น Content เป๊ะ) ครอบ Icon+Label — Desktop:
+//   ขอบซ้ายมน (rounded-l-2xl) ขอบขวาตัดตรง Bleed ชนขอบ Content พอดี (md:mr-[-8px]
+//   ชดเชย px-2 ของ <nav>) หลอมเป็นเนื้อเดียวกับ Content ไม่มีเส้นแบ่ง — ขอบขวาของ Tab
+//   และ Fillet ทั้งคู่อยู่บนแกนตั้งเดียวกันทั้งเส้น (แนวตรงระดับเดียว ไม่เชิด/ไม่ห้อย)
 //
-//   ชั้นใน "Blue Pill" (<span> ข้างใน): Gradient ฟ้า Brand ครอบ Icon+Label ครบทั้งรายการ
-//   เหมือนเดิม (ข้อ 1) แต่ตอนนี้ "ลอยอยู่ภายใน" ช่องครีม — มีครีมล้อมทุกด้าน (บน/ล่าง/
-//   ซ้าย 5px, ขวา 8px ก่อนไหลต่อเข้า Content) = "Cream โอบรอบทั้งข้อความและไอคอน" จริง
-//   — Padding ภายใน Pill (px-3 py-1.5) คงเดิมเป๊ะ ตัวอักษรไม่ชิด Curve (ข้อ 9)
+//   Fillet โค้งเว้า 2 ชิ้น (radial-gradient hard-edge — ดู ActiveFillet): มุมขวาบน/ล่าง
+//   ของ Tab ให้ขอบครีมกวาดโค้งกลับเข้าแนว Content นุ่มนวล — นอกโค้งเป็น Transparent ให้
+//   Navy Gradient จริงของ Sidebar ทะลุออกมา (ไม่ Hardcode Navy กันสีเพี้ยนจากไล่เฉด)
 //
-//   Fillet โค้งเว้า 2 ชิ้น (radial-gradient hard-edge 16px — เทคนิคเดิมจาก R4 แต่ย้ายจุด
-//   เกาะ): ต่อที่มุมขวาบน/ขวาล่างของ "Cream Slot" (ไม่ใช่ของ Blue Pill แบบ R4) ให้ขอบครีม
-//   โค้งกลับเข้าสู่แนวขอบ Content อย่างนุ่มนวลทั้งบนและล่าง — เมื่อรวมกับ Slot ที่สูงเต็ม
-//   รายการ Curve ทั้งชุดจึง "เริ่มก่อนระดับตัวอักษรและจบหลังตัวอักษร" (ข้อ 3) ไม่ใช่ติ่ง
-//   เล็กที่ปลายขวาอีกต่อไป — พื้นที่นอกโค้งเป็น Transparent ให้ Navy Gradient จริงของ
-//   Sidebar ทะลุออกมา (ไม่ Hardcode Navy กันสีเพี้ยนจากการไล่เฉดแนวตั้ง)
+//   สี Active บนครีม: Label = Navy เข้ม, Icon Chip = ฟ้า Brand ทึบ (Accent จุดเดียว
+//   ไม่ใช่ Frame/พื้นซ้อน) — Label ห่อ truncate บังคับ 1 บรรทัดเสมอ
 //
-//   ไม่มี Arrow (ข้อ 5), ไม่มี Glow (ข้อ 6 — Shadow ที่เหลืออยู่เป็นของ Blue Pill ตัวเอง
-//   ธรรมดา ไม่ได้ใช้หลอกการเชื่อม), โครงสร้างเดียวใช้ได้ทั้ง Main Menu และ Submenu ทุก
-//   Depth (ข้อ 8 — Bleed ฝั่งขวาเท่ากันทุกชั้นเพราะ Submenu Container เยื้องเฉพาะฝั่งซ้าย)
-//
-//   Mobile (< md): Slot โปร่งใสไม่มี Padding — Blue Pill เต็มแถวเหมือน R3 เป๊ะ (Pill มน
-//   2 ข้าง ไม่ Bleed ไม่มี Curve — Owner อนุญาตชัดเจนให้ Mobile ใช้ Shape ปลอดภัยเดิม)
+//   Mobile (< md): Tab ครีมมนปกติ 2 ข้าง ไม่ Bleed ไม่มี Fillet (เรียบง่าย ปลอดภัยจาก
+//   Overflow — Owner อนุญาตชัดเจนให้ Mobile ต่างจาก Desktop ได้)
 // Owner UAT R5.1 — Owner มาร์ค Screenshot ชี้ตรงรอยต่อของ Reference: Curve ในตัวอย่าง
 // "กวาดกว้างและยาว" (ราวๆ ครึ่งความสูงของ Tab) ของเรา 16px สั้นเกินไปเลยอ่านเป็นรอยบาก
 // ไม่ใช่รอยต่อไหลลื่น — ขยายเป็น 24px + เพิ่ม Margin แนวตั้งรอบ Slot (md:my-1 ใน
@@ -79,13 +70,19 @@ function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
 
 const LINK_CLASS =
   "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
-// R5 — ตัว <a> ของรายการ Active คือ "Cream Slot" (Desktop) / Wrapper โปร่งใส (Mobile)
-const ACTIVE_SLOT_CLASS =
-  "relative block md:bg-cp-cream md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1 md:py-[5px] md:pl-[5px] md:pr-2";
-// R5 — Blue Pill ชั้นในครอบ Icon+Label (Mobile = เต็มแถวเหมือน R3 เพราะ Slot ไม่มี Padding)
-const ACTIVE_PILL_CLASS =
-  "relative z-10 flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm w-full " +
-  "bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40 md:shadow-md md:shadow-blue-950/30";
+// Owner UAT R6 (2026-08-24) — Owner สั่งชัด: "เอากรอบ/พื้นสีน้ำเงินที่ครอบ Active Item
+// ออก" (ไม่เอา Blue Pill ซ้อนในช่องครีมแบบ R5 — Layered Look ทำให้ Fillet ดูเป็นติ่งขาว
+// เกยแปลกๆ และดัน Text แตก 2 บรรทัด) → Active เหลือ **ชั้นเดียว: แถบครีมล้วน** สีเดียว
+// กับ Content เป๊ะ (ตรง Reference ที่ Active Tab เป็นสีเดียวกับพื้น Content) — ตัวอักษร/
+// Icon พลิกเป็น Navy เข้มบนครีม (อ่านชัด) + Icon Chip เป็นสีฟ้า Brand ทึบ (Blue Accent
+// เดียวที่เหลือ — เป็น Chip เล็ก ไม่ใช่ Frame/พื้นซ้อน) — Desktop: ขอบซ้ายมน ขอบขวาตัด
+// ตรง Bleed ชนขอบ Content (md:mr-[-8px]) → ขอบขวาของ Tab + Fillet บน/ล่าง อยู่บนแกน
+// ตั้งเดียวกันทั้งเส้น (ไม่เชิด/ไม่ห้อย — เป็นแนวตรงระดับเดียวกับขอบ Content ตาม
+// Acceptance) — Mobile: Pill ครีมมนปกติ 2 ข้าง ไม่ Bleed ไม่มี Fillet (เรียบง่ายตามที่
+// Owner กำหนด) — py-2 สูงกว่า Inactive เล็กน้อยให้ Tab มี Presence โดยไม่ต้องพึ่งสีสด
+const ACTIVE_CLASS =
+  "relative flex items-center gap-2.5 pl-3 pr-3 py-2 rounded-xl text-sm bg-cp-cream text-cp-navy font-medium " +
+  "md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
@@ -93,13 +90,13 @@ const DISABLED_CLASS =
 function IconSlot({ name, active, depth }: { name: NavIconKey | undefined; active: boolean; depth: number }) {
   if (!name) return null;
   if (depth === 0) {
-    // Main Menu — Chip Container กระจกฝ้าบนพื้น Navy (ข้อ 2 R2 ยังใช้ต่อ: "Active icon
-    // มี Container สัมพันธ์กับ Active Surface") — Inactive = ขาวจางกลืนพื้น Navy,
-    // Active = ขาวสว่างขึ้นบน Blue Pill
+    // Main Menu — Chip Container (ข้อ 2 R2 ยังใช้ต่อ) — Inactive = กระจกฝ้าขาวจางบนพื้น
+    // Navy — Active (R6): Tab เป็นครีมแล้ว Chip เปลี่ยนเป็นสีฟ้า Brand ทึบ ตัว Icon ขาว
+    // (Blue Accent จุดเดียวบน Tab ครีม — ไม่ใช่ Frame/พื้นซ้อน)
     return (
       <span
         className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors duration-200 ${
-          active ? "bg-white/25 text-white" : "bg-white/10 text-white/70"
+          active ? "bg-blue-600 text-white" : "bg-white/10 text-white/70"
         }`}
       >
         <NavIcon name={name} className="w-[18px] h-[18px]" />
@@ -107,7 +104,8 @@ function IconSlot({ name, active, depth }: { name: NavIconKey | undefined; activ
     );
   }
   // Submenu — Icon เปล่า เล็กกว่า ไม่มี Container (แยก Hierarchy จาก Main Menu ชัดเจน)
-  return <NavIcon name={name} className={`w-[15px] h-[15px] shrink-0 ${active ? "text-white/90" : "text-white/50"}`} />;
+  // Active (R6): Navy เข้มบนพื้น Tab ครีม
+  return <NavIcon name={name} className={`w-[15px] h-[15px] shrink-0 ${active ? "text-cp-navy" : "text-white/50"}`} />;
 }
 
 function NavGroupView({
@@ -168,16 +166,15 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
   }
   const active = node.href === activeHref;
   if (active) {
-    // R5 — โครง 2 ชั้น: <a> = Cream Slot (โอบทั้งก้อน), <span> ข้างใน = Blue Pill
-    // (ดู Comment ยาวบนสุดของไฟล์)
+    // R6 — ชั้นเดียว: <a> = Tab ครีมล้วน (สีเดียวกับ Content) + Fillet โค้งบน/ล่าง —
+    // Label ห่อ truncate (min-w-0 ให้ Flex Item หดได้จริง) บังคับ 1 บรรทัดเสมอตาม
+    // Acceptance (ไม่มีทางแตก 2 บรรทัดไม่ว่าข้อความยาวแค่ไหน)
     return (
-      <a href={node.href} className={ACTIVE_SLOT_CLASS}>
+      <a href={node.href} className={ACTIVE_CLASS}>
         <ActiveFillet edge="top" />
         <ActiveFillet edge="bottom" />
-        <span className={ACTIVE_PILL_CLASS}>
-          <IconSlot name={node.icon} active depth={depth} />
-          {node.label}
-        </span>
+        <IconSlot name={node.icon} active depth={depth} />
+        <span className="min-w-0 truncate">{node.label}</span>
       </a>
     );
   }
