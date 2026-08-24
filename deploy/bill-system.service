@@ -1,0 +1,41 @@
+# ==========================================================================
+# systemd Unit — C.P. LIVING Billing (Next.js Production Server)
+#
+# ติดตั้ง:
+#   sudo cp deploy/bill-system.service /etc/systemd/system/bill-system.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bill-system
+# ดูสถานะ/Log:
+#   systemctl status bill-system
+#   journalctl -u bill-system -f
+# ==========================================================================
+
+[Unit]
+Description=C.P. LIVING Billing (Next.js)
+# ต้องรอ Network และ PostgreSQL พร้อมก่อน
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+# ผู้ใช้เฉพาะกิจไม่มีสิทธิ์ root (สร้างตามคู่มือใน README ขั้นตอนที่ 3)
+User=billing
+Group=billing
+WorkingDirectory=/opt/bill-system
+# Secrets ทั้งหมดอยู่ในไฟล์ .env ที่ root:billing อ่านได้เท่านั้น (chmod 640)
+EnvironmentFile=/opt/bill-system/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+# Hardening พื้นฐานของ systemd — จำกัดสิ่งที่ Process ทำได้แม้ถูกยึด
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+# แอปต้องเขียนได้แค่ logs/ กับ backups/ ใต้ WorkingDirectory เท่านั้น
+ReadWritePaths=/opt/bill-system/logs /opt/bill-system/backups
+
+[Install]
+WantedBy=multi-user.target

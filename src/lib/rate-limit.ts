@@ -34,3 +34,25 @@ export function recordFailedAttempt(key: string): void {
 export function resetAttempts(key: string): void {
   attempts.delete(key);
 }
+
+// ---------------------------------------------------------------
+// Production Readiness (Phase 2) — Fixed-window Limiter แบบกำหนดค่าได้ สำหรับ
+// Endpoint อื่นที่ไม่ใช่ Login (เช่น /api/auth/passkey/options ที่เปิด Pre-auth
+// โดยจำเป็น) — แยก Map จากตัว Login ข้างบนโดยสิ้นเชิง (คนละ Semantic: ข้างบนนับ
+// "ความล้มเหลว" ตัวนี้นับ "จำนวนครั้งที่เรียก") — In-memory เช่นเดิม เหมาะกับ
+// Single-instance Deployment ของระบบนี้
+// ---------------------------------------------------------------
+
+const usage = new Map<string, Entry>();
+
+/** นับการเรียก 1 ครั้งแล้วตอบว่าเกินโควตาของหน้าต่างเวลานี้หรือยัง (Atomic ในตัว) */
+export function isOverLimit(key: string, maxPerWindow: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = usage.get(key);
+  if (!entry || now - entry.windowStart > windowMs) {
+    usage.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > maxPerWindow;
+}

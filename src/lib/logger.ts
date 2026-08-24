@@ -22,6 +22,13 @@ import path from "path";
 
 const LOG_DIR = path.join(process.cwd(), "logs");
 const LOG_FILE = path.join(LOG_DIR, "app.log");
+// Production Readiness (Phase 2) — Log Rotation: เดิม app.log โตไม่จำกัด (พบใน Final
+// Audit) — หมุนแบบ Size-based ในตัว Logger เอง (ไม่พึ่ง logrotate ของ OS ให้พฤติกรรม
+// เหมือนกันทุกที่ที่ Deploy): เกินเพดาน → เลื่อน app.log → app.log.1 → app.log.2 (ตัวเก่า
+// สุดถูกทับ) — เพดาน 5MB ≈ หลายหมื่น Entry เพียงพอสำหรับหน้า System Logs (อ่านล่าสุด
+// 200 บรรทัดเท่านั้น) — ตรวจก่อนเขียนทุกครั้ง ราคา fs.statSync ถูกมากเทียบกับ I/O เขียน
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+const LOG_KEEP_ROTATED = 2;
 // Phase G — เพิ่ม WebAuthn Material: Challenge (Replay ได้ถ้าหลุดก่อนหมดอายุ), Signature/authenticatorData/clientDataJSON (Assertion ดิบ) — ไม่ควรอยู่ใน Log เลย
 const SENSITIVE_KEYS = ["password", "passwordHash", "token", "secret", "nextauth_secret", "challenge", "signature", "authenticatordata", "clientdatajson", "attestationobject"];
 
@@ -45,6 +52,22 @@ function ensureLogDir() {
   if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
+/** หมุนไฟล์ Log เมื่อเกินเพดาน — Best-effort เช่นเดียวกับการเขียน (พังก็ไม่ throw) */
+function rotateIfNeeded() {
+  try {
+    if (!fs.existsSync(LOG_FILE)) return;
+    if (fs.statSync(LOG_FILE).size < LOG_MAX_BYTES) return;
+    // เลื่อนจากตัวเก่าสุดก่อน: app.log.2 ถูกทับด้วย app.log.1, แล้ว app.log → app.log.1
+    for (let i = LOG_KEEP_ROTATED; i >= 1; i--) {
+      const src = i === 1 ? LOG_FILE : `${LOG_FILE}.${i - 1}`;
+      const dst = `${LOG_FILE}.${i}`;
+      if (fs.existsSync(src)) fs.renameSync(src, dst);
+    }
+  } catch {
+    // หมุนไม่สำเร็จ (เช่น Permission) — ปล่อยให้เขียนต่อไฟล์เดิม ดีกว่าเสีย Log Entry
+  }
+}
+
 export function logError(context: string, error: unknown, extra?: Record<string, unknown>) {
   const entry = {
     level: "ERROR",
@@ -65,6 +88,7 @@ export function logError(context: string, error: unknown, extra?: Record<string,
   // serverless/ephemeral container) เพราะ channel 1 ทำงานไปแล้วเสมอ
   try {
     ensureLogDir();
+    rotateIfNeeded();
     fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n");
   } catch {
     // เขียนไฟล์ไม่ได้ก็ไม่เป็นไร — console.error ข้างบนบันทึกไปแล้ว
