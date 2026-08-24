@@ -21,17 +21,52 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 //     เพื่อให้ Pop เห็นชัดว่ากำลังอยู่ตรงไหน (Requirement ข้อ 2 "ฟ้า/น้ำเงินของ Brand")
 //     — ใช้ Tailwind blue-500→600 (สว่าง+อิ่มสีกว่า cp-navy พื้นหลังชัดเจน) แทน Gradient
 //     cp-navy→cp-navy-light เดิมของ R2 ที่แทบกลืนกับพื้นใหม่นี้พอดี
-//   - Shape กลับมาเป็น rounded-xl ปกติทั้ง 2 ข้าง ทุก Breakpoint (**ไม่มี md:-only Bleed/
-//     Glow Hack แบบ R2 อีกแล้ว** ตามที่ Owner สั่งชัดว่าอย่าแก้แค่ Margin/Glow ซ้ำ) เพราะ
-//     "รอยต่อ" ตอนนี้เกิดจากพื้นที่สี Navy/Cream ที่วางชิดกันทั้งก้อน (Sidebar/Content) รวม
-//     กับมุมโค้งของ Content ที่เผยพื้น Navy ออกมา (layout.tsx) ไม่ต้องพึ่ง Shape ของ Pill
-//     เดี่ยวๆ อีกต่อไป — โค้ดง่ายขึ้นและใช้ Shape เดียวกันทุกจอ (Desktop/Mobile) ปลอดภัย
-//     จาก Overflow โดยธรรมชาติ (ไม่มี Negative Margin/Responsive Override ให้พลาด)
 //   - Inactive/Group/Divider/Disabled ทั้งหมดพลิกจาก เทา-บน-ขาว → ขาวโปร่งแสง-บน-Navy
 //     (Requirement ข้อ 3: "ถ้าอยู่บนพื้น Blue/Navy ให้ใช้ตัวอักษร/Icon สีขาวหรือสีอ่อน")
+//
+// Owner UAT — Billing UI Visual Polish R4 (2026-08-24): R3 ทำให้ Sidebar เป็นพื้น Navy
+// จริงแล้ว แต่ขอบ Content (Cream) ที่ชนกับ Active Pill ยังเป็น "เส้นตรงแข็งๆ" — Owner
+// ต้องการให้พื้นครีมของ Content "ไหลเข้าหา/โอบรับ" Active Menu จนดูเป็น Shape เดียวกัน
+// (ไม่ใช่ Glow/ไม่ใช่ยืด Pill ให้ยาว — สั่งห้ามทั้งคู่ตรงๆ) — ใช้เทคนิค "Concave Corner
+// Connector" (Squircle Tab แบบเดียวกับ Sidebar ของ macOS System Settings/หลาย Dashboard
+// พรีเมียม): วาง Quarter-circle 2 ชิ้นเล็กๆ (16×16px) ชิดขอบขวาบนและขวาล่างของ Pill ที่
+// Active เท่านั้น แต่ละชิ้นเป็น radial-gradient ที่ "เจาะ" ส่วนโค้งสีครีม (มุมที่ชิดกับ Pill)
+// ออกจากพื้นหลัง Transparent (ให้เห็น Navy ของ Sidebar จริงๆ ทะลุออกมานอกส่วนโค้ง กันสี
+// เพี้ยนจาก Gradient Navy ของ Sidebar ที่ไล่เฉดตามแนวตั้ง — ไม่ Hardcode สี Navy คงที่)
+// ผลลัพธ์: มองเห็นพื้นครีมโค้งเว้าเข้ามาจากด้านบน วกไปสัมผัส Pill แล้วโค้งเว้ากลับออก
+// ด้านล่าง ต่อเนื่องเป็นเส้นเดียวกับขอบ Pill (Pill ต้อง Flush ชนขอบขวาสุดของ Sidebar
+// พอดี — Reintroduce Bleed Technique จาก R2 แต่รอบนี้เป็นฐานรองรับ Curve ไม่ใช่ตัว
+// เทคนิคหลักเหมือน R2) — **Desktop (md+) เท่านั้น**: Mobile Drawer ไม่ได้ยืนชิด Content
+// จริง Curve จะดูลอย/เสี่ยง Overflow จึงปิดไว้ (hidden md:block) ตามที่ Owner อนุญาตชัดเจน
+// ให้ Mobile คง Shape ปลอดภัยเดิม (rounded-xl ปกติ 2 ข้าง ไม่ Bleed)
+const CONNECTOR_RADIUS = 16; // px — ต้อง <= ความสูง Pill/2 ไม่งั้นโค้งจะทับกันเองดูแปลก (Pill สูง ~34px จาก py-1.5+text-sm สบายๆ)
+const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
+
+/** Concave Corner ที่ขอบ Pill กับ Content — ดู Comment ยาวด้านบนของไฟล์สำหรับเหตุผล
+ * เต็ม — Render เฉพาะตอน Active + เฉพาะ Desktop (Parent ต้องมี position:relative ผ่าน
+ * ACTIVE_CLASS อยู่แล้ว) */
+function ActiveConnector({ edge }: { edge: "top" | "bottom" }) {
+  const gradientAt = edge === "top" ? "bottom right" : "top right";
+  return (
+    <span
+      aria-hidden
+      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-4 h-4 pointer-events-none`}
+      style={{
+        background: `radial-gradient(circle at ${gradientAt}, ${CREAM_HEX} ${CONNECTOR_RADIUS}px, transparent ${CONNECTOR_RADIUS}px)`,
+      }}
+    />
+  );
+}
+
 const LINK_CLASS =
   "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
-const ACTIVE_CLASS = "bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40";
+// R4 — rounded-l-xl/rounded-r-none + md:mr-[-8px] (Bleed ชดเชย px-2 ของ <nav> พอดี — ดู
+// SidebarNav ด้านล่าง) เฉพาะ md+ ให้ขอบขวา Pill ชนขอบ Sidebar/Content พอดีเป๊ะ เป็นฐาน
+// ให้ ActiveConnector ทั้ง 2 ชิ้นต่อโค้งได้สนิทไม่มีช่องว่าง — Mobile ไม่ Bleed (rounded-xl
+// ปกติทั้ง 2 ข้างจาก Base Class) ปลอดภัยจาก Overflow ตามเดิม
+const ACTIVE_CLASS =
+  "relative bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-950/40 " +
+  "md:rounded-l-xl md:rounded-r-none md:mr-[-8px] md:pr-5";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
@@ -115,6 +150,12 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
   const active = node.href === activeHref;
   return (
     <a href={node.href} className={`${LINK_CLASS} ${active ? ACTIVE_CLASS : INACTIVE_CLASS}`}>
+      {active && (
+        <>
+          <ActiveConnector edge="top" />
+          <ActiveConnector edge="bottom" />
+        </>
+      )}
       <IconSlot name={node.icon} active={active} depth={depth} />
       {node.label}
     </a>
