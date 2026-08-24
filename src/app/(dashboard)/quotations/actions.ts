@@ -485,7 +485,14 @@ export async function cancelQuotation(quotationId: string): Promise<ActionResult
   }
 
   const beforeStatus = quotation.status;
-  await db.quotation.update({ where: { id: quotationId }, data: { status: "CANCELLED" } });
+  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+  const cas = await db.quotation.updateMany({
+    where: { id: quotationId, status: beforeStatus },
+    data: { status: "CANCELLED" },
+  });
+  if (cas.count === 0) {
+    return { success: false, error: "สถานะใบเสนอราคาเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  }
   await db.auditLog.create({
     data: {
       userId: user.id,

@@ -420,7 +420,17 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
   }
 
   const beforeStatus = order.status;
-  await db.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
+  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม): สำคัญเป็น
+  // พิเศษที่ Order เพราะ confirmOrder วิ่งคู่กันได้ — ถ้า Confirm สำเร็จแทรกกลาง (DRAFT
+  // →CONFIRMED พร้อมสร้าง Invoice) การเขียน CANCELLED ทับตรงๆ จะได้ Order ยกเลิกที่มี
+  // Invoice สดค้างอยู่ = Integrity พัง — CAS บนสถานะที่อ่านมาปิดช่องนี้สนิท
+  const cas = await db.order.updateMany({
+    where: { id: orderId, status: beforeStatus },
+    data: { status: "CANCELLED" },
+  });
+  if (cas.count === 0) {
+    return { success: false, error: "สถานะ Order เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  }
 
   await db.auditLog.create({
     data: {

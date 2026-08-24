@@ -316,7 +316,14 @@ export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResu
   if (taxInvoice.status === "CANCELLED") return { success: false, error: "ใบกำกับภาษีนี้ถูกยกเลิกไปแล้ว" };
 
   const beforeStatus = taxInvoice.status;
-  await db.taxInvoice.update({ where: { id: taxInvoiceId }, data: { status: "CANCELLED" } });
+  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+  const cas = await db.taxInvoice.updateMany({
+    where: { id: taxInvoiceId, status: beforeStatus },
+    data: { status: "CANCELLED" },
+  });
+  if (cas.count === 0) {
+    return { success: false, error: "สถานะใบกำกับภาษีเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  }
 
   await db.auditLog.create({
     data: {

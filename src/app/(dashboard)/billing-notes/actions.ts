@@ -118,23 +118,39 @@ export async function cancelBillingNote(id: string): Promise<ActionResult> {
   // src/lib/action-result.ts สำหรับ root cause)
   if (billingNote.status === "CANCELLED") return { success: false, error: "ใบวางบิลนี้ถูกยกเลิกไปแล้ว" };
 
-  await db.$transaction(async (tx) => {
-    await tx.invoice.updateMany({
-      where: { billingNoteId: id },
-      data: { billingNoteId: null },
+  // Final Audit — CAS กัน Concurrent Cancel ซ้ำ (Pattern C1/C2 เดิม): ยกเลิกซ้อนกัน
+  // 2 คำขอ → ตัวที่สองต้องไม่ปลด Invoice/เขียน Audit ซ้ำ — เขียนสถานะแบบมีเงื่อนไขก่อน
+  // แล้วโยน Error เฉพาะกิจให้ Transaction Rollback ทั้งก้อน จับข้างนอกแปลงเป็นข้อความ
+  // สุภาพ (Phase E1: Validation Error ที่คาดไว้ต้อง return ไม่ใช่ throw ทะลุ Boundary)
+  const ALREADY = "BILLING_NOTE_ALREADY_CANCELLED";
+  try {
+    await db.$transaction(async (tx) => {
+      const cas = await tx.billingNote.updateMany({
+        where: { id, status: "CONFIRMED" },
+        data: { status: "CANCELLED" },
+      });
+      if (cas.count === 0) throw new Error(ALREADY);
+      await tx.invoice.updateMany({
+        where: { billingNoteId: id },
+        data: { billingNoteId: null },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "BillingNote",
+          recordId: id,
+          oldValue: { status: "CONFIRMED" },
+          newValue: { status: "CANCELLED" },
+        },
+      });
     });
-    await tx.billingNote.update({ where: { id }, data: { status: "CANCELLED" } });
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "CANCEL",
-        module: "BillingNote",
-        recordId: id,
-        oldValue: { status: "CONFIRMED" },
-        newValue: { status: "CANCELLED" },
-      },
-    });
-  });
+  } catch (err) {
+    if (err instanceof Error && err.message === ALREADY) {
+      return { success: false, error: "ใบวางบิลนี้ถูกยกเลิกไปแล้ว — กรุณารีเฟรชหน้า" };
+    }
+    throw err;
+  }
 
   revalidatePath(`/billing-notes/${id}`);
   revalidatePath("/billing-notes");

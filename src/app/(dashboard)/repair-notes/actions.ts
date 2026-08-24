@@ -107,7 +107,14 @@ export async function cancelRepairReturnNote(id: string): Promise<ActionResult> 
   if (note.status === "CANCELLED") return { success: false, error: "เอกสารนี้ถูกยกเลิกไปแล้ว" };
 
   const before = note.status;
-  await db.repairReturnNote.update({ where: { id }, data: { status: "CANCELLED" } });
+  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+  const cas = await db.repairReturnNote.updateMany({
+    where: { id, status: before },
+    data: { status: "CANCELLED" },
+  });
+  if (cas.count === 0) {
+    return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  }
 
   await db.auditLog.create({
     data: {

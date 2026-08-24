@@ -46,7 +46,17 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
   }
 
   const beforeStatus = invoice.status;
-  await db.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
+  // Final Audit — CAS แบบเดียวกับ C1/C2 (Stabilization): เงื่อนไขทั้งหมดข้างบนตัดสิน
+  // จากสถานะที่ "อ่านมาก่อนหน้า" — ถ้ามี Action อื่นเปลี่ยนสถานะแทรกกลาง (เช่น มาร์ค
+  // PRINTED พร้อมกัน) การ update ตรงๆ จะเขียนทับโดยไม่รู้ตัว → เขียนแบบมีเงื่อนไข
+  // status ต้องยังเท่าเดิม ไม่เท่า = มีคนเปลี่ยนไปแล้ว แจ้งให้รีเฟรชแทน
+  const cas = await db.invoice.updateMany({
+    where: { id: invoiceId, status: beforeStatus },
+    data: { status: "CANCELLED" },
+  });
+  if (cas.count === 0) {
+    return { success: false, error: "สถานะ Invoice เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  }
 
   await db.auditLog.create({
     data: {
