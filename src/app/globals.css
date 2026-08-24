@@ -108,6 +108,35 @@ body {
   animation: cp-app-fade-in 500ms cubic-bezier(0.65, 0, 0.35, 1) both;
 }
 
+/* ระหว่าง VT App-Switch: Sidebar Active Tab ต้องอยู่ "ใน" ภาพ Root (ไม่แยก Layer) —
+   ใช้ Class บน <html> (ติด/ถอดโดย cp-app-switch.js) + !important ให้ชนะ Arbitrary
+   Class ของ Tailwind ได้เสมอไม่ว่า Tab จะถูก Parse ตอนไหน */
+html.cp-vt-appswitch [class*="cp-nav-active"] {
+  view-transition-name: none !important;
+}
+
+/* Entrance Fade ตอน "เข้าแอป Billing จากนอกแอป" (ชั้นที่ 1 ของ cp-app-switch.js —
+   ทำงานทุก Browser รวมมือถือที่ไม่รองรับ Cross-document View Transitions) — จังหวะ/
+   Easing ตรงกับ cpf-page-in ของ Portal เป๊ะ (900ms / MOTION_EASE ใน cp-brand.tsx +
+   portal/layout.tsx) ให้สองทิศทางรู้สึกเป็นระบบเดียวกันตามที่ Owner ขอ — การนำทาง
+   ภายใน Billing ไม่ติด Class นี้ จึงยังสลับทันที + Indicator ไหลตามเดิม */
+@keyframes cp-app-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+html.cp-app-enter body {
+  animation: cp-app-enter-fade 900ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.cp-app-enter body {
+    animation: none;
+  }
+}
+
 /* Micro-interaction (R6.1/R7, จังหวะปรับ R7.1 ตาม Indicator ที่ช้าลง): Icon+Label ใน
    Active Tab ยกขึ้น 2px — Delay 110ms + Duration 260ms (จบที่ 370ms) ยัง "ตามหลัง"
    Indicator หลัก (จบที่ 460ms) อยู่เล็กน้อยตามที่ Owner ระบุ ไม่ใช่จบพร้อมกันเป๊ะจนรู้สึก

@@ -1,23 +1,34 @@
 // Owner UAT — App-Switch Transition (Portal ↔ Billing) ให้เหมือนกันทั้ง 2 ทิศทาง
 //
-// การนำทางข้าม "โซนแอป" (Portal/Login ↔ Billing) เป็น Full Page Load — Cross-document
-// View Transition จะเล่นตาม @view-transition ใน globals.css ซึ่งตั้ง Root เป็น "สลับทันที"
-// (เพื่อให้การนำทางภายใน Billing มีแค่ Sidebar Indicator ที่ไหล) — แต่ตอนสลับแอปทั้งที
-// การสลับทันทีอ่านเป็น "ตัดฉับ" — Script นี้ติด View Transition Type `cp-app-switch`
-// เฉพาะการนำทางที่ "ข้ามโซน" เพื่อให้ CSS (globals.css) เปิด Cross-fade นุ่มๆ ทั้งหน้าแทน
-// เฉพาะกรณีนั้น — การนำทางภายใน Billing ไม่ถูกแตะเลย (ไม่มี Type → Instant Root เดิม)
+// ความไม่สมมาตรเดิม: Portal มี Entrance Fade ของตัวเอง (cpf-page-in ใน portal/layout.tsx
+// เล่นได้ทุก Browser) แต่ฝั่ง Billing ไม่มี — ขากลับ Portal จึงนุ่มเสมอ ส่วนขาเข้า Billing
+// โผล่ทันทีเป็นการกะพริบ โดยเฉพาะ Browser ที่ไม่รองรับ Cross-document View Transitions
+// (iOS Safari/มือถือ) ซึ่ง Fade ผ่าน VT ไม่เล่นเลย
 //
-// ต้องโหลดแบบ Blocking ต้นๆ ของหน้า: `pagereveal` ยิงก่อนเฟรมแรกของหน้าใหม่ — Listener
-// ต้องลงทะเบียนให้ทันก่อนหน้านั้น (ดู <script> ใน src/app/layout.tsx)
+// Script นี้ทำ 2 ชั้น (Progressive Enhancement):
 //
-// ระหว่าง App-Switch เรา "ถอน" view-transition-name ของ Sidebar Active Tab ชั่วคราว
-// ทั้งสองฝั่ง: ถ้าปล่อยไว้ Tab จะถูกยกออกจากภาพ Root ไปเป็น Layer แยก — ภาพ Root ของฝั่ง
-// Billing จะโหว่เป็นช่อง Navy ตรงตำแหน่ง Tab ระหว่าง Cross-fade — ถอนชื่อก่อน Capture
-// ให้ Tab เป็นส่วนหนึ่งของภาพเต็มหน้า แล้วคืนชื่อหลัง Transition จบ (ฝั่งหน้าใหม่) เพื่อให้
-// การนำทางภายใน Billing ครั้งถัดไป Indicator ไหลตามปกติ — ฝั่งหน้าเก่ากำลังถูกทิ้งอยู่แล้ว
-// ไม่ต้องคืน (กรณี bfcache Restore มี Reload ทั้งหน้าอยู่แล้วใน inactivity-logout.tsx)
+// ชั้นที่ 1 — Entrance Fade ข้ามแอป (ทุก Browser รวมมือถือ): จับ Click บน <a> ที่พา "ข้าม
+// โซนแอป" (Portal/Login ↔ Billing) → ตั้งธงใน sessionStorage → Script นี้รันที่ต้น <body>
+// ของหน้าใหม่ก่อน Content ถูก Parse: เจอธง → ติด Class `cp-app-enter` ที่ <html> →
+// globals.css เล่น Fade-in ทั้ง Body หนึ่งครั้ง — การนำทาง "ภายใน" Billing ไม่ตั้งธง จึงยัง
+// สลับทันที + Indicator ไหลตามเดิมเป๊ะ (ธงถูกลบทันทีที่อ่าน กันติดค้างข้าม Session)
+//
+// ชั้นที่ 2 — View Transition Cross-fade (Chrome/Edge Desktop): ติด Type `cp-app-switch`
+// เฉพาะการนำทางข้ามโซนผ่าน pageswap/pagereveal → globals.css เปิด Cross-fade ทั้งหน้า
+// (เห็นหน้าเก่า Fade-out พร้อมหน้าใหม่ Fade-in — เหนือกว่าชั้นที่ 1 ซึ่งเห็นแต่ขาเข้า) —
+// เมื่อ VT ทำงานจริง เอา Class `cp-app-enter` ของชั้นที่ 1 ออกก่อนเฟรมแรก กันซ้อนกัน 2 Fade
+//
+// ระหว่าง VT App-Switch ต้อง "ถอน" view-transition-name ของ Sidebar Active Tab ชั่วคราว
+// ทั้งสองฝั่ง: ถ้าปล่อยไว้ Tab จะถูกยกออกจากภาพ Root เป็น Layer แยก — ภาพ Root ฝั่ง Billing
+// จะโหว่เป็นช่อง Navy ตรง Tab ระหว่าง Fade / Tab ฝั่งใหม่จะโผล่ทันทีก่อนหน้า Fade เสร็จ —
+// ใช้ Class ที่ <html> + กฎ !important ใน globals.css (ทนกว่าแก้ Style รายตัว: ครอบคลุม
+// แม้ Tab ยังไม่ถูก Parse ณ เวลานั้น) แล้วถอด Class เมื่อ Transition จบ ให้การนำทางภายใน
+// Billing ครั้งถัดไป Indicator ไหลตามปกติ (bfcache Restore มี Reload ทั้งหน้าอยู่แล้วใน
+// inactivity-logout.tsx จึงไม่มีทางติดค้าง)
 (function () {
   "use strict";
+
+  var ENTER_FLAG = "cpAppEnter";
 
   // โซนของ URL: หน้า Portal/Login = "portal", ที่เหลือ (แอป Billing ทั้งหมด) = "app"
   function zoneOf(url) {
@@ -29,29 +40,49 @@
     }
   }
 
-  function activeTab() {
-    // Active Tab ใน sidebar-nav.tsx ติด Tailwind Arbitrary Class ที่มีสตริงนี้อยู่
-    return document.querySelector('[class*="cp-nav-active"]');
+  // ---- ชั้นที่ 1: Entrance Fade (ทุก Browser) ----
+  try {
+    if (sessionStorage.getItem(ENTER_FLAG) === "1") {
+      sessionStorage.removeItem(ENTER_FLAG);
+      document.documentElement.classList.add("cp-app-enter");
+    }
+  } catch (e) {
+    // sessionStorage ถูกปิด — ข้ามชั้นนี้ไป (หน้าแค่โผล่ทันทีแบบเดิม ไม่พังอะไร)
   }
 
-  function markAppSwitch(viewTransition, restoreTabAfter) {
-    viewTransition.types.add("cp-app-switch");
-    var tab = activeTab();
-    if (tab) {
-      tab.style.viewTransitionName = "none";
-      if (restoreTabAfter) {
-        viewTransition.finished.finally(function () {
-          tab.style.viewTransitionName = "";
-        });
+  document.addEventListener(
+    "click",
+    function (e) {
+      var a = e.target && e.target.closest && e.target.closest("a[href]");
+      if (!a || a.target === "_blank" || e.defaultPrevented) return;
+      var href = a.getAttribute("href");
+      if (!href || href.indexOf("#") === 0) return;
+      try {
+        var to = new URL(a.href, location.href);
+        if (to.origin !== location.origin) return;
+        if (zoneOf(location.href) !== zoneOf(to.href)) sessionStorage.setItem(ENTER_FLAG, "1");
+      } catch (err) {
+        /* URL เพี้ยน — ไม่ตั้งธง */
       }
-    }
+    },
+    true
+  );
+
+  // ---- ชั้นที่ 2: View Transition Types (Chrome/Edge) ----
+  function markAppSwitch(viewTransition) {
+    viewTransition.types.add("cp-app-switch");
+    var root = document.documentElement;
+    root.classList.add("cp-vt-appswitch");
+    viewTransition.finished.finally(function () {
+      root.classList.remove("cp-vt-appswitch");
+    });
   }
 
   // หน้าเก่า (กำลังออก): ตัดสินจากปลายทางใน NavigationActivation
   window.addEventListener("pageswap", function (e) {
     if (!e.viewTransition || !e.activation) return;
     var to = e.activation.entry && e.activation.entry.url;
-    if (to && zoneOf(location.href) !== zoneOf(to)) markAppSwitch(e.viewTransition, false);
+    if (to && zoneOf(location.href) !== zoneOf(to)) markAppSwitch(e.viewTransition);
   });
 
   // หน้าใหม่ (กำลังเข้า): ตัดสินจากต้นทางใน navigation.activation
@@ -59,6 +90,10 @@
     if (!e.viewTransition) return;
     var act = typeof navigation !== "undefined" && navigation.activation;
     var from = act && act.from && act.from.url;
-    if (from && zoneOf(from) !== zoneOf(location.href)) markAppSwitch(e.viewTransition, true);
+    if (from && zoneOf(from) !== zoneOf(location.href)) {
+      markAppSwitch(e.viewTransition);
+      // VT Cross-fade ทำงานแล้ว — ปิด Entrance Fade ของชั้นที่ 1 กันซ้อน 2 Fade
+      document.documentElement.classList.remove("cp-app-enter");
+    }
   });
 })();
