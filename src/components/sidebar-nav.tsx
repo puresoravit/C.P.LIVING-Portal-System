@@ -53,7 +53,13 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 //
 //   Mobile (< md): Slot โปร่งใสไม่มี Padding — Blue Pill เต็มแถวเหมือน R3 เป๊ะ (Pill มน
 //   2 ข้าง ไม่ Bleed ไม่มี Curve — Owner อนุญาตชัดเจนให้ Mobile ใช้ Shape ปลอดภัยเดิม)
-const FILLET_RADIUS = 16; // px — รัศมีโค้งเว้าที่ขอบครีมวกกลับเข้าแนว Content
+// Owner UAT R5.1 — Owner มาร์ค Screenshot ชี้ตรงรอยต่อของ Reference: Curve ในตัวอย่าง
+// "กวาดกว้างและยาว" (ราวๆ ครึ่งความสูงของ Tab) ของเรา 16px สั้นเกินไปเลยอ่านเป็นรอยบาก
+// ไม่ใช่รอยต่อไหลลื่น — ขยายเป็น 24px + เพิ่ม Margin แนวตั้งรอบ Slot (md:my-1 ใน
+// ACTIVE_SLOT_CLASS) ให้โค้งมีที่กวาดเต็มวงโดยกินพื้นที่แถวข้างเคียงน้อยลง 4px (กัน
+// วงครีมรัศมีใหม่ที่ใหญ่ขึ้นไปทับ Chevron "›" ของ Group Summary แถวติดกัน — คำนวณระยะ
+// แล้ว: Chevron อยู่ห่างจุดศูนย์กลางวง ~26px > 24px พอดีเมื่อมี my-1)
+const FILLET_RADIUS = 24; // px — รัศมีโค้งเว้าที่ขอบครีมวกกลับเข้าแนว Content
 const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
 
 /** โค้งเว้าที่มุมขวาบน/ล่างของ Cream Slot — Render เฉพาะตอน Active + Desktop เท่านั้น
@@ -63,7 +69,7 @@ function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-4 h-4 pointer-events-none`}
+      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-6 h-6 pointer-events-none`}
       style={{
         background: `radial-gradient(circle at ${gradientAt}, ${CREAM_HEX} ${FILLET_RADIUS}px, transparent ${FILLET_RADIUS}px)`,
       }}
@@ -75,7 +81,7 @@ const LINK_CLASS =
   "flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm transition-colors duration-200";
 // R5 — ตัว <a> ของรายการ Active คือ "Cream Slot" (Desktop) / Wrapper โปร่งใส (Mobile)
 const ACTIVE_SLOT_CLASS =
-  "relative block md:bg-cp-cream md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:py-[5px] md:pl-[5px] md:pr-2";
+  "relative block md:bg-cp-cream md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1 md:py-[5px] md:pl-[5px] md:pr-2";
 // R5 — Blue Pill ชั้นในครอบ Icon+Label (Mobile = เต็มแถวเหมือน R3 เพราะ Slot ไม่มี Padding)
 const ACTIVE_PILL_CLASS =
   "relative z-10 flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-xl text-sm w-full " +
