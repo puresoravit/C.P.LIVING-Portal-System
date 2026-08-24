@@ -57,21 +57,28 @@ export function printPageStyle(): string {
   return `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }`;
 }
 
-// Owner UAT — Automatic PRINTED Workflow (2026-08-24): Pure Decision Logic แยกออกมา
-// จาก PrintButton (Client Component) เพื่อ Unit Test ได้ตรงๆ โดยไม่ต้องพึ่ง Browser
-// จริง — ครอบคลุม Invariant ที่สำคัญที่สุดของ Feature นี้: "A4 ต้องไม่มาร์ค PRINTED
-// อัตโนมัติเด็ดขาด ไม่ว่ากรณีใด" (canAutoMark ต้องเป็น false เสมอเมื่อ
-// profile !== "continuous" — Short-circuit ที่ Server ก็เช็คซ้ำอีกชั้นใน
-// markInvoicePrinted อยู่แล้ว เป็น Defense-in-depth 2 ชั้นเหมือนเดิม)
+// Owner UAT — Safe 9×11 PRINTED Confirmation (2026-08-24): Pure Decision Logic แยก
+// ออกมาจาก PrintButton (Client Component) เพื่อ Unit Test ได้ตรงๆ โดยไม่ต้องพึ่ง
+// Browser จริง — ครอบคลุม Invariant ที่สำคัญที่สุดของ Feature นี้: "A4 ต้องไม่เปิด
+// Confirmation Modal และไม่มาร์ค PRINTED เด็ดขาด ไม่ว่ากรณีใด" (canOpenPrintConfirm
+// ต้องเป็น false เสมอเมื่อ profile !== "continuous" — Short-circuit ที่ Server ก็
+// เช็คซ้ำอีกชั้นใน markInvoicePrinted อยู่แล้ว เป็น Defense-in-depth 2 ชั้นเหมือนเดิม)
+//
+// เดิม (afterprint ยิงแล้วมาร์คทันที) พบ Bug จริงจาก Physical UAT: afterprint ยิง
+// เหมือนกันทั้งกด Print และกด Cancel ใน Browser Print Dialog — Owner สั่งยกเลิก
+// การมาร์คอัตโนมัติจาก Event นี้โดยตรง เปลี่ยนเป็น "afterprint = เปิด Confirmation
+// Modal เท่านั้น" แล้วให้พนักงานยืนยันเองว่า "พิมพ์สำเร็จ" ก่อนถึงจะเรียก
+// markInvoicePrinted จริง — ชื่อ canOpenPrintConfirm (เดิม canAutoMark) สะท้อนเจตนา
+// ใหม่ตรงๆ: เงื่อนไขนี้คุมแค่ "เปิด Modal ให้ถามได้ไหม" ไม่ใช่ "มาร์คให้เลยไหม"
 export function resolvePrintMarkUiState(params: {
   /** false = Invoice ถูกยกเลิกแล้ว (markPrintedAction เป็น undefined จาก Caller) */
   hasMarkAction: boolean;
   isPrinted: boolean;
   profile: PrintProfileKey;
-}): { canAutoMark: boolean; showA4Notice: boolean } {
+}): { canOpenPrintConfirm: boolean; showA4Notice: boolean } {
   const eligible = params.hasMarkAction && !params.isPrinted;
   return {
-    canAutoMark: eligible && params.profile === "continuous",
+    canOpenPrintConfirm: eligible && params.profile === "continuous",
     showA4Notice: eligible && params.profile !== "continuous",
   };
 }
