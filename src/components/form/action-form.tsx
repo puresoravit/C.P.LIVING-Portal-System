@@ -102,10 +102,16 @@ export function ActionForm({
   );
 }
 
+// Owner UAT — Billing UI Visual Polish R2 (2026-08-24): Default className เดียวนี้
+// ควบคุมปุ่ม Submit หลักของฟอร์ม "สร้างเอกสาร" ส่วนใหญ่ในระบบ (16/20 จุดเรียกไม่ Override
+// สี) — เปลี่ยนจาก bg-blue-600 มาตรฐาน → cp-navy (Brand Blue เดียวกับ Sidebar/Splash/
+// Login) เป็นจุดเดียวที่กระจาย Design Language ไปยัง "Buttons" (ข้อ 4) ได้กว้างโดยไม่ต้อง
+// แก้ทีละไฟล์ — จุดเรียกที่ Override สีเอง (เช่นปุ่มสีเขียว/แดงสำหรับ Confirm/Cancel)
+// ไม่กระทบเลย
 export function SubmitButton({
   children,
   pendingLabel = "กำลังบันทึก...",
-  className = "bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2",
+  className = "bg-cp-navy hover:bg-cp-navy-light text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors duration-150",
 }: {
   children: React.ReactNode;
   pendingLabel?: string;

@@ -89,52 +89,66 @@ export default async function HomePage(
 
   return (
     <div className="max-w-5xl">
-      <div className="flex items-center justify-between mb-4">
+      {/* Owner UAT — Billing UI Visual Polish R2 (2026-08-24): พบระหว่างตรวจ 360px จริง
+          (window.screen.width vs innerWidth ต่างกัน = Browser บังคับ Zoom-out ให้พอดี
+          กับ Layout Viewport ที่กว้างเกิน) — Root Cause คือแถวนี้เป็น flex ธรรมดาไม่มี
+          Wrap เลย (Pre-existing ตั้งแต่ก่อน R1/R2 ไม่เคยถูกจับได้เพราะการเช็ค Overflow
+          รอบก่อนเทียบ scrollWidth กับ innerWidth ที่ถูกบังคับขยายไปด้วยกันทั้งคู่ ทำให้
+          เท่ากันเสมอ ไม่เห็นปัญหา) — แก้เป็น Stack แนวตั้งบนจอแคบ + Filter Form Wrap ได้
+          (Presentation/Layout ล้วนๆ ไม่แตะ Query Logic ใดๆ) ตรงตาม Requirement ข้อ 5
+          "Header/Date controls ต้องไม่เกิด Horizontal Overflow" */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <h1 className="text-lg font-semibold">ข้อมูลทั่วไป / Dashboard</h1>
-        <form className="flex gap-2 items-center text-sm">
+        <form className="flex flex-wrap gap-2 items-center text-sm">
           <input name="dateFrom" type="date" defaultValue={dateFrom} className="border rounded px-2 py-1 text-sm" />
           <span className="text-gray-400">ถึง</span>
           <input name="dateTo" type="date" defaultValue={dateTo} className="border rounded px-2 py-1 text-sm" />
-          <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-1">ดู</button>
+          <button className="bg-cp-navy hover:bg-cp-navy-light transition-colors duration-150 text-white rounded px-3 py-1">ดู</button>
         </form>
       </div>
 
-      {/* Owner UAT — Billing UI Visual Polish: KPI Card 3 ใบนี้คือ "Dashboard Statistic
-          Cards" ที่ Owner ระบุตรงๆ ให้เพิ่มสี — ใช้ Subtle Gradient โทน Sky/Teal/Amber
-          (Soft, Premium, ไม่ฉูดฉาด) + Icon Chip ผูกความหมายจริงของแต่ละตัวเลข (ยอดขาย/
-          ยอดสุทธิ/จำนวนสินค้า — Reuse ชุด NavIcon เดียวกับ Sidebar ไม่สร้าง Icon System
-          คู่ขนาน) ตัวเลขยังคงสีเข้ม/ขนาดเดิมเป๊ะ (text-2xl font-medium) เพื่อความชัดเจน
-          เป็นอันดับแรกตามที่ Owner กำชับ — สีมีหน้าที่ "แยก" การ์ดออกจากกันเท่านั้น ไม่ใช่
-          แข่งกับตัวเลข การ์ดอื่นๆ ในหน้านี้ (Customer Card/Top10/Chart) ยังคง bg-white
-          เดิมทุกใบ ไม่ไล่สีตาม เพื่อไม่ให้หน้าดูรกเกินไป (Design Consistency แบบพอดี ไม่
-          Redesign ทั้งหน้า) */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-sky-50 to-white border border-sky-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 shrink-0">
-              <NavIcon name="chart" className="w-4 h-4" />
+      {/* Owner UAT — Billing UI Visual Polish R2: R1 (Pastel Tint เกือบขาว) "จางเกินไป"
+          — เปลี่ยนเป็น Gradient อิ่มสีจริง (Tailwind 500→600, ไม่ใช่ Neon/Custom Hex) +
+          ตัวอักษรขาวล้วน — Contrast ขาว-บนพื้นเข้ม > เข้ม-บนพื้นพาสเทล จึงอ่านง่ายขึ้นกว่า
+          R1 ด้วยซ้ำ ไม่ใช่แลก Readability กับสี — Icon Chip แบบกระจกโปร่ง (bg-white/20)
+          เดียวกับ Sidebar Main Menu Chip (Design Consistency ข้ามหน้า) + Icon ใหญ่จางๆ
+          มุมล่างขวาเป็น Decorative ล้วนๆ (opacity 10%, ไม่ใช่ข้อมูล) — Palette: Blue/Sky
+          (ยอดขาย) → Teal/Emerald (ยอดสุทธิ ตัวเลขหลักที่สุด) → Amber/Orange (จำนวนสินค้า)
+          กลมกลืนกันในโทน Warm-to-Cool ที่ยังอ่านออกว่าเป็นชุดเดียวกัน — R2 Mobile Fix:
+          grid-cols-3 (Fixed เดิม ตัวเลขตัดบรรทัดบนจอแคบ) → grid-cols-1 sm:grid-cols-3
+          (Stack เต็มความกว้างต่ำกว่า 640px กันตัวเลขล้น ตรงตาม Requirement ข้อ 5) —
+          Top10/Customer Card ด้านล่างได้ Accent สีเดียวกันเบาๆ (Icon Chip/แถบซ้าย) ไม่ไล่
+          Gradient เต็มใบ กัน Dashboard รกเกินไปตามคำสั่ง */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-4 shadow-md shadow-blue-900/10 text-white">
+          <NavIcon name="chart" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="chart" className="w-[18px] h-[18px]" />
             </span>
-            <div className="text-xs text-gray-500">ยอดขาย (จำนวนเงิน)</div>
+            <div className="text-xs text-white/80">ยอดขาย (จำนวนเงิน)</div>
           </div>
-          <div className="text-2xl font-medium text-gray-900">{money(summary.gross)} บาท</div>
+          <div className="relative text-2xl font-semibold">{money(summary.gross)} บาท</div>
         </div>
-        <div className="relative overflow-hidden bg-gradient-to-br from-teal-50 to-white border border-teal-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-teal-500/10 text-teal-600 shrink-0">
-              <NavIcon name="receipt" className="w-4 h-4" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl p-4 shadow-md shadow-emerald-900/10 text-white">
+          <NavIcon name="receipt" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="receipt" className="w-[18px] h-[18px]" />
             </span>
-            <div className="text-xs text-gray-500">ยอดสุทธิ (Net)</div>
+            <div className="text-xs text-white/80">ยอดสุทธิ (Net)</div>
           </div>
-          <div className="text-2xl font-medium text-teal-700">{money(summary.net)} บาท</div>
+          <div className="relative text-2xl font-semibold">{money(summary.net)} บาท</div>
         </div>
-        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 shrink-0">
-              <NavIcon name="box" className="w-4 h-4" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-4 shadow-md shadow-orange-900/10 text-white">
+          <NavIcon name="box" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="box" className="w-[18px] h-[18px]" />
             </span>
-            <div className="text-xs text-gray-500">จำนวนสินค้าที่ขาย</div>
+            <div className="text-xs text-white/80">จำนวนสินค้าที่ขาย</div>
           </div>
-          <div className="text-2xl font-medium text-gray-900">{summary.quantity.toLocaleString("th-TH")}</div>
+          <div className="relative text-2xl font-semibold">{summary.quantity.toLocaleString("th-TH")}</div>
         </div>
       </div>
 
@@ -146,7 +160,7 @@ export default async function HomePage(
           <a
             key={c.key}
             href={`/customers/sales/${c.key}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
-            className="bg-white border rounded-lg p-4 hover:bg-gray-50"
+            className="bg-white border border-l-4 border-l-sky-400 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-150"
           >
             <div className="text-xs text-gray-500 mb-1">{c.label}</div>
             <div className="text-lg font-medium">{money(c.metrics.net)}</div>
@@ -162,7 +176,12 @@ export default async function HomePage(
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="font-medium text-sm mb-2">Top 10 ลูกค้า</h2>
+          <h2 className="flex items-center gap-1.5 font-medium text-sm mb-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-sky-50 text-sky-600 shrink-0">
+              <NavIcon name="users" className="w-3.5 h-3.5" />
+            </span>
+            Top 10 ลูกค้า
+          </h2>
           <ul className="text-sm space-y-1">
             {topCustomers.map((c, i) => (
               <CustomerHoverCard
@@ -186,7 +205,12 @@ export default async function HomePage(
           </ul>
         </div>
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="font-medium text-sm mb-2">Top 10 สินค้า</h2>
+          <h2 className="flex items-center gap-1.5 font-medium text-sm mb-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-50 text-amber-600 shrink-0">
+              <NavIcon name="box" className="w-3.5 h-3.5" />
+            </span>
+            Top 10 สินค้า
+          </h2>
           <ul className="text-sm space-y-1">
             {topProducts.map((p, i) => (
               <li key={p.key} className="flex justify-between">

@@ -75,8 +75,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Owner UAT — Billing UI Visual Polish: พื้น Content Area จากขาวล้วน → Warm
           Off-white (cp-cream, ดู tailwind.config.js) — จุดควบคุมเดียว กระทบทุกหน้าใน
           Route Group นี้พร้อมกัน — Card/Table/Form ยังเป็น bg-white เดิมทุกใบ จึงยังแยก
-          จาก Background ได้ชัดเจนเหมือนเดิม (ไม่แตะ Component ใดๆ ของแต่ละหน้าเลย) */}
-      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white min-h-screen">{children}</main>
+          จาก Background ได้ชัดเจนเหมือนเดิม (ไม่แตะ Component ใดๆ ของแต่ละหน้าเลย)
+          R2 — มุมซ้ายบนมน (md:rounded-tl-2xl) เฉพาะ Desktop ที่ Sidebar ยืนติดกันจริง
+          ให้อ่านเป็น "Panel เดียวกับ Sidebar" ไม่ใช่กล่อง 2 กล่องแยกเหลี่ยม (คู่กับ Active
+          Pill ที่ Bleed ออกมาจากฝั่ง Sidebar ใน sidebar-nav.tsx) — Mobile ไม่ใส่ (Sidebar
+          เป็น Drawer ลอยทับ ไม่ได้ยืนติดกันจริง มุมมนจะดูแปลก) — print:rounded-none กัน
+          กระทบเอกสารพิมพ์ (เหมือน print:p-0/print:bg-white เดิม) */}
+      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white md:rounded-tl-2xl print:rounded-none min-h-screen">{children}</main>
     </div>
   );
 }

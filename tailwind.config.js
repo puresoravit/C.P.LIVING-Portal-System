@@ -27,7 +27,10 @@ module.exports = {
       colors: {
         "cp-navy": "#0B1B3A", // = CP_NAVY
         "cp-navy-light": "#1E3A6E", // Stop ที่ 2 ของ Gradient (เข้มกว่า blue-600 มาตรฐานเล็กน้อย ให้หรูสมกับแบรนด์)
-        "cp-cream": "#FAF6EF", // พื้น Content Area — Warm Off-white อ่อนมาก แยกจาก Card ขาวล้วนได้ชัดเจน
+        // Owner UAT — Billing UI Visual Polish R2 (2026-08-24): Owner บอกว่า R1 (FAF6EF)
+        // "เหลือง/ครีมมากเกินไป" — ปรับให้เย็นลงนิดหน่อย (ลด Gap ระหว่างช่อง R/G/B) ยังคง
+        // ความอุ่นแบบ Warm Off-white ไว้แต่ Neutral ขึ้น
+        "cp-cream": "#F7F5F0",
       },
     },
   },

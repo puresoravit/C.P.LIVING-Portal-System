@@ -53,7 +53,10 @@ function Shell({ children, ...props }: IconProps & { children: React.ReactNode }
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      // Owner UAT — Billing UI Visual Polish R2 (2026-08-24): Owner ทดสอบ R1 แล้วพบว่า
+      // Icon "เล็ก/บาง/จางเกินไป" — เพิ่ม strokeWidth 1.75→2 (กลับไปตรงกับ Hamburger
+      // Icon ต้นแบบเป๊ะ — ดู Comment บนสุดของไฟล์) ให้เส้นหนาขึ้นมี Presence ชัดเจนขึ้น
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       {...props}
