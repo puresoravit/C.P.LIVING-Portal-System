@@ -18,7 +18,7 @@ type ManagedUser = {
   appIds: string[];
 };
 
-type ManagedApp = { id: string; name: string; description: string };
+type ManagedApp = { id: string; name: string; description: string; enabled: boolean };
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER_ADMIN: "ผู้ดูแลระบบ",
@@ -45,9 +45,9 @@ function CreateUserForm({
   const [role, setRole] = useState("BILLING_STAFF");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  // Default ติ๊กทุกแอปที่ Grant ได้ (ปัจจุบันคือ Billing แอปเดียว) — เจตนาหลักของการ
+  // Default ติ๊กทุกแอปที่ Grant ได้จริง (ปัจจุบันคือ Billing แอปเดียว) — เจตนาหลักของการ
   // สร้างพนักงานคือให้เข้าแอปทำงานได้เลย ไม่ต้องมากด Grant ซ้ำอีกขั้น
-  const [grantApps, setGrantApps] = useState<Set<string>>(() => new Set(apps.map((a) => a.id)));
+  const [grantApps, setGrantApps] = useState<Set<string>>(() => new Set(apps.filter((a) => a.enabled).map((a) => a.id)));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [isCreating, startCreate] = useTransition();
 
@@ -160,14 +160,25 @@ function CreateUserForm({
       <div className="space-y-2">
         <div className="text-xs text-slate-400">ให้สิทธิ์เข้าแอปพลิเคชันทันทีที่สร้าง</div>
         {apps.map((app) => (
-          <label key={app.id} className="flex items-center gap-2.5 text-sm text-white cursor-pointer w-fit">
+          <label
+            key={app.id}
+            className={`flex items-center gap-2.5 text-sm w-fit ${
+              app.enabled ? "text-white cursor-pointer" : "text-slate-500 cursor-not-allowed"
+            }`}
+          >
             <input
               type="checkbox"
               checked={grantApps.has(app.id)}
+              disabled={!app.enabled}
               onChange={() => toggleApp(app.id)}
-              className="w-4 h-4 accent-[#C9A24B]"
+              className="w-4 h-4 accent-[#C9A24B] disabled:opacity-40"
             />
             {app.name}
+            {!app.enabled && (
+              <span className="text-[10px] tracking-wider text-slate-500 border border-white/10 rounded-full px-2 py-0.5">
+                เร็วๆ นี้
+              </span>
+            )}
           </label>
         ))}
       </div>
@@ -314,20 +325,34 @@ export function AccessManager({
       {editable && (
         <>
           <div className="space-y-2.5">
-            <div className="text-xs text-slate-400">แอปพลิเคชันที่เข้าถึงได้</div>
+            <div className="text-xs text-slate-400">
+              แอปพลิเคชันที่เข้าถึงได้ — ผู้ใช้จะเห็นเฉพาะแอปที่ติ๊กไว้บน Application Portal เท่านั้น
+            </div>
             {apps.map((app) => (
               <label
                 key={app.id}
-                className="flex items-start gap-3 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 cursor-pointer hover:border-white/30"
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                  app.enabled
+                    ? "border-white/15 bg-white/[0.04] cursor-pointer hover:border-white/30"
+                    : "border-white/10 bg-white/[0.02] cursor-not-allowed opacity-60"
+                }`}
               >
                 <input
                   type="checkbox"
                   checked={checked.has(app.id)}
+                  disabled={!app.enabled}
                   onChange={() => toggle(app.id)}
-                  className="mt-0.5 w-4 h-4 accent-[#C9A24B]"
+                  className="mt-0.5 w-4 h-4 accent-[#C9A24B] disabled:opacity-40"
                 />
                 <span>
-                  <span className="block text-sm text-white">{app.name}</span>
+                  <span className="flex items-center gap-2 text-sm text-white">
+                    {app.name}
+                    {!app.enabled && (
+                      <span className="text-[10px] tracking-wider text-slate-500 border border-white/10 rounded-full px-2 py-0.5">
+                        เร็วๆ นี้
+                      </span>
+                    )}
+                  </span>
                   <span className="block text-xs text-slate-400 mt-0.5">{app.description}</span>
                 </span>
               </label>

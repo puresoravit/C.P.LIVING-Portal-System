@@ -65,7 +65,11 @@ export async function getVisibleApps(user: PortalUser): Promise<{ app: AppDefini
   const visible: { app: AppDefinition; accessible: boolean }[] = [];
   for (const app of APP_REGISTRY) {
     if (app.status === "coming_soon") {
-      visible.push({ app, accessible: false });
+      // Owner UAT — พนักงานเห็นเฉพาะแอปที่ได้รับสิทธิ์จริงเท่านั้น ("เลือกแค่ Billing
+      // ก็เห็นแค่ Billing") — Card แอปอนาคต (COMING SOON) แสดงเฉพาะ Owner ไว้เห็น
+      // ภาพรวม Roadmap ของระบบ — เมื่อแอปเปิดใช้จริง (status → enabled) จะเข้ากติกา
+      // ปกติด้านล่างเอง: พนักงานเห็นก็ต่อเมื่อ Owner ติ๊ก Grant ให้ใน Access Management
+      if (user.isOwner) visible.push({ app, accessible: false });
       continue;
     }
     if (app.ownerOnly) {

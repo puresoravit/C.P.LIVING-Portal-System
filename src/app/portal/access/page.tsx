@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPortalUser } from "@/lib/app-access";
-import { getGrantableApps } from "@/lib/app-registry";
+import { APP_REGISTRY } from "@/lib/app-registry";
 import { CPLogo, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { AccessManager } from "./access-manager";
 import { updateUserAppAccess, resetUserPassword, createEmployeeUser } from "./actions";
@@ -33,7 +33,16 @@ export default async function AccessManagementPage() {
     (accessByUser[row.userId] ??= []).push(row.appId);
   }
 
-  const apps = getGrantableApps().map((a) => ({ id: a.id, name: a.name, description: a.description }));
+  // Owner UAT — แสดงแอปอนาคต (COMING SOON) ในรายการสิทธิ์ด้วยแบบ Disabled ให้ Owner
+  // เห็นว่าระบบสิทธิ์รายคนรองรับหลายแอปตั้งแต่วันนี้ — เมื่อแอปเปิดใช้จริง Checkbox จะ
+  // เปิดให้ติ๊กเองอัตโนมัติ (Server Action ยัง Filter เฉพาะ getGrantableApps เหมือนเดิม
+  // — Defense-in-depth: ติ๊กแอปที่ยังไม่เปิดส่งมาก็ถูกทิ้งเงียบๆ)
+  const apps = APP_REGISTRY.filter((a) => !a.ownerOnly).map((a) => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    enabled: a.status === "enabled",
+  }));
 
   return (
     <div
