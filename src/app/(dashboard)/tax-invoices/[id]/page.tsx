@@ -106,20 +106,25 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
       </div>
 
       {/* Phase H — Summary ladder ตามลำดับที่ Owner กำหนด (ใบเก่า grossAmount=null →
-          Fallback = netAmount ซึ่งตรงความจริงของใบเก่าที่ไม่มีส่วนลด) */}
+          Fallback = netAmount ซึ่งตรงความจริงของใบเก่าที่ไม่มีส่วนลด) — Fresh UAT Fix:
+          เอกสารไม่มีส่วนลด → ซ่อนแถวส่วนลด/หลังหักส่วนลด (Presentation เท่านั้น) */}
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm ml-auto max-w-xs space-y-1">
         <div className="flex justify-between">
           <span className="text-gray-500">รวมเป็นเงิน / Subtotal</span>
           <span>{money(taxInvoice.grossAmount ?? taxInvoice.netAmount)}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">หักส่วนลด / Discount</span>
-          <span>{money(taxInvoice.discountAmount)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">ยอดรวมหลังหักส่วนลด</span>
-          <span>{money(taxInvoice.netAmount)}</span>
-        </div>
+        {Number(taxInvoice.discountAmount) > 0 && (
+          <>
+            <div className="flex justify-between">
+              <span className="text-gray-500">หักส่วนลด / Discount</span>
+              <span>{money(taxInvoice.discountAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">ยอดรวมหลังหักส่วนลด</span>
+              <span>{money(taxInvoice.netAmount)}</span>
+            </div>
+          </>
+        )}
         <div className="flex justify-between">
           <span className="text-gray-500">มูลค่าสินค้าก่อน VAT</span>
           <span>{money(taxInvoice.valueAmount)}</span>

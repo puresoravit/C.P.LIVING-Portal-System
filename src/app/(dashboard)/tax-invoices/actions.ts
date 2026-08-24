@@ -5,11 +5,11 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
-import { getEffectiveVatRate, extractVat, getEffectivePrice, getEffectiveDiscountPct } from "@/lib/pricing";
+import { getEffectiveVatRate, extractVat, getEffectivePrice } from "@/lib/pricing";
 import { computeManualTaxInvoiceTotals } from "@/lib/tax-invoice-totals";
+import { resolveGroupDiscounts } from "@/lib/tax-invoice-group-discount";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Decimal } from "@prisma/client/runtime/library";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -241,9 +241,9 @@ export async function createManualTaxInvoice(formData: FormData) {
 
 // Phase H — Autofill ส่วนลดตาม Discount Group (Customer/Branch + ProductType) สำหรับ
 // โหมด MANUAL: Read-only Suggestion ล้วนๆ (Pattern เดียวกับ getSuggestedTaxInvoiceItem)
-// — Reuse getEffectiveDiscountPct เดิมของ Pricing Engine 100% ไม่มี Discount Path ใหม่
-// — รายการที่พิมพ์เองโดยไม่ได้เลือกจาก Product Master (ไม่มี productId) ไม่มีทางรู้
-// ProductType จึงคืน 0 (ผู้ใช้ยังกรอกส่วนลดเองต่อได้ในโหมด CUSTOM)
+// — Fresh UAT Fix: ย้ายตัว Resolution ทั้งหมดไป src/lib/tax-invoice-group-discount.ts
+// (Reuse getEffectiveDiscountPct เดิม 100%) เพื่อ Unit Test ทั้ง Chain ผ่าน mocked DB
+// ได้ตรงๆ — Action นี้เหลือแค่ Auth Guard + แปลงวันที่
 export async function getSuggestedTaxInvoiceGroupDiscounts(params: {
   customerId: string;
   branchId?: string;
@@ -253,33 +253,12 @@ export async function getSuggestedTaxInvoiceGroupDiscounts(params: {
   const user = await requireUser();
   if (!can(user.role, "taxInvoice.create")) throw new Error("FORBIDDEN");
 
-  const orderDate = params.taxInvoiceDate ? new Date(params.taxInvoiceDate) : new Date();
-  const discountAmounts: number[] = [];
-  const discountPcts: number[] = [];
-
-  for (const item of params.items) {
-    let pct = new Decimal(0);
-    if (item.productId) {
-      const product = await db.product.findUnique({ where: { id: item.productId }, select: { productTypeId: true } });
-      if (product?.productTypeId) {
-        pct = (
-          await getEffectiveDiscountPct({
-            customerId: params.customerId,
-            branchId: params.branchId ?? null,
-            productTypeId: product.productTypeId,
-            orderDate,
-          })
-        ).discountPct;
-      }
-    }
-    // สูตรส่วนลดต่อบรรทัดเดียวกับ computeQuotationCalc/order-preview เป๊ะ:
-    // discount = round(gross × pct ÷ 100)
-    const amount = new Decimal(item.amount).mul(pct).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    discountAmounts.push(amount.toNumber());
-    discountPcts.push(pct.toNumber());
-  }
-
-  return { discountAmounts, discountPcts };
+  return resolveGroupDiscounts({
+    customerId: params.customerId,
+    branchId: params.branchId ?? null,
+    orderDate: params.taxInvoiceDate ? new Date(params.taxInvoiceDate) : new Date(),
+    items: params.items,
+  });
 }
 
 // Phase E-UX — Manual Tax Invoice Item Entry: ช่วย Autofill รายการ/ขนาด/หน่วย/ราคา

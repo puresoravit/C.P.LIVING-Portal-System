@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
@@ -68,6 +68,10 @@ export function ManualTaxInvoiceItemEntry({
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
   const [discountMode, setDiscountMode] = useState<DiscountMode>("NONE");
   const [wholeDocDiscount, setWholeDocDiscount] = useState(0);
+  // Fresh UAT Fix — % ที่ Resolve ได้จริงต่อบรรทัดจาก Server (Index ตรงกับ items) —
+  // ใช้แสดงเหตุผลให้ผู้ใช้เห็นว่าส่วนลดแต่ละบรรทัดมาจาก Rule กี่ % และเตือนชัดๆ เมื่อ
+  // "ไม่พบ Discount Rule เลย" แทนที่จะโชว์ 0.00 เงียบๆ (จุดที่ทำให้ Owner เข้าใจว่าบั๊ก)
+  const [groupPcts, setGroupPcts] = useState<number[] | null>(null);
   const { showError } = useToast();
   const [isPending, startTransition] = useTransition();
   const [thrownError, setThrownError] = useState<unknown>(null);
@@ -141,6 +145,8 @@ export function ManualTaxInvoiceItemEntry({
 
   // Phase H — โหมด GROUP: ดึงส่วนลดตามเงื่อนไขลูกค้า (Discount Group) จาก Engine เดิม
   // ผ่าน Server Action แล้วเติมลงต่อบรรทัด — เรียกซ้ำได้เสมอ (Idempotent Suggestion)
+  // Fresh UAT Fix — เก็บ % ที่ Resolve ได้ต่อบรรทัดไว้แสดงบน UI ด้วย (โปร่งใสว่าแต่ละ
+  // บรรทัดได้กี่ % เพราะอะไร) และล้างเมื่อออกจากโหมด GROUP
   function refreshGroupDiscounts(itemsArg: ManualItem[]) {
     const { customerId, branchId, taxInvoiceDate } = readHeaderFields();
     if (!customerId) {
@@ -148,16 +154,20 @@ export function ManualTaxInvoiceItemEntry({
       setDiscountMode("NONE");
       return;
     }
-    if (itemsArg.length === 0) return;
+    if (itemsArg.length === 0) {
+      setGroupPcts([]);
+      return;
+    }
     startTransition(async () => {
       try {
-        const { discountAmounts } = await getSuggestedTaxInvoiceGroupDiscounts({
+        const { discountAmounts, discountPcts } = await getSuggestedTaxInvoiceGroupDiscounts({
           customerId,
           branchId,
           taxInvoiceDate,
           items: itemsArg.map((i) => ({ productId: i.productId, amount: round2(i.quantity * i.unitPrice) })),
         });
         setItems(itemsArg.map((i, idx) => ({ ...i, discountAmount: discountAmounts[idx] ?? 0 })));
+        setGroupPcts(discountPcts);
       } catch (err) {
         unstable_rethrow(err);
         showError("ดึงส่วนลดตามเงื่อนไขลูกค้าไม่สำเร็จ — เลือก 'กำหนดส่วนลดเอง' เพื่อกรอกเองได้");
@@ -167,6 +177,7 @@ export function ManualTaxInvoiceItemEntry({
 
   function changeDiscountMode(mode: DiscountMode) {
     setDiscountMode(mode);
+    if (mode !== "GROUP") setGroupPcts(null);
     if (mode === "NONE") {
       setItems((prev) => prev.map((i) => ({ ...i, discountAmount: 0 })));
       setWholeDocDiscount(0);
@@ -175,6 +186,26 @@ export function ManualTaxInvoiceItemEntry({
     }
     // CUSTOM — คงค่าที่มีอยู่ ให้แก้ต่อบรรทัดได้เลย
   }
+
+  // Fresh UAT Fix — ลูกค้า/สาขา/วันที่อยู่ใน DOM ของ Parent Server Component (นอก React)
+  // — ถ้าผู้ใช้เปลี่ยนหลังจากดึงส่วนลดตามเงื่อนไขไปแล้ว ส่วนลดจะค้างเป็นของลูกค้าเดิม
+  // → ฟัง change event ตรงๆ แล้ว Refresh อัตโนมัติเมื่ออยู่ในโหมด GROUP (Preview กับ
+  // Server ต้องตรงกันเสมอ)
+  const groupSyncRef = useRef({ discountMode, items });
+  groupSyncRef.current = { discountMode, items };
+  useEffect(() => {
+    const els = [
+      document.getElementById("customerSelect"),
+      document.getElementById("branchSelect"),
+      document.querySelector('input[name="taxInvoiceDate"]'),
+    ].filter(Boolean) as (HTMLSelectElement | HTMLInputElement)[];
+    const onHeaderChange = () => {
+      if (groupSyncRef.current.discountMode === "GROUP") refreshGroupDiscounts(groupSyncRef.current.items);
+    };
+    els.forEach((el) => el.addEventListener("change", onHeaderChange));
+    return () => els.forEach((el) => el.removeEventListener("change", onHeaderChange));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Phase H — "ลดจากยอดรวมทั้งเอกสาร": กระจายตามสัดส่วนยอดแต่ละบรรทัด บรรทัดสุดท้าย
   // ดูดเศษปัดทั้งหมด (เทคนิคเดียวกับ allocateProportionally ใน pricing.ts) — เป็นแค่
@@ -218,7 +249,10 @@ export function ManualTaxInvoiceItemEntry({
   }
 
   function removeItem(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    const next = items.filter((_, i) => i !== idx);
+    setItems(next);
+    // โหมด GROUP — Index ของ groupPcts ต้องตรงกับ items เสมอ → Refresh ทั้งชุด
+    if (discountMode === "GROUP") refreshGroupDiscounts(next);
   }
 
   // Preview ladder — ลำดับคำนวณเดียวกับ computeManualTaxInvoiceTotals ฝั่ง Server:
@@ -348,19 +382,37 @@ export function ManualTaxInvoiceItemEntry({
           </label>
         </div>
         {discountMode === "GROUP" && (
-          <div className="mt-2 flex items-center gap-2">
-            <p className="text-xs text-gray-500">
-              ดึงจากเงื่อนไขส่วนลดของลูกค้า/สาขาตามกลุ่มสินค้า (เฉพาะรายการที่เลือกจากฐานสินค้า —
-              รายการที่พิมพ์เองไม่ทราบกลุ่มสินค้า ส่วนลดเป็น 0)
-            </p>
-            <button
-              type="button"
-              onClick={() => refreshGroupDiscounts(items)}
-              disabled={isPending || items.length === 0}
-              className="text-xs border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
-            >
-              ↻ ดึงส่วนลดใหม่
-            </button>
+          <div className="mt-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500">
+                ดึงจากเงื่อนไขส่วนลดของลูกค้า/สาขาตามกลุ่มสินค้า (เฉพาะรายการที่เลือกจากฐานสินค้า —
+                รายการที่พิมพ์เองไม่ทราบกลุ่มสินค้า ส่วนลดเป็น 0)
+              </p>
+              <button
+                type="button"
+                onClick={() => refreshGroupDiscounts(items)}
+                disabled={isPending || items.length === 0}
+                className="text-xs border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+              >
+                ↻ ดึงส่วนลดใหม่
+              </button>
+            </div>
+            {/* Fresh UAT Fix — Owner Reproduce เจอ "Discount = 0 เงียบๆ" ทั้งที่เจตนาใช้
+                ส่วนลดกลุ่ม: สาเหตุจริงคือยังไม่มี Discount Rule ในระบบ (ถูกล้างตอน Fresh
+                Reset) — บอกตรงๆ พร้อมลิงก์ไปหน้าตั้งค่า แทนที่จะปล่อยให้ดูเหมือนบั๊ก */}
+            {groupPcts !== null && items.length > 0 && groupPcts.every((p) => p === 0) && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+                ไม่พบเงื่อนไขส่วนลด (Discount Rule) ที่มีผลของลูกค้ารายนี้สำหรับกลุ่มส่วนลดของรายการที่เลือก — ระบบจึงใช้ 0% ·
+                ตั้งเงื่อนไขได้ที่หน้า{" "}
+                <a href="/discounts" target="_blank" className="underline font-medium">
+                  ส่วนลด (Discount Rule)
+                </a>{" "}
+                แล้วกด "↻ ดึงส่วนลดใหม่"
+                {items.some((i) => !i.productId) && (
+                  <> · รายการที่พิมพ์ชื่อเอง (ไม่ได้เลือกจากฐานสินค้า) ไม่ทราบกลุ่มส่วนลด จะเป็น 0 เสมอ</>
+                )}
+              </p>
+            )}
           </div>
         )}
         {discountMode === "CUSTOM" && (
@@ -424,7 +476,16 @@ export function ManualTaxInvoiceItemEntry({
                         }`}
                       />
                     ) : (
-                      fmt(round2(item.discountAmount))
+                      <>
+                        {fmt(round2(item.discountAmount))}
+                        {/* Fresh UAT Fix — โหมด GROUP โชว์ % ที่ Resolve ได้กำกับ ให้เห็น
+                            ชัดว่าบรรทัดนี้เข้าเงื่อนไข Rule กี่ % (0% = ไม่มี Rule/ไม่ทราบกลุ่ม) */}
+                        {discountMode === "GROUP" && groupPcts?.[idx] !== undefined && (
+                          <span className={`ml-1 text-xs ${groupPcts[idx] > 0 ? "text-green-700" : "text-gray-400"}`}>
+                            ({groupPcts[idx]}%)
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                 )}
@@ -455,14 +516,20 @@ export function ManualTaxInvoiceItemEntry({
             <span className="text-gray-500">รวมเป็นเงิน / Subtotal</span>
             <span>{fmt(gross)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">หักส่วนลด / Discount</span>
-            <span className={discountInvalid ? "text-red-600 font-medium" : ""}>{fmt(discountTotal)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">ยอดรวมหลังหักส่วนลด / After Discount</span>
-            <span>{fmt(net)}</span>
-          </div>
+          {/* Fresh UAT Fix — "ไม่ใช้ส่วนลด" ซ่อนแถวส่วนลด/หลังหักส่วนลด (Presentation
+              เท่านั้น — การคำนวณเดิมทุกบรรทัด discount=0 อยู่แล้ว ยอดไม่เปลี่ยน) */}
+          {showDiscountColumn && (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-500">หักส่วนลด / Discount</span>
+                <span className={discountInvalid ? "text-red-600 font-medium" : ""}>{fmt(discountTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">ยอดรวมหลังหักส่วนลด / After Discount</span>
+                <span>{fmt(net)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-500">มูลค่าสินค้าก่อน VAT</span>
             <span>{fmt(valueAmount)}</span>
