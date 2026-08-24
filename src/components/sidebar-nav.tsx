@@ -102,6 +102,9 @@ function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   const vtNameClass = edge === "top" ? "[view-transition-name:cp-nav-fillet-top]" : "[view-transition-name:cp-nav-fillet-bottom]";
   // R7.2 — ขอบที่ชน Tab เลื่อนล้ำเข้าไป 1px (บนของ Fillet-บน / ล่างของ Fillet-ล่าง)
   const overlapTabEdgeClass = edge === "top" ? "bottom-[calc(100%-1px)]" : "top-[calc(100%-1px)]";
+  // R7.4 — Tab แม่ Bleed เพิ่มเป็น -9px (ขอบขวาอยู่ 225 = ล้ำ Content 1px แล้ว) — Fillet
+  // จึงกลับมาใช้ right-0 (เกาะขอบขวาแม่ตรงๆ = 225 แกนเดียวกับที่ R7.2 ตั้งไว้เป๊ะ — ถ้าคง
+  // -right-px เดิมไว้ Fillet จะเลื่อนเกินไปที่ 226 ทำให้จุดสัมผัสโค้งกับแนว Content เพี้ยน 1px)
   const R = FILLET_RADIUS; // 28 — รัศมีโค้งเดิมเป๊ะ
   const B = FILLET_RADIUS + 1; // 29 — ขนาดกล่องรวม Overlap 1px (R7.2)
   // Fillet บน: วงศูนย์กลางมุมบน-ซ้าย (0,0) — Arc จาก (R,0) กวาดลงไป (0,R) แล้วปิดรอบ
@@ -114,7 +117,7 @@ function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute -right-px ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none ${vtNameClass}`}
+      className={`hidden md:block absolute right-0 ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none ${vtNameClass}`}
     >
       <svg viewBox={`0 0 ${B} ${B}`} className="block w-full h-full">
         <path d={d} fill={CREAM_HEX} />
@@ -149,9 +152,20 @@ const LINK_CLASS =
 // เดิม (Progressive Enhancement) — Micro-interaction: `cp-nav-rise-in` บน Icon+Label
 // ข้างใน (ยก 2px, Delay 90ms ให้ "ตามหลัง Indicator" ตามที่ Owner ระบุ) — ทั้งคู่ปิดเมื่อ
 // prefers-reduced-motion (ดู globals.css)
+// R7.4 — Owner UAT (Screenshot ช่องเขียว: เส้น Navy บางๆ แนวตั้งที่รอยต่อ Tab↔Content
+// กะพริบใหญ่/เล็กตอน Indicator เลื่อน): ใต้แนว x=224 มี 3 ชั้นซ้อน — พื้น Navy ของ aside
+// อยู่ล่างสุด (ทอดยาวถึง 224), Tab ครีมทับข้างบน (เดิมจบที่ 224 พอดี), Content เริ่ม 224 —
+// ขอบขวาของ Tab ที่ Rasterize ไม่เต็มพิกเซล (DPR เศษส่วน/Browser Zoom) จะเผย Navy ข้างใต้
+// เป็นเส้นบาง และระหว่าง View Transition ตัว Tab ถูกยกเป็น Layer ลอยที่ Composite ด้วย
+// ตำแหน่งทศนิยมใหม่ทุกเฟรม → ขอบขวาเบลนด์กับ Navy ใน Root Snapshot มากน้อยต่างกันต่อเฟรม
+// = เส้นกะพริบตามที่ Owner เห็นเป๊ะ — แก้หลักการเดียวกับ Fillet ใน R7.2: Bleed เพิ่มเป็น
+// -9px ให้ขอบขวาล้ำเข้า Content 1px (x=225) — ฝั่งขวาของแนว 224 เป็นครีม Content ทั้งแนว
+// ทุกความสูง ขอบ AA ของ Tab จึงเบลนด์บนครีมเสมอ (ทั้งตอนนิ่งและทุกเฟรมตอนเลื่อน) ไม่มีทาง
+// เห็น Navy ลอด — สีเดียวกันเป๊ะจึงมองไม่เห็นการล้ำ และขอบขวา Tab ตอนนี้อยู่แกน 225
+// เดียวกับ Fillet ทั้งคู่ (สอดคล้องกันทั้งชุด)
 const ACTIVE_CLASS =
   "relative flex items-center pl-3 pr-3 py-2 rounded-xl text-sm bg-cp-cream text-cp-navy font-medium " +
-  "[view-transition-name:cp-nav-active] md:rounded-l-2xl md:rounded-r-none md:mr-[-8px] md:my-1";
+  "[view-transition-name:cp-nav-active] md:rounded-l-2xl md:rounded-r-none md:mr-[-9px] md:my-1";
 const INACTIVE_CLASS = "text-white/75 hover:bg-white/10 hover:text-white";
 const DISABLED_CLASS =
   "flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-white/30 cursor-not-allowed select-none";
