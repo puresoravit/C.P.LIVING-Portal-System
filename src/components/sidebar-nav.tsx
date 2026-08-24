@@ -98,8 +98,22 @@ const CREAM_HEX = "#F7F5F0"; // = cp-cream (ใช้เป็น fill ของ
 // เดียวกับขอบ Element ปกติ (คม ~1 พิกเซลจอ ไม่มีแถบเบลนด์กว้าง) → โค้งคมเท่าเส้นตรง
 // ที่มาร์คเขียวพอดี — Span Wrapper เดิมยังอยู่ (ตำแหน่ง/ขนาด/view-transition-name ไม่
 // เปลี่ยน Snapshot ของ View Transition จึงทำงานเหมือนเดิมทุกประการ)
+// R7.5 — Owner UAT (Screenshot: เส้น Navy "แนวนอน" ระหว่างโค้งกับแถบ + Owner สังเกตเอง
+// ว่า "เหมือนมันเลื่อนไม่ทันกัน"): Root Cause คือการแยก Fillet เป็น View Transition Group
+// อิสระ 2 ชื่อตอน R7.1 — ตัว Tab มีการ "เปลี่ยนขนาด" ระหว่างบิน (เมนูหลักสูง 44px ↔ เมนู
+// ย่อย ~36px → Group ของ Tab ต้อง Animate ทั้ง transform+width/height ซึ่งบังคับให้วิ่งบน
+// Main Thread ที่กำลังยุ่งหนักพอดีหลัง Full-page Navigation) ขณะที่ Fillet ขนาดคงที่
+// (transform ล้วน — Compositor Thread ลื่นเสมอ) → จังหวะเฟรมของ 3 Layer เหลื่อมกันเป็น
+// ช่วงๆ ช่องว่างเปิดเกิน Overlap 1px เห็น Navy ลอดเป็นเส้นแนวนอนหนาบางไม่คงที่ตรงตาม
+// อาการเป๊ะ — แก้โดย "รวมกลับเป็น Snapshot เดียว": ถอด view-transition-name ของ Fillet
+// ออก (เหลือ cp-nav-active บน <a> แม่ตัวเดียว) — ตามสเปค View Transitions การ Capture
+// Element เก็บภาพตาม Ink Overflow Rectangle (รวมลูก absolute ที่ยื่นพ้นกล่อง — กลไก
+// เดียวกับที่ box-shadow ติดไปกับ Snapshot ได้) ทั้งก้อน Tab+โค้งจึงบินเป็นภาพเดียว ไม่มี
+// ทางเหลื่อม/เปิดช่องให้ Navy ลอดอีกโดยหลักการ — หมายเหตุ: ข้อสันนิษฐาน R7.1 ที่ว่า
+// "Snapshot ตัดตาม Border Box" เป็นการวินิจฉัยที่ผิด (Flicker ตอนนั้นแท้จริงมาจาก Default
+// Cross-fade + Seam ซึ่งถูกแก้ถาวรไปแล้วใน R7.1-R7.4 และยังคงอยู่ครบ) — และต่อให้ Browser
+// ตัดส่วนยื่นจริง ผลแย่สุดคือโค้งหายชั่วคราวกลางทางแล้วกลับมาตอนจบ ไม่ใช่เส้น Navy
 function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
-  const vtNameClass = edge === "top" ? "[view-transition-name:cp-nav-fillet-top]" : "[view-transition-name:cp-nav-fillet-bottom]";
   // R7.2 — ขอบที่ชน Tab เลื่อนล้ำเข้าไป 1px (บนของ Fillet-บน / ล่างของ Fillet-ล่าง)
   const overlapTabEdgeClass = edge === "top" ? "bottom-[calc(100%-1px)]" : "top-[calc(100%-1px)]";
   // R7.4 — Tab แม่ Bleed เพิ่มเป็น -9px (ขอบขวาอยู่ 225 = ล้ำ Content 1px แล้ว) — Fillet
@@ -117,7 +131,7 @@ function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute right-0 ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none ${vtNameClass}`}
+      className={`hidden md:block absolute right-0 ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none`}
     >
       <svg viewBox={`0 0 ${B} ${B}`} className="block w-full h-full">
         <path d={d} fill={CREAM_HEX} />

@@ -48,37 +48,29 @@ body {
   opacity: 1;
 }
 
-/* R7.1 — Owner UAT: ปรับจังหวะช้าลง + แก้ Blue/Navy Line กระพริบที่รอยต่อระหว่าง Slide
-   จังหวะ: 320ms → 460ms (กลางช่วง 420-520ms ที่กำหนด) Easing เปลี่ยนจาก Ease-out เดิม
-   (เริ่มไวสุดตั้งแต่ Frame แรก อ่านเป็น "กระชากต้น") → cubic-bezier(.65,0,.35,1)
-   (Ease-in-out คลาสสิก สมมาตร นุ่มทั้งต้น-ปลาย ไม่มี Overshoot เพราะ y อยู่ใน [0,1]
-   ตลอดเส้นโค้ง) — ใช้ Selector เดียวคุมทั้ง Body หลัก (cp-nav-active) และ Fillet ทั้งคู่
-   (cp-nav-fillet-top/bottom — แยก view-transition-name เป็นของตัวเอง ดู ActiveFillet
-   ใน sidebar-nav.tsx) ให้ทั้ง 3 ชิ้นเคลื่อนที่ Sync กันเป๊ะ อ่านเป็นก้อนเดียว */
-::view-transition-group(cp-nav-active),
-::view-transition-group(cp-nav-fillet-top),
-::view-transition-group(cp-nav-fillet-bottom) {
+/* R7.1 — จังหวะ: 320ms → 460ms (กลางช่วง 420-520ms ที่ Owner กำหนด) Easing เปลี่ยนจาก
+   Ease-out เดิม (เริ่มไวสุดตั้งแต่ Frame แรก อ่านเป็น "กระชากต้น") → cubic-bezier
+   (.65,0,.35,1) (Ease-in-out คลาสสิก สมมาตร นุ่มทั้งต้น-ปลาย ไม่มี Overshoot)
+   R7.5 — กลับมาเหลือ Group เดียว: การแยก Fillet เป็น Group อิสระ (R7.1-R7.4) ทำให้
+   Tab (Animate ทั้ง transform+size เพราะเมนูหลัก/ย่อยสูงไม่เท่ากัน → Main Thread) กับ
+   Fillet (transform ล้วน → Compositor) เดินเฟรมเหลื่อมกันช่วง Main Thread ยุ่งหลัง
+   Navigation → ช่องว่างเปิดเห็น Navy ลอดเป็นเส้นแนวนอน ("เลื่อนไม่ทันกัน" ที่ Owner เห็น)
+   — ตอนนี้ Fillet เป็นลูกธรรมดาใน Snapshot ของ cp-nav-active (Capture ตาม Ink Overflow
+   รวมส่วนยื่นพ้นกล่อง) ทั้งก้อนบินเป็นภาพเดียว เหลื่อมกันไม่ได้โดยหลักการ */
+::view-transition-group(cp-nav-active) {
   animation-duration: 460ms;
   animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-/* R7.1 — Root Cause ของเส้นน้ำเงินกระพริบจริงๆ: Default UA จะ Cross-fade ภาพ Snapshot
-   เก่า/ใหม่ทับกันระหว่าง Slide — แต่เนื้อหาเก่ากับใหม่ "หน้าตาไม่เหมือนกัน" (Icon Chip
-   สีฟ้าอยู่คนละตำแหน่ง/ข้อความคนละความยาว) การ Cross-fade จึงเห็นเป็นสีฟ้า/Navy เยิ้ม
-   เกยกันระหว่างสองภาพ อ่านเป็น "เส้นกระพริบ" ตรงรอยต่อ — แก้โดยปิด Cross-fade ทั้งหมด:
-   ภาพเก่าซ่อนทันที (opacity 0) เหลือเฉพาะภาพใหม่ (opacity 1 คงที่) เคลื่อนที่ไปตาม
-   Group ด้านบนเพียงอย่างเดียว — เห็นเป็นแผ่นครีมทึบก้อนเดียวไหลต่อเนื่อง ไม่มีการเบลนด์
-   สีระหว่างเฟรมเลย (Fillet 2 ชิ้นเนื้อหาเหมือนเดิมทุก Frame อยู่แล้วจึงไม่กระทบ แต่ปิด
-   Cross-fade ให้เหมือนกันเพื่อความสม่ำเสมอ) */
-::view-transition-old(cp-nav-active),
-::view-transition-old(cp-nav-fillet-top),
-::view-transition-old(cp-nav-fillet-bottom) {
+/* R7.1 — ปิด Default Cross-fade ของ Snapshot เก่า/ใหม่: เนื้อหาเก่ากับใหม่หน้าตาไม่
+   เหมือนกัน (Icon Chip สีฟ้าคนละตำแหน่ง/ข้อความคนละความยาว) การ Cross-fade จึงเห็นเป็น
+   สีฟ้า/Navy เยิ้มเกยกันระหว่างสองภาพ — ภาพเก่าซ่อนทันที (opacity 0) เหลือเฉพาะภาพใหม่
+   (opacity 1 คงที่) เคลื่อนที่ตาม Group เพียงอย่างเดียว = แผ่นครีมทึบก้อนเดียวไหลต่อเนื่อง */
+::view-transition-old(cp-nav-active) {
   animation: none;
   opacity: 0;
 }
-::view-transition-new(cp-nav-active),
-::view-transition-new(cp-nav-fillet-top),
-::view-transition-new(cp-nav-fillet-bottom) {
+::view-transition-new(cp-nav-active) {
   animation: none;
   opacity: 1;
 }
