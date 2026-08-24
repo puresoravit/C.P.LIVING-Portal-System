@@ -4,7 +4,9 @@ import { useEffect, useRef } from "react";
 import { signOut } from "next-auth/react";
 
 // ==========================================================================
-// R6 Phase F — Owner UAT Fix: Auto Logout เมื่อไม่มี User Activity ต่อเนื่อง 15 นาที
+// R6 Phase F — Owner UAT Fix: Auto Logout เมื่อไม่มี User Activity ต่อเนื่อง
+// (Limit ปัจจุบันดูที่ INACTIVITY_LIMIT_MS ด้านล่าง — Owner ปรับ 15→60 นาที 2026-08-24
+// เพราะ 15 นาทีสั้นเกินไปสำหรับรอบทำงาน UAT จริง ต้อง Login ใหม่แทบทุกรอบ)
 //
 // หลักการ:
 // - นับเฉพาะ Interaction จริงของผู้ใช้ (pointer/click/keyboard/scroll/touch/input) —
@@ -21,7 +23,7 @@ import { signOut } from "next-auth/react";
 // ==========================================================================
 
 const LAST_ACTIVITY_KEY = "cpfLastActivity";
-const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 นาที
+const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 60 นาที (Owner สั่งขยายจาก 15 นาที)
 const CHECK_INTERVAL_MS = 30 * 1000; // ตรวจทุก 30 วินาที
 const WRITE_THROTTLE_MS = 5 * 1000; // เขียน localStorage ไม่ถี่กว่า 5 วิ (กัน I/O รัว)
 
