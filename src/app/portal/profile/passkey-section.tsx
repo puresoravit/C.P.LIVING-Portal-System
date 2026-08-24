@@ -58,8 +58,16 @@ export function PasskeySection({
         response = await startRegistration({ optionsJSON: options });
       } catch (err) {
         const name = err instanceof Error ? err.name : "";
+        // Owner UAT (มือถือผ่าน LAN) — สาเหตุที่พบจริงบ่อยสุดของ SecurityError/ล้มเหลว
+        // ทั่วไปคือ "เข้าผ่าน IP/โดเมนที่ไม่ตรงกับระบบ": มาตรฐาน WebAuthn บังคับให้ RP ID
+        // เป็นชื่อโดเมนจริงที่ตรงกับที่เปิดอยู่เท่านั้น (IP Address ใช้เป็น RP ID ไม่ได้เลย
+        // ตามสเปค) — ข้อความเดิม "อุปกรณ์อาจไม่รองรับ" ชวนไล่เปลี่ยนเครื่องผิดทาง จึงตรวจ
+        // Hostname ปัจจุบันแล้วบอกสาเหตุจริงตรงๆ แทน
+        const isIpHost = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
         if (name === "NotAllowedError") showError("ยกเลิกการเพิ่ม Passkey แล้ว");
         else if (name === "InvalidStateError") showError("อุปกรณ์นี้มี Passkey ของบัญชีนี้อยู่แล้ว");
+        else if (isIpHost)
+          showError("Passkey ใช้ผ่าน IP Address ไม่ได้ (ข้อจำกัดของมาตรฐานความปลอดภัย) — ต้องเข้าผ่านโดเมนจริงแบบ HTTPS เช่นหลังระบบขึ้น Production");
         else showError("เพิ่ม Passkey ไม่สำเร็จ — อุปกรณ์/เบราว์เซอร์นี้อาจไม่รองรับ");
         return;
       }

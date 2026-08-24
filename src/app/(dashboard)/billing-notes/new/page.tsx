@@ -26,7 +26,7 @@ function money(n: unknown) {
 // วันครบกำหนด = billingNoteDate + creditDays) แค่ส่งเป็น Hidden Input ค่าวันนี้แทนให้
 // User กรอกเอง (Server-computed ค่าเดียว ไม่มี Hydration Risk)
 export default async function NewBillingNotePage(props: {
-  searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string; billing?: string }>;
+  searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string; billing?: string; err?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
@@ -58,7 +58,8 @@ export default async function NewBillingNotePage(props: {
         }),
       ])
     : [[], []];
-  const totalAmount = eligibleInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
+  // Owner UAT Bug Fix — ยอดเริ่มต้นในตารางฝั่ง unbilled เป็น 0.00 เสมอ (Checkbox ไม่ติ๊ก
+  // มาแต่แรกแล้ว — ยอดจริงคำนวณสดจากใบที่ติ๊กด้วย Script ในหน้า) จึงไม่ต้อง Sum ฝั่งนี้อีก
   const billedTotalAmount = billedInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -217,12 +218,14 @@ export default async function NewBillingNotePage(props: {
                 {eligibleInvoices.map((inv) => (
                   <tr key={inv.id} className="border-t">
                     <td className="px-4 py-2">
+                      {/* Owner UAT Bug Fix — เดิม defaultChecked ติ๊กมาให้ทุกใบแต่แรก เสี่ยง
+                          เผลอรวมใบที่ไม่ตั้งใจเข้าใบวางบิล → เริ่มต้นไม่ติ๊ก ให้ผู้ใช้เลือกเอง
+                          ทุกใบอย่างตั้งใจ (สรุปยอด/ปุ่มสร้าง อัปเดตตามที่ติ๊กด้วย Script เดิม) */}
                       <input
                         type="checkbox"
                         name="invoiceIds"
                         value={inv.id}
                         data-amount={Number(inv.grandTotal)}
-                        defaultChecked
                         className="billing-note-invoice-checkbox"
                       />
                     </td>
@@ -239,19 +242,17 @@ export default async function NewBillingNotePage(props: {
                   </tr>
                 )}
               </tbody>
-              {/* Owner UAT Fix Batch — ข้อ 2: "สรุปยอด" ตาม Flow ที่ระบุ (เลือก Customer →
-                  เลือก Date Range → แสดง Invoice ที่เข้าเงื่อนไข → สรุปยอด → สร้าง) — ค่า
-                  เริ่มต้น Server คำนวณจาก Invoice ที่เข้าเงื่อนไขทั้งหมด (ตรงกับตอนโหลดหน้า
-                  ที่ Checkbox ทุกกล่อง defaultChecked อยู่แล้ว ไม่มี Hydration Mismatch) แล้ว
-                  อัปเดตสดด้วย Vanilla Script เมื่อผู้ใช้ติ๊ก/ยกเลิกติ๊กบางใบออก */}
+              {/* Owner UAT Fix Batch — ข้อ 2 + Bug Fix รอบนี้: "สรุปยอด" นับ/รวมเฉพาะใบ
+                  ที่ "ติ๊กเลือกจริง" — เริ่มต้น 0 ใบ/0.00 (ตรงกับ Checkbox ที่ไม่ติ๊กมาแต่แรก
+                  แล้ว) อัปเดตสดทั้งจำนวนใบและยอดรวมด้วย Vanilla Script ด้านล่าง */}
               {eligibleInvoices.length > 0 && (
                 <tfoot>
                   <tr className="border-t font-medium bg-gray-50">
                     <td colSpan={3} className="px-4 py-2 text-right">
-                      สรุปยอด ({eligibleInvoices.length} ใบ)
+                      สรุปยอดที่เลือก (<span id="billingNoteCount">0</span> ใบ)
                     </td>
                     <td id="billingNoteTotal" className="px-4 py-2 text-right">
-                      {money(totalAmount)}
+                      {money(0)}
                     </td>
                   </tr>
                 </tfoot>
@@ -261,11 +262,31 @@ export default async function NewBillingNotePage(props: {
           </div>
 
           {eligibleInvoices.length > 0 && (
-            <button className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2">
-              ✓ สร้างใบวางบิลจากรายการที่เลือก
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Owner UAT Bug Fix — เดิมกด Submit โดยไม่ติ๊กใบไหนเลย → Server throw เป็น
+                  Error Boundary เต็มหน้า — ปุ่มเริ่มต้น disabled จนกว่าจะติ๊กอย่างน้อย 1 ใบ
+                  (Script ด้านล่างคุมสด) + Server Action มี Guard สุภาพซ้ำอีกชั้น (กรณี JS
+                  ถูกปิด — ดู createBillingNoteAction) */}
+              <button
+                id="billingNoteSubmit"
+                disabled
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2"
+              >
+                ✓ สร้างใบวางบิลจากรายการที่เลือก
+              </button>
+              <span id="billingNoteHint" className="text-xs text-gray-500">
+                ติ๊กเลือก Invoice อย่างน้อย 1 ใบก่อนสร้างใบวางบิล
+              </span>
+            </div>
           )}
         </form>
+      )}
+
+      {/* Server Guard แจ้งสุภาพ (กรณี JS ถูกปิดแล้วกด Submit โดยไม่เลือกใบไหนเลย) */}
+      {searchParams.err === "noneSelected" && (
+        <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          ยังไม่ได้เลือก Invoice — กรุณาติ๊กเลือกอย่างน้อย 1 ใบก่อนสร้างใบวางบิล
+        </div>
       )}
 
       {selectedCustomerId && billingView === "unbilled" && eligibleInvoices.length > 0 && (
@@ -274,11 +295,19 @@ export default async function NewBillingNotePage(props: {
             __html: `
               const boxes = Array.from(document.querySelectorAll('.billing-note-invoice-checkbox'));
               const totalCell = document.getElementById('billingNoteTotal');
+              const countCell = document.getElementById('billingNoteCount');
+              const submitBtn = document.getElementById('billingNoteSubmit');
+              const hint = document.getElementById('billingNoteHint');
               function recomputeBillingNoteTotal() {
-                const sum = boxes.filter(b => b.checked).reduce((s, b) => s + Number(b.dataset.amount || 0), 0);
+                const picked = boxes.filter(b => b.checked);
+                const sum = picked.reduce((s, b) => s + Number(b.dataset.amount || 0), 0);
                 totalCell.textContent = sum.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                countCell.textContent = String(picked.length);
+                submitBtn.disabled = picked.length === 0;
+                hint.style.display = picked.length === 0 ? '' : 'none';
               }
               boxes.forEach(b => b.addEventListener('change', recomputeBillingNoteTotal));
+              recomputeBillingNoteTotal();
             `,
           }}
         />

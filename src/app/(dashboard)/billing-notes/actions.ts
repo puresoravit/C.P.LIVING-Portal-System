@@ -98,6 +98,13 @@ export async function createBillingNoteAction(formData: FormData) {
   const customerId = String(formData.get("customerId"));
   const billingNoteDate = String(formData.get("billingNoteDate"));
   const invoiceIds = formData.getAll("invoiceIds").map(String);
+  // Owner UAT Bug Fix — Submit โดยไม่เลือกใบไหนเลย: เดิม throw ทะลุเป็น Error Boundary
+  // เต็มหน้า → เด้งกลับหน้าเดิมพร้อมข้อความสุภาพแทน (ปกติปุ่มถูก disabled ฝั่ง Client
+  // อยู่แล้ว — Guard นี้รองรับกรณี JS ถูกปิด) — Validation Rule เดิมใน createBillingNote
+  // ยังอยู่ครบ ไม่แตะ
+  if (invoiceIds.length === 0) {
+    redirect(`/billing-notes/new?customerId=${encodeURIComponent(customerId)}&err=noneSelected`);
+  }
   await createBillingNote(customerId, invoiceIds, billingNoteDate);
 }
 
