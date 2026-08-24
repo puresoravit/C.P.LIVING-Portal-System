@@ -182,6 +182,44 @@ describe("computeQuotationCalc — R3 applyDiscount (ผ่าน mocked DB)", (
     expect(calc.grandTotal.toString()).toBe("2700"); // VAT ถอดจากยอดเดิม ไม่บวกเพิ่ม
   });
 
+  // Phase H — Guest Quotation (customerId=null): ไม่มีทาง Match Price/Discount Rule
+  // (Rule ผูก customerId เสมอ) ต้องข้าม Engine ไปใช้ Standard Price + ส่วนลด 0 โดยไม่
+  // Query Rule ใดๆ เลย
+  it("Guest (customerId=null) — ใช้ Standard Price, ส่วนลด 0, ไม่ Query PriceRule/DiscountRule เลย", async () => {
+    mockDb.product.findUniqueOrThrow.mockResolvedValue({
+      sku: "M002",
+      name: "ที่นอน B",
+      size: "5 ฟุต",
+      unit: "หลัง",
+      productTypeId: "typeA",
+      productType: { name: "TYPE A" },
+      standardPrice: new Decimal(900),
+    });
+    mockDb.priceRule.findFirst.mockResolvedValue({ price: new Decimal(1000) }); // มี Rule แต่ต้องไม่ถูกใช้
+    mockDb.discountRule.findFirst.mockResolvedValue({ discountPct: new Decimal(10) });
+
+    const calc = await computeQuotationCalc(rawItems, { ...quotationParams(true), customerId: null, branchId: null });
+
+    expect(calc.items[0].unitPriceSnapshot.toString()).toBe("900"); // Standard Price ตรงๆ
+    expect(calc.discountAmount.toString()).toBe("0");
+    expect(calc.grandTotal.toString()).toBe("2700"); // 3 × 900
+    expect(mockDb.priceRule.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.discountRule.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("Guest + unitPriceOverride — Override ชนะ Standard Price เหมือนลูกค้า Master ทุกประการ", async () => {
+    mockProductForQuotation();
+
+    const calc = await computeQuotationCalc(
+      [{ productId: "prod1", quantity: 2, unitPriceOverride: 1234 }],
+      { ...quotationParams(true), customerId: null, branchId: null }
+    );
+
+    expect(calc.items[0].unitPriceSnapshot.toString()).toBe("1234");
+    expect(calc.grandTotal.toString()).toBe("2468");
+    expect(mockDb.priceRule.findFirst).not.toHaveBeenCalled();
+  });
+
   it("VAT STANDARD + applyDiscount=false — Grand Total สูงขึ้นตามจริงเพราะไม่มีส่วนลด, VAT Logic ไม่เพี้ยน", async () => {
     mockProductForQuotation();
     mockDb.priceRule.findFirst.mockResolvedValue({ price: new Decimal(1000) });

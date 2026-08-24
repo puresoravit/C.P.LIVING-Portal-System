@@ -21,22 +21,52 @@ export default async function NewQuotationPage() {
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างใบเสนอราคาใหม่</h1>
 
       <ActionForm id="createQuotationForm" action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-2 gap-3">
-        <SelectField label="ลูกค้า *" name="customerId" required autoFocus defaultValue="">
-          <option value="" disabled>
-            เลือกลูกค้า
-          </option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.companyName} ({c.code})
+        {/* Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: เลือกได้ว่าจะใช้ลูกค้าใน
+            ระบบเดิม หรือกรอกข้อมูลลูกค้าเองโดยไม่สร้าง Customer Master (ข้อมูล Snapshot
+            ติดใบเสนอราคา เปิด/พิมพ์ย้อนหลังได้เสมอ) — สลับโหมดด้วย Vanilla Script ตาม
+            Pattern เดิมของหน้านี้ (Customer→Branch Cascade) ไม่ใช่ Client Component ใหม่ */}
+        <div className="col-span-2 flex gap-4 text-sm border-b pb-3">
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="customerMode" value="MASTER" defaultChecked />
+            ลูกค้าในระบบ
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="customerMode" value="GUEST" />
+            กรอกข้อมูลลูกค้าเอง (ไม่บันทึกเข้าฐานลูกค้า)
+          </label>
+        </div>
+
+        <div id="masterCustomerFields" className="col-span-2 grid grid-cols-2 gap-3">
+          <SelectField label="ลูกค้า *" name="customerId" autoFocus defaultValue="">
+            <option value="" disabled>
+              เลือกลูกค้า
             </option>
-          ))}
-        </SelectField>
-        {/* Owner UAT Fix Batch 1 — ข้อ 3 */}
-        <SelectField label="สาขา (ถ้ามี)" name="branchId" defaultValue="">
-          <option value="" disabled>
-            — เลือกลูกค้าก่อน —
-          </option>
-        </SelectField>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.companyName} ({c.code})
+              </option>
+            ))}
+          </SelectField>
+          {/* Owner UAT Fix Batch 1 — ข้อ 3 */}
+          <SelectField label="สาขา (ถ้ามี)" name="branchId" defaultValue="">
+            <option value="" disabled>
+              — เลือกลูกค้าก่อน —
+            </option>
+          </SelectField>
+        </div>
+
+        <div id="guestCustomerFields" className="col-span-2 hidden grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Field label="ชื่อลูกค้า/บริษัท *" name="guestName" />
+          </div>
+          <Field label="เลขประจำตัวผู้เสียภาษี" name="guestTaxId" />
+          <Field label="โทรศัพท์" name="guestPhone" />
+          <Field label="ผู้ติดต่อ" name="guestContact" />
+          <div className="col-span-2">
+            <TextareaField label="ที่อยู่" name="guestAddress" />
+          </div>
+        </div>
+
         <Field label="วันที่เอกสาร *" name="quotationDate" type="date" defaultValue={today} required />
         <Field label="อ้างอิง" name="reference" />
         <Field label="สถานที่ส่งสินค้า (ดึงจากที่อยู่สาขา/ลูกค้าอัตโนมัติ แก้ไขได้)" name="placeToDelivery" />
@@ -97,6 +127,29 @@ export default async function NewQuotationPage() {
             }
             customerSelect.addEventListener('change', updateBranches);
             branchSelect.addEventListener('change', updatePlaceToDelivery);
+
+            // Phase H — สลับโหมด MASTER/GUEST: ซ่อน+ปิด (disabled) ฝั่งที่ไม่ใช้ เพื่อไม่ให้
+            // ค่าติดไปกับ FormData เลย (Server แยกโหมดด้วย discriminatedUnion อีกชั้น) —
+            // required ของ guestName ตั้งเฉพาะตอนโหมด GUEST ไม่งั้น Browser จะบล็อก Submit
+            // ของโหมด MASTER เพราะ Field ที่ซ่อนอยู่
+            const masterBox = document.getElementById('masterCustomerFields');
+            const guestBox = document.getElementById('guestCustomerFields');
+            const guestNameInput = document.querySelector('#createQuotationForm input[name="guestName"]');
+            function applyCustomerMode() {
+              const mode = document.querySelector('#createQuotationForm input[name="customerMode"]:checked').value;
+              const isGuest = mode === 'GUEST';
+              masterBox.classList.toggle('hidden', isGuest);
+              guestBox.classList.toggle('hidden', !isGuest);
+              guestBox.classList.toggle('grid', isGuest);
+              customerSelect.disabled = isGuest;
+              branchSelect.disabled = isGuest;
+              customerSelect.required = !isGuest;
+              guestBox.querySelectorAll('input, textarea').forEach(el => { el.disabled = !isGuest; });
+              guestNameInput.required = isGuest;
+            }
+            document.querySelectorAll('#createQuotationForm input[name="customerMode"]')
+              .forEach(r => r.addEventListener('change', applyCustomerMode));
+            applyCustomerMode();
           `,
         }}
       />

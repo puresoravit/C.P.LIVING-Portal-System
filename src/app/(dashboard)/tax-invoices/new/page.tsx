@@ -2,13 +2,19 @@ import { db } from "@/lib/db";
 import { createManualTaxInvoice } from "../actions";
 import { ManualTaxInvoiceItemEntry } from "@/components/manual-tax-invoice-item-entry";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { getEffectiveVatRate } from "@/lib/pricing";
 
 export default async function NewTaxInvoicePage() {
-  const customers = await db.customer.findMany({
-    where: { active: true },
-    include: { branches: { where: { active: true } } },
-    orderBy: { companyName: "asc" },
-  });
+  const [customers, vatPctToday] = await Promise.all([
+    db.customer.findMany({
+      where: { active: true },
+      include: { branches: { where: { active: true } } },
+      orderBy: { companyName: "asc" },
+    }),
+    // Phase H — อัตรา VAT จริงจาก configuration (ห้าม Hardcode 7) สำหรับ Preview ฝั่ง
+    // Client — ตอนสร้างจริง Server อ่านอัตราตามวันที่เอกสารซ้ำอีกครั้งเสมอ
+    getEffectiveVatRate(new Date()),
+  ]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -81,7 +87,7 @@ export default async function NewTaxInvoicePage() {
         </div>
       </div>
 
-      <ManualTaxInvoiceItemEntry createAction={createManualTaxInvoice} />
+      <ManualTaxInvoiceItemEntry createAction={createManualTaxInvoice} vatPctToday={Number(vatPctToday)} />
 
       {/* เชื่อม input ของ customer/branch/date เข้ากับ form หลักที่อยู่ใน ManualTaxInvoiceItemEntry
           ผ่าน form="taxInvoiceForm" attribute — ต้องตั้งชื่อ form ให้ตรงกัน */}

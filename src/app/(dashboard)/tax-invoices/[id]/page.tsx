@@ -83,6 +83,8 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2 font-medium text-right">ราคา/หน่วย</th>
+              {/* Phase H — คอลัมน์ส่วนลดต่อบรรทัด เฉพาะเอกสารที่มีส่วนลดจริง */}
+              {Number(taxInvoice.discountAmount) > 0 && <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>}
               <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
             </tr>
           </thead>
@@ -93,6 +95,9 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
                 <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
                 <td className="px-4 py-2">{item.unit}</td>
                 <td className="px-4 py-2 text-right">{money(item.unitPrice)}</td>
+                {Number(taxInvoice.discountAmount) > 0 && (
+                  <td className="px-4 py-2 text-right">{money(item.discountAmount)}</td>
+                )}
                 <td className="px-4 py-2 text-right">{money(item.amount)}</td>
               </tr>
             ))}
@@ -100,9 +105,23 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
         </table>
       </div>
 
+      {/* Phase H — Summary ladder ตามลำดับที่ Owner กำหนด (ใบเก่า grossAmount=null →
+          Fallback = netAmount ซึ่งตรงความจริงของใบเก่าที่ไม่มีส่วนลด) */}
       <div className="bg-white border rounded-lg p-4 mb-4 text-sm ml-auto max-w-xs space-y-1">
         <div className="flex justify-between">
-          <span className="text-gray-500">มูลค่าสินค้า</span>
+          <span className="text-gray-500">รวมเป็นเงิน / Subtotal</span>
+          <span>{money(taxInvoice.grossAmount ?? taxInvoice.netAmount)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">หักส่วนลด / Discount</span>
+          <span>{money(taxInvoice.discountAmount)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">ยอดรวมหลังหักส่วนลด</span>
+          <span>{money(taxInvoice.netAmount)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">มูลค่าสินค้าก่อน VAT</span>
           <span>{money(taxInvoice.valueAmount)}</span>
         </div>
         <div className="flex justify-between">
@@ -110,7 +129,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
           <span>{money(taxInvoice.vatAmount)}</span>
         </div>
         <div className="flex justify-between font-medium border-t pt-1">
-          <span>สุทธิ</span>
+          <span>ยอดสุทธิ</span>
           <span>{money(taxInvoice.netAmount)}</span>
         </div>
         <div className="text-xs text-gray-400 pt-1">({toThaiBahtText(taxInvoice.netAmount)})</div>

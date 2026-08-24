@@ -525,10 +525,17 @@ model TaxInvoice {
   addressSnapshot      String?
   placeToDelivery      String?
 
-  valueAmount Decimal @db.Decimal(14, 2) // มูลค่าสินค้าก่อน VAT
+  // Phase H — Discount บนใบกำกับภาษี (Additive): grossAmount = ยอดรวมรายการก่อนหัก
+  // ส่วนลด (VAT-inclusive — ตรงกับผลรวมคอลัมน์จำนวนเงินของ Item), discountAmount =
+  // ส่วนลดรวมทั้งเอกสาร (VAT-inclusive, Default 0) — ใบเก่าก่อน Phase นี้ grossAmount
+  // เป็น null: ตอนแสดงผลให้ Fallback = netAmount (ใบเก่าไม่มีส่วนลดจริงๆ ห้าม Backfill
+  // ข้อมูลย้อนหลังตามหลัก Document Snapshot)
+  grossAmount    Decimal? @db.Decimal(14, 2)
+  discountAmount Decimal  @default(0) @db.Decimal(14, 2)
+  valueAmount Decimal @db.Decimal(14, 2) // มูลค่าสินค้าก่อน VAT (ฐานภาษีหลังหักส่วนลด)
   vatPct      Decimal @db.Decimal(5, 2)
   vatAmount   Decimal @db.Decimal(14, 2)
-  netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive)
+  netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive หลังหักส่วนลด)
 
   status      TaxInvoiceStatus @default(CONFIRMED)
   createdById String
@@ -550,7 +557,11 @@ model TaxInvoiceItem {
   quantity     Decimal    @db.Decimal(12, 2)
   unit         String
   unitPrice    Decimal    @db.Decimal(12, 2) // ราคารวม VAT ต่อหน่วย
-  amount       Decimal    @db.Decimal(14, 2) // quantity × unitPrice
+  amount       Decimal    @db.Decimal(14, 2) // quantity × unitPrice (ก่อนหักส่วนลดบรรทัด)
+  // Phase H — ส่วนลดต่อบรรทัด (Additive, Default 0): ใช้ทั้งโหมด AUTO (สืบทอดจาก
+  // InvoiceItem.discountAmount) และ MANUAL (กรอกเอง/ตาม Discount Group) — ผลรวมทุก
+  // บรรทัดต้องเท่ากับ TaxInvoice.discountAmount เสมอ
+  discountAmount Decimal  @default(0) @db.Decimal(14, 2)
 
   @@map("tax_invoice_items")
 }
@@ -653,8 +664,15 @@ model Quotation {
   id              String   @id @default(cuid())
   quotationNumber String   @unique // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
   quotationDate   DateTime
-  customerId      String
-  customer        Customer @relation(fields: [customerId], references: [id])
+  // Fresh UAT Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: customerId เป็น null ได้
+  // (ลูกค้าที่กรอกเองโดยไม่สร้าง Customer Master) — ข้อมูลลูกค้าทั้งหมดของ Guest อยู่ใน
+  // Snapshot fields ด้านล่างตั้งแต่ตอนสร้าง Draft เลย (ไม่ใช่รอตอน Confirm แบบลูกค้า
+  // Master) เพื่อเปิด/พิมพ์ย้อนหลังได้เสมอ — เอกสารอื่นทุกประเภท (Order/Invoice/Tax
+  // Invoice/Billing Note) ยังบังคับ Customer Master เหมือนเดิมทุกประการ
+  customerId      String?
+  // onDelete: Restrict ระบุชัด — Optional Relation ใน Prisma จะ Default เป็น SET NULL
+  // ซึ่งเปลี่ยนพฤติกรรมเดิม (เดิม Required = RESTRICT ลบลูกค้าที่มีใบเสนอราคาไม่ได้)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
   // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order.branchId ทุกประการ
   branchId        String?
   branch          Branch?  @relation(fields: [branchId], references: [id])
@@ -672,6 +690,10 @@ model Quotation {
   customerTaxIdSnapshot String?
   branchNameSnapshot    String?
   addressSnapshot       String?
+  // Phase H — Guest Customer เท่านั้นที่ใช้ 2 Field นี้ (ผู้ติดต่อ/โทรศัพท์ที่กรอกเอง)
+  // ลูกค้า Master เป็น null เสมอ (ข้อมูลติดต่ออยู่ที่ Customer Master ตามเดิม)
+  contactSnapshot       String?
+  phoneSnapshot         String?
   grossAmount           Decimal? @db.Decimal(14, 2)
   discountAmount        Decimal? @db.Decimal(14, 2)
   vatRateSnapshot        Decimal? @db.Decimal(5, 2) // อัตรา VAT จริงที่ใช้ ณ ตอน Confirm/Revision

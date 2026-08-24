@@ -46,6 +46,8 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
             { reference: { contains: q, mode: "insensitive" as const } },
             { customer: { companyName: { contains: q, mode: "insensitive" as const } } },
             { customer: { code: { contains: q, mode: "insensitive" as const } } },
+            // Phase H — Guest Quotation ไม่มี customer relation: ค้นด้วยชื่อที่ Snapshot ไว้
+            { customerNameSnapshot: { contains: q, mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -140,7 +142,15 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
                   </a>
                 </td>
                 <td className="px-4 py-2">{qt.quotationDate.toLocaleDateString("th-TH")}</td>
-                <td className="px-4 py-2">{qt.customer.companyName}</td>
+                <td className="px-4 py-2">
+                  {/* Phase H — Guest: ใช้ชื่อจาก Snapshot + ระบุชัดว่าไม่อยู่ในฐานลูกค้า */}
+                  {qt.customer?.companyName ?? (
+                    <>
+                      {qt.customerNameSnapshot}
+                      <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">กรอกเอง</span>
+                    </>
+                  )}
+                </td>
                 <td className="px-4 py-2">{qt._count.items} รายการ</td>
                 <td className="px-4 py-2 text-right">{qt.grandTotal ? `${money(qt.grandTotal)} บาท` : "-"}</td>
                 <td className="px-4 py-2">

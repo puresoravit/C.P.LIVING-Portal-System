@@ -5,7 +5,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
-import { getEffectiveVatRate, extractVat, roundMoney, getEffectivePrice } from "@/lib/pricing";
+import { getEffectiveVatRate, extractVat, getEffectivePrice, getEffectiveDiscountPct } from "@/lib/pricing";
+import { computeManualTaxInvoiceTotals } from "@/lib/tax-invoice-totals";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -60,7 +61,9 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
     const taxInvoiceNumber = formatDocNumber("TX", period, seq, 3);
 
     // ยอดใน Invoice เป็น VAT-inclusive อยู่แล้ว (ราคาสินค้าทุกระดับรวม VAT)
-    // ถอด VAT ออกมาแสดงในใบกำกับภาษี โดยยอดสุทธิเท่าเดิมทุกบาท
+    // ถอด VAT ออกมาแสดงในใบกำกับภาษี โดยยอดสุทธิเท่าเดิมทุกบาท —
+    // invoice.grandTotal เป็นยอด "หลังหักส่วนลด" อยู่แล้ว จึงเป็นการหักส่วนลดก่อน
+    // แล้วค่อยถอด VAT ตามลำดับคำนวณเดิมของระบบทุกประการ (ไม่มีสูตรใหม่)
     const { netBeforeVat, vatAmount } = extractVat(invoice.grandTotal, vatPct);
 
     const created = await tx.taxInvoice.create({
@@ -75,6 +78,10 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
         branchNameSnapshot: invoice.branchNameSnapshot,
         addressSnapshot: invoice.addressSnapshot,
         placeToDelivery: invoice.placeToDelivery,
+        // Phase H — Discount Snapshot สืบทอดจาก Invoice ต้นทางตรงๆ ไม่คำนวณส่วนลดซ้ำ
+        // (gross − discount = grandTotal ของ Invoice เสมอ — ยอดสุทธิเท่าเดิมทุกบาท)
+        grossAmount: invoice.grossAmount,
+        discountAmount: invoice.discountAmount,
         valueAmount: netBeforeVat,
         vatPct,
         vatAmount,
@@ -82,13 +89,18 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
         status: "CONFIRMED",
         createdById: user.id,
         items: {
+          // Phase H — เดิมคอลัมน์จำนวนเงินเก็บ item.netAmount (หลังหักส่วนลด) ทั้งที่
+          // ราคา/หน่วย × จำนวน = grossAmount ทำให้แถวที่มีส่วนลดดูขัดกันเอง — เปลี่ยนเป็น
+          // amount = grossAmount + แยก discountAmount ต่อบรรทัด (Invoice ไม่มีส่วนลด
+          // ทั้งสองค่าเท่ากันเป๊ะ พฤติกรรมเดิมไม่เปลี่ยน)
           create: invoice.items.map((item) => ({
             description: item.productNameSnapshot,
             size: item.sizeSnapshot,
             quantity: item.quantity,
             unit: item.unitSnapshot,
             unitPrice: item.unitPriceSnapshot,
-            amount: item.netAmount,
+            amount: item.grossAmount,
+            discountAmount: item.discountAmount,
           })),
         },
       },
@@ -121,6 +133,9 @@ const manualItemSchema = z.object({
   quantity: z.coerce.number().positive(),
   unit: z.string().min(1),
   unitPrice: z.coerce.number().min(0),
+  // Phase H — ส่วนลดต่อบรรทัด (Default 0) — ขอบเขต (ไม่ติดลบ/ไม่เกินยอดบรรทัด/ไม่เกิน
+  // ยอดเอกสาร) ตรวจอีกชั้นใน computeManualTaxInvoiceTotals ฝั่ง Server เสมอ
+  discountAmount: z.coerce.number().min(0).default(0),
 });
 
 const manualTaxInvoiceSchema = z.object({
@@ -129,6 +144,9 @@ const manualTaxInvoiceSchema = z.object({
   branchId: z.string().optional(),
   taxInvoiceDate: z.coerce.date(),
   placeToDelivery: z.string().optional(),
+  // Phase H — โหมดส่วนลดที่ผู้ใช้เลือก (เก็บลง Audit เพื่อตรวจสอบย้อนหลัง — ตัวเลขจริง
+  // อยู่ที่ discountAmount ต่อบรรทัดเสมอ ไม่ว่าจะมาจาก Rule หรือกรอกเอง)
+  discountMode: z.enum(["NONE", "GROUP", "CUSTOM"]).default("NONE"),
   items: z.array(manualItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการ"),
 });
 
@@ -143,6 +161,7 @@ export async function createManualTaxInvoice(formData: FormData) {
     branchId: formData.get("branchId") || undefined,
     taxInvoiceDate: formData.get("taxInvoiceDate"),
     placeToDelivery: formData.get("placeToDelivery") || undefined,
+    discountMode: formData.get("discountMode") || "NONE",
     items: itemsRaw,
   });
 
@@ -155,12 +174,10 @@ export async function createManualTaxInvoice(formData: FormData) {
   const vatPct = await getEffectiveVatRate(parsed.taxInvoiceDate);
   const period = currentPeriod(parsed.taxInvoiceDate);
 
-  const itemsWithAmount = parsed.items.map((i) => ({
-    ...i,
-    amount: roundMoney(new Decimal(i.quantity).mul(i.unitPrice)),
-  }));
-  const totalAmount = roundMoney(itemsWithAmount.reduce((s, i) => s.add(i.amount), new Decimal(0)));
-  const { netBeforeVat, vatAmount } = extractVat(totalAmount, vatPct);
+  // Phase H — คำนวณ Server-side ทั้งหมดผ่าน Pure Function เดียว (หักส่วนลดก่อน → ถอด
+  // VAT จากยอดหลังหักส่วนลด — ลำดับเดียวกับ Quotation/AUTO ทุกประการ) — throw ข้อความ
+  // ภาษาไทยเมื่อส่วนลดเกินขอบเขต
+  const totals = computeManualTaxInvoiceTotals(parsed.items, vatPct);
 
   const taxInvoice = await db.$transaction(async (tx) => {
     const seq = await getNextSeq("TX", period, tx);
@@ -178,13 +195,25 @@ export async function createManualTaxInvoice(formData: FormData) {
         branchNameSnapshot: branch?.name ?? null,
         addressSnapshot: branch?.address ?? customer.address ?? null,
         placeToDelivery: parsed.placeToDelivery,
-        valueAmount: netBeforeVat,
+        grossAmount: totals.grossAmount,
+        discountAmount: totals.discountAmount,
+        valueAmount: totals.valueAmount,
         vatPct,
-        vatAmount,
-        netAmount: totalAmount,
+        vatAmount: totals.vatAmount,
+        netAmount: totals.netAmount,
         status: "CONFIRMED",
         createdById: user.id,
-        items: { create: itemsWithAmount },
+        items: {
+          create: parsed.items.map((item, idx) => ({
+            description: item.description,
+            size: item.size,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            amount: totals.items[idx].amount,
+            discountAmount: totals.items[idx].discountAmount,
+          })),
+        },
       },
     });
 
@@ -194,7 +223,12 @@ export async function createManualTaxInvoice(formData: FormData) {
         action: "CREATE",
         module: "TaxInvoice",
         recordId: created.id,
-        newValue: { taxInvoiceNumber, mode: "MANUAL" },
+        newValue: {
+          taxInvoiceNumber,
+          mode: "MANUAL",
+          discountMode: parsed.discountMode,
+          discountAmount: totals.discountAmount.toString(),
+        },
       },
     });
 
@@ -203,6 +237,49 @@ export async function createManualTaxInvoice(formData: FormData) {
 
   revalidatePath("/tax-invoices");
   redirect(`/tax-invoices/${taxInvoice.id}`);
+}
+
+// Phase H — Autofill ส่วนลดตาม Discount Group (Customer/Branch + ProductType) สำหรับ
+// โหมด MANUAL: Read-only Suggestion ล้วนๆ (Pattern เดียวกับ getSuggestedTaxInvoiceItem)
+// — Reuse getEffectiveDiscountPct เดิมของ Pricing Engine 100% ไม่มี Discount Path ใหม่
+// — รายการที่พิมพ์เองโดยไม่ได้เลือกจาก Product Master (ไม่มี productId) ไม่มีทางรู้
+// ProductType จึงคืน 0 (ผู้ใช้ยังกรอกส่วนลดเองต่อได้ในโหมด CUSTOM)
+export async function getSuggestedTaxInvoiceGroupDiscounts(params: {
+  customerId: string;
+  branchId?: string;
+  taxInvoiceDate?: string;
+  items: { productId: string | null; amount: number }[];
+}): Promise<{ discountAmounts: number[]; discountPcts: number[] }> {
+  const user = await requireUser();
+  if (!can(user.role, "taxInvoice.create")) throw new Error("FORBIDDEN");
+
+  const orderDate = params.taxInvoiceDate ? new Date(params.taxInvoiceDate) : new Date();
+  const discountAmounts: number[] = [];
+  const discountPcts: number[] = [];
+
+  for (const item of params.items) {
+    let pct = new Decimal(0);
+    if (item.productId) {
+      const product = await db.product.findUnique({ where: { id: item.productId }, select: { productTypeId: true } });
+      if (product?.productTypeId) {
+        pct = (
+          await getEffectiveDiscountPct({
+            customerId: params.customerId,
+            branchId: params.branchId ?? null,
+            productTypeId: product.productTypeId,
+            orderDate,
+          })
+        ).discountPct;
+      }
+    }
+    // สูตรส่วนลดต่อบรรทัดเดียวกับ computeQuotationCalc/order-preview เป๊ะ:
+    // discount = round(gross × pct ÷ 100)
+    const amount = new Decimal(item.amount).mul(pct).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    discountAmounts.push(amount.toNumber());
+    discountPcts.push(pct.toNumber());
+  }
+
+  return { discountAmounts, discountPcts };
 }
 
 // Phase E-UX — Manual Tax Invoice Item Entry: ช่วย Autofill รายการ/ขนาด/หน่วย/ราคา

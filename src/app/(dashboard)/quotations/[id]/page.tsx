@@ -128,9 +128,39 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
         <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        {quotation.customer.companyName} / {quotation.branch?.name ?? "ไม่มีสาขา"} · {quotation.quotationDate.toLocaleDateString("th-TH")}
+        {/* Phase H — Guest: customer เป็น null ใช้ Snapshot ที่กรอกไว้ตอนสร้างแทน */}
+        {quotation.customer ? (
+          <>
+            {quotation.customer.companyName} / {quotation.branch?.name ?? "ไม่มีสาขา"}
+          </>
+        ) : (
+          <>
+            {quotation.customerNameSnapshot}{" "}
+            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full align-middle">
+              ลูกค้ากรอกเอง — ไม่อยู่ในฐานลูกค้า
+            </span>
+          </>
+        )}{" "}
+        · {quotation.quotationDate.toLocaleDateString("th-TH")}
         {quotation.reference && <> · อ้างอิง: {quotation.reference}</>}
       </p>
+
+      {!quotation.customer && (
+        <div className="bg-white border rounded-lg p-4 mb-4 text-sm grid grid-cols-2 gap-2">
+          <div>
+            <span className="text-gray-500">เลขผู้เสียภาษี:</span> {quotation.customerTaxIdSnapshot ?? "-"}
+          </div>
+          <div>
+            <span className="text-gray-500">ผู้ติดต่อ:</span> {quotation.contactSnapshot ?? "-"}
+          </div>
+          <div>
+            <span className="text-gray-500">โทรศัพท์:</span> {quotation.phoneSnapshot ?? "-"}
+          </div>
+          <div>
+            <span className="text-gray-500">ที่อยู่:</span> {quotation.addressSnapshot ?? "-"}
+          </div>
+        </div>
+      )}
 
       {isDraft && (
         <>

@@ -38,6 +38,16 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   // ต่อท้ายด้วย -N แทน (ดู displayQuotationNumber สำหรับเหตุผลเต็มว่าทำไมปลอดภัย)
   const displayNumber = displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo);
 
+  // Phase H — Guest Quotation: customer เป็น null ได้ (ข้อมูลลูกค้าอยู่ใน Snapshot ทั้งหมด
+  // ตั้งแต่ตอนสร้าง) — รหัสลูกค้าแสดง "-" และแสดงผู้ติดต่อ/โทรศัพท์ที่กรอกไว้ (ถ้ามี)
+  const customerCode = quotation.customer?.code ?? "-";
+  const guestContactLine = [
+    quotation.contactSnapshot ? `ผู้ติดต่อ: ${quotation.contactSnapshot}` : null,
+    quotation.phoneSnapshot ? `โทร ${quotation.phoneSnapshot}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
     header: (
       <PrintDocumentHeader
@@ -55,6 +65,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         left={[
           { label: "ลูกค้า", value: quotation.customerNameSnapshot },
           { label: "ที่อยู่", value: quotation.addressSnapshot ?? "-" },
+          ...(guestContactLine ? [{ label: "ผู้ติดต่อ", value: guestContactLine }] : []),
         ]}
         right={[
           {
@@ -67,7 +78,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
             ),
           },
           { label: "วันที่", value: quotation.quotationDate.toLocaleDateString("th-TH") },
-          { label: "รหัสลูกค้า", value: quotation.customer.code },
+          { label: "รหัสลูกค้า", value: customerCode },
           ...(quotation.customerTaxIdSnapshot ? [{ label: "เลขผู้เสียภาษี", value: quotation.customerTaxIdSnapshot }] : []),
         ]}
         shippingAddress={quotation.placeToDelivery}
@@ -105,10 +116,22 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
           />
         ),
         docDate: <HeaderTextLine label="วันที่" value={quotation.quotationDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={quotation.customer.code} style={hl.customerCode} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={customerCode} style={hl.customerCode} />,
         customerName: <HeaderTextLine label="ลูกค้า" value={quotation.customerNameSnapshot} style={hl.customerName} />,
-        ...(quotation.addressSnapshot
-          ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={quotation.addressSnapshot} style={hl.customerAddress} /> }
+        // Phase H — Guest ที่กรอกผู้ติดต่อ/โทรศัพท์ไว้: ต่อท้ายบรรทัดที่อยู่ (Element
+        // customerAddress เดิม — headerLayout ของ Owner ไม่มี Key ใหม่ให้จัดตำแหน่ง จึงไม่
+        // เพิ่ม Element ใหม่เข้าไปใน Layout ที่ Owner จัดไว้แล้ว) — ลูกค้า Master ไม่กระทบ
+        // เลย (guestContactLine ว่างเสมอ)
+        ...(quotation.addressSnapshot || guestContactLine
+          ? {
+              customerAddress: (
+                <HeaderTextLine
+                  label="ที่อยู่"
+                  value={[quotation.addressSnapshot, guestContactLine].filter(Boolean).join(" — ")}
+                  style={hl.customerAddress}
+                />
+              ),
+            }
           : {}),
         ...(quotation.customerTaxIdSnapshot
           ? { customerTaxId: <HeaderTextLine label="เลขผู้เสียภาษี" value={quotation.customerTaxIdSnapshot} style={hl.customerTaxId} /> }

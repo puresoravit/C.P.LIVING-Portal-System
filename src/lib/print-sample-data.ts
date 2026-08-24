@@ -174,7 +174,10 @@ export function getSampleInvoiceData(density: SampleDensity, applyDiscount: bool
 // Tax Invoice — มี VAT เสมอ
 // ---------------------------------------------------------------------------
 export function getSampleTaxInvoiceData(density: SampleDensity) {
-  const priced = buildPriceItems(density, 0);
+  // Phase H — Sample มีส่วนลด 5% เพื่อให้ Designer เห็นคอลัมน์/แถวส่วนลดครบตาม
+  // Invariant "Sample ต้องมีครบทุก Field ที่หน้าพิมพ์จริงมีโอกาสแสดง" — ลำดับคำนวณ
+  // เดียวกับเอกสารจริง: gross − discount = net(VAT-inc) แล้วถอด VAT ออกจาก net
+  const priced = buildPriceItems(density, 0.05);
   const items = priced.map((p, i) => ({
     id: p.id,
     description: pick(SAMPLE_PRODUCT_NAMES, i),
@@ -183,11 +186,15 @@ export function getSampleTaxInvoiceData(density: SampleDensity) {
     unit: pick(SAMPLE_UNITS, i),
     unitPrice: p.unitPrice,
     amount: p.gross,
+    discountAmount: p.discount,
   }));
-  const valueAmount = priced.reduce((s, p) => s + p.gross, 0);
-  const vatPct = 7;
-  const vatAmount = Math.round(valueAmount * (vatPct / 100));
-  return { items, valueAmount, vatPct, vatAmount, netAmount: valueAmount + vatAmount };
+  const grossAmount = priced.reduce((s, p) => s + p.gross, 0);
+  const discountAmount = priced.reduce((s, p) => s + p.discount, 0);
+  const netAmount = grossAmount - discountAmount;
+  const vatPct = 7; // Sample คงที่ (ข้อมูลสมมติของ Designer — เอกสารจริงอ่านจาก VAT configuration เสมอ)
+  const vatAmount = Math.round((netAmount * vatPct) / (100 + vatPct));
+  const valueAmount = netAmount - vatAmount;
+  return { items, grossAmount, discountAmount, valueAmount, vatPct, vatAmount, netAmount };
 }
 
 // ---------------------------------------------------------------------------

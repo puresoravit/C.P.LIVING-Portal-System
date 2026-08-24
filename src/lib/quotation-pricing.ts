@@ -85,7 +85,10 @@ export async function computeQuotationCalc(
     unitPriceOverride?: Decimal | number | null;
   }[],
   params: {
-    customerId: string;
+    // Phase H — Guest Customer: null = ลูกค้าที่กรอกเองไม่มีใน Master → ไม่มีทาง Match
+    // PriceRule/DiscountRule ใดๆ (Rule ทุกตัวผูก customerId เสมอ — ข้อเท็จจริงเชิงโครงสร้าง)
+    // จึงข้าม Engine ไปใช้ Standard Price ตรงๆ และ discountPct=0 โดยไม่ Query เลย
+    customerId: string | null;
     // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน pricing.ts ทุกประการ
     branchId: string | null;
     quotationDate: Date;
@@ -107,21 +110,23 @@ export async function computeQuotationCalc(
     const price =
       raw.unitPriceOverride != null
         ? new Decimal(raw.unitPriceOverride)
-        : (
-            await getEffectivePrice({
-              productId: raw.productId,
-              customerId: params.customerId,
-              branchId: params.branchId,
-              orderDate: params.quotationDate,
-            })
-          ).price;
+        : params.customerId == null
+          ? product.standardPrice // Guest — Tier 3 (Standard) ตรงๆ ตาม Priority เดิม
+          : (
+              await getEffectivePrice({
+                productId: raw.productId,
+                customerId: params.customerId,
+                branchId: params.branchId,
+                orderDate: params.quotationDate,
+              })
+            ).price;
     // R3 — applyDiscount=false ข้าม getEffectiveDiscountPct ไปเลย (ไม่ query DiscountRule)
     // แล้วบังคับ discountPct=0 ที่ต้นทาง แทนที่จะ Query แล้วค่อย Override ทีหลัง
     // R4 — product.productTypeId=null (ไม่ระบุประเภท) ก็ข้ามเช่นกัน เพราะ DiscountRule.
     // productTypeId ยัง required เสมอ ไม่มีทาง Match ได้จริงอยู่แล้ว (ข้อเท็จจริงเชิง
     // โครงสร้าง ไม่ใช่ Policy)
     const discountPct =
-      params.applyDiscount && product.productTypeId
+      params.applyDiscount && product.productTypeId && params.customerId != null
         ? (
             await getEffectiveDiscountPct({
               customerId: params.customerId,

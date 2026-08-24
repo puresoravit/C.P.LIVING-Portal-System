@@ -124,6 +124,8 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
 
       <TaxInvoicePrintBody
         items={taxInvoice.items}
+        grossAmount={taxInvoice.grossAmount}
+        discountAmount={taxInvoice.discountAmount}
         valueAmount={taxInvoice.valueAmount}
         vatPct={taxInvoice.vatPct}
         vatAmount={taxInvoice.vatAmount}

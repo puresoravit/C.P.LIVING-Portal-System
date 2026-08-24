@@ -27,34 +27,66 @@ async function requireUser() {
 // เท่านั้น ไม่ Freeze เป็น unitPriceOverride อัตโนมัติ — Positional Argument เพื่อ .bind()
 // บางส่วนล่วงหน้าจาก Server Component ได้ (ดู getSuggestedOrderItemPrice)
 export async function getSuggestedQuotationItemPrice(
-  customerId: string,
+  // Phase H — Guest Quotation: customerId เป็น null ได้ → ไม่มี PriceRule ให้ Match
+  // (Rule ผูก customerId เสมอ) ใช้ Standard Price จาก Product Master ตรงๆ (Tier 3 เดิม)
+  customerId: string | null,
   branchId: string | null,
   quotationDate: Date,
   productId: string
 ): Promise<{ price: number }> {
   await requireUser();
+  if (customerId == null) {
+    const product = await db.product.findUniqueOrThrow({ where: { id: productId } });
+    return { price: Number(product.standardPrice) };
+  }
   const { price } = await getEffectivePrice({ productId, customerId, branchId, orderDate: quotationDate });
   return { price: Number(price) };
 }
 
-const createQuotationSchema = z.object({
-  customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
-  // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order ทุกประการ
-  branchId: z.string().optional(),
-  quotationDate: z.coerce.date(),
-  reference: z.string().optional(),
-  note: z.string().optional(),
-  placeToDelivery: z.string().optional(),
-  vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
-});
+// Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: discriminatedUnion แยก 2 โหมดชัด
+// (MASTER = ลูกค้าใน Customer Master เดิมทุกประการ, GUEST = กรอกข้อมูลเองโดยไม่สร้าง
+// Customer Master ใดๆ — ข้อมูลถูก Snapshot ติดใบเสนอราคาตั้งแต่ตอนสร้าง Draft)
+const createQuotationSchema = z.discriminatedUnion("customerMode", [
+  z.object({
+    customerMode: z.literal("MASTER"),
+    customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
+    // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order ทุกประการ
+    branchId: z.string().optional(),
+    quotationDate: z.coerce.date(),
+    reference: z.string().optional(),
+    note: z.string().optional(),
+    placeToDelivery: z.string().optional(),
+    vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
+  }),
+  z.object({
+    customerMode: z.literal("GUEST"),
+    guestName: z.string().trim().min(1, "กรุณากรอกชื่อลูกค้า/บริษัท"),
+    guestTaxId: z.string().trim().optional(),
+    guestAddress: z.string().trim().optional(),
+    guestContact: z.string().trim().optional(),
+    guestPhone: z.string().trim().optional(),
+    quotationDate: z.coerce.date(),
+    reference: z.string().optional(),
+    note: z.string().optional(),
+    placeToDelivery: z.string().optional(),
+    vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
+  }),
+]);
 
 export async function createDraftQuotation(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "quotation.create")) throw new Error("FORBIDDEN");
 
+  const customerMode = formData.get("customerMode") === "GUEST" ? "GUEST" : "MASTER";
   const rawParse = createQuotationSchema.safeParse({
-    customerId: formData.get("customerId"),
+    customerMode,
+    customerId: formData.get("customerId") || undefined,
     branchId: formData.get("branchId") || undefined,
+    guestName: formData.get("guestName") || undefined,
+    guestTaxId: formData.get("guestTaxId") || undefined,
+    guestAddress: formData.get("guestAddress") || undefined,
+    guestContact: formData.get("guestContact") || undefined,
+    guestPhone: formData.get("guestPhone") || undefined,
     quotationDate: formData.get("quotationDate"),
     reference: formData.get("reference") || undefined,
     note: formData.get("note") || undefined,
@@ -79,8 +111,19 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
       data: {
         quotationNumber,
         quotationDate: parsed.quotationDate,
-        customerId: parsed.customerId,
-        branchId: parsed.branchId,
+        // Phase H — GUEST: ไม่ผูก Customer/Branch Master เลย + Snapshot ข้อมูลลูกค้าที่
+        // กรอกเองทันทีตั้งแต่ Draft (ลูกค้า Master ยัง Snapshot ตอน Confirm ตามเดิม)
+        ...(parsed.customerMode === "MASTER"
+          ? { customerId: parsed.customerId, branchId: parsed.branchId }
+          : {
+              customerId: null,
+              branchId: null,
+              customerNameSnapshot: parsed.guestName,
+              customerTaxIdSnapshot: parsed.guestTaxId || null,
+              addressSnapshot: parsed.guestAddress || null,
+              contactSnapshot: parsed.guestContact || null,
+              phoneSnapshot: parsed.guestPhone || null,
+            }),
         reference: parsed.reference,
         note: parsed.note,
         placeToDelivery: parsed.placeToDelivery,
@@ -97,7 +140,7 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
     });
 
     await tx.auditLog.create({
-      data: { userId: user.id, action: "CREATE", module: "Quotation", recordId: created.id, newValue: { quotationNumber } },
+      data: { userId: user.id, action: "CREATE", module: "Quotation", recordId: created.id, newValue: { quotationNumber, customerMode: parsed.customerMode } },
     });
 
     return created;
@@ -229,11 +272,17 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
       const cas = await tx.quotation.updateMany({
         where: { id: quotationId, status: "DRAFT" },
         data: {
-          customerNameSnapshot: quotation.customer.companyName,
-          customerTaxIdSnapshot: quotation.customer.taxId,
-          // Owner UAT Fix Batch 1 — ข้อ 3: quotation.branch เป็น null ได้แล้ว
-          branchNameSnapshot: quotation.branch?.name ?? null,
-          addressSnapshot: quotation.branch?.address ?? quotation.customer.address ?? null,
+          // Phase H — Guest (customer=null): Snapshot ลูกค้าถูกเขียนไว้ตั้งแต่ตอนสร้าง
+          // Draft แล้ว ไม่ต้อง (และไม่มีทาง) Refresh จาก Master — คงค่าเดิมไว้ตรงๆ
+          ...(quotation.customer
+            ? {
+                customerNameSnapshot: quotation.customer.companyName,
+                customerTaxIdSnapshot: quotation.customer.taxId,
+                // Owner UAT Fix Batch 1 — ข้อ 3: quotation.branch เป็น null ได้แล้ว
+                branchNameSnapshot: quotation.branch?.name ?? null,
+                addressSnapshot: quotation.branch?.address ?? quotation.customer.address ?? null,
+              }
+            : {}),
           grossAmount: calc.grossAmount,
           discountAmount: calc.discountAmount,
           // R3 — Snapshot ค่า applyDiscount ที่ใช้จริงตอน Confirm (ตอนนี้เท่ากับ

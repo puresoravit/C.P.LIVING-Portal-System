@@ -247,6 +247,8 @@ function DesignerDocBody({
       return (
         <TaxInvoicePrintBody
           items={d.items}
+          grossAmount={d.grossAmount}
+          discountAmount={d.discountAmount}
           valueAmount={d.valueAmount}
           vatPct={d.vatPct}
           vatAmount={d.vatAmount}
