@@ -58,18 +58,29 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 const FILLET_RADIUS = 28; // px — รัศมีโค้ง Tangent (ขยายจาก 24 ให้กวาดยาวตามลูกศร)
 const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
 
-/** โค้ง Tangent ที่มุมขวาบน/ล่างของ Active Tab — Render เฉพาะตอน Active (Desktop
- * เท่านั้น — Parent คือ <a> ที่มี position:relative) — Stop มี 1px Ramp (R-1 → R)
- * ให้ขอบโค้ง Antialias เนียน ไม่เป็นบันไดพิกเซล */
+// R7.1 — Owner UAT: พบเส้น/พื้นสีน้ำเงินกระพริบที่รอยต่อระหว่าง Indicator กำลังไหล — Root
+// Cause คือ Fillet ทั้งคู่วางแบบ position:absolute + bottom-full/top-full ซึ่งดันตัวเองออก
+// นอกกรอบ (Border Box) ของ <a> พ่อแม่ทั้งหมด (Absolute Positioning ไม่มีทางขยาย Box ของ
+// พ่อแม่ได้) — View Transition Snapshot ของ Chrome Capture ตาม Border Box ของ Element ที่
+// ติด view-transition-name เท่านั้น ส่วนที่ "ล้น" ออกนอกกรอบจะถูกตัดหายไปจาก Snapshot ที่
+// กำลังเคลื่อนที่ (บันทึกไว้ใน Chrome DevRel Docs) → ระหว่าง Slide เฟรมกลางจึงไม่มี Fillet
+// ติดไปด้วย เห็นเป็นกล่องเหลี่ยมไม่มีโค้ง แล้ว "โผล่กลับมา" ทันทีตอนจบ Transition = ที่มา
+// ของอาการกระพริบที่รอยต่อ — **แก้โดยให้ Fillet แต่ละชิ้นมี view-transition-name เป็นของ
+// ตัวเอง** (คนละชื่อกับ cp-nav-active): กรอบของ Fillet เอง = 28×28px เท่ากับพื้นที่ Paint
+// จริงพอดี ไม่มีอะไรล้นออกนอกกรอบตัวเองเลย จึงถูก Capture ครบทุกเฟรม เคลื่อนที่ไปพร้อมกับ
+// Body หลักด้วย animation-duration/easing ชุดเดียวกัน (ดู globals.css) อ่านเป็นก้อนเดียว
+// — Stop มี Ramp 2px (R-2 → R, ขยายจาก 1px) ให้ขอบโค้ง Antialias ทนต่อการ Scale ระหว่าง
+// Transition Interpolate ขนาดได้มากขึ้นโดยไม่เห็นรอยหยัก
 function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
   // จุดศูนย์กลาง = มุมตรงข้ามรอยต่อ: Fillet บน → รอยต่ออยู่มุมขวาล่าง → ศูนย์กลาง top left
   const gradientAt = edge === "top" ? "top left" : "bottom left";
+  const vtNameClass = edge === "top" ? "[view-transition-name:cp-nav-fillet-top]" : "[view-transition-name:cp-nav-fillet-bottom]";
   return (
     <span
       aria-hidden
-      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-7 h-7 pointer-events-none`}
+      className={`hidden md:block absolute right-0 ${edge === "top" ? "bottom-full" : "top-full"} w-7 h-7 pointer-events-none ${vtNameClass}`}
       style={{
-        background: `radial-gradient(circle at ${gradientAt}, transparent ${FILLET_RADIUS - 1}px, ${CREAM_HEX} ${FILLET_RADIUS}px)`,
+        background: `radial-gradient(circle at ${gradientAt}, transparent ${FILLET_RADIUS - 2}px, ${CREAM_HEX} ${FILLET_RADIUS}px)`,
       }}
     />
   );
