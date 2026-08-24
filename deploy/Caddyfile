@@ -1,14 +1,15 @@
 # ==========================================================================
 # Caddyfile — Reverse Proxy + HTTPS อัตโนมัติ สำหรับ C.P. LIVING Billing
 #
-# แทนที่ billing.example.com ด้วย Subdomain จริงก่อนใช้ (จุดเดียวบรรทัดแรก)
-# Caddy จะขอ/ต่ออายุ Certificate จาก Let's Encrypt ให้เองอัตโนมัติ ไม่ต้องตั้งอะไรเพิ่ม
-# (เงื่อนไข: DNS ของ Subdomain ชี้มาที่ IP เครื่องนี้แล้ว และพอร์ต 80/443 เปิด)
+# Subdomain จริง: portal.cplivingmattress.com (DNS บน Cloudflare — ต้องตั้ง Record
+# เป็น "DNS only" (เมฆสีเทา) เพื่อให้ Caddy ขอ Certificate จาก Let's Encrypt ตรงได้
+# — ดูเหตุผลและขั้นตอนใน README ส่วน Cloudflare) — Caddy ขอ/ต่ออายุ Certificate ให้
+# เองอัตโนมัติ (เงื่อนไข: DNS ชี้มาที่ IP เครื่องนี้แล้ว และพอร์ต 80/443 เปิด)
 #
 # ติดตั้ง: วางไฟล์นี้ที่ /etc/caddy/Caddyfile แล้ว `systemctl reload caddy`
 # ==========================================================================
 
-billing.example.com {
+portal.cplivingmattress.com {
 	# ส่งต่อทุกอย่างเข้าแอป Next.js (127.0.0.1 เท่านั้น — แอปไม่เปิดสู่ภายนอกตรงๆ)
 	reverse_proxy 127.0.0.1:3000 {
 		# แอปใช้ x-forwarded-for ทำ Rate Limit ต่อ IP (Caddy ตั้ง Header นี้ให้
@@ -27,7 +28,7 @@ billing.example.com {
 
 	# Log การเข้าถึงของ Proxy (คนละส่วนกับ Log ของแอป) — หมุนอัตโนมัติโดย Caddy
 	log {
-		output file /var/log/caddy/billing-access.log {
+		output file /var/log/caddy/portal-access.log {
 			roll_size 20MiB
 			roll_keep 5
 		}

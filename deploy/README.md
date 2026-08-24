@@ -1,28 +1,36 @@
 # คู่มือ Deploy Production — C.P. LIVING Billing
 
 > เป้าหมาย: VPS 1 เครื่อง (Ubuntu 24.04 LTS, 2GB RAM) รัน Next.js + PostgreSQL + Caddy (HTTPS อัตโนมัติ)
-> เข้าใช้ผ่าน `https://billing.<โดเมนบริษัท>` จากทุกที่ — เว็บบริษัทเดิมไม่ถูกแตะต้องใดๆ
+> เข้าใช้ผ่าน **`https://portal.cplivingmattress.com`** จากทุกที่ — เว็บบริษัทเดิมไม่ถูกแตะต้องใดๆ
 >
 > ไฟล์ประกอบในโฟลเดอร์นี้: `Caddyfile` · `bill-system.service` · `env.production.example` · `backup-offsite.sh`
 
 ---
 
-## ข้อมูลที่ Owner ต้องหา/ขอ ก่อนเริ่ม (เรื่อง Domain/DNS)
+## Domain/DNS — ตรวจสอบแล้ว (2026-08-25)
 
-1. **ชื่อโดเมนบริษัท** ที่จะใช้ทำ Subdomain (เช่น `cpliving.co.th` → ระบบจะเป็น `billing.cpliving.co.th`)
-2. **ใครเป็นคนดูแล DNS ของโดเมน** — อาจเป็นบริษัทที่ทำเว็บให้ / ผู้ให้บริการ Hosting / ทีมใน
-   บริษัทเอง — สิ่งที่ต้องได้อย่างใดอย่างหนึ่ง:
-   - **ทางที่ 1 (ดีสุด):** สิทธิ์เข้าหน้าจัดการ DNS ของโดเมน (ชื่อผู้ให้บริการ + บัญชีเข้าระบบ)
-   - **ทางที่ 2:** ติดต่อผู้ดูแลให้ **"เพิ่ม A record ใหม่ 1 รายการ"** ให้ตามนี้ (งาน 2 นาที):
-     ```
-     ชนิด: A    ชื่อ (Host): billing    ค่า (Value): <IP ของ VPS>    TTL: 3600 (หรือค่า Default)
-     ```
-3. **ย้ำกับผู้ดูแล DNS:** เพิ่ม Record ใหม่เท่านั้น **ห้ามแก้/ลบ Record เดิมทุกตัว** —
-   การเพิ่ม Subdomain ใหม่ไม่กระทบเว็บ/อีเมลเดิมโดยธรรมชาติของ DNS อยู่แล้ว
-4. เช็คเผื่อไว้: ถ้าโดเมนมี **CAA record** จำกัดผู้ออกใบรับรอง ต้องมี `letsencrypt.org` อยู่ในรายการ
-   (โดเมนส่วนใหญ่ไม่มี CAA = ไม่ติดอะไร — บอกชื่อโดเมนมา เดี๋ยวเช็คให้ก่อนได้)
+- โดเมน: **cplivingmattress.com** — DNS จัดการบน **Cloudflare** (NS: damiete/frida.ns.cloudflare.com ✓)
+- เว็บบริษัทเดิมโฮสต์บน Vercel (`www` ชี้ vercel-dns) — **ห้ามแตะ record ของเว็บเดิม/`www`/MX ทุกตัว**
+  (อีเมลบริษัทเป็น Google Workspace ผ่าน MX — ห้ามแตะเช่นกัน)
+- ไม่มี CAA record → Let's Encrypt ออกใบรับรองได้ ไม่มีตัวขวาง ✓
+- `portal.cplivingmattress.com` ยังว่าง พร้อมใช้ ✓
 
-> **สิ่งที่ต้องแจ้งกลับมา:** ชื่อโดเมน + ใครดูแล DNS + (หลังสร้าง VPS แล้ว) ตั้ง A record เรียบร้อยหรือยัง
+### ขั้นตอนเพิ่ม Record บน Cloudflare (ทำหลังได้ IP ของ VPS แล้ว — เพิ่มใหม่ 1 รายการเท่านั้น)
+
+เข้า Cloudflare Dashboard → เลือกโดเมน cplivingmattress.com → DNS → Records → **Add record**:
+
+```
+Type: A
+Name: portal
+IPv4 address: <IP ของ VPS>
+Proxy status: DNS only (คลิกเมฆส้มให้เป็น "เมฆสีเทา")   ← สำคัญมาก
+TTL: Auto
+```
+
+> **ทำไมต้อง "DNS only" (เมฆเทา):** ให้ Caddy บนเครื่องเราขอ Certificate จาก Let's Encrypt
+> ตรงๆ ได้ (ถ้าเปิด Proxy เมฆส้ม Cloudflare จะคั่นกลาง ต้องตั้ง SSL แบบพิเศษเพิ่มอีกชั้น) —
+> เว็บเราเป็นระบบภายในผู้ใช้หลักสิบคน ไม่จำเป็นต้องใช้ CDN/พร็อกซีของ Cloudflare —
+> เปิดเป็นเมฆส้มทีหลังได้ถ้าต้องการ (มีขั้นตอนตั้งค่าเพิ่ม แจ้งได้)
 
 ---
 
@@ -134,10 +142,10 @@ systemctl status bill-system     # ต้องเป็น active (running)
 
 ```bash
 cp deploy/Caddyfile /etc/caddy/Caddyfile
-nano /etc/caddy/Caddyfile        # แก้ billing.example.com เป็น Subdomain จริง
+cat /etc/caddy/Caddyfile         # ตรวจว่าเป็น portal.cplivingmattress.com ถูกต้อง
 systemctl reload caddy
 ```
-รอ DNS ทำงาน (ปกติไม่กี่นาที) แล้วเปิด `https://billing.<โดเมน>` — ต้องเจอหน้า Login พร้อมกุญแจเขียว
+รอ DNS ทำงาน (ปกติไม่กี่นาที) แล้วเปิด `https://portal.cplivingmattress.com` — ต้องเจอหน้า Login พร้อมกุญแจเขียว
 
 ## ขั้นตอนที่ 8 — Backup อัตโนมัติ + Offsite
 
@@ -161,7 +169,7 @@ sudo -u billing crontab -e
 ## ขั้นตอนที่ 9 — Monitoring (ฟรี)
 
 - สมัคร [UptimeRobot](https://uptimerobot.com) (ฟรี) → เพิ่ม Monitor ชนิด HTTPS ชี้
-  `https://billing.<โดเมน>/login` เช็คทุก 5 นาที → ตั้งอีเมลแจ้งเตือน Owner
+  `https://portal.cplivingmattress.com/login` เช็คทุก 5 นาที → ตั้งอีเมลแจ้งเตือน Owner
 
 ---
 
