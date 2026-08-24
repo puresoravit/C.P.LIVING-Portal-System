@@ -56,7 +56,7 @@ import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/
 // กับขอบ Content ตามทิศลูกศรที่ Owner ชี้ — Bonus: พื้นที่ครีมของ Fillet แบบใหม่แนบชิด
 // ขอบเท่านั้น (ส่วนใหญ่ของกล่องเป็น Transparent) จึงไม่มีทางทับ Chevron แถวข้างอีกเลย
 const FILLET_RADIUS = 28; // px — รัศมีโค้ง Tangent (ขยายจาก 24 ให้กวาดยาวตามลูกศร)
-const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับแค่ Literal Value ไม่อ้าง Tailwind Token ได้ตรงๆ)
+const CREAM_HEX = "#F7F5F0"; // = cp-cream (ใช้เป็น fill ของ SVG Path ตรงๆ — อ้าง Tailwind Token ใน Attribute ไม่ได้)
 
 // R7.1 — Owner UAT: พบเส้น/พื้นสีน้ำเงินกระพริบที่รอยต่อระหว่าง Indicator กำลังไหล — Root
 // Cause คือ Fillet ทั้งคู่วางแบบ position:absolute + bottom-full/top-full ซึ่งดันตัวเองออก
@@ -87,20 +87,39 @@ const CREAM_HEX = "#F7F5F0"; // = cp-cream (Arbitrary radial-gradient รับ�
 // บนเดิม) — Gradient Stop ยังอ้างอิง FILLET_RADIUS เดิมเป๊ะ (26px/28px) ส่วนที่เกิน 28px
 // (พิกเซลที่ 29) เป็น Cream 100% อยู่แล้วโดยธรรมชาติของสูตร จึงได้ "แถบครีม 1px ทับซ้อน"
 // เข้าไปใน Tab/Content โดยไม่กระทบรูปทรง/รัศมีของโค้งที่เห็นเลยแม้แต่พิกเซลเดียว
+// R7.3 — Owner UAT (Screenshot ซูมเทียบชัด: เส้นตรงมาร์คเขียว "คม" แต่ขอบโค้งวงแดงเป็น
+// "แถบเทาฟุ้งนูนออกมา"): Root Cause คือ Antialias Ramp ของ radial-gradient ที่ถูกขยาย
+// เป็น 2px ตอน R7.1 — แถบ Ramp คือครีม "กึ่งโปร่งใส" ทับบนพื้น Navy = ออกมาเป็นสีเทาขุ่น
+// กว้าง 2px ตามแนวโค้งทั้งเส้น ขณะที่ขอบเส้นตรงรอบข้าง (ขอบ Element จริง) ถูก Browser
+// ลบเหลี่ยมคมระดับ ~1 พิกเซลจอ — ความต่างของความคมสองแบบที่อยู่ชิดกันนี้คือ "ติ่งเทานูน"
+// ที่ Owner ชี้ — แก้โดยเลิกวาดด้วย Gradient: เปลี่ยนเป็น SVG <path> รูปทรงเดียวกันเป๊ะ
+// (จุดศูนย์กลาง/รัศมี FILLET_RADIUS/Overlap 1px ของ R7.2 คงเดิมทุกค่า — พาธ = สี่เหลี่ยม
+// เต็มกล่องหักลบ Quarter-circle โปร่งใส) — SVG Rasterizer ลบเหลี่ยมขอบ Path ด้วยกลไก
+// เดียวกับขอบ Element ปกติ (คม ~1 พิกเซลจอ ไม่มีแถบเบลนด์กว้าง) → โค้งคมเท่าเส้นตรง
+// ที่มาร์คเขียวพอดี — Span Wrapper เดิมยังอยู่ (ตำแหน่ง/ขนาด/view-transition-name ไม่
+// เปลี่ยน Snapshot ของ View Transition จึงทำงานเหมือนเดิมทุกประการ)
 function ActiveFillet({ edge }: { edge: "top" | "bottom" }) {
-  // จุดศูนย์กลาง = มุมตรงข้ามรอยต่อ: Fillet บน → รอยต่ออยู่มุมขวาล่าง → ศูนย์กลาง top left
-  const gradientAt = edge === "top" ? "top left" : "bottom left";
   const vtNameClass = edge === "top" ? "[view-transition-name:cp-nav-fillet-top]" : "[view-transition-name:cp-nav-fillet-bottom]";
   // R7.2 — ขอบที่ชน Tab เลื่อนล้ำเข้าไป 1px (บนของ Fillet-บน / ล่างของ Fillet-ล่าง)
   const overlapTabEdgeClass = edge === "top" ? "bottom-[calc(100%-1px)]" : "top-[calc(100%-1px)]";
+  const R = FILLET_RADIUS; // 28 — รัศมีโค้งเดิมเป๊ะ
+  const B = FILLET_RADIUS + 1; // 29 — ขนาดกล่องรวม Overlap 1px (R7.2)
+  // Fillet บน: วงศูนย์กลางมุมบน-ซ้าย (0,0) — Arc จาก (R,0) กวาดลงไป (0,R) แล้วปิดรอบ
+  // ขอบกล่องด้านล่าง/ขวา (รวมแถบ Overlap 1px ที่กิน Tab/Content) = ครีมทุกส่วนนอกวง
+  // Fillet ล่าง: วงศูนย์กลางมุมล่าง-ซ้าย (0,B) — Arc จาก (0,1) กวาดไป (R,B) ปิดรอบขอบบน/ขวา
+  const d =
+    edge === "top"
+      ? `M${R} 0A${R} ${R} 0 0 1 0 ${R}L0 ${B}L${B} ${B}L${B} 0Z`
+      : `M0 0L0 ${B - R}A${R} ${R} 0 0 1 ${R} ${B}L${B} ${B}L${B} 0Z`;
   return (
     <span
       aria-hidden
       className={`hidden md:block absolute -right-px ${overlapTabEdgeClass} w-[29px] h-[29px] pointer-events-none ${vtNameClass}`}
-      style={{
-        background: `radial-gradient(circle at ${gradientAt}, transparent ${FILLET_RADIUS - 2}px, ${CREAM_HEX} ${FILLET_RADIUS}px)`,
-      }}
-    />
+    >
+      <svg viewBox={`0 0 ${B} ${B}`} className="block w-full h-full">
+        <path d={d} fill={CREAM_HEX} />
+      </svg>
+    </span>
   );
 }
 
