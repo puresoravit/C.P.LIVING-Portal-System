@@ -105,8 +105,12 @@ PostgreSQL ฟังแค่ 127.0.0.1 โดย Default อยู่แล้�
 
 ```bash
 # บนเครื่อง Mac: ส่งโค้ด (branch ที่ Owner อนุมัติให้ deploy) ขึ้นเครื่อง
-rsync -az --exclude node_modules --exclude .next --exclude backups --exclude logs \
+rsync -az --exclude node_modules --exclude .next --exclude /backups --exclude /logs \
   -e "ssh -i ~/.ssh/billing-vps" ./ root@<IP>:/opt/bill-system/
+# หมายเหตุ: ต้องมี "/" นำหน้า backups และ logs เสมอ — ไม่งั้น rsync จะ exclude
+# directory ชื่อ "logs"/"backups" ทุกจุดใน source tree ไม่ใช่แค่ที่ root (พบบั๊กจริง
+# ระหว่าง Production Audit 2026-08-25 — src/app/(dashboard)/settings/logs/page.tsx
+# หายไปจาก VPS ทุกรอบ deploy เพราะ exclude pattern ไม่ anchor)
 
 # บน VPS: ติดตั้ง dependency + สร้างไฟล์ env + สั่ง Build
 cd /opt/bill-system
