@@ -261,7 +261,7 @@ export function OrderEditModal({
 
               <label className="flex items-center gap-2 text-sm bg-gray-50 border rounded-lg p-3">
                 <input type="checkbox" checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />
-                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+                ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขาที่ตั้งไว้)
               </label>
 
               {requiresPrintedAck && (

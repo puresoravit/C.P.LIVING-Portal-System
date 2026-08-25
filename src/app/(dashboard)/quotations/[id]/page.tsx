@@ -22,6 +22,7 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { SelectField } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { RememberDraft } from "@/components/draft-return";
+import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -182,8 +183,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
                 <option value="STANDARD">แยกแสดง VAT (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
               </SelectField>
               <label className="flex items-center gap-1.5 text-sm pb-2">
-                <input type="checkbox" name="applyDiscount" defaultChecked={quotation.applyDiscount} />
-                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+                <AutoSubmitCheckbox name="applyDiscount" defaultChecked={quotation.applyDiscount} />
+                ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขาที่ตั้งไว้)
               </label>
               <SubmitButton pendingLabel="กำลังบันทึก..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
                 บันทึกการตั้งค่า

@@ -56,7 +56,7 @@ export default async function NewOrderPage() {
           {/* Owner UAT (2026-08-23) — ค่าเริ่มต้นต้อง "ไม่ติ้ก" ใช้ส่วนลด (เดิม defaultChecked)
               — ติ้กเองเมื่อต้องการใช้จริงเท่านั้น (เหมือนกันทุกประเภทเอกสารที่มี Toggle นี้) */}
           <input id="applyDiscount" type="checkbox" name="applyDiscount" />
-          <label htmlFor="applyDiscount">ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)</label>
+          <label htmlFor="applyDiscount">ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขาที่ตั้งไว้)</label>
         </div>
         <div className="col-span-1 sm:col-span-2">
           <SubmitButton pendingLabel="กำลังสร้าง...">สร้างออเดอร์ → ไปคีย์รายการสินค้า</SubmitButton>

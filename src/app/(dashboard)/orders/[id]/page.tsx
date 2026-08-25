@@ -24,6 +24,7 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { RememberDraft } from "@/components/draft-return";
+import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
@@ -142,8 +143,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           <div className="bg-white border rounded-lg p-4 mb-4 flex items-center gap-3">
             <ActionForm action={applyDiscountAction} successMessage="บันทึกการตั้งค่าส่วนลดสำเร็จ" className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 text-sm">
-                <input id="applyDiscount" type="checkbox" name="applyDiscount" defaultChecked={order.applyDiscount} />
-                ใช้ส่วนลด (ตามเงื่อนไขลูกค้า/สาขาที่ตั้งไว้)
+                <AutoSubmitCheckbox id="applyDiscount" name="applyDiscount" defaultChecked={order.applyDiscount} />
+                ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขาที่ตั้งไว้)
               </label>
               <SubmitButton pendingLabel="กำลังบันทึก..." className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 bg-white text-gray-900">
                 บันทึกการตั้งค่า

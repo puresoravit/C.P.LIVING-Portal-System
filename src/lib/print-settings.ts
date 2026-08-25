@@ -34,11 +34,13 @@ export const PRINT_PROFILES: Record<
     margin: "10mm 12mm",
     // Production Smoke Test (2026-08-25) — เดิม 297-20 = เต็มพื้นที่พิมพ์พอดีเป๊ะ ทำให้
     // .print-page-fill (min-height ตามค่านี้) ล้นเป็นหน้าที่ 2 เปล่าๆ ใน Safari เสมอ:
-    // Safari ไม่รองรับ @page { size } และใช้ Margin ของตัวเอง (~12mm) ที่ใหญ่กว่าที่เรา
-    // ประกาศ (10mm) → พื้นที่จริงเตี้ยกว่าที่คำนวณ + การแปลง mm→px มีปัดเศษ — หัก Buffer
-    // 14mm กันไว้ (Signature Block ขยับสูงขึ้นจากท้ายกระดาษเล็กน้อย มองไม่ออกด้วยตา)
-    // — Profile continuous (EPSON 9×11 ผ่าน Chrome) ทดสอบกับกระดาษจริงผ่านแล้ว ห้ามแตะ
-    contentHeightMm: 297 - 20 - 14,
+    // Safari ไม่รองรับ @page { size } และใช้ Margin ของตัวเอง (~12mm+) ที่ใหญ่กว่าที่เรา
+    // ประกาศ (10mm) → พื้นที่จริงเตี้ยกว่าที่คำนวณ + การแปลง mm→px มีปัดเศษ — รอบแรกหัก
+    // 14mm แล้ว Owner ทดสอบจริงยังเกยอีกนิด (Safari + RICOH driver กิน Margin มากกว่าที่
+    // ประเมิน) → เพิ่มเป็น 28mm — ผลข้างเคียงมีแค่ Signature Block ขยับขึ้นจากท้ายกระดาษ
+    // ~1.5cm เมื่อรายการน้อย ซึ่งยอมรับได้ — Profile continuous (EPSON 9×11 ผ่าน Chrome)
+    // ทดสอบกับกระดาษจริงผ่านแล้ว ห้ามแตะ
+    contentHeightMm: 297 - 20 - 28,
   },
 };
 
