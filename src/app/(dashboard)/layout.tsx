@@ -37,6 +37,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Production Prep — Sliding Indicator Fix: บังคับเบราว์เซอร์รอ Parse ถึงจุดจบ
+          ของ Sidebar (#cp-sidebar ใน sidebar-shell.tsx) ก่อนวาดเฟรมแรก — Cross-document
+          View Transition จะ Capture Active Tab ของหน้าใหม่เจอเสมอ ไม่มีจังหวะ "แถบหาย
+          กลางการไหลแล้วโผล่ทีหลัง" อีก (React 19 Hoist <link> ขึ้น <head> ให้เอง —
+          Browser ที่ไม่รู้จัก rel=expect เมิน Attribute นี้เฉยๆ ไม่มีผลข้างเคียง) */}
+      <link rel="expect" href="#cp-sidebar" blocking="render" />
       {/* R6 Phase F — Auto Logout เมื่อไม่มี Activity 15 นาที (ดู inactivity-logout.tsx) */}
       <InactivityLogout />
       {/* ข้อ 7/10 (Print System): Sidebar ต้องไม่ติดไปกับ Print Preview/เอกสารที่พิมพ์ */}

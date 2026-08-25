@@ -41,10 +41,13 @@
   }
 
   // ---- ชั้นที่ 1: Entrance Fade (ทุก Browser) ----
+  // ธงเก็บเป็น Timestamp และยอมรับเฉพาะภายใน 10 วินาที — กันธงค้าง (เช่น การนำทางถูก
+  // ยกเลิกกลางคัน) ไปทำให้การคลิกเมนูภายในครั้งถัดไปได้ Fade ที่ไม่ควรมี
   try {
-    if (sessionStorage.getItem(ENTER_FLAG) === "1") {
+    var flagTs = Number(sessionStorage.getItem(ENTER_FLAG) || 0);
+    if (flagTs > 0) {
       sessionStorage.removeItem(ENTER_FLAG);
-      document.documentElement.classList.add("cp-app-enter");
+      if (Date.now() - flagTs < 10000) document.documentElement.classList.add("cp-app-enter");
     }
   } catch (e) {
     // sessionStorage ถูกปิด — ข้ามชั้นนี้ไป (หน้าแค่โผล่ทันทีแบบเดิม ไม่พังอะไร)
@@ -53,6 +56,10 @@
   document.addEventListener(
     "click",
     function (e) {
+      // เฉพาะคลิกซ้ายเปล่าๆ ที่จะนำทางในแท็บนี้จริงเท่านั้น — Cmd/Ctrl/Shift/กลาง
+      // (เปิดแท็บใหม่/หน้าต่างใหม่) ต้องไม่ตั้งธง ไม่งั้นธงค้างในแท็บเดิมแล้วไปทำให้
+      // การคลิกเมนูภายในครั้งถัดไปได้ Fade ที่ไม่ควรมี (อาการ "บางทีแปลกๆ")
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       var a = e.target && e.target.closest && e.target.closest("a[href]");
       if (!a || a.target === "_blank" || e.defaultPrevented) return;
       var href = a.getAttribute("href");
@@ -60,7 +67,7 @@
       try {
         var to = new URL(a.href, location.href);
         if (to.origin !== location.origin) return;
-        if (zoneOf(location.href) !== zoneOf(to.href)) sessionStorage.setItem(ENTER_FLAG, "1");
+        if (zoneOf(location.href) !== zoneOf(to.href)) sessionStorage.setItem(ENTER_FLAG, String(Date.now()));
       } catch (err) {
         /* URL เพี้ยน — ไม่ตั้งธง */
       }

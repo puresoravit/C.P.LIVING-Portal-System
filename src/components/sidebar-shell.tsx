@@ -51,7 +51,14 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
 
       {open && <div className="md:hidden fixed inset-0 bg-black/40 z-40 print:hidden" onClick={() => setOpen(false)} />}
 
+      {/* Production Prep — Sliding Indicator Fix: id นี้ถูกอ้างโดย <link rel="expect"
+          blocking="render"> ใน (dashboard)/layout.tsx — บังคับให้เบราว์เซอร์รอ Parse
+          จนจบ </aside> (= Active Tab อยู่ใน DOM แน่นอน) ก่อนวาดเฟรมแรกของหน้าใหม่ —
+          ปิด Race ที่ทำให้ Cross-document View Transition "บางครั้ง" Capture ไม่เจอ
+          Active Tab ของหน้าใหม่ (HTML มาเป็นช่วงๆ ตามจังหวะเครือข่าย) แล้วเห็นเป็น
+          กะพริบแทนการไหล — Sidebar อยู่ต้น Body ดีเลย์ที่เพิ่มจึงแทบเป็นศูนย์ */}
       <aside
+        id="cp-sidebar"
         className={`w-64 md:w-56 bg-gradient-to-b from-cp-navy to-cp-navy-deep flex flex-col print:hidden fixed md:static inset-y-0 left-0 z-50 shadow-2xl md:shadow-none transform transition-transform duration-200 md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
