@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { roundMoney } from "@/lib/pricing";
+import { resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
 import { Decimal } from "@prisma/client/runtime/library";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -22,7 +23,10 @@ async function requireUser() {
 
 // เลือก Invoice ที่ยังไม่เคยถูกวางบิล (billingNoteId = null) ของลูกค้ารายเดียว
 // มารวมเป็นใบวางบิลใบเดียว — ป้องกันไม่ให้ Invoice ใบเดียวถูกวางบิลซ้ำ
-export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string) {
+// Smoke Test (2026-08-25) — applyDiscount: ติ๊ก "ใช้ส่วนลด" ตอนเลือกใบ → หักส่วนลดกลุ่ม
+// ณ วันวางบิล เฉพาะใบที่ออกราคาเต็ม (ไม่หักซ้ำ — ดู resolveBillingNoteDiscounts) แล้วเก็บ
+// Snapshot ต่อใบไว้ใน discountDetail — totalAmount กลายเป็นยอดสุทธิที่เรียกเก็บจริง
+export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string, applyDiscount = false) {
   const user = await requireUser();
   if (!can(user.role, "billingNote.create")) throw new Error("FORBIDDEN");
 
@@ -39,8 +43,24 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
     );
   }
 
-  const totalAmount = roundMoney(invoices.reduce((s, inv) => s.add(inv.grandTotal), new Decimal(0)));
+  const grossTotal = roundMoney(invoices.reduce((s, inv) => s.add(inv.grandTotal), new Decimal(0)));
   const date = new Date(billingNoteDate);
+
+  const discountResolution = applyDiscount
+    ? await resolveBillingNoteDiscounts({
+        customerId,
+        billingNoteDate: date,
+        invoices: invoices.map((inv) => ({
+          id: inv.id,
+          branchId: inv.branchId,
+          productTypeCode: inv.productTypeCode,
+          grandTotal: inv.grandTotal,
+          discountAmount: inv.discountAmount,
+        })),
+      })
+    : null;
+
+  const totalAmount = discountResolution ? roundMoney(grossTotal.sub(discountResolution.discountTotal)) : grossTotal;
   const period = currentPeriod(date);
 
   const billingNote = await db.$transaction(async (tx) => {
@@ -56,6 +76,8 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
         taxIdSnapshot: customer.taxId,
         addressSnapshot: null,
         creditTermSnapshot: customer.creditTerm,
+        applyDiscount,
+        discountDetail: discountResolution ? discountResolution.lines : undefined,
         totalAmount,
         status: "CONFIRMED",
         createdById: user.id,
@@ -98,6 +120,7 @@ export async function createBillingNoteAction(formData: FormData) {
   const customerId = String(formData.get("customerId"));
   const billingNoteDate = String(formData.get("billingNoteDate"));
   const invoiceIds = formData.getAll("invoiceIds").map(String);
+  const applyDiscount = formData.get("applyDiscount") === "on";
   // Owner UAT Bug Fix — Submit โดยไม่เลือกใบไหนเลย: เดิม throw ทะลุเป็น Error Boundary
   // เต็มหน้า → เด้งกลับหน้าเดิมพร้อมข้อความสุภาพแทน (ปกติปุ่มถูก disabled ฝั่ง Client
   // อยู่แล้ว — Guard นี้รองรับกรณี JS ถูกปิด) — Validation Rule เดิมใน createBillingNote
@@ -105,7 +128,7 @@ export async function createBillingNoteAction(formData: FormData) {
   if (invoiceIds.length === 0) {
     redirect(`/billing-notes/new?customerId=${encodeURIComponent(customerId)}&err=noneSelected`);
   }
-  await createBillingNote(customerId, invoiceIds, billingNoteDate);
+  await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount);
 }
 
 // ยกเลิกใบวางบิล — ปลด Invoice กลับไปเป็น "ยังไม่ถูกวางบิล" เพื่อวางบิลใหม่ได้

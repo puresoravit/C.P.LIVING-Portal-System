@@ -14,6 +14,7 @@ import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
+import { discountLinesByInvoiceId } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
@@ -39,6 +40,9 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
   if (!note) notFound();
 
   const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
+  // Smoke Test (2026-08-25) — อ่านส่วนลดต่อใบจาก Snapshot ตอนสร้าง (ใบพิมพ์นิ่งตลอดกาล)
+  const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
+  const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
 
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
     header: (
@@ -116,16 +120,25 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
       )}
 
       <BillingNotePrintBody
-        invoices={note.invoices.map((inv) => ({
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
-          dueDateLabel: addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH"),
-          grandTotal: inv.grandTotal,
-        }))}
+        invoices={note.invoices.map((inv) => {
+          const line = discountByInvoice.get(inv.id);
+          return {
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
+            dueDateLabel: addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH"),
+            grandTotal: inv.grandTotal,
+            discountAmount: line?.amount,
+            discountPct: line?.pct,
+            alreadyDiscounted: line?.alreadyDiscounted,
+          };
+        })}
         totalAmount={note.totalAmount}
         amountInWords={toThaiBahtText(note.totalAmount)}
         footerNote={template.footerNote}
+        showDiscount={note.applyDiscount}
+        grossTotal={grossTotal}
+        discountTotal={grossTotal - Number(note.totalAmount)}
       />
     </PrintPage>
   );

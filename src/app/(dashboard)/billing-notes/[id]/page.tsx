@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { discountLinesByInvoiceId } from "@/lib/billing-note-discount";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -39,6 +40,13 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
   const status = STATUS_LABEL[note.status];
   const cancelAction = cancelBillingNote.bind(null, note.id);
 
+  // Smoke Test (2026-08-25) — แจงส่วนลดต่อใบจาก Snapshot ที่เก็บตอนสร้าง (ไม่คำนวณสดซ้ำ)
+  // — ใบวางบิล Legacy ที่ไม่มี discountDetail จะได้ Map ว่าง → แสดงผลเหมือนเดิมทุกประการ
+  const showDiscount = note.applyDiscount;
+  const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
+  const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
+  const discountTotal = grossTotal - Number(note.totalAmount);
+
   return (
     <div className="max-w-3xl">
       <a href="/billing-notes" className="text-sm text-blue-600 hover:underline">
@@ -65,28 +73,56 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
               <th className="px-4 py-2 font-medium">วันที่</th>
               <th className="px-4 py-2 font-medium">วันครบกำหนด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
+              {showDiscount && <th className="px-4 py-2 font-medium text-right">ส่วนลด</th>}
+              {showDiscount && <th className="px-4 py-2 font-medium text-right">สุทธิ</th>}
             </tr>
           </thead>
           <tbody>
-            {note.invoices.map((inv) => (
-              <tr key={inv.id} className="border-t">
-                <td className="px-4 py-2">
-                  <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
-                    {inv.invoiceNumber}
-                  </a>
-                </td>
-                <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
-                <td className="px-4 py-2">{addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH")}</td>
-                <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
-              </tr>
-            ))}
+            {note.invoices.map((inv) => {
+              const line = discountByInvoice.get(inv.id);
+              const discountAmount = line?.amount ?? 0;
+              return (
+                <tr key={inv.id} className="border-t">
+                  <td className="px-4 py-2">
+                    <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
+                      {inv.invoiceNumber}
+                    </a>
+                  </td>
+                  <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
+                  <td className="px-4 py-2">{addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH")}</td>
+                  <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
+                  {showDiscount && (
+                    <td className="px-4 py-2 text-right">
+                      {line?.alreadyDiscounted ? (
+                        <span className="text-xs text-gray-400 whitespace-nowrap">หักแล้วตอนออกใบ</span>
+                      ) : discountAmount > 0 ? (
+                        <span className="whitespace-nowrap">
+                          {money(discountAmount)} <span className="text-xs text-gray-500">({line!.pct}%)</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  )}
+                  {showDiscount && <td className="px-4 py-2 text-right">{money(Number(inv.grandTotal) - discountAmount)}</td>}
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t font-medium">
               <td colSpan={3} className="px-4 py-2 text-right">
                 รวม
               </td>
-              <td className="px-4 py-2 text-right">{money(note.totalAmount)}</td>
+              {showDiscount ? (
+                <>
+                  <td className="px-4 py-2 text-right">{money(grossTotal)}</td>
+                  <td className="px-4 py-2 text-right text-red-600">-{money(discountTotal)}</td>
+                  <td className="px-4 py-2 text-right">{money(note.totalAmount)}</td>
+                </>
+              ) : (
+                <td className="px-4 py-2 text-right">{money(note.totalAmount)}</td>
+              )}
             </tr>
           </tfoot>
         </table>

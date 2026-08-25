@@ -10,6 +10,12 @@ type BillingNotePrintInvoiceRow = {
   invoiceDateLabel: string;
   dueDateLabel: string;
   grandTotal: unknown;
+  // Smoke Test (2026-08-25) — ส่วนลดระดับใบวางบิล (แจงต่อใบตามที่ Owner เลือก) — Optional
+  // ทั้งชุด: หน้า Print ส่งมาเฉพาะใบวางบิลที่ applyDiscount จริง ส่วน Designer/ใบ Legacy
+  // ไม่ส่ง → Layout เดิมทุกประการ
+  discountAmount?: number;
+  discountPct?: number;
+  alreadyDiscounted?: boolean;
 };
 
 // R6 Phase E — แยกออกมาจากเดิมที่เคย Inline อยู่ในหน้า Print ตรงๆ (billing-notes/[id]/
@@ -22,11 +28,18 @@ export function BillingNotePrintBody({
   totalAmount,
   amountInWords,
   footerNote,
+  showDiscount,
+  grossTotal,
+  discountTotal,
 }: {
   invoices: BillingNotePrintInvoiceRow[];
   totalAmount: unknown;
   amountInWords: string;
   footerNote?: string;
+  /** true = ใบวางบิลนี้หักส่วนลดกลุ่ม → เพิ่มคอลัมน์ ส่วนลด/สุทธิ (Optional — ไม่ส่ง = Layout เดิม) */
+  showDiscount?: boolean;
+  grossTotal?: unknown;
+  discountTotal?: unknown;
 }) {
   return (
     <>
@@ -39,6 +52,8 @@ export function BillingNotePrintBody({
             <th className="text-left py-[length:var(--print-row-padding)]">วันที่</th>
             <th className="text-left py-[length:var(--print-row-padding)]">วันครบกำหนด</th>
             <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
+            {showDiscount && <th className="text-right py-[length:var(--print-row-padding)]">ส่วนลด</th>}
+            {showDiscount && <th className="text-right py-[length:var(--print-row-padding)]">สุทธิ</th>}
           </tr>
         </thead>
         <tbody>
@@ -48,6 +63,20 @@ export function BillingNotePrintBody({
               <td className="py-[length:var(--print-row-padding)]">{inv.invoiceDateLabel}</td>
               <td className="py-[length:var(--print-row-padding)]">{inv.dueDateLabel}</td>
               <td className="text-right py-[length:var(--print-row-padding)]">{money(inv.grandTotal)}</td>
+              {showDiscount && (
+                <td className="text-right py-[length:var(--print-row-padding)] whitespace-nowrap">
+                  {inv.alreadyDiscounted
+                    ? "หักแล้วตอนออกใบ"
+                    : (inv.discountAmount ?? 0) > 0
+                      ? `${money(inv.discountAmount)} (${inv.discountPct}%)`
+                      : "—"}
+                </td>
+              )}
+              {showDiscount && (
+                <td className="text-right py-[length:var(--print-row-padding)]">
+                  {money(Number(inv.grandTotal ?? 0) - (inv.discountAmount ?? 0))}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -56,7 +85,15 @@ export function BillingNotePrintBody({
             <td colSpan={3} className="py-[length:var(--print-row-padding)] text-right">
               รวม / Total
             </td>
-            <td className="text-right py-[length:var(--print-row-padding)]">{money(totalAmount)}</td>
+            {showDiscount ? (
+              <>
+                <td className="text-right py-[length:var(--print-row-padding)]">{money(grossTotal)}</td>
+                <td className="text-right py-[length:var(--print-row-padding)]">-{money(discountTotal)}</td>
+                <td className="text-right py-[length:var(--print-row-padding)]">{money(totalAmount)}</td>
+              </>
+            ) : (
+              <td className="text-right py-[length:var(--print-row-padding)]">{money(totalAmount)}</td>
+            )}
           </tr>
         </tfoot>
       </table>

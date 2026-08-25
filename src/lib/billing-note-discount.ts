@@ -1,0 +1,112 @@
+import { Decimal } from "@prisma/client/runtime/library";
+import { db } from "@/lib/db";
+import { getEffectiveDiscountPct, roundMoney } from "@/lib/pricing";
+
+// ==========================================================================
+// Smoke Test (2026-08-25) — ส่วนลดระดับใบวางบิล: ใบส่งของส่วนใหญ่ออกราคาเต็มโดยเจตนา
+// (กันพนักงานฝั่งลูกค้าเห็นส่วนลด) แต่ใบวางบิลคือยอดเงินที่เก็บจริงกับเจ้าของลูกค้า จึงให้
+// เลือกตอนสร้างว่าจะหักส่วนลดกลุ่มไหม — กติกาที่ Owner ยืนยันชัดเจน:
+//
+// 1. "ไม่หักซ้ำ": Invoice ที่หักส่วนลดไปแล้วตอนออกใบ (discountAmount > 0 — ไม่ว่าจะกี่ %)
+//    ข้ามเสมอ ยอด grandTotal ของใบนั้นเป็นยอดสุทธิอยู่แล้ว
+// 2. % ที่ใช้ = Resolution เดียวกับเอกสารอื่นทั้งระบบผ่าน getEffectiveDiscountPct
+//    (Rule สาขา → Rule ลูกค้า → % กลุ่ม → 0) ณ วันที่วางบิล — Invoice เก็บ productTypeCode
+//    เป็น String Snapshot จึงต้อง Map กลับเป็น ProductType id ก่อน (Code Unique อยู่แล้ว)
+//    Code ที่ไม่มีในระบบแล้ว/GEN (ไม่ระบุกลุ่ม) → 0% เหมือน Order/Quotation ทุกประการ
+// 3. ผลลัพธ์ทั้งหมดเก็บเป็น Snapshot ใน BillingNote.discountDetail ตอนสร้างครั้งเดียว —
+//    การแสดงผล/ใบพิมพ์อ่านจาก Snapshot เท่านั้น ไม่คำนวณสดซ้ำ (% กลุ่มเปลี่ยนทีหลัง
+//    ใบวางบิลเดิมต้องไม่ขยับ — Snapshot Principle ข้อ 27 เดิมของระบบ)
+// ==========================================================================
+
+export type BillingNoteDiscountLine = {
+  invoiceId: string;
+  /** % ที่หัก ณ วันวางบิล (0 = กลุ่มไม่มีส่วนลด/ไม่ระบุกลุ่ม) */
+  pct: number;
+  /** จำนวนเงินส่วนลดของใบนี้ (roundMoney แล้ว) */
+  amount: number;
+  /** true = ใบนี้หักส่วนลดไปแล้วตอนออกใบ จึงไม่หักซ้ำ (pct/amount เป็น 0 เสมอ) */
+  alreadyDiscounted: boolean;
+};
+
+export type BillingNoteDiscountResolution = {
+  lines: BillingNoteDiscountLine[];
+  discountTotal: Decimal;
+};
+
+export async function resolveBillingNoteDiscounts(params: {
+  customerId: string;
+  billingNoteDate: Date;
+  invoices: {
+    id: string;
+    branchId: string | null;
+    productTypeCode: string;
+    grandTotal: Decimal;
+    discountAmount: Decimal;
+  }[];
+}): Promise<BillingNoteDiscountResolution> {
+  const lines: BillingNoteDiscountLine[] = [];
+  let discountTotal = new Decimal(0);
+
+  // Cache การ Map code→ProductType ต่อการเรียกครั้งเดียว (Invoice หลายใบมักกลุ่มซ้ำกัน)
+  const typeIdByCode = new Map<string, string | null>();
+
+  for (const inv of params.invoices) {
+    // กติกาข้อ 1 — ไม่หักซ้ำ
+    if (inv.discountAmount.greaterThan(0)) {
+      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: true });
+      continue;
+    }
+
+    let typeId = typeIdByCode.get(inv.productTypeCode);
+    if (typeId === undefined) {
+      const type = await db.productType.findUnique({
+        where: { code: inv.productTypeCode },
+        select: { id: true },
+      });
+      typeId = type?.id ?? null;
+      typeIdByCode.set(inv.productTypeCode, typeId);
+    }
+
+    if (!typeId) {
+      // GEN (ไม่ระบุกลุ่ม) หรือกลุ่มถูกลบไปแล้ว → 0% (Semantic เดียวกับ order-preview)
+      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: false });
+      continue;
+    }
+
+    const { discountPct } = await getEffectiveDiscountPct({
+      customerId: params.customerId,
+      branchId: inv.branchId,
+      productTypeId: typeId,
+      orderDate: params.billingNoteDate,
+    });
+    const amount = roundMoney(inv.grandTotal.mul(discountPct).div(100));
+    discountTotal = discountTotal.add(amount);
+    lines.push({
+      invoiceId: inv.id,
+      pct: Number(discountPct),
+      amount: Number(amount),
+      alreadyDiscounted: false,
+    });
+  }
+
+  return { lines, discountTotal: roundMoney(discountTotal) };
+}
+
+/** อ่าน discountDetail (Json) กลับเป็น Map ต่อ invoiceId อย่างปลอดภัย — แถว Legacy
+ * (สร้างก่อน Feature นี้) ไม่มีค่า → Map ว่าง ทุกจุดแสดงผลเหมือนเดิมทุกประการ */
+export function discountLinesByInvoiceId(detail: unknown): Map<string, BillingNoteDiscountLine> {
+  const map = new Map<string, BillingNoteDiscountLine>();
+  if (!Array.isArray(detail)) return map;
+  for (const raw of detail) {
+    if (raw && typeof raw === "object" && typeof (raw as any).invoiceId === "string") {
+      const line = raw as BillingNoteDiscountLine;
+      map.set(line.invoiceId, {
+        invoiceId: line.invoiceId,
+        pct: Number(line.pct) || 0,
+        amount: Number(line.amount) || 0,
+        alreadyDiscounted: Boolean(line.alreadyDiscounted),
+      });
+    }
+  }
+  return map;
+}

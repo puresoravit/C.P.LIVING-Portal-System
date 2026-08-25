@@ -14,7 +14,8 @@ describe("print-settings", () => {
 
   it("printPageStyleFor สร้าง @page rule ที่ถูก profile", () => {
     expect(printPageStyleFor("a4")).toContain("size: A4");
-    expect(printPageStyleFor("a4")).toContain("margin: 10mm 12mm");
+    // Smoke Test R3 (2026-08-25) — Margin A4 ลดเหลือ 6mm 10mm ตามที่ Owner ขอให้ชิดขอบขึ้น
+    expect(printPageStyleFor("a4")).toContain("margin: 6mm 10mm");
     expect(printPageStyleFor("continuous")).toContain("size: 9in 11in");
   });
 });

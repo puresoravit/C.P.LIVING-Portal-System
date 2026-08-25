@@ -262,21 +262,37 @@ export default async function NewBillingNotePage(props: {
           </div>
 
           {eligibleInvoices.length > 0 && (
-            <div className="flex items-center gap-3">
-              {/* Owner UAT Bug Fix — เดิมกด Submit โดยไม่ติ๊กใบไหนเลย → Server throw เป็น
-                  Error Boundary เต็มหน้า — ปุ่มเริ่มต้น disabled จนกว่าจะติ๊กอย่างน้อย 1 ใบ
-                  (Script ด้านล่างคุมสด) + Server Action มี Guard สุภาพซ้ำอีกชั้น (กรณี JS
-                  ถูกปิด — ดู createBillingNoteAction) */}
-              <button
-                id="billingNoteSubmit"
-                disabled
-                className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2"
-              >
-                ✓ สร้างใบวางบิลจากรายการที่เลือก
-              </button>
-              <span id="billingNoteHint" className="text-xs text-gray-500">
-                ติ๊กเลือก Invoice อย่างน้อย 1 ใบก่อนสร้างใบวางบิล
-              </span>
+            <div className="space-y-3">
+              {/* Smoke Test (2026-08-25) — Owner: ใบส่งของส่วนใหญ่ออกราคาเต็ม แต่ใบวางบิล
+                  คือเงินเก็บจริง จึงเลือกหักส่วนลดกลุ่มได้ตรงนี้ (จุดเลือกใบ INV — ง่ายต่อ
+                  งานจริงตามที่ Owner ระบุ) — ใบที่หักส่วนลดไปแล้วตอนออกใบ จะไม่ถูกหักซ้ำ
+                  (กติกาสำคัญที่ Owner ยืนยัน) ยอดส่วนลดจริงคำนวณตอนสร้างและแจงต่อใบใน
+                  ใบวางบิลทันที */}
+              <label className="flex items-center gap-2 text-sm bg-white border rounded-lg px-4 py-3">
+                <input type="checkbox" name="applyDiscount" />
+                <span>
+                  ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขา ณ วันวางบิล)
+                  <span className="block text-xs text-gray-500">
+                    ใบที่หักส่วนลดแล้วตอนออกใบ จะไม่ถูกหักซ้ำ — ยอดส่วนลดแจงต่อใบในใบวางบิลหลังกดสร้าง
+                  </span>
+                </span>
+              </label>
+              <div className="flex items-center gap-3">
+                {/* Owner UAT Bug Fix — เดิมกด Submit โดยไม่ติ๊กใบไหนเลย → Server throw เป็น
+                    Error Boundary เต็มหน้า — ปุ่มเริ่มต้น disabled จนกว่าจะติ๊กอย่างน้อย 1 ใบ
+                    (Script ด้านล่างคุมสด) + Server Action มี Guard สุภาพซ้ำอีกชั้น (กรณี JS
+                    ถูกปิด — ดู createBillingNoteAction) */}
+                <button
+                  id="billingNoteSubmit"
+                  disabled
+                  className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2"
+                >
+                  ✓ สร้างใบวางบิลจากรายการที่เลือก
+                </button>
+                <span id="billingNoteHint" className="text-xs text-gray-500">
+                  ติ๊กเลือก Invoice อย่างน้อย 1 ใบก่อนสร้างใบวางบิล
+                </span>
+              </div>
             </div>
           )}
         </form>

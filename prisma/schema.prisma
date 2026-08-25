@@ -589,6 +589,14 @@ model BillingNote {
   taxIdSnapshot        String?
   addressSnapshot      String?
   creditTermSnapshot   String            @default("CASH") // ข้อ 6 Document Snapshot — กันวันครบกำหนดขยับย้อนหลังถ้าลูกค้าเปลี่ยน credit term ทีหลัง
+  // Smoke Test (2026-08-25) — Owner: ใบส่งของส่วนใหญ่ออกราคาเต็ม (กันลูกน้องฝั่งลูกค้าเห็น
+  // ส่วนลด) แต่ใบวางบิลคือเงินเก็บจริงกับเจ้าของ จึงเลือกได้ตอนสร้างว่าจะหักส่วนลดกลุ่มไหม
+  // — discountDetail เป็น Snapshot [{invoiceId, pct, amount, alreadyDiscounted}] ณ วันวางบิล
+  // (ใบพิมพ์ต้องนิ่งตลอดไปแม้ % กลุ่มเปลี่ยนทีหลัง — Snapshot Principle ข้อ 27 เดิม) —
+  // Invoice ที่หักส่วนลดไปแล้วตอนออกใบ (discountAmount > 0) ห้ามหักซ้ำ (Owner ยืนยันชัดเจน)
+  // — totalAmount ยังคงเป็น "ยอดที่เรียกเก็บจริง" (หลังหักส่วนลดใบวางบิล ถ้ามี)
+  applyDiscount        Boolean           @default(false)
+  discountDetail       Json?
   totalAmount          Decimal           @db.Decimal(14, 2)
   status               BillingNoteStatus @default(CONFIRMED)
   createdById          String
