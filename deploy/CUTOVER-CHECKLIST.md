@@ -40,10 +40,12 @@ ssh -i ~/.ssh/billing-vps root@149.28.129.64 \
 - My Profile → เพิ่ม Passkey บนทุกอุปกรณ์จริง (Mac Touch ID / iPhone Face ID)
 - ของเดิมที่ผูก localhost ใช้ไม่ได้แล้ว — ลบทิ้งจากรายการได้
 
-## ☐ 8. Offsite Backup + ซ้อมกู้รอบจริง
-- `sudo -u billing rclone config` บน VPS → เชื่อม Google Drive บริษัท (Owner ล็อกอิน ~5 นาที)
-- ตั้ง cron ตาม deploy/README.md ขั้นตอนที่ 8 → รอ/สั่งรัน 1 รอบ → เห็นไฟล์บน Drive จริง
-- ซ้อม restore จากไฟล์บน Drive ลง DB ชั่วคราว 1 ครั้ง (แบบเดียวกับที่ซ้อมแล้ว)
+## ☑ 8. Offsite Backup + ซ้อมกู้รอบจริง — เสร็จแล้ว (2026-08-25)
+- เชื่อม `offsite` remote → Google Drive บริษัทจริงแล้ว (`/opt/bill-system/backups/rclone.conf`)
+- Cron รายวัน 02:00 ตั้งเป็นของ **root** แล้ว (ดูเหตุผลใน README ขั้นตอนที่ 8)
+- รันจริง 1 รอบ → เห็นไฟล์ `.dump.gpg` บน Google Drive จริง (โฟลเดอร์ `bill-system-backups`)
+- ซ้อม restore จากไฟล์ offsite: decrypt → temp DB → เทียบ row count กับ production ตรงกัน →
+  ลบ temp DB ทิ้งเรียบร้อย — pipeline decrypt→restore ใช้งานได้จริงยืนยันแล้ว
 
 ## ☐ 9. เก็บกวาดก่อนประกาศใช้
 - ปิด/ลบบัญชี `claude_test`

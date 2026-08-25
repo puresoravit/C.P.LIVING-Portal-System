@@ -2,7 +2,8 @@
 # ==========================================================================
 # backup-offsite.sh — สำรองฐานข้อมูลรายวัน → เข้ารหัส → ส่งขึ้น Google Drive → เก็บกวาด
 #
-# เรียกจาก cron ของผู้ใช้ billing (ดู README ขั้นตอนที่ 8) เช่นทุกวัน 02:00:
+# เรียกจาก cron ของ "root" (ตั้งใจ ไม่ใช่ billing — ดู README ขั้นตอนที่ 8 สำหรับเหตุผล
+# Defense-in-depth) เช่นทุกวัน 02:00:
 #   0 2 * * * /opt/bill-system/deploy/backup-offsite.sh >> /opt/bill-system/logs/backup-cron.log 2>&1
 #
 # การเข้ารหัส (นโยบาย Owner: ไฟล์ที่ออกนอกเครื่องต้องเข้ารหัสเสมอ):
@@ -12,6 +13,9 @@
 #   - ถอดรหัส: gpg --batch --passphrase-file <ไฟล์กุญแจ> -d ไฟล์.dump.gpg > ไฟล์.dump
 #
 # ต้องตั้งค่าก่อนใช้ครั้งแรก: rclone config สร้าง Remote ชื่อ "offsite" ชี้ Google Drive บริษัท
+#   ใช้ --config "$APP_DIR/backups/rclone.conf" เสมอ (ห้ามใช้ path default ~/.config/rclone/) —
+#   เพราะ $HOME ของ user billing คือ /opt/bill-system เอง (root:501 เป็นเจ้าของ ไม่ใช่ billing)
+#   ทำให้ rclone เขียน default config path ไม่ได้ (พบระหว่าง Production Audit 2026-08-25)
 # ==========================================================================
 set -euo pipefail
 
@@ -20,6 +24,7 @@ BACKUP_DIR="$APP_DIR/backups"
 ENC_DIR="$BACKUP_DIR/offsite"        # เฉพาะไฟล์เข้ารหัสแล้วเท่านั้นที่อยู่โฟลเดอร์นี้/ขึ้น Drive
 PASSFILE="/root/.backup-passphrase"
 KEEP_LOCAL_DAYS=14
+RCLONE_CONF="$BACKUP_DIR/rclone.conf"
 OFFSITE_REMOTE="offsite:bill-system-backups"
 
 mkdir -p "$ENC_DIR"
@@ -44,7 +49,7 @@ for f in "$BACKUP_DIR"/*.dump; do
 done
 
 # 3. ส่งเฉพาะไฟล์เข้ารหัสขึ้น Google Drive (ไฟล์ Plaintext ไม่มีวันออกนอกเครื่อง)
-rclone copy "$ENC_DIR" "$OFFSITE_REMOTE" --include "*.gpg" \
+rclone --config "$RCLONE_CONF" copy "$ENC_DIR" "$OFFSITE_REMOTE" --include "*.gpg" \
   || { echo "[$(date -Iseconds)] offsite copy FAILED"; exit 1; }
 
 # 4. เก็บกวาดในเครื่องที่เก่ากว่ากำหนด (ทั้ง Plaintext และ Encrypted — ฝั่ง Drive เก็บยาวกว่า)

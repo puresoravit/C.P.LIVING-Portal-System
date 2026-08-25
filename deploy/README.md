@@ -161,11 +161,18 @@ journalctl -u caddy --no-pager | tail -15   # ต้องเห็น "certific
 ## ขั้นตอนที่ 8 — Backup อัตโนมัติ + Offsite
 
 ```bash
-# ครั้งเดียว: ตั้ง rclone remote ชื่อ "offsite" ชี้ Google Drive ของบริษัท
-sudo -u billing rclone config
+# ครั้งเดียว: ตั้ง rclone remote ชื่อ "offsite" ชี้ Google Drive ของบริษัท — ต้องใช้ --config
+# ชี้ path เขียนได้เสมอ (ห้ามปล่อย default ~/.config/rclone/ เพราะ $HOME ของ user billing
+# คือ /opt/bill-system เอง ซึ่ง billing ไม่ได้เป็นเจ้าของ เขียนไม่ได้)
+rclone config create offsite drive --config /opt/bill-system/backups/rclone.conf
+chown billing:billing /opt/bill-system/backups/rclone.conf && chmod 600 /opt/bill-system/backups/rclone.conf
 
-# Cron รายวัน 02:00 (ของผู้ใช้ billing)
-sudo -u billing crontab -e
+# Cron รายวัน 02:00 — ต้องเป็น crontab ของ "root" ไม่ใช่ billing โดยเจตนา: Passphrase เข้ารหัส
+# (/root/.backup-passphrase) ตั้งใจให้ root อ่านได้คนเดียว (Defense-in-depth — ถ้า Process ของแอป
+# เอง ซึ่งรันเป็น billing และเปิดรับ Traffic จากอินเทอร์เน็ต โดน Compromise จะยังแตะกุญแจเข้ารหัส
+# Backup ไม่ได้) — พบบั๊กจริงระหว่าง Production Audit 2026-08-25 ที่เคยตั้งเป็น billing แล้ว
+# gpg อ่าน Passphrase ไม่ได้ (Permission Denied)
+crontab -u root -e
 # เพิ่มบรรทัด:
 0 2 * * * /opt/bill-system/deploy/backup-offsite.sh >> /opt/bill-system/logs/backup-cron.log 2>&1
 ```
