@@ -53,3 +53,36 @@ ssh -i ~/.ssh/billing-vps root@149.28.129.64 \
 ## ☐ 10. Go-live (ต้องมีคำสั่ง Owner ชัดเจน)
 - ประกาศให้พนักงานเริ่มใช้ URL ใหม่
 - เครื่อง Mac เลิกเป็น server — เก็บ backup ชุดสุดท้ายไว้เป็นประวัติ
+
+## Rollback Procedure (Production Security Audit 2026-08-25)
+
+**Code (deploy commit ใหม่แล้วพัง):**
+```bash
+# บน Mac — กลับไป tag ก่อนหน้าที่รู้ว่าดี
+git checkout production-live-2026-08-25 -- .   # หรือ tag อื่นที่ต้องการ
+rsync -avz --exclude node_modules --exclude .next --exclude /backups --exclude /logs \
+  --exclude .env --exclude .git --exclude .claude --exclude "*.dump" \
+  -e "ssh -i ~/.ssh/billing-vps" ./ root@<IP>:/opt/bill-system/
+ssh -i ~/.ssh/billing-vps root@<IP> \
+  "cd /opt/bill-system && sudo -u billing npm run build && systemctl restart bill-system"
+```
+ต้อง `git checkout <branch> -- .` กลับมาที่ branch ปกติหลัง rollback เสร็จ ไม่ปล่อย working tree ค้างที่ tag เก่า
+
+**Database (migration/ข้อมูลพัง):**
+```bash
+# Restore จาก dump ล่าสุดที่รู้ว่าถูกต้อง (local หรือถอดรหัสจาก offsite)
+sudo -u postgres pg_restore -d bill_system --clean --if-exists /root/<ไฟล์>.dump
+```
+ก่อน restore ทับ ให้ `pg_dump` สถานะปัจจุบันเก็บไว้ก่อนเสมอ (กันพลาดซ้อนพลาด)
+
+**VPS หายทั้งเครื่อง (Vultr disk พัง/instance หาย):**
+1. สร้าง VPS ใหม่ (Ubuntu, region เดิม) ทำตาม `deploy/README.md` ขั้นตอน 1-4 (Node/PG/Caddy/user)
+2. โค้ด: จาก Git บน Mac (หรือ GitHub ถ้าตั้งแล้ว) — rsync ขึ้นเครื่องใหม่ตามขั้นตอนที่ 5
+3. Secrets: สร้างใหม่ทั้งหมด (`.env` จาก `env.production.example`) — ไม่ต้องใช้ค่าเดิม
+   (NEXTAUTH_SECRET/BACKUP_SECRET ใหม่ได้ ผู้ใช้แค่ต้อง login ใหม่ครั้งเดียว)
+4. Database: decrypt ไฟล์ offsite ล่าสุดด้วย Passphrase (`~/.bill-system-backup-passphrase`
+   บน Mac) แล้ว `pg_restore` เข้า DB ใหม่
+5. DNS: ชี้ `portal.cplivingmattress.com` A record ไป IP ใหม่ที่ Cloudflare (จุดเดียวที่ต้องแก้ DNS)
+6. Caddy จะขอ TLS cert ใหม่อัตโนมัติเมื่อ DNS ชี้ถูกและเปิด 80/443
+7. ทุกคน login/Passkey ใหม่ (Passkey ผูกกับ Origin ไม่ใช่ Server เฉพาะเครื่อง — ถ้า Domain
+   เดิมไม่เปลี่ยน ไม่ต้อง register Passkey ใหม่)
