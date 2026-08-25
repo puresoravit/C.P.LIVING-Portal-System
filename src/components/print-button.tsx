@@ -43,6 +43,7 @@ export function PrintButton({
   backHref,
   nextHref,
   nextRemaining,
+  salesQuestion,
 }: {
   markPrintedAction?: (formData: FormData) => void;
   /** true = เอกสารนี้ผ่าน PRINTED Checkpoint แล้ว (โชว์วันที่แทนปุ่ม) */
@@ -53,6 +54,9 @@ export function PrintButton({
   // อีกรอบแทนที่จะกลับหน้าเอกสาร — แก้เป็นลิงก์ตรงไปหน้า Detail ของเอกสาร (หน้าคีย์สินค้า)
   // เสมอเมื่อหน้า Print ระบุมา — ไม่ระบุ = Fallback history.back() เดิม (กันหน้าเก่าพัง)
   backHref?: string;
+  /** Smoke Test R13 — ใบกำกับภาษี: โชว์ Checkbox "นับเป็นยอดขาย" ใน Confirmation Modal
+   * แล้วส่งค่าไปกับ FormData (countAsSales=1|0) — ไม่ส่ง Prop นี้ = Modal เดิมทุกประการ */
+  salesQuestion?: string;
   // Owner UAT Fix — Multi-Invoice Print Queue: มีค่า = กำลังพิมพ์เรียงคิวจาก Order —
   // โชว์ปุ่ม "พิมพ์ใบถัดไป" เด่นๆ ให้ทำงานต่อได้ทันทีโดยไม่ต้องกลับไปเลือกใหม่ — ลิงก์นี้
   // เป็นอิสระจาก Confirmation Modal เสมอ (ไม่ผูกเงื่อนไขว่าต้องยืนยันพิมพ์สำเร็จก่อน) แต่
@@ -64,6 +68,9 @@ export function PrintButton({
   const [profile, setProfile] = useState<PrintProfileKey>(DEFAULT_PRINT_PROFILE);
   const [isPending, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
+  // R13 — คำตอบ "นับเป็นยอดขายไหม" (เฉพาะเมื่อ salesQuestion ถูกส่งมา) — Default ไม่ติ๊ก
+  // (ปลอดภัยกว่า: กันนับซ้ำกับ Invoice ที่นับไปแล้ว — Owner ติ๊กเองเมื่อเป็นใบขายตรง)
+  const [countAsSales, setCountAsSales] = useState(false);
   const { showError } = useToast();
   // afterprint Listener ที่ค้างจากคลิกก่อนหน้า (ถ้ามี) — ต้องถอดออกก่อนผูกอันใหม่เสมอ กัน
   // เปิด Modal ซ้อนสองรอบถ้าผู้ใช้กดปุ่มพิมพ์ซ้ำเร็วๆ ก่อน afterprint รอบแรกจะยิง
@@ -119,6 +126,7 @@ export function PrintButton({
       try {
         const fd = new FormData();
         fd.set("printProfile", "continuous");
+        if (salesQuestion) fd.set("countAsSales", countAsSales ? "1" : "0");
         await markPrintedAction!(fd);
         setShowConfirm(false);
       } catch (err) {
@@ -199,6 +207,17 @@ export function PrintButton({
             <p className="text-sm text-gray-500 mb-4">
               ระบบไม่สามารถตรวจสอบจากเครื่องพิมพ์ได้โดยตรง — กรุณายืนยันหลังเห็นกระดาษออกจากเครื่องแล้วเท่านั้น
             </p>
+            {salesQuestion && (
+              <label className="flex items-start gap-2 text-sm mb-4 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={countAsSales}
+                  onChange={(e) => setCountAsSales(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>{salesQuestion}</span>
+              </label>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleNotPrinted}

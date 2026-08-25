@@ -11,12 +11,15 @@ import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
 import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
+// Smoke Test R13 (2026-08-25) — เพิ่มสถานะ PRINTED (Checkpoint พิมพ์ 9×11 + ยืนยันด้วยมือ
+// แบบเดียวกับ Invoice/ใบวางบิล) — CONFIRMED จึงเปลี่ยน Label เป็น "ยังไม่พิมพ์" ให้ตรงความหมาย
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
+  CONFIRMED: { label: "ยังไม่พิมพ์", className: "bg-yellow-100 text-yellow-700" },
+  PRINTED: { label: "พิมพ์แล้ว", className: "bg-green-100 text-green-700" },
   CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
 };
 // TaxInvoiceStatus enum ไม่มี DRAFT จริง — ไม่แสดง Tab "ร่าง"
-const TAB_ORDER = ["CONFIRMED", "CANCELLED"];
+const TAB_ORDER = ["CONFIRMED", "PRINTED", "CANCELLED"];
 const PAGE_SIZE = 25;
 
 function money(n: unknown) {

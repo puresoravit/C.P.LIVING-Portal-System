@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { markTaxInvoicePrinted } from "../../actions";
 import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
@@ -115,7 +116,17 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="TAX_INVOICE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/tax-invoices/${taxInvoice.id}`}>
+    <PrintPage
+      templateSettings={template}
+      docType="TAX_INVOICE"
+      canEditTemplate={can((session?.user as any)?.role, "user.manage")}
+      backHref={`/tax-invoices/${taxInvoice.id}`}
+      // R13 — PRINTED Checkpoint + คำถามนับยอดขาย (ดู markTaxInvoicePrinted)
+      markPrintedAction={taxInvoice.status === "CONFIRMED" ? markTaxInvoicePrinted.bind(null, taxInvoice.id) : undefined}
+      isPrinted={taxInvoice.status === "PRINTED"}
+      printedAtLabel={taxInvoice.printedAt ? taxInvoice.printedAt.toLocaleString("th-TH") : undefined}
+      salesQuestion="นับใบกำกับภาษีใบนี้เป็นยอดขาย (Dashboard/รายงาน) — ติ๊กเฉพาะใบที่ขายตรงโดยไม่ได้ออกใบส่งของชั่วคราว (กันนับยอดซ้ำ)"
+    >
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

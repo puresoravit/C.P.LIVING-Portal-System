@@ -411,12 +411,21 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
   return { success: true };
 }
 
-// Clarification #11: ไม่ Cascade Cancel Invoice อัตโนมัติ — Block ถ้ามี Invoice ที่ยังไม่ Cancel
+// Smoke Test R13 (2026-08-25) — Owner สั่งเปลี่ยนกติกา Clarification #11 เดิม (เคย Block
+// ถ้ามี Invoice ที่ยังไม่ Cancel): งานจริงลูกน้องพิมพ์+ยืนยันไปแล้วก็ยังต้องแก้บิลได้ —
+// ยกเลิก Order แล้ว Cascade ยกเลิก Invoice ลูกทุกใบให้อัตโนมัติ (Dashboard/รายงานตัดยอด
+// ให้เองเพราะนับเฉพาะ status=PRINTED, หน้าใบวางบิลก็หายจากทั้ง 2 Tab อัตโนมัติด้วยเหตุผล
+// เดียวกัน) — ยัง Block 2 กรณีที่ Cascade ต่อไม่ได้เพราะมีเอกสารการเงินอื่นเกาะอยู่:
+// Invoice อยู่ในใบวางบิล Active หรือถูกอ้างโดยใบกำกับภาษี Active → ต้องยกเลิกใบพวกนั้น
+// ก่อน (แจ้งเลขที่ชัดเจน) กันเอกสารเงินค้างอ้างถึงใบที่ตายแล้ว
 export async function cancelOrder(orderId: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.cancel")) throw new Error("FORBIDDEN");
 
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { invoices: { include: { billingNote: true, taxInvoices: true } } },
+  });
 
   // Phase E1 — เพิ่ม guard นี้ให้ตรงกับ cancel action อื่นอีก 4 ประเภท (Invoice/
   // TaxInvoice/BillingNote/RepairReturnNote ทุกตัวเช็ค "ถูกยกเลิกไปแล้ว" อยู่แล้ว
@@ -426,10 +435,26 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
   if (order.status === "CANCELLED") return { success: false, error: "Order นี้ถูกยกเลิกไปแล้ว" };
 
   const activeInvoices = order.invoices.filter((inv) => inv.status !== "CANCELLED");
-  if (activeInvoices.length > 0) {
+
+  // R13 — Guard เอกสารการเงินที่เกาะ Invoice อยู่ ก่อน Cascade
+  const lockedByBillingNote = activeInvoices.filter((inv) => inv.billingNoteId && inv.billingNote?.status !== "CANCELLED");
+  if (lockedByBillingNote.length > 0) {
+    const numbers = [...new Set(lockedByBillingNote.map((inv) => inv.billingNote!.billingNoteNumber))].join(", ");
     return {
       success: false,
-      error: `ยกเลิก Order นี้ไม่ได้ เพราะมี Invoice ที่ยังไม่ถูกยกเลิกอยู่ ${activeInvoices.length} ใบ — กรุณายกเลิก Invoice ที่เกี่ยวข้องให้ครบก่อน แล้วค่อยยกเลิก Order`,
+      error: `ยกเลิก Order นี้ไม่ได้ — Invoice บางใบอยู่ในใบวางบิล ${numbers} — กรุณายกเลิกใบวางบิลนั้นก่อน (Invoice จะถูกปลดออกให้เอง) แล้วค่อยยกเลิก Order`,
+    };
+  }
+  const lockedByTaxInvoice = activeInvoices.filter((inv) => inv.taxInvoices.some((tx) => tx.status !== "CANCELLED"));
+  if (lockedByTaxInvoice.length > 0) {
+    const numbers = [
+      ...new Set(
+        lockedByTaxInvoice.flatMap((inv) => inv.taxInvoices.filter((tx) => tx.status !== "CANCELLED").map((tx) => tx.taxInvoiceNumber))
+      ),
+    ].join(", ");
+    return {
+      success: false,
+      error: `ยกเลิก Order นี้ไม่ได้ — Invoice บางใบถูกอ้างโดยใบกำกับภาษี ${numbers} — กรุณายกเลิกใบกำกับภาษีนั้นก่อน แล้วค่อยยกเลิก Order`,
     };
   }
 
@@ -438,27 +463,51 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
   // พิเศษที่ Order เพราะ confirmOrder วิ่งคู่กันได้ — ถ้า Confirm สำเร็จแทรกกลาง (DRAFT
   // →CONFIRMED พร้อมสร้าง Invoice) การเขียน CANCELLED ทับตรงๆ จะได้ Order ยกเลิกที่มี
   // Invoice สดค้างอยู่ = Integrity พัง — CAS บนสถานะที่อ่านมาปิดช่องนี้สนิท
-  const cas = await db.order.updateMany({
-    where: { id: orderId, status: beforeStatus },
-    data: { status: "CANCELLED" },
-  });
-  if (cas.count === 0) {
-    return { success: false, error: "สถานะ Order เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
-  }
+  const CHANGED = "ORDER_STATUS_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+    const cas = await tx.order.updateMany({
+      where: { id: orderId, status: beforeStatus },
+      data: { status: "CANCELLED" },
+    });
+    if (cas.count === 0) throw new Error(CHANGED);
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "CANCEL",
-      module: "Order",
-      recordId: orderId,
-      oldValue: { status: beforeStatus },
-      newValue: { status: "CANCELLED" },
-    },
-  });
+    // R13 — Cascade: ยกเลิก Invoice ลูกที่ยัง Active ทุกใบใน Transaction เดียวกัน
+    for (const inv of activeInvoices) {
+      await tx.invoice.updateMany({ where: { id: inv.id, status: inv.status }, data: { status: "CANCELLED" } });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "Invoice",
+          recordId: inv.id,
+          oldValue: { status: inv.status },
+          newValue: { status: "CANCELLED", reason: "ยกเลิกตาม Order ต้นทาง (Cascade)" },
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "CANCEL",
+        module: "Order",
+        recordId: orderId,
+        oldValue: { status: beforeStatus },
+        newValue: { status: "CANCELLED", cancelledInvoices: activeInvoices.map((i) => i.invoiceNumber) },
+      },
+    });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะ Order เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
+  }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
+  revalidatePath("/invoices");
   return { success: true };
 }
 

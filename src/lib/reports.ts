@@ -82,7 +82,7 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
     include: { invoice: true },
   });
 
-  return items.map((item) => ({
+  const rows: Row[] = items.map((item) => ({
     quantity: Number(item.quantity),
     gross: Number(item.grossAmount),
     // Smoke Test R12 (2026-08-25) — Owner: ยอดสุทธิ (Net) ของรายงาน/Dashboard ต้องหักส่วนลด
@@ -102,6 +102,51 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
     sku: item.skuSnapshot,
     productName: item.productNameSnapshot,
   }));
+
+  // Smoke Test R13 (2026-08-25) — Owner: ลูกค้า VAT เต็มบางรายออกใบกำกับภาษีตรงโดยไม่ผ่าน
+  // ใบส่งของชั่วคราว → รวมใบกำกับภาษีที่ (1) ผ่าน PRINTED Checkpoint 9×11 และ (2) Owner
+  // ยืนยันตอนพิมพ์ว่า "นับเป็นยอดขาย" (countAsSales) เข้ายอดขาย/ยอดสุทธิด้วย — ใบที่ซ้ำยอด
+  // กับ Invoice ที่นับไปแล้ว Owner ตอบไม่นับที่ Modal จึงไม่มีทางนับซ้ำ — Filter เฉพาะของ
+  // Invoice (sku/กลุ่มส่วนลด) ใช้กับใบกำกับไม่ได้ (Item เป็นข้อความอิสระ ไม่ผูก Product)
+  // ถ้าตั้ง Filter พวกนั้นมา ให้ข้ามฝั่งใบกำกับไปเลยตามความหมายของ Filter
+  if (!filters.sku && !filters.productTypeCode) {
+    const taxItems = await db.taxInvoiceItem.findMany({
+      where: {
+        taxInvoice: {
+          status: "PRINTED",
+          countAsSales: true,
+          taxInvoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
+          customerId: filters.customerId,
+          branchId: filters.branchId,
+        },
+      },
+      include: { taxInvoice: true },
+    });
+    for (const item of taxItems) {
+      const gross = Number(item.amount);
+      const discount = Number(item.discountAmount);
+      rows.push({
+        quantity: Number(item.quantity),
+        gross,
+        // Net ของใบกำกับ = ยอดหลังหักส่วนลดตามที่คีย์ในใบ (ช่องส่วนลดถูก Autofill ตาม
+        // % กลุ่มอยู่แล้วจากหน้าคีย์ — ไม่มี FK Product ให้บังคับส่วนลดกลุ่มย้อนหลังได้)
+        discount,
+        net: gross - discount,
+        vat: 0, // ยอดทุกฝั่งเป็น VAT-inclusive เหมือน Invoice Row — ไม่แยก VAT ต่อบรรทัด
+        total: gross - discount,
+        invoiceDate: item.taxInvoice.taxInvoiceDate,
+        customerId: item.taxInvoice.customerId,
+        customerName: item.taxInvoice.customerNameSnapshot,
+        branchId: item.taxInvoice.branchId,
+        branchName: item.taxInvoice.branchNameSnapshot,
+        productTypeCode: "TAX",
+        sku: "-",
+        productName: item.description,
+      });
+    }
+  }
+
+  return rows;
 }
 
 export async function getSalesSummary(filters: ReportFilters): Promise<Metrics> {

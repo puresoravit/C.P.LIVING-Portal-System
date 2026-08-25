@@ -340,3 +340,39 @@ export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResu
   revalidatePath("/tax-invoices");
   return { success: true };
 }
+
+// Smoke Test R13 (2026-08-25) — PRINTED Checkpoint ของใบกำกับภาษี (Pattern เดียวกับ
+// markInvoicePrinted ทุกบรรทัด) + คำถามพิเศษของ Owner: "นับใบนี้เป็นยอดขายไหม" —
+// เคสลูกค้า VAT เต็มที่ออกใบกำกับตรงโดยไม่ผ่านใบส่งของชั่วคราว ต้องนับเข้ายอดขายได้
+// แต่ใบกำกับที่ซ้ำยอดกับ Invoice ที่นับไปแล้วต้องตอบ "ไม่นับ" กันนับซ้ำ — Owner ตัดสินใจ
+// ต่อใบใน Confirmation Modal เอง (countAsSales) — Server เช็ค Profile 9×11 ซ้ำอีกชั้นเสมอ
+export async function markTaxInvoicePrinted(taxInvoiceId: string, formData: FormData) {
+  const user = await requireUser();
+  if (!can(user.role, "taxInvoice.print")) throw new Error("FORBIDDEN");
+
+  const printProfile = String(formData.get("printProfile") || "");
+  const countAsSales = String(formData.get("countAsSales") || "") === "1";
+
+  const taxInvoice = await db.taxInvoice.findUniqueOrThrow({ where: { id: taxInvoiceId } });
+  if (taxInvoice.status === "CANCELLED") throw new Error("ใบกำกับภาษีนี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
+  if (taxInvoice.status === "CONFIRMED" && printProfile === "continuous") {
+    const printedAt = new Date();
+    const cas = await db.taxInvoice.updateMany({
+      where: { id: taxInvoiceId, status: "CONFIRMED" },
+      data: { status: "PRINTED", printedAt, printedById: user.id, countAsSales },
+    });
+    if (cas.count === 1)
+      await db.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "TaxInvoice",
+          recordId: taxInvoiceId,
+          oldValue: { status: "CONFIRMED" },
+          newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile, countAsSales },
+        },
+      });
+  }
+  revalidatePath(`/tax-invoices/${taxInvoiceId}`);
+  revalidatePath("/tax-invoices");
+}

@@ -8,8 +8,10 @@ import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 
+// R13 — Label ตรงกับหน้า List (ดูเหตุผลที่ tax-invoices/page.tsx)
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
+  CONFIRMED: { label: "ยังไม่พิมพ์", className: "bg-yellow-100 text-yellow-700" },
+  PRINTED: { label: "พิมพ์แล้ว", className: "bg-green-100 text-green-700" },
   CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
 };
 

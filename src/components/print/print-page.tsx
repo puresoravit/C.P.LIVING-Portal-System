@@ -24,6 +24,7 @@ export function PrintPage({
   backHref,
   nextHref,
   nextRemaining,
+  salesQuestion,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
@@ -53,6 +54,8 @@ export function PrintPage({
   nextHref?: string;
   /** จำนวนใบที่เหลือในคิว (รวมใบที่ nextHref ชี้) — ใช้แสดงบนปุ่มเท่านั้น */
   nextRemaining?: number;
+  /** R13 — ส่งต่อให้ PrintButton: คำถาม "นับเป็นยอดขายไหม" ใน Confirmation Modal (ใบกำกับภาษี) */
+  salesQuestion?: string;
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
@@ -70,6 +73,7 @@ export function PrintPage({
             backHref={backHref}
             nextHref={nextHref}
             nextRemaining={nextRemaining}
+            salesQuestion={salesQuestion}
           />
           {canEditTemplate && docType && <EditTemplateLink docType={docType} />}
         </div>

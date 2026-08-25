@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 import { toQueryObject } from "@/lib/search-params";
 import { buildStatusTabCounts } from "@/lib/status-tab-counts";
+import { CancelButton } from "@/components/cancel-button";
+import { cancelOrder } from "./actions";
 import { sumActiveInvoiceTotal, deriveOrderPrintState } from "@/lib/order-doc-center";
 import { displayProductTypeCode } from "@/lib/order-preview";
 import { StatusTabs } from "@/components/status-tabs";
@@ -40,6 +42,7 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
   const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "order.create")) redirect("/");
+  const canCancel = can((session?.user as any)?.role, "order.cancel");
 
   const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
   const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
@@ -186,13 +189,14 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
       <StatusTabs tabs={tabs} activeKey={status ?? "all"} basePath="/orders" preserveParams={preserveParamsNoStatus} />
 
       {/* Desktop: หัวคอลัมน์คล้ายตาราง (ซ่อนบน Mobile เพราะเปลี่ยนเป็น Card/Stack แทน) */}
-      <div className="hidden sm:grid grid-cols-[1fr_100px_1fr_90px_120px_90px_24px] gap-3 px-4 py-2 text-xs font-medium text-gray-500 border-b">
+      <div className="hidden sm:grid grid-cols-[1fr_100px_1fr_90px_120px_90px_70px_24px] gap-3 px-4 py-2 text-xs font-medium text-gray-500 border-b">
         <span>เลขที่ออเดอร์</span>
         <span>วันที่</span>
         <span>ลูกค้า</span>
         <span className="text-right">Invoice</span>
         <span className="text-right">ยอดรวม</span>
         <span>สถานะ</span>
+        <span></span>
         <span></span>
       </div>
 
@@ -208,7 +212,7 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
           return (
             <details key={order.id} className="group">
               <summary className="cursor-pointer list-none hover:bg-gray-50">
-                <div className="flex flex-col gap-1 px-4 py-3 sm:grid sm:grid-cols-[1fr_100px_1fr_90px_120px_90px_24px] sm:gap-3 sm:items-center">
+                <div className="flex flex-col gap-1 px-4 py-3 sm:grid sm:grid-cols-[1fr_100px_1fr_90px_120px_90px_70px_24px] sm:gap-3 sm:items-center">
                   <a
                     href={`/orders/${order.id}`}
                     className="font-mono text-blue-600 hover:underline text-sm"
@@ -237,6 +241,21 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                         </span>
                       )}
                     </span>
+                    {/* Smoke Test R13 (2026-08-25) — Owner: ยกเลิก Order ได้จากหน้ารายการนี้เลย
+                        (Cascade ยกเลิก Invoice ลูกอัตโนมัติ — Dashboard/ใบวางบิลตัดยอด/รายการ
+                        ให้เองเพราะกรองเฉพาะ PRINTED) — Guard ใบวางบิล/ใบกำกับที่เกาะอยู่แจ้ง
+                        ผ่าน Toast จาก Action */}
+                    {canCancel && order.status !== "CANCELLED" ? (
+                      <CancelButton
+                        action={cancelOrder.bind(null, order.id)}
+                        confirmMessage={`ยืนยันยกเลิก ${order.orderNumber}? Invoice ในออเดอร์นี้จะถูกยกเลิกทั้งหมด และยอดขายที่นับไว้จะถูกหักออกจาก Dashboard`}
+                        label="ยกเลิก"
+                        successMessage="ยกเลิกออเดอร์และ Invoice ที่เกี่ยวข้องแล้ว"
+                        className="text-xs text-gray-500 hover:text-red-600 border rounded px-2 py-1 whitespace-nowrap"
+                      />
+                    ) : (
+                      <span></span>
+                    )}
                     <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90 sm:justify-self-end">
                       &rsaquo;
                     </span>

@@ -515,6 +515,11 @@ model InvoiceItem {
 
 enum TaxInvoiceStatus {
   CONFIRMED
+  // Smoke Test R13 (2026-08-25) — Owner: ลูกค้า VAT เต็มบางรายออกใบกำกับภาษีตรงโดยไม่ผ่าน
+  // ใบส่งของชั่วคราว → ยอดขายหาย — เพิ่ม PRINTED Checkpoint แบบเดียวกับ Invoice (พิมพ์ 9×11
+  // + ยืนยันด้วยมือ) พร้อมคำถามเพิ่ม "นับเป็นยอดขายไหม" (countAsSales) เพราะใบกำกับบางใบ
+  // ซ้ำยอดกับ Invoice ที่นับไปแล้ว — นับซ้ำไม่ได้เด็ดขาด Owner เป็นคนตัดสินใจต่อใบ
+  PRINTED
   CANCELLED
 }
 
@@ -550,6 +555,12 @@ model TaxInvoice {
   netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive หลังหักส่วนลด)
 
   status      TaxInvoiceStatus @default(CONFIRMED)
+  // R13 — PRINTED Checkpoint (Pattern เดียวกับ Invoice.printedAt/printedById ทุกประการ)
+  printedAt   DateTime?
+  printedById String?
+  // R13 — true = Owner ยืนยันตอนพิมพ์ว่าให้นับใบนี้เข้ายอดขาย/ยอดสุทธิ (Dashboard/รายงาน)
+  // — ใช้กับเคสออกใบกำกับตรงแทนใบส่งของ ใบที่ซ้ำยอดกับ Invoice ให้ตอบไม่นับ กันนับซ้ำ
+  countAsSales Boolean @default(false)
   createdById String
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
