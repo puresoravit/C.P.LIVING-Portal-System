@@ -14,6 +14,13 @@
       "runtimeArgs": ["-l", "-c", "export PATH=\"/Users/soravit/.nvm/versions/node/v24.19.0/bin:/Library/PostgreSQL/18/bin:$PATH\" && npm run dev"],
       "port": 3000,
       "autoPort": false
+    },
+    {
+      "name": "cp-factory-web",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-l", "-c", "cd /Users/soravit/Downloads/cp-factory-web-main && node node_modules/next/dist/bin/next dev --turbopack -p 3010"],
+      "port": 3010,
+      "autoPort": false
     }
   ]
 }
