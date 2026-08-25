@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   // v=2 ไว้ → Safari ใช้รูปเก่าจาก Cache ต่อ (ขอบขาว) ทั้งที่ Server เสิร์ฟไฟล์ใหม่แล้ว
   icons: {
     icon: [
-      { url: "/icon.png?v=4", sizes: "32x32", type: "image/png" },
-      { url: "/icon.png?v=4", sizes: "192x192", type: "image/png" },
-      { url: "/icon.png?v=4", sizes: "512x512", type: "image/png" },
+      { url: "/icon.png?v=5", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png?v=5", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png?v=5", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon.ico?v=4",
-    apple: "/apple-icon.png?v=4",
+    shortcut: "/favicon.ico?v=5",
+    apple: "/apple-icon.png?v=5",
   },
 };
 
