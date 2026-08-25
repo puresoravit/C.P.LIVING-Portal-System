@@ -4,8 +4,7 @@ import { createDraftQuotation } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
-import { DraftRedirect } from "@/components/draft-return";
-import { Suspense } from "react";
+import { DraftResumeBanner } from "@/components/draft-return";
 
 export default async function NewQuotationPage() {
   const customers = await db.customer.findMany({
@@ -18,9 +17,7 @@ export default async function NewQuotationPage() {
 
   return (
     <div className="max-w-xl">
-      <Suspense>
-        <DraftRedirect docKey="quotation" />
-      </Suspense>
+      <DraftResumeBanner docKey="quotation" label="ใบเสนอราคา" />
       <a href="/quotations" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการใบเสนอราคา
       </a>

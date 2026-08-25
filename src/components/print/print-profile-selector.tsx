@@ -26,8 +26,22 @@ export function PrintProfileSelector() {
     const styleEl = document.getElementById("print-page-style") as HTMLStyleElement | null;
     if (styleEl) styleEl.textContent = `@media print { ${printPageStyleFor(profile)} }`;
 
+    // Smoke Test R6 (2026-08-25) — ทดสอบจริงทั้ง 4 ชุด (Chrome/Safari × A4/9×11): Chrome
+    // ตรงเป๊ะทั้งคู่ แต่ Safari "เกย" เป็นหน้า 2 เสมอทั้งคู่ โดยปริมาณเกยแปรตาม
+    // contentHeightMm ตรงๆ → พื้นที่พิมพ์ใช้ได้จริงของ Safari เล็กกว่าที่ Browser รายงาน
+    // ~15-20mm (Safari ไม่รองรับ @page size + คิด Margin/Scale ของตัวเอง เอกสารอ้างอิง
+    // ไม่ตรงกับพฤติกรรมจริง) — หักเผื่อเฉพาะ Safari 22mm: เอกสารสั้นลงเล็กน้อย (ช่องว่าง
+    // ท้ายกระดาษเพิ่ม ~2cm) แลกกับหน้าเดียวเสมอ — Chrome (รวมงานพิมพ์ EPSON 9×11 จริง
+    // ที่ใช้ Chrome) ไม่โดนหักอะไรเลย Layout ที่ทดสอบผ่านแล้วคงเดิมทุกมิลลิเมตร
+    const isSafari =
+      /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios|edg|android/i.test(navigator.userAgent);
+    const SAFARI_TRIM_MM = 22;
+
     const p = PRINT_PROFILES[profile];
-    document.documentElement.style.setProperty("--print-content-height", `${p.contentHeightMm}mm`);
+    document.documentElement.style.setProperty(
+      "--print-content-height",
+      `${p.contentHeightMm - (isSafari ? SAFARI_TRIM_MM : 0)}mm`
+    );
   }, [profile]);
 
   function handleChange(next: PrintProfileKey) {

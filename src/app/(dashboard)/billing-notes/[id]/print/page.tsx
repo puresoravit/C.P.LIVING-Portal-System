@@ -28,10 +28,32 @@ function addDays(date: Date, days: number): Date {
 
 // Billing Note ไม่มี Item ของตัวเอง — รายการคือ Invoice ที่ถูกรวมบิล (ไม่ใช่ Product
 // Item) ตามที่ยืนยันไว้ ห้ามเปลี่ยนเป็น Product Item Table ใน Phase D นี้
-export default async function BillingNotePrintPage(props: { params: Promise<{ id: string }> }) {
+export default async function BillingNotePrintPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string; queue?: string }>;
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "billingNote.create")) redirect("/");
+
+  // Smoke Test R6 (2026-08-25) — Multi-Billing-Note Print Queue: เลือกหลายใบจากหน้า List
+  // แล้วพิมพ์ต่อเนื่องทีละใบ — Pattern/Sanitization เดียวกับ Multi-Invoice Print Queue
+  // (invoices/[id]/print) ทุกบรรทัด: back ต้องเป็น Internal Path, queue กรองเฉพาะ cuid + Cap 50
+  const rawBack = searchParams.back;
+  const queueBackHref = rawBack && rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : undefined;
+  const queueIds = (searchParams.queue ?? "")
+    .split(",")
+    .filter((qid) => /^[a-z0-9]{20,32}$/i.test(qid))
+    .slice(0, 50);
+  const nextId = queueIds[0];
+  let nextHref: string | undefined;
+  if (nextId) {
+    const nextParams = new URLSearchParams();
+    if (queueBackHref) nextParams.set("back", queueBackHref);
+    if (queueIds.length > 1) nextParams.set("queue", queueIds.slice(1).join(","));
+    nextHref = `/billing-notes/${nextId}/print?${nextParams.toString()}`;
+  }
 
   const [note, company, template] = await Promise.all([
     db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true } }),
@@ -125,10 +147,12 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
       templateSettings={template}
       docType="BILLING_NOTE"
       canEditTemplate={can((session?.user as any)?.role, "user.manage")}
-      backHref={`/billing-notes/${note.id}`}
+      backHref={queueBackHref ?? `/billing-notes/${note.id}`}
       markPrintedAction={markAction}
       isPrinted={note.status === "PRINTED"}
       printedAtLabel={note.printedAt ? note.printedAt.toLocaleString("th-TH") : undefined}
+      nextHref={nextHref}
+      nextRemaining={queueIds.length}
     >
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />

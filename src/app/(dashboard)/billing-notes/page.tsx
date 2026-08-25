@@ -125,6 +125,12 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
+              {/* Smoke Test R6 (2026-08-25) — Owner: ติ๊กเลือกบางใบ/ทั้งหมดจากหน้านี้แล้วสั่ง
+                  พิมพ์ต่อเนื่องทีละใบได้เลย (Print Queue กลไกเดียวกับ Multi-Invoice เดิม) —
+                  ติ๊กได้เฉพาะใบที่ไม่ถูกยกเลิก */}
+              <th className="px-3 py-2 w-8">
+                <input type="checkbox" id="bnSelectAll" title="เลือกทั้งหมดในหน้านี้" />
+              </th>
               <th className="px-4 py-2 font-medium">เลขที่</th>
               <th className="px-4 py-2 font-medium">วันที่</th>
               <th className="px-4 py-2 font-medium">ลูกค้า</th>
@@ -136,6 +142,11 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
           <tbody>
             {notes.map((n) => (
               <tr key={n.id} className="border-t hover:bg-gray-50">
+                <td className="px-3 py-2">
+                  {n.status !== "CANCELLED" && (
+                    <input type="checkbox" className="bn-print-checkbox" value={n.id} />
+                  )}
+                </td>
                 <td className="px-4 py-2">
                   <a href={`/billing-notes/${n.id}`} className="font-mono text-blue-600 hover:underline">
                     {n.billingNoteNumber}
@@ -152,7 +163,7 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
             ))}
             {notes.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   ไม่พบใบวางบิลที่ตรงกับเงื่อนไข
                 </td>
               </tr>
@@ -161,6 +172,57 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
         </table>
         </div>
       </div>
+
+      {notes.length > 0 && (
+        <div className="flex items-center gap-3 mt-3">
+          <button
+            id="bnPrintSelected"
+            disabled
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2"
+          >
+            พิมพ์ใบวางบิลที่เลือก (<span id="bnPrintCount">0</span> ใบ)
+          </button>
+          <span className="text-xs text-gray-500">
+            ติ๊กเลือกจากตารางด้านบน — ระบบจะเปิดหน้าพิมพ์เรียงต่อกันทีละใบ (ส่วนลดของแต่ละใบแสดงตามที่ตั้งไว้ตอนสร้าง)
+          </span>
+        </div>
+      )}
+
+      {notes.length > 0 && (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                const boxes = Array.from(document.querySelectorAll('.bn-print-checkbox'));
+                const selectAll = document.getElementById('bnSelectAll');
+                const btn = document.getElementById('bnPrintSelected');
+                const countEl = document.getElementById('bnPrintCount');
+                function refresh() {
+                  const picked = boxes.filter(b => b.checked);
+                  countEl.textContent = String(picked.length);
+                  btn.disabled = picked.length === 0;
+                  if (selectAll) selectAll.checked = boxes.length > 0 && picked.length === boxes.length;
+                }
+                boxes.forEach(b => b.addEventListener('change', refresh));
+                if (selectAll) selectAll.addEventListener('change', () => {
+                  boxes.forEach(b => { b.checked = selectAll.checked; });
+                  refresh();
+                });
+                btn.addEventListener('click', () => {
+                  const ids = boxes.filter(b => b.checked).map(b => b.value);
+                  if (ids.length === 0) return;
+                  const back = location.pathname + location.search;
+                  const params = new URLSearchParams();
+                  params.set('back', back);
+                  if (ids.length > 1) params.set('queue', ids.slice(1).join(','));
+                  location.href = '/billing-notes/' + ids[0] + '/print?' + params.toString();
+                });
+                refresh();
+              })();
+            `,
+          }}
+        />
+      )}
 
       <Pagination page={page} totalPages={totalPages} totalCount={currentCount} basePath="/billing-notes" preserveParams={preserveParams} />
     </div>
