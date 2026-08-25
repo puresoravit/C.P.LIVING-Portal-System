@@ -38,6 +38,6 @@ export const config = {
   // ไป /login ทำให้ Browser แสดง Fallback ตัวอักษรแทนโลโก้จริง — Static Asset สาธารณะ
   // ไม่มีข้อมูลอ่อนไหวเหมือนกัน
   matcher: [
-    "/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand|cp-app-switch\\.js|icon\\.png|apple-icon\\.png).*)",
+    "/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand|cp-app-switch\\.js|icon\\.png|apple-icon\\.png|apple-touch-icon\\.png|apple-touch-icon-precomposed\\.png).*)",
   ],
 };
