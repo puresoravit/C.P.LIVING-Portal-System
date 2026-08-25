@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
-import { discountLinesByInvoiceId, liveTypeNamesByCode } from "@/lib/billing-note-discount";
+import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel } from "@/lib/billing-note-discount";
 
 // R5 — Label ตรงกับหน้า List (CONFIRMED = สร้างแล้วแต่ยังไม่ยืนยันพิมพ์จริง — ดูเหตุผลเต็ม
 // ที่ billing-notes/page.tsx)
@@ -51,6 +51,11 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
   const liveNames = await liveTypeNamesByCode(note.invoices.map((inv) => inv.productTypeCode));
   const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
   const discountTotal = grossTotal - Number(note.totalAmount);
+  // R9 — Owner: ไม่ว่าจะติ๊กส่วนลดหรือไม่ ใบวางบิลต้องบอกชัดว่าเป็นกลุ่มส่วนลดไหน (R7 แยกใบ
+  // ตามกลุ่มเสมออยู่แล้ว) — Resolve จากชื่อกลุ่มปัจจุบันของทุก Invoice ในใบนี้
+  const groupLabel = resolveNoteGroupLabel(
+    note.invoices.map((inv) => liveNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด")
+  );
 
   return (
     <div className="max-w-3xl">
@@ -67,6 +72,12 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
       </div>
       <p className="text-sm text-gray-500 mb-4">
         {note.customerNameSnapshot} · {note.billingNoteDate.toLocaleDateString("th-TH")}
+        {groupLabel && (
+          <>
+            {" "}
+            · <span className="font-medium text-gray-700">กลุ่มส่วนลด: {groupLabel}</span>
+          </>
+        )}
       </p>
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">

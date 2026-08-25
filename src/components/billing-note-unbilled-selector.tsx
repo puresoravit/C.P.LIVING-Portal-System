@@ -14,6 +14,10 @@ type EligibleInvoice = {
   invoiceNumber: string;
   invoiceDateLabel: string;
   amount: number;
+  /** Smoke Test R9 — กลุ่มส่วนลดของ Invoice ใบนี้ (เชื่อมโยงสดจากชื่อปัจจุบัน) — ให้เห็น
+   * ก่อนสร้างว่าจะถูกแยกใบวางบิลตามกลุ่มไหนบ้าง (ระบบแยกให้อัตโนมัติเสมอ ไม่ว่าจะติ๊ก
+   * "ใช้ส่วนลด" หรือไม่ก็ตาม) */
+  groupLabel: string;
 };
 
 const STATE_KEY = "cp-bn-new-state";
@@ -118,6 +122,7 @@ export function BillingNoteUnbilledSelector({
                 </th>
                 <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
                 <th className="px-4 py-2 font-medium">วันที่</th>
+                <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
                 <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
               </tr>
             </thead>
@@ -129,13 +134,14 @@ export function BillingNoteUnbilledSelector({
                   </td>
                   <td className="px-4 py-2 font-mono">{inv.invoiceNumber}</td>
                   <td className="px-4 py-2">{inv.invoiceDateLabel}</td>
+                  <td className="px-4 py-2 text-gray-600">{inv.groupLabel}</td>
                   <td className="px-4 py-2 text-right">{inv.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t font-medium bg-gray-50">
-                <td colSpan={3} className="px-4 py-2 text-right">
+                <td colSpan={4} className="px-4 py-2 text-right">
                   สรุปยอดที่เลือก ({picked.length} ใบ)
                 </td>
                 <td className="px-4 py-2 text-right">{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
@@ -154,7 +160,8 @@ export function BillingNoteUnbilledSelector({
           <span>
             ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขา ณ วันวางบิล)
             <span className="block text-xs text-gray-500">
-              ใบที่หักส่วนลดแล้วตอนออกใบ จะไม่ถูกหักซ้ำ — ยอดส่วนลดแจงต่อใบในใบวางบิลหลังกดสร้าง
+              ใบที่หักส่วนลดแล้วตอนออกใบ จะไม่ถูกหักซ้ำ — ยอดส่วนลดแจงต่อใบในใบวางบิลหลังกดสร้าง —
+              ไม่ว่าจะติ๊กหรือไม่ ระบบแยกใบวางบิลคนละเลขที่ตามกลุ่มส่วนลดในตารางด้านบนให้อัตโนมัติเสมอ
             </span>
           </span>
         </label>

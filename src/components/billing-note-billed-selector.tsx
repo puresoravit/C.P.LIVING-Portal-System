@@ -8,6 +8,17 @@ import { useRouter } from "next/navigation";
 // ตารางแสดง) แต่ "พิมพ์" จริงเป็นระดับใบวางบิล จึงต้องยุบ Invoice ที่ติ๊กให้เหลือ Billing
 // Note ID ที่ไม่ซ้ำกันก่อนเข้าคิวพิมพ์ (Invoice หลายใบอาจอยู่ใบวางบิลเดียวกัน — พิมพ์ซ้ำ
 // ใบเดิมไม่ได้) — React State ล้วน หลีกเลี่ยง Vanilla Script Sync Bug แบบเดียวกับ Tab แรก
+//
+// Smoke Test R9 (2026-08-25) — Owner: ป้าย Tab "วางบิลแล้ว" ทำให้เข้าใจผิดว่าเอกสารถูก
+// "พิมพ์แล้ว" ทั้งที่จริง Invoice ย้ายมา Tab นี้ทันทีที่ถูกผูกกับใบวางบิลตอน *สร้าง* (ก่อน
+// กดพิมพ์จริงด้วยซ้ำ) — เพิ่มคอลัมน์สถานะใบวางบิลจริง (ยังไม่พิมพ์/พิมพ์แล้ว/ยกเลิก — ใช้
+// Badge สีเดียวกับหน้า List/Detail เดิมทุกประการ) + ส่วนลด/กลุ่ม ให้เห็นครบก่อนตัดสินใจ
+// พิมพ์ซ้ำ (Owner: "เพราะคือการพิมพ์ใหม่ ให้ใช้เงื่อนไขเดียวกับข้อสอง")
+const BN_STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  CONFIRMED: { label: "ยังไม่พิมพ์", className: "bg-yellow-100 text-yellow-700" },
+  PRINTED: { label: "พิมพ์แล้ว", className: "bg-green-100 text-green-700" },
+  CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
+};
 
 export function BillingNoteBilledTable({
   invoices,
@@ -18,8 +29,11 @@ export function BillingNoteBilledTable({
     invoiceNumber: string;
     invoiceDateLabel: string;
     amount: number;
+    groupLabel: string;
     billingNoteId: string;
     billingNoteNumber: string;
+    billingNoteStatus: string;
+    billingNoteApplyDiscount: boolean;
     printBackHref: string;
   }[];
   backHref: string;
@@ -81,46 +95,60 @@ export function BillingNoteBilledTable({
                 </th>
                 <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
                 <th className="px-4 py-2 font-medium">วันที่</th>
+                <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
                 <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
                 <th className="px-4 py-2 font-medium">ใบวางบิลที่ผูกอยู่</th>
+                <th className="px-4 py-2 font-medium">สถานะใบวางบิล</th>
+                <th className="px-4 py-2 font-medium">ส่วนลด</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-t">
-                  <td className="px-4 py-2">
-                    <input type="checkbox" checked={checked.has(inv.id)} onChange={() => toggleOne(inv.id)} />
-                  </td>
-                  <td className="px-4 py-2 font-mono">
-                    <a href={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
-                      {inv.invoiceNumber}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2">{inv.invoiceDateLabel}</td>
-                  <td className="px-4 py-2 text-right">{inv.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-2">
-                    <a
-                      href={`/billing-notes/${inv.billingNoteId}`}
-                      className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
-                    >
-                      {inv.billingNoteNumber}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <a href={inv.printBackHref} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-                      พิมพ์ซ้ำ
-                    </a>
-                  </td>
-                </tr>
-              ))}
+              {invoices.map((inv) => {
+                const status = BN_STATUS_LABEL[inv.billingNoteStatus] ?? BN_STATUS_LABEL.CONFIRMED;
+                return (
+                  <tr key={inv.id} className="border-t">
+                    <td className="px-4 py-2">
+                      <input type="checkbox" checked={checked.has(inv.id)} onChange={() => toggleOne(inv.id)} />
+                    </td>
+                    <td className="px-4 py-2 font-mono">
+                      <a href={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
+                        {inv.invoiceNumber}
+                      </a>
+                    </td>
+                    <td className="px-4 py-2">{inv.invoiceDateLabel}</td>
+                    <td className="px-4 py-2 text-gray-600">{inv.groupLabel}</td>
+                    <td className="px-4 py-2 text-right">{inv.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-2">
+                      <a
+                        href={`/billing-notes/${inv.billingNoteId}`}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
+                      >
+                        {inv.billingNoteNumber}
+                      </a>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${status.className}`}>{status.label}</span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">
+                      {inv.billingNoteApplyDiscount ? "ใช้ส่วนลด" : "ไม่ใช้ส่วนลด"}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <a href={inv.printBackHref} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                        พิมพ์ซ้ำ
+                      </a>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t font-medium bg-gray-50">
-                <td colSpan={3} className="px-4 py-2 text-right">
+                <td colSpan={4} className="px-4 py-2 text-right">
                   รวม ({invoices.length} ใบ)
                 </td>
                 <td className="px-4 py-2 text-right">{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
+                <td></td>
                 <td></td>
                 <td></td>
               </tr>

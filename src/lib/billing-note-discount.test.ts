@@ -10,7 +10,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { db } from "@/lib/db";
-import { resolveBillingNoteDiscounts, discountLinesByInvoiceId } from "./billing-note-discount";
+import { resolveBillingNoteDiscounts, discountLinesByInvoiceId, resolveNoteGroupLabel } from "./billing-note-discount";
 
 const mockDb = db as unknown as {
   discountRule: { findFirst: ReturnType<typeof vi.fn> };
@@ -123,5 +123,19 @@ describe("discountLinesByInvoiceId — อ่าน Snapshot Json กลับ�
     expect(map.size).toBe(2);
     expect(map.get("inv1")).toEqual({ invoiceId: "inv1", pct: 10, amount: 100, alreadyDiscounted: false, typeName: null });
     expect(map.get("inv2")?.alreadyDiscounted).toBe(true);
+  });
+});
+
+describe("resolveNoteGroupLabel — Label กลุ่มส่วนลดของใบวางบิล (Smoke Test R9)", () => {
+  it("ทุก Invoice กลุ่มเดียวกัน (ปกติหลัง R7 แยกใบตามกลุ่มเสมอ) → ใช้ชื่อกลุ่มนั้น", () => {
+    expect(resolveNoteGroupLabel(["กลุ่ม Box Mary", "กลุ่ม Box Mary"])).toBe("กลุ่ม Box Mary");
+  });
+
+  it("ไม่มี Invoice เลย → null (ไม่แสดง)", () => {
+    expect(resolveNoteGroupLabel([])).toBeNull();
+  });
+
+  it("ใบวางบิล Legacy ที่มีหลายกลุ่มปน (สร้างก่อน R7) → 'หลายกลุ่มส่วนลด' ไม่ฟันธงผิด", () => {
+    expect(resolveNoteGroupLabel(["กลุ่ม Box Mary", "กลุ่มที่นอนสปริง"])).toBe("หลายกลุ่มส่วนลด");
   });
 });

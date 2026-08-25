@@ -33,6 +33,7 @@ export function BillingNotePrintBody({
   showDiscount,
   grossTotal,
   discountTotal,
+  groupLabel,
 }: {
   invoices: BillingNotePrintInvoiceRow[];
   totalAmount: unknown;
@@ -42,9 +43,17 @@ export function BillingNotePrintBody({
   showDiscount?: boolean;
   grossTotal?: unknown;
   discountTotal?: unknown;
+  /** Smoke Test R9 (2026-08-25) — Owner: ไม่ว่าจะติ๊กใช้ส่วนลดหรือไม่ ใบวางบิลต้องบอกกลุ่ม
+   * ส่วนลดเสมอ (R7 แยกใบตามกลุ่มอยู่แล้ว) — null = ไม่แสดง (เช่นยังไม่มี Invoice เลย) */
+  groupLabel?: string | null;
 }) {
   return (
     <>
+      {groupLabel && (
+        <p className="text-[length:var(--print-body-size)] mb-[length:var(--print-block-gap)] font-medium">
+          กลุ่มส่วนลด: {groupLabel}
+        </p>
+      )}
       <p className="text-[length:var(--print-body-size)] mb-[length:var(--print-block-gap)]">บริษัทฯ ขอแจ้งรายละเอียดใบกำกับที่ครบกำหนดชำระแล้ว ดังต่อไปนี้</p>
 
       <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">

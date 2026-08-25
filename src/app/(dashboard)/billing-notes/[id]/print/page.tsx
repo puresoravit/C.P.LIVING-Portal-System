@@ -15,7 +15,7 @@ import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
-import { discountLinesByInvoiceId, liveTypeNamesByCode } from "@/lib/billing-note-discount";
+import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
@@ -69,6 +69,11 @@ export default async function BillingNotePrintPage(props: {
   const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
   const liveNames = await liveTypeNamesByCode(note.invoices.map((inv) => inv.productTypeCode));
   const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
+  // R9 — Owner: บนใบพิมพ์ต้องบอกกลุ่มส่วนลดเสมอ ไม่ว่าจะติ๊กใช้ส่วนลดหรือไม่ (ดูเหตุผลเต็ม
+  // ที่ resolveNoteGroupLabel)
+  const groupLabel = resolveNoteGroupLabel(
+    note.invoices.map((inv) => liveNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด")
+  );
 
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
     header: (
@@ -181,6 +186,7 @@ export default async function BillingNotePrintPage(props: {
         showDiscount={note.applyDiscount}
         grossTotal={grossTotal}
         discountTotal={grossTotal - Number(note.totalAmount)}
+        groupLabel={groupLabel}
       />
     </PrintPage>
   );

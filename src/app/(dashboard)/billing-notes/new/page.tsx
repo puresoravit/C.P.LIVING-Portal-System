@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { startOfMonth, endOfCurrentMonth, safeDateParam, todayInputValue } from "@/lib/date-utils";
 import { BillingNoteUnbilledSelector } from "@/components/billing-note-unbilled-selector";
 import { BillingNoteBilledTable } from "@/components/billing-note-billed-selector";
+import { liveTypeNamesByCode } from "@/lib/billing-note-discount";
 
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
@@ -50,11 +51,20 @@ export default async function NewBillingNotePage(props: {
         }),
         db.invoice.findMany({
           where: { customerId: selectedCustomerId, billingNoteId: { not: null }, status: "PRINTED", invoiceDate: invoiceDateFilter },
-          include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
+          // Smoke Test R9 (2026-08-25) — Owner: Tab "วางบิลแล้ว" เดิมไม่บอกว่าใบวางบิลที่
+          // ผูกอยู่ "พิมพ์แล้วจริงไหม" (Invoice ย้ายมา Tab นี้ทันทีที่ถูกผูกกับใบวางบิล
+          // ตอนสร้าง ไม่ใช่ตอนพิมพ์จริง — คนละความหมายกับ Invoice.status="PRINTED" ที่กรอง
+          // ไว้ข้างบน) — เพิ่ม status/applyDiscount ของ BillingNote มาแสดงด้วยเพื่อไม่ให้
+          // เข้าใจผิดว่า "วางบิลแล้ว" = "พิมพ์แล้ว" เสมอไป
+          include: { billingNote: { select: { id: true, billingNoteNumber: true, status: true, applyDiscount: true } } },
           orderBy: { invoiceDate: "asc" },
         }),
       ])
     : [[], []];
+  // R9 — ชื่อกลุ่มส่วนลดต่อ Invoice เชื่อมโยงสดกับชื่อปัจจุบันเสมอ (Pattern เดียวกับหน้า
+  // Detail/Print ของใบวางบิล — ดู liveTypeNamesByCode) ใช้แสดงทั้ง 2 Tab
+  const allCodes = [...eligibleInvoices, ...billedInvoices].map((inv) => inv.productTypeCode);
+  const liveGroupNames = await liveTypeNamesByCode(allCodes);
   const today = todayInputValue();
   const viewLinkParams = (billing: "unbilled" | "billed") =>
     new URLSearchParams({
@@ -162,8 +172,11 @@ export default async function NewBillingNotePage(props: {
             invoiceNumber: inv.invoiceNumber,
             invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
             amount: Number(inv.grandTotal),
+            groupLabel: liveGroupNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด",
             billingNoteId: inv.billingNote!.id,
             billingNoteNumber: inv.billingNote!.billingNoteNumber,
+            billingNoteStatus: inv.billingNote!.status,
+            billingNoteApplyDiscount: inv.billingNote!.applyDiscount,
             printBackHref: `/billing-notes/${inv.billingNote!.id}/print?back=${encodeURIComponent("/billing-notes/new?" + viewLinkParams("billed"))}`,
           }))}
           backHref={`/billing-notes/new?${viewLinkParams("billed")}`}
@@ -180,6 +193,7 @@ export default async function NewBillingNotePage(props: {
             invoiceNumber: inv.invoiceNumber,
             invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
             amount: Number(inv.grandTotal),
+            groupLabel: liveGroupNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด",
           }))}
           customerId={selectedCustomerId}
           billingNoteDate={today}
