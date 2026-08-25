@@ -27,6 +27,7 @@ export async function createProductType(formData: FormData): Promise<ActionResul
     code: formData.get("code"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
+    defaultDiscountPct: formData.get("defaultDiscountPct"),
     sortOrder: formData.get("sortOrder") || 0,
   });
   if (!raw.success) {
@@ -58,6 +59,7 @@ export async function updateProductType(id: string, formData: FormData): Promise
     code: formData.get("code"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
+    defaultDiscountPct: formData.get("defaultDiscountPct"),
     sortOrder: formData.get("sortOrder") || 0,
   });
   if (!raw.success) {

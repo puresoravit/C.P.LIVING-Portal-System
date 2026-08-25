@@ -32,7 +32,13 @@ export const PRINT_PROFILES: Record<
     label: "A4 — Laser/Inkjet ทั่วไป / Save as PDF",
     pageSize: "A4",
     margin: "10mm 12mm",
-    contentHeightMm: 297 - 20, // A4 297mm - (10mm บน + 10mm ล่าง)
+    // Production Smoke Test (2026-08-25) — เดิม 297-20 = เต็มพื้นที่พิมพ์พอดีเป๊ะ ทำให้
+    // .print-page-fill (min-height ตามค่านี้) ล้นเป็นหน้าที่ 2 เปล่าๆ ใน Safari เสมอ:
+    // Safari ไม่รองรับ @page { size } และใช้ Margin ของตัวเอง (~12mm) ที่ใหญ่กว่าที่เรา
+    // ประกาศ (10mm) → พื้นที่จริงเตี้ยกว่าที่คำนวณ + การแปลง mm→px มีปัดเศษ — หัก Buffer
+    // 14mm กันไว้ (Signature Block ขยับสูงขึ้นจากท้ายกระดาษเล็กน้อย มองไม่ออกด้วยตา)
+    // — Profile continuous (EPSON 9×11 ผ่าน Chrome) ทดสอบกับกระดาษจริงผ่านแล้ว ห้ามแตะ
+    contentHeightMm: 297 - 20 - 14,
   },
 };
 

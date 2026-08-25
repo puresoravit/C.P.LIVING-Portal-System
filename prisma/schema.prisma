@@ -190,6 +190,11 @@ model ProductType {
   code        String   @unique // ข้อ 6: TYPE A / TYPE B / TYPE C ... (ขยายได้ไม่ hardcode)
   name        String
   description String?
+  // Production Smoke Test (2026-08-25) — Owner: กำหนด % ส่วนลดตรงที่กลุ่มได้เลย ไม่ต้อง
+  // สร้าง DiscountRule รายลูกค้าทีละใบ — เป็น Fallback Tier ใหม่ใน getEffectiveDiscountPct
+  // (Branch Rule → Customer Rule → "ค่านี้" → 0%) — null = กลุ่มนี้ไม่มีส่วนลดตั้งต้น
+  // (พฤติกรรมเดิมทุกประการ) — DiscountRule เดิมยังทำงานเหมือนเดิมและ Override ค่านี้เสมอ
+  defaultDiscountPct Decimal? @db.Decimal(5, 2)
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())

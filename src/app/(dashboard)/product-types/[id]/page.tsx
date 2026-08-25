@@ -28,6 +28,15 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
         <div className="col-span-1 sm:col-span-2">
           <Field label="คำอธิบาย" name="description" defaultValue={productType.description ?? ""} />
         </div>
+        <Field
+          label="% ส่วนลดของกลุ่ม (เว้นว่าง = ไม่มี)"
+          name="defaultDiscountPct"
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          defaultValue={productType.defaultDiscountPct != null ? String(Number(productType.defaultDiscountPct)) : ""}
+        />
         <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" defaultValue={String(productType.sortOrder)} />
         <div className="col-span-1 sm:col-span-2 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>

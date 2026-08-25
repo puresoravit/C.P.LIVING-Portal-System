@@ -23,6 +23,7 @@ import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { RememberDraft } from "@/components/draft-return";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
@@ -40,8 +41,9 @@ function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
-export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function OrderDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ resumed?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "order.create")) redirect("/");
   // R6 Phase B — คุมว่าจะโชว์ลิงก์ไปหน้ารุ่นสินค้าตอนเลือกไซส์ที่ยังไม่มี Product จริงไหม
@@ -104,6 +106,15 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
 
   return (
     <div className="max-w-4xl">
+      <RememberDraft docKey="order" active={isDraft} url={`/orders/${order.id}`} />
+      {searchParams.resumed && isDraft && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <span>กลับมาที่เอกสารที่คีย์ค้างไว้ให้อัตโนมัติ</span>
+          <a href="/orders/new?fresh=1" className="font-medium text-blue-700 hover:underline">
+            ต้องการสร้างใบใหม่แทน? เริ่มเอกสารใหม่
+          </a>
+        </div>
+      )}
       <a href="/orders" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการออเดอร์
       </a>

@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => ({
     priceRule: { findFirst: vi.fn() },
     discountRule: { findFirst: vi.fn() },
     product: { findUniqueOrThrow: vi.fn() },
+    productType: { findUnique: vi.fn() },
     vatRate: { findFirst: vi.fn() },
   },
 }));
@@ -19,6 +20,7 @@ const mockDb = db as unknown as {
   priceRule: { findFirst: ReturnType<typeof vi.fn> };
   discountRule: { findFirst: ReturnType<typeof vi.fn> };
   product: { findUniqueOrThrow: ReturnType<typeof vi.fn> };
+  productType: { findUnique: ReturnType<typeof vi.fn> };
   vatRate: { findFirst: ReturnType<typeof vi.fn> };
 };
 
@@ -82,8 +84,42 @@ describe("getEffectiveDiscountPct — Discount Priority (ข้อ 15, 20) ผ�
     expect(result.discountPct.toString()).toBe("10");
   });
 
-  it("ไม่มี Discount Rule เลย -> Default 0% (ข้อ 15)", async () => {
+  // Smoke Test (2026-08-25) — Tier 3 ใหม่: % ส่วนลดตั้งต้นของกลุ่มส่วนลดเอง
+  it("ไม่มี Rule รายลูกค้า แต่กลุ่มมี defaultDiscountPct -> ใช้ % ของกลุ่ม (source GROUP)", async () => {
     mockDb.discountRule.findFirst.mockResolvedValue(null);
+    mockDb.productType.findUnique.mockResolvedValueOnce({ defaultDiscountPct: new Decimal(5) });
+
+    const result = await getEffectiveDiscountPct(params);
+
+    expect(result.source).toBe("GROUP");
+    expect(result.discountPct.toString()).toBe("5");
+  });
+
+  it("มี Rule รายลูกค้า -> Override % ของกลุ่มเสมอ (ไม่ query ProductType เลย)", async () => {
+    mockDb.discountRule.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ discountPct: new Decimal(10) });
+    // ไม่ queue mock ของ productType — ถ้าโดนเรียกจะได้ undefined และ expect ล่างจับได้ทันที
+    // (queue ไว้แล้วไม่ถูกใช้จะรั่วไป test ถัดไป เพราะ clearAllMocks ไม่ล้าง once-queue)
+
+    const result = await getEffectiveDiscountPct(params);
+
+    expect(result.source).toBe("CUSTOMER");
+    expect(result.discountPct.toString()).toBe("10");
+    expect(mockDb.productType.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("กลุ่มตั้ง defaultDiscountPct = 0 (ตั้งใจให้ 0%) -> source GROUP ไม่ใช่ DEFAULT", async () => {
+    mockDb.discountRule.findFirst.mockResolvedValue(null);
+    mockDb.productType.findUnique.mockResolvedValueOnce({ defaultDiscountPct: new Decimal(0) });
+
+    const result = await getEffectiveDiscountPct(params);
+
+    expect(result.source).toBe("GROUP");
+    expect(result.discountPct.toString()).toBe("0");
+  });
+
+  it("ไม่มี Rule และกลุ่มไม่ตั้ง % (null) -> Default 0% (พฤติกรรมเดิม ข้อ 15)", async () => {
+    mockDb.discountRule.findFirst.mockResolvedValue(null);
+    mockDb.productType.findUnique.mockResolvedValueOnce({ defaultDiscountPct: null });
 
     const result = await getEffectiveDiscountPct(params);
 

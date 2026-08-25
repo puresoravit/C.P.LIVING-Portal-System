@@ -79,7 +79,11 @@ export async function getEffectivePrice(params: {
  * หา % ส่วนลด ตาม Priority (ข้อ 15):
  *   1. Branch + Product Type Discount
  *   2. Customer + Product Type Discount (branchId = null)
- *   3. Default 0%
+ *   3. % ส่วนลดตั้งต้นของกลุ่มส่วนลดเอง (ProductType.defaultDiscountPct — Smoke Test 2026-08-25)
+ *   4. Default 0%
+ * Tier 3 ทำให้ตั้งส่วนลดครั้งเดียวที่กลุ่มแล้วมีผลกับทุกลูกค้า โดย Rule รายลูกค้า/สาขา
+ * (Tier 1-2) ยัง Override ได้เหมือนเดิมทุกประการ — ทุกเอกสาร (Order/Quotation/Tax
+ * Invoice) วิ่งผ่านฟังก์ชันนี้จุดเดียว จึงได้พฤติกรรมตรงกันอัตโนมัติ
  */
 export async function getEffectiveDiscountPct(params: {
   customerId: string;
@@ -87,7 +91,7 @@ export async function getEffectiveDiscountPct(params: {
   branchId: string | null;
   productTypeId: string;
   orderDate: Date;
-}): Promise<{ discountPct: Decimal; source: "BRANCH" | "CUSTOMER" | "DEFAULT" }> {
+}): Promise<{ discountPct: Decimal; source: "BRANCH" | "CUSTOMER" | "GROUP" | "DEFAULT" }> {
   const { customerId, branchId, productTypeId, orderDate } = params;
 
   const branchDiscount = branchId
@@ -115,6 +119,14 @@ export async function getEffectiveDiscountPct(params: {
     orderBy: { effectiveFrom: "desc" },
   });
   if (customerDiscount) return { discountPct: customerDiscount.discountPct, source: "CUSTOMER" };
+
+  const productType = await db.productType.findUnique({
+    where: { id: productTypeId },
+    select: { defaultDiscountPct: true },
+  });
+  if (productType?.defaultDiscountPct != null) {
+    return { discountPct: productType.defaultDiscountPct, source: "GROUP" };
+  }
 
   return { discountPct: new Decimal(0), source: "DEFAULT" };
 }

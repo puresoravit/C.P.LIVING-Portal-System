@@ -117,7 +117,10 @@ export const NAV_TREE: NavNode[] = [
       { type: "link", href: "/product-types", label: "กลุ่มส่วนลด", perm: "productType.view", icon: "layers" },
       { type: "link", href: "/product-models", label: "รุ่นสินค้า", perm: "product.view", icon: "layers" },
       { type: "link", href: "/prices", label: "ราคาเฉพาะลูกค้า / สาขา", perm: "price.view", icon: "priceTag" },
-      { type: "link", href: "/discounts", label: "ส่วนลดสินค้า", perm: "discount.view", icon: "percent" },
+      // Production Smoke Test (2026-08-25) — Owner: ถอดเมนู "ส่วนลดสินค้า" (/discounts) ออก
+      // เพราะกำหนด % ส่วนลดตรงที่ "กลุ่มส่วนลด" ได้แล้ว (ProductType.defaultDiscountPct) —
+      // Route /discounts และ DiscountRule Engine ยังอยู่ครบ (Rule รายลูกค้า/สาขาเดิมยังมีผล
+      // และ Override ค่ากลุ่มเสมอ) แค่ไม่โชว์ในเมนู — คืนบรรทัดนี้ได้เลยถ้าต้องการกลับมา
     ],
   },
   { type: "link", href: "/import", label: "นำเข้าข้อมูล / Excel", perm: "user.manage", icon: "upload" },

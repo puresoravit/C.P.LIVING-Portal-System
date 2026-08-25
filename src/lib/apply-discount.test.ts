@@ -12,6 +12,8 @@ vi.mock("@/lib/db", () => ({
     product: { findUniqueOrThrow: vi.fn() },
     priceRule: { findFirst: vi.fn() },
     discountRule: { findFirst: vi.fn() },
+    // Smoke Test (2026-08-25) — Tier GROUP ใหม่ใน getEffectiveDiscountPct query ตัวนี้เมื่อไม่มี Rule
+    productType: { findUnique: vi.fn() },
     vatRate: { findFirst: vi.fn() },
   },
 }));

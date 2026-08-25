@@ -4,6 +4,8 @@ import { createDraftOrder } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
+import { DraftRedirect } from "@/components/draft-return";
+import { Suspense } from "react";
 
 export default async function NewOrderPage() {
   const customers = await db.customer.findMany({
@@ -16,6 +18,9 @@ export default async function NewOrderPage() {
 
   return (
     <div className="max-w-xl">
+      <Suspense>
+        <DraftRedirect docKey="order" />
+      </Suspense>
       <a href="/orders" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการออเดอร์
       </a>

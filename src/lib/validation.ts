@@ -31,6 +31,16 @@ export const productTypeSchema = z.object({
   code: z.string().min(1, "กรุณากรอกรหัสกลุ่มส่วนลด"),
   name: z.string().min(1, "กรุณากรอกชื่อกลุ่มส่วนลด"),
   description: z.string().optional(),
+  // Smoke Test (2026-08-25) — % ส่วนลดตั้งต้นของกลุ่ม: เว้นว่าง = ไม่มีส่วนลดตั้งต้น (null)
+  // ต่างจาก 0 ที่แปลว่า "ตั้งใจให้ 0%" — ทั้งคู่ให้ผลลัพธ์ราคาเท่ากันแต่เก็บเจตนาต่างกัน
+  defaultDiscountPct: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.coerce
+      .number()
+      .min(0, "ส่วนลดต้องอยู่ระหว่าง 0-100%")
+      .max(100, "ส่วนลดต้องอยู่ระหว่าง 0-100%")
+      .nullable()
+  ),
   sortOrder: z.coerce.number().default(0),
 });
 

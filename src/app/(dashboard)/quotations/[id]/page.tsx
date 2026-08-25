@@ -21,6 +21,7 @@ import { ActionButton } from "@/components/action-button";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { SelectField } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { RememberDraft } from "@/components/draft-return";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -33,8 +34,9 @@ function money(n: unknown) {
   return Number(n ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2 });
 }
 
-export default async function QuotationDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function QuotationDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ resumed?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
   if (!can(role, "quotation.view")) redirect("/");
@@ -116,6 +118,15 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
 
   return (
     <div className="max-w-4xl">
+      <RememberDraft docKey="quotation" active={isDraft} url={`/quotations/${quotation.id}`} />
+      {searchParams.resumed && isDraft && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <span>กลับมาที่เอกสารที่คีย์ค้างไว้ให้อัตโนมัติ</span>
+          <a href="/quotations/new?fresh=1" className="font-medium text-blue-700 hover:underline">
+            ต้องการสร้างใบใหม่แทน? เริ่มเอกสารใหม่
+          </a>
+        </div>
+      )}
       <a href="/quotations" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการใบเสนอราคา
       </a>

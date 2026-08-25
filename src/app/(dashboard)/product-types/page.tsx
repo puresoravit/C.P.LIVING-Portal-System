@@ -13,8 +13,9 @@ export default async function ProductTypesPage() {
     <div className="max-w-3xl">
       <h1 className="text-lg font-semibold mb-1">กลุ่มส่วนลด</h1>
       <p className="text-sm text-gray-500 mb-4">
-        ระบบใช้กลุ่มส่วนลดเหล่านี้แยกบิลอัตโนมัติตอน Confirm Order และคำนวณส่วนลดตาม
-        ลูกค้า/สาขา — เพิ่มกลุ่มใหม่ได้เองที่นี่ โดยไม่ต้องแก้โปรแกรม
+        ระบบใช้กลุ่มส่วนลดเหล่านี้แยกบิลอัตโนมัติตอน Confirm Order — กำหนด % ส่วนลดของกลุ่ม
+        ได้ตรงนี้เลย มีผลกับทุกลูกค้าที่ซื้อสินค้าในกลุ่มนั้น (ถ้ามี Rule ส่วนลดรายลูกค้า/สาขา
+        อยู่เดิม Rule จะสำคัญกว่าและถูกใช้แทน % ของกลุ่ม)
       </p>
 
       <details className="mb-6 bg-white border rounded-lg">
@@ -25,6 +26,7 @@ export default async function ProductTypesPage() {
           <div className="col-span-1 sm:col-span-2">
             <Field label="คำอธิบาย" name="description" />
           </div>
+          <Field label="% ส่วนลดของกลุ่ม (เว้นว่าง = ไม่มี)" name="defaultDiscountPct" type="number" step="0.01" min="0" max="100" />
           <Field label="ลำดับการแสดงผล" name="sortOrder" type="number" />
           <div className="col-span-1 sm:col-span-2">
             <SubmitButton>บันทึกประเภทสินค้า</SubmitButton>
@@ -39,6 +41,7 @@ export default async function ProductTypesPage() {
             <tr>
               <th className="px-4 py-2 font-medium">รหัส</th>
               <th className="px-4 py-2 font-medium">ชื่อ</th>
+              <th className="px-4 py-2 font-medium">% ส่วนลดกลุ่ม</th>
               <th className="px-4 py-2 font-medium">จำนวนสินค้า</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
               <th className="px-4 py-2"></th>
@@ -49,6 +52,9 @@ export default async function ProductTypesPage() {
               <tr key={pt.id} className="border-t">
                 <td className="px-4 py-2 font-mono">{pt.code}</td>
                 <td className="px-4 py-2">{pt.name}</td>
+                <td className="px-4 py-2">
+                  {pt.defaultDiscountPct != null ? `${Number(pt.defaultDiscountPct).toLocaleString("th-TH")}%` : <span className="text-gray-400">—</span>}
+                </td>
                 <td className="px-4 py-2">{pt._count.products} รหัสสินค้า</td>
                 <td className="px-4 py-2">
                   <span
