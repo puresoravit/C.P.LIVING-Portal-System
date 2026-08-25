@@ -27,9 +27,6 @@ type EligibleInvoice = {
   discountAmount: number;
   /** true = หักส่วนลดไปแล้วตอนออกใบ (ไม่หักซ้ำ) */
   alreadyDiscounted: boolean;
-  /** มีค่า = ใบนี้ค้างอยู่ในใบวางบิลที่ยังไม่ยืนยันพิมพ์ — ติ๊กซ้ำไม่ได้ */
-  pendingNoteId: string | null;
-  pendingNoteNumber: string | null;
 };
 
 const STATE_KEY = "cp-bn-new-state";
@@ -42,15 +39,18 @@ export function BillingNoteUnbilledSelector({
   invoices,
   customerId,
   billingNoteDate,
+  returnTo,
 }: {
   invoices: EligibleInvoice[];
   customerId: string;
   billingNoteDate: string;
+  /** R11 — URL หน้านี้ (ลูกค้า/ช่วงวันที่เดิม) ส่งให้ Action ใช้เป็นปุ่ม "← กลับ" ของหน้าพิมพ์ */
+  returnTo: string;
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [applyDiscount, setApplyDiscount] = useState(false);
 
-  const selectable = useMemo(() => invoices.filter((inv) => !inv.pendingNoteId), [invoices]);
+  const selectable = invoices;
 
   // Restore เฉพาะตอน Mount แรกของหน้านี้ (URL เดียวกัน)
   useEffect(() => {
@@ -134,6 +134,7 @@ export function BillingNoteUnbilledSelector({
         <input key={inv.id} type="hidden" name="invoiceIds" value={inv.id} />
       ))}
       <input type="hidden" name="applyDiscount" value={applyDiscount ? "on" : ""} />
+      <input type="hidden" name="returnTo" value={returnTo} />
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
         <div className="overflow-x-auto">
@@ -151,42 +152,29 @@ export function BillingNoteUnbilledSelector({
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => {
-                const pending = !!inv.pendingNoteId;
-                return (
-                  <tr key={inv.id} className={`border-t ${pending ? "bg-gray-50 text-gray-400" : ""}`}>
-                    <td className="px-4 py-2">
-                      {!pending && <input type="checkbox" checked={checked.has(inv.id)} onChange={() => toggleOne(inv.id)} />}
-                    </td>
-                    <td className="px-4 py-2 font-mono whitespace-nowrap">{inv.invoiceNumber}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{inv.invoiceDateLabel}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      {inv.groupLabel}
-                      {pending && (
-                        <a
-                          href={`/billing-notes/${inv.pendingNoteId}`}
-                          className="ml-2 text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 hover:bg-yellow-200 whitespace-nowrap"
-                          title="ใบนี้อยู่ในใบวางบิลที่ยังไม่ยืนยันพิมพ์ — กดเพื่อไปพิมพ์/ยกเลิก"
-                        >
-                          ค้างใน {inv.pendingNoteNumber} (ยังไม่พิมพ์)
-                        </a>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-right">
-                      {pending ? (
-                        "—"
-                      ) : inv.alreadyDiscounted ? (
-                        <span className="text-xs text-gray-400">หักแล้วตอนออกใบ</span>
-                      ) : inv.discountPct > 0 ? (
-                        `${inv.discountPct}%`
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-right">{money(inv.amount)}</td>
-                  </tr>
-                );
-              })}
+              {invoices.map((inv) => (
+                <tr key={inv.id} className="border-t">
+                  <td className="px-4 py-2">
+                    <input type="checkbox" checked={checked.has(inv.id)} onChange={() => toggleOne(inv.id)} />
+                  </td>
+                  <td className="px-4 py-2 font-mono whitespace-nowrap">{inv.invoiceNumber}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{inv.invoiceDateLabel}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{inv.groupLabel}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                    {inv.alreadyDiscounted ? (
+                      <span className="text-xs text-gray-400">หักแล้วตอนออกใบ</span>
+                    ) : inv.discountPct > 0 ? (
+                      // R11 — Owner (ลูกศรแดง): แจกแจงเป็นจำนวนเงินด้วย ไม่ใช่แค่ %
+                      <span>
+                        {inv.discountPct}% <span className="text-xs text-red-600">(-{money(inv.discountAmount)})</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-right">{money(inv.amount)}</td>
+                </tr>
+              ))}
             </tbody>
             <tfoot>
               <tr className="border-t font-medium bg-gray-50">

@@ -31,7 +31,7 @@ async function requireUser() {
 // เดียวกับที่ Invoice แยกใบตามกลุ่มตอน Confirm Order) ภายในกลุ่มเรียงตามวัน→เลขที่ แล้ว
 // พาไปหน้าพิมพ์ต่อเนื่องทีละใบทันที (Print Queue เดิม) — ลูกค้าที่มีกลุ่มเดียว/ไม่มีกลุ่ม
 // ได้ใบเดียวเหมือนเดิมทุกประการ
-export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string, applyDiscount = false) {
+export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string, applyDiscount = false, returnTo?: string) {
   const user = await requireUser();
   if (!can(user.role, "billingNote.create")) throw new Error("FORBIDDEN");
 
@@ -135,8 +135,12 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
 
   revalidatePath("/billing-notes");
   // R7 — Owner Flow ข้อ 4: สร้างเสร็จ "ไปหน้าปริ้นได้" เลย — หลายใบ = Print Queue ต่อเนื่อง
+  // R11 — Owner ข้อ 3: ปุ่ม "← กลับ" ของหน้าพิมพ์ต้องพากลับหน้าเลือกใบเดิม (ลูกค้า/ช่วงวันที่
+  // เดิม) ไม่ใช่หน้ารายการ — Validate เป็น Internal Path ใต้ /billing-notes/new เท่านั้น
+  const safeReturnTo =
+    returnTo && returnTo.startsWith("/billing-notes/new") && !returnTo.startsWith("//") ? returnTo : "/billing-notes/new";
   const printParams = new URLSearchParams();
-  printParams.set("back", "/billing-notes");
+  printParams.set("back", safeReturnTo);
   if (createdIds.length > 1) printParams.set("queue", createdIds.slice(1).join(","));
   redirect(`/billing-notes/${createdIds[0]}/print?${printParams.toString()}`);
 }
@@ -146,6 +150,7 @@ export async function createBillingNoteAction(formData: FormData) {
   const billingNoteDate = String(formData.get("billingNoteDate"));
   const invoiceIds = formData.getAll("invoiceIds").map(String);
   const applyDiscount = formData.get("applyDiscount") === "on";
+  const returnTo = String(formData.get("returnTo") || "");
   // Owner UAT Bug Fix — Submit โดยไม่เลือกใบไหนเลย: เดิม throw ทะลุเป็น Error Boundary
   // เต็มหน้า → เด้งกลับหน้าเดิมพร้อมข้อความสุภาพแทน (ปกติปุ่มถูก disabled ฝั่ง Client
   // อยู่แล้ว — Guard นี้รองรับกรณี JS ถูกปิด) — Validation Rule เดิมใน createBillingNote
@@ -153,7 +158,7 @@ export async function createBillingNoteAction(formData: FormData) {
   if (invoiceIds.length === 0) {
     redirect(`/billing-notes/new?customerId=${encodeURIComponent(customerId)}&err=noneSelected`);
   }
-  await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount);
+  await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount, returnTo);
 }
 
 // Smoke Test R5 (2026-08-25) — PRINTED Checkpoint ของใบวางบิล (Pattern เดียวกับ

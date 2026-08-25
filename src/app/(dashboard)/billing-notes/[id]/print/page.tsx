@@ -15,7 +15,7 @@ import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
-import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel } from "@/lib/billing-note-discount";
+import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel, resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
@@ -30,7 +30,7 @@ function addDays(date: Date, days: number): Date {
 // Item) ตามที่ยืนยันไว้ ห้ามเปลี่ยนเป็น Product Item Table ใน Phase D นี้
 export default async function BillingNotePrintPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; queue?: string }>;
+  searchParams: Promise<{ back?: string; queue?: string; discount?: string }>;
 }) {
   const params = await props.params;
   const searchParams = await props.searchParams;
@@ -66,7 +66,7 @@ export default async function BillingNotePrintPage(props: {
   // Smoke Test (2026-08-25) — ยอด/% อ่านจาก Snapshot ตอนสร้าง (ตัวเลขนิ่งตลอดกาล) แต่
   // "ชื่อกลุ่ม" เชื่อมโยงสดกับชื่อปัจจุบันเสมอ (R5 — Owner ยืนยัน: เปลี่ยนชื่อกลุ่มแล้ว
   // พิมพ์ซ้ำต้องเห็นชื่อใหม่) Snapshot typeName เป็นแค่ Fallback เมื่อกลุ่มถูกลบไปแล้ว
-  const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
+  let discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
   const liveNames = await liveTypeNamesByCode(note.invoices.map((inv) => inv.productTypeCode));
   const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
   // R9 — Owner: บนใบพิมพ์ต้องบอกกลุ่มส่วนลดเสมอ ไม่ว่าจะติ๊กใช้ส่วนลดหรือไม่ (ดูเหตุผลเต็ม
@@ -74,6 +74,45 @@ export default async function BillingNotePrintPage(props: {
   const groupLabel = resolveNoteGroupLabel(
     note.invoices.map((inv) => liveNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด")
   );
+
+  // Smoke Test R11 (2026-08-25) — Owner ข้อ 5: ตอนพิมพ์/พิมพ์ซ้ำ (ทุกสถานะ) เลือกได้เสมอว่า
+  // จะ "แจง+หักส่วนลด" หรือ "แสดงจำนวนเงินเต็ม" ผ่าน ?discount=1|0 (ไม่ส่ง = ตามที่ตั้งไว้
+  // ตอนสร้างใบ) — มีผลเฉพาะการแสดงบนกระดาษเท่านั้น ยอดที่บันทึกไว้ในระบบไม่เปลี่ยน:
+  //  - ใบที่สร้างแบบหักส่วนลด → เปิด: ใช้ Snapshot เดิมเป๊ะ / ปิด: โชว์ยอดเต็มทุกใบ
+  //  - ใบที่สร้างแบบราคาเต็ม → เปิด: คำนวณส่วนลดสด ณ วันที่ของใบ (Resolver ตัวเดียวกับตอน
+  //    สร้าง — กติกาไม่หักซ้ำครบ) / ปิด: เหมือนเดิม
+  const discountParam = searchParams.discount;
+  const showDiscount = discountParam === "1" ? true : discountParam === "0" ? false : note.applyDiscount;
+  let displayTotal = Number(note.totalAmount);
+  let displayDiscountTotal = grossTotal - Number(note.totalAmount);
+  if (showDiscount && !note.applyDiscount) {
+    const live = await resolveBillingNoteDiscounts({
+      customerId: note.customerId,
+      billingNoteDate: note.billingNoteDate,
+      invoices: note.invoices.map((inv) => ({
+        id: inv.id,
+        branchId: inv.branchId,
+        productTypeCode: inv.productTypeCode,
+        grandTotal: inv.grandTotal,
+        discountAmount: inv.discountAmount,
+      })),
+    });
+    discountByInvoice = new Map(live.lines.map((line) => [line.invoiceId, line]));
+    displayDiscountTotal = Number(live.discountTotal);
+    displayTotal = grossTotal - displayDiscountTotal;
+  } else if (!showDiscount) {
+    displayTotal = grossTotal;
+    displayDiscountTotal = 0;
+  }
+
+  // Toggle Links — คงพารามิเตอร์ back/queue เดิมไว้ครบ (สลับได้กลางคิวพิมพ์โดยไม่หลุดคิว)
+  const toggleHref = (mode: "1" | "0") => {
+    const p = new URLSearchParams();
+    if (queueBackHref) p.set("back", queueBackHref);
+    if (queueIds.length > 0) p.set("queue", queueIds.join(","));
+    p.set("discount", mode);
+    return `/billing-notes/${note.id}/print?${p.toString()}`;
+  };
 
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
     header: (
@@ -159,6 +198,25 @@ export default async function BillingNotePrintPage(props: {
       nextHref={nextHref}
       nextRemaining={queueIds.length}
     >
+      {/* R11 — Owner ข้อ 5: สลับรูปแบบส่วนลดได้ทุกครั้งที่พิมพ์ (Screen-only ไม่ติดไปกับกระดาษ)
+          — มีผลเฉพาะใบพิมพ์ ไม่แก้ยอดที่บันทึกไว้ในระบบ */}
+      <div className="print:hidden mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-gray-600">ส่วนลดบนใบพิมพ์:</span>
+        <a
+          href={toggleHref("1")}
+          className={`rounded px-3 py-1 border ${showDiscount ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+        >
+          แจง + หักส่วนลด
+        </a>
+        <a
+          href={toggleHref("0")}
+          className={`rounded px-3 py-1 border ${!showDiscount ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+        >
+          แสดงจำนวนเงินเต็ม
+        </a>
+        <span className="text-xs text-gray-400">(มีผลเฉพาะใบพิมพ์นี้ — ยอดที่บันทึกในระบบไม่เปลี่ยน)</span>
+      </div>
+
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (
@@ -180,12 +238,12 @@ export default async function BillingNotePrintPage(props: {
             typeName: liveNames.get(inv.productTypeCode) ?? line?.typeName,
           };
         })}
-        totalAmount={note.totalAmount}
-        amountInWords={toThaiBahtText(note.totalAmount)}
+        totalAmount={displayTotal}
+        amountInWords={toThaiBahtText(displayTotal)}
         footerNote={template.footerNote}
-        showDiscount={note.applyDiscount}
+        showDiscount={showDiscount}
         grossTotal={grossTotal}
-        discountTotal={grossTotal - Number(note.totalAmount)}
+        discountTotal={displayDiscountTotal}
         groupLabel={groupLabel}
       />
     </PrintPage>

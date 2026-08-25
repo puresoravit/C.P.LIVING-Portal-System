@@ -93,7 +93,10 @@ export const NAV_TREE: NavNode[] = [
       // ใหม่/หน้าเดิมที่ยังไม่เคยผูก Sidebar) — Permission ใช้ตัวเดียวกับที่หน้า List เอง
       // เช็คอยู่แล้ว (billingNote.create/repairNote.create) เหมือน Pattern ของ /orders ที่
       // ใช้ order.create ข้างบนนี้ทุกประการ (ไม่มี .view แยกต่างหากในระบบนี้)
-      { type: "link", href: "/billing-notes", label: "เอกสารใบวางบิล", perm: "billingNote.create", icon: "billing" },
+      // Smoke Test R11 (2026-08-25) — Owner: ถอดเมนู "เอกสารใบวางบิล" (/billing-notes) ออก
+      // — งานใบวางบิลทั้งหมด (สร้าง/พิมพ์/พิมพ์ซ้ำ/ดูสถานะ) ทำผ่าน "สร้างเอกสาร → ใบวางบิล"
+      // ครบแล้ว Route /billing-notes ยังอยู่ (ลิงก์ปุ่มกลับ/รายละเอียดภายในยังใช้ได้) แค่ไม่
+      // โชว์ในเมนู — คืนบรรทัดนี้ได้เลยถ้าต้องการกลับมา (Pattern เดียวกับ /discounts)
       { type: "link", href: "/repair-notes", label: "เอกสารใบส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create", icon: "repair" },
     ],
   },

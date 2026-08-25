@@ -3,6 +3,9 @@ import { startOfMonth, endOfCurrentMonth, safeDateParam, todayInputValue } from 
 import { BillingNoteUnbilledSelector } from "@/components/billing-note-unbilled-selector";
 import { BillingNoteBilledTable } from "@/components/billing-note-billed-selector";
 import { liveTypeNamesByCode, resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
+import { autoReleaseUnprintedBillingNotes } from "@/lib/billing-note-release";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
@@ -27,9 +30,18 @@ export default async function NewBillingNotePage(props: {
   searchParams: Promise<{ customerId?: string; dateFrom?: string; dateTo?: string; billing?: string; err?: string }>;
 }) {
   const searchParams = await props.searchParams;
+  const session = await getServerSession(authOptions);
+  const sessionUserId = ((session?.user as any)?.id as string) ?? "";
   const customers = await db.customer.findMany({ where: { active: true }, orderBy: { companyName: "asc" } });
 
   const selectedCustomerId = searchParams.customerId;
+
+  // Smoke Test R11 (2026-08-25) — Owner ข้อ 4: กลับมาหน้านี้โดยมีใบวางบิลที่ยังไม่ยืนยัน
+  // พิมพ์ค้างอยู่ = ถือว่าละทิ้ง → ระบบยกเลิกใบนั้นให้อัตโนมัติ Invoice กลับมา "ยังไม่วางบิล"
+  // พร้อมใช้ทันที ไม่มีสถานะค้างใดๆ ทั้งสิ้น (ดูเหตุผลเต็มใน billing-note-release.ts)
+  if (selectedCustomerId && sessionUserId) {
+    await autoReleaseUnprintedBillingNotes(selectedCustomerId, sessionUserId);
+  }
   const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
   const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
   // Owner UAT — ต้องดู/สลับได้ทั้ง 2 สถานะของ PRINTED Invoice ในหน้านี้เลย (ยังไม่วางบิล
@@ -43,13 +55,10 @@ export default async function NewBillingNotePage(props: {
   // ไม่มี Time Component จริง (เก็บเป็นวันที่ล้วนตอนสร้างเอกสารเสมอ) จึง lte ตรงๆ ครอบคลุม
   // ทั้งวันนั้นถูกต้องอยู่แล้ว ไม่ต้องเติม 23:59:59 เพิ่ม
   const invoiceDateFilter = { gte: new Date(dateFrom), lte: new Date(dateTo) };
-  // Smoke Test R10 (2026-08-25) — Owner ยืนยัน Semantic สุดท้าย: Invoice จะถือว่า "วางบิล
-  // แล้ว" ก็ต่อเมื่อใบวางบิลที่ผูกอยู่ผ่านการยืนยัน "พิมพ์สำเร็จ" แล้วเท่านั้น (status=
-  // PRINTED) — เดิมย้าย Tab ทันทีที่กดสร้างใบ (ยังไม่พิมพ์เลย) ทำให้ดูเหมือน Invoice หายไป
-  // เองทั้งที่ยังไม่ได้ทำอะไร — Tab "ยังไม่วางบิล" จึงรวม Invoice ที่ถูกผูกกับใบวางบิลที่
-  // "ยังไม่พิมพ์" ด้วย (โชว์ Badge บอกว่าค้างอยู่ในใบไหน ติ๊กซ้ำไม่ได้ — จะเอาคืนต้องยกเลิก
-  // ใบนั้นก่อน ซึ่งปลด Invoice กลับมาให้อัตโนมัติ) — Guard กันวางบิลซ้ำเดิม (billingNoteId
-  // ต้อง null ตอนสร้าง + CAS ใน Transaction) ไม่แตะเลย
+  // Smoke Test R10/R11 (2026-08-25) — Owner ยืนยัน Semantic สุดท้าย: Invoice ถือว่า "วางบิล
+  // แล้ว" เมื่อใบวางบิลผ่านการยืนยัน "พิมพ์สำเร็จ" (status=PRINTED) เท่านั้น — ใบที่สร้าง
+  // แล้วละทิ้ง (ไม่ยืนยันพิมพ์) ถูก Auto-release ไปแล้วตอนต้นฟังก์ชันนี้ Invoice จึงกลับมา
+  // เป็น billingNoteId=null ปกติ ไม่มีสถานะค้างใดๆ (Owner ข้อ 4)
   const [eligibleInvoices, billedInvoices] = selectedCustomerId
     ? await Promise.all([
         db.invoice.findMany({
@@ -57,9 +66,8 @@ export default async function NewBillingNotePage(props: {
             customerId: selectedCustomerId,
             status: "PRINTED",
             invoiceDate: invoiceDateFilter,
-            OR: [{ billingNoteId: null }, { billingNote: { is: { status: "CONFIRMED" } } }],
+            billingNoteId: null,
           },
-          include: { billingNote: { select: { id: true, billingNoteNumber: true, status: true } } },
           orderBy: { invoiceDate: "asc" },
         }),
         db.invoice.findMany({
@@ -81,9 +89,8 @@ export default async function NewBillingNotePage(props: {
   const today = todayInputValue();
   // R10 — Owner (มาร์คแดงในรูป): ตารางเลือกใบต้องโชว์ % ส่วนลดต่อใบ และสรุปยอดต้องหัก
   // ส่วนลดให้ดูล่วงหน้าเมื่อติ๊ก "ใช้ส่วนลด" — Preview ใช้ Resolver ตัวเดียวกับตอนสร้างจริง
-  // เป๊ะ (resolveBillingNoteDiscounts ณ วันนี้) ตัวเลขจึงตรงกับใบวางบิลที่จะออกเสมอ —
-  // คำนวณเฉพาะใบที่ยังเลือกได้ (ไม่ติดใบวางบิลค้าง)
-  const selectableForPreview = eligibleInvoices.filter((inv) => !inv.billingNote);
+  // เป๊ะ (resolveBillingNoteDiscounts ณ วันนี้) ตัวเลขจึงตรงกับใบวางบิลที่จะออกเสมอ
+  const selectableForPreview = eligibleInvoices;
   const discountPreview = selectedCustomerId
     ? await resolveBillingNoteDiscounts({
         customerId: selectedCustomerId,
@@ -234,13 +241,12 @@ export default async function NewBillingNotePage(props: {
               discountPct: preview?.pct ?? 0,
               discountAmount: preview?.amount ?? 0,
               alreadyDiscounted: preview?.alreadyDiscounted ?? false,
-              // R10 — ใบที่ค้างอยู่ในใบวางบิลที่ยังไม่ยืนยันพิมพ์: โชว์แต่ติ๊กซ้ำไม่ได้
-              pendingNoteId: inv.billingNote?.id ?? null,
-              pendingNoteNumber: inv.billingNote?.billingNoteNumber ?? null,
             };
           })}
           customerId={selectedCustomerId}
           billingNoteDate={today}
+          // R11 — Owner ข้อ 3: กด "← กลับ" จากหน้าพิมพ์ต้องกลับมาหน้านี้ (ลูกค้า/ช่วงวันที่เดิม)
+          returnTo={`/billing-notes/new?${viewLinkParams("unbilled")}`}
         />
       )}
 
