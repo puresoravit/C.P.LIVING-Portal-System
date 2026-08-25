@@ -32,5 +32,12 @@ export const config = {
   // ด้วย CSP (script-src 'self' ไม่อนุญาต Redirect ข้าม Origin) → App-Switch Transition
   // ไม่ทำงานเลยตั้งแต่ต้น — Bug เดียวกันกับที่เคยแก้ให้ "brand" ไปแล้วก่อนหน้า (Static
   // Asset สาธารณะ ไม่มีข้อมูลอ่อนไหว)
-  matcher: ["/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand|cp-app-switch\\.js).*)"],
+  // Post-Go-live (2026-08-25) — เพิ่ม icon.png/apple-icon.png (Next.js App Router Icon
+  // Convention — src/app/icon.png ก่อนหน้า) เข้าข้อยกเว้นด้วย Bug เดียวกันเป๊ะ: Browser
+  // ขอ Favicon ตั้งแต่ก่อน Login เสมอ (Tab ทุกหน้ารวม Splash) — ไม่ยกเว้นแล้วโดนเด้ง 307
+  // ไป /login ทำให้ Browser แสดง Fallback ตัวอักษรแทนโลโก้จริง — Static Asset สาธารณะ
+  // ไม่มีข้อมูลอ่อนไหวเหมือนกัน
+  matcher: [
+    "/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand|cp-app-switch\\.js|icon\\.png|apple-icon\\.png).*)",
+  ],
 };
