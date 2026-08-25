@@ -12,10 +12,12 @@ type BillingNotePrintInvoiceRow = {
   grandTotal: unknown;
   // Smoke Test (2026-08-25) — ส่วนลดระดับใบวางบิล (แจงต่อใบตามที่ Owner เลือก) — Optional
   // ทั้งชุด: หน้า Print ส่งมาเฉพาะใบวางบิลที่ applyDiscount จริง ส่วน Designer/ใบ Legacy
-  // ไม่ส่ง → Layout เดิมทุกประการ
+  // ไม่ส่ง → Layout เดิมทุกประการ — typeName: Owner แจ้งลูกค้าเสมอว่า % นี้เป็นของกลุ่มไหน
+  // จึงพิมพ์ชื่อกลุ่มกำกับต่อใบด้วย (R4)
   discountAmount?: number;
   discountPct?: number;
   alreadyDiscounted?: boolean;
+  typeName?: string | null;
 };
 
 // R6 Phase E — แยกออกมาจากเดิมที่เคย Inline อยู่ในหน้า Print ตรงๆ (billing-notes/[id]/
@@ -68,7 +70,7 @@ export function BillingNotePrintBody({
                   {inv.alreadyDiscounted
                     ? "หักแล้วตอนออกใบ"
                     : (inv.discountAmount ?? 0) > 0
-                      ? `${money(inv.discountAmount)} (${inv.discountPct}%)`
+                      ? `${money(inv.discountAmount)} (${inv.discountPct}%${inv.typeName ? ` — ${inv.typeName}` : ""})`
                       : "—"}
                 </td>
               )}

@@ -26,6 +26,9 @@ export type BillingNoteDiscountLine = {
   amount: number;
   /** true = ใบนี้หักส่วนลดไปแล้วตอนออกใบ จึงไม่หักซ้ำ (pct/amount เป็น 0 เสมอ) */
   alreadyDiscounted: boolean;
+  /** Smoke Test R4 — ชื่อกลุ่มส่วนลดของใบนี้ (Snapshot ณ วันวางบิล — Owner แจ้งลูกค้าว่า
+   * "% นี้เป็นของกลุ่มไหน" ต่อใบ INV) — null = ไม่ระบุกลุ่ม/กลุ่มถูกลบไปแล้ว */
+  typeName: string | null;
 };
 
 export type BillingNoteDiscountResolution = {
@@ -48,35 +51,35 @@ export async function resolveBillingNoteDiscounts(params: {
   let discountTotal = new Decimal(0);
 
   // Cache การ Map code→ProductType ต่อการเรียกครั้งเดียว (Invoice หลายใบมักกลุ่มซ้ำกัน)
-  const typeIdByCode = new Map<string, string | null>();
+  const typeByCode = new Map<string, { id: string; name: string } | null>();
 
   for (const inv of params.invoices) {
-    // กติกาข้อ 1 — ไม่หักซ้ำ
+    let type = typeByCode.get(inv.productTypeCode);
+    if (type === undefined) {
+      type = await db.productType.findUnique({
+        where: { code: inv.productTypeCode },
+        select: { id: true, name: true },
+      });
+      typeByCode.set(inv.productTypeCode, type ?? null);
+    }
+    const typeName = type?.name ?? null;
+
+    // กติกาข้อ 1 — ไม่หักซ้ำ (ยังแนบชื่อกลุ่มให้แสดงผลได้ตามที่ Owner ขอ)
     if (inv.discountAmount.greaterThan(0)) {
-      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: true });
+      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: true, typeName });
       continue;
     }
 
-    let typeId = typeIdByCode.get(inv.productTypeCode);
-    if (typeId === undefined) {
-      const type = await db.productType.findUnique({
-        where: { code: inv.productTypeCode },
-        select: { id: true },
-      });
-      typeId = type?.id ?? null;
-      typeIdByCode.set(inv.productTypeCode, typeId);
-    }
-
-    if (!typeId) {
+    if (!type) {
       // GEN (ไม่ระบุกลุ่ม) หรือกลุ่มถูกลบไปแล้ว → 0% (Semantic เดียวกับ order-preview)
-      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: false });
+      lines.push({ invoiceId: inv.id, pct: 0, amount: 0, alreadyDiscounted: false, typeName: null });
       continue;
     }
 
     const { discountPct } = await getEffectiveDiscountPct({
       customerId: params.customerId,
       branchId: inv.branchId,
-      productTypeId: typeId,
+      productTypeId: type.id,
       orderDate: params.billingNoteDate,
     });
     const amount = roundMoney(inv.grandTotal.mul(discountPct).div(100));
@@ -86,6 +89,7 @@ export async function resolveBillingNoteDiscounts(params: {
       pct: Number(discountPct),
       amount: Number(amount),
       alreadyDiscounted: false,
+      typeName,
     });
   }
 
@@ -105,6 +109,7 @@ export function discountLinesByInvoiceId(detail: unknown): Map<string, BillingNo
         pct: Number(line.pct) || 0,
         amount: Number(line.amount) || 0,
         alreadyDiscounted: Boolean(line.alreadyDiscounted),
+        typeName: typeof line.typeName === "string" ? line.typeName : null,
       });
     }
   }

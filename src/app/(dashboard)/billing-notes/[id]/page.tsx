@@ -97,7 +97,10 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
                         <span className="text-xs text-gray-400 whitespace-nowrap">หักแล้วตอนออกใบ</span>
                       ) : discountAmount > 0 ? (
                         <span className="whitespace-nowrap">
-                          {money(discountAmount)} <span className="text-xs text-gray-500">({line!.pct}%)</span>
+                          {money(discountAmount)}{" "}
+                          <span className="text-xs text-gray-500">
+                            ({line!.pct}%{line!.typeName ? ` — ${line!.typeName}` : ""})
+                          </span>
                         </span>
                       ) : (
                         <span className="text-gray-400">—</span>

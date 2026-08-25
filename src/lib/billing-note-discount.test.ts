@@ -24,7 +24,7 @@ beforeEach(() => {
   // productType.findUnique ถูกเรียก 2 แบบ: where.code (Map code→id ของ lib นี้เอง) และ
   // where.id (Tier GROUP ใน getEffectiveDiscountPct) — แยกพฤติกรรมตาม Argument จริง
   mockDb.productType.findUnique.mockImplementation(async (args: any) => {
-    if (args?.where?.code === "A") return { id: "typeA-id" };
+    if (args?.where?.code === "A") return { id: "typeA-id", name: "กลุ่ม Box Mary" };
     if (args?.where?.code) return null; // Code ที่ไม่รู้จัก (เช่น GEN)
     if (args?.where?.id === "typeA-id") return { defaultDiscountPct: new Decimal(10) };
     return null;
@@ -45,7 +45,7 @@ describe("resolveBillingNoteDiscounts — ส่วนลดระดับใ�
       ],
     });
 
-    expect(result.lines).toEqual([{ invoiceId: "inv1", pct: 10, amount: 100, alreadyDiscounted: false }]);
+    expect(result.lines).toEqual([{ invoiceId: "inv1", pct: 10, amount: 100, alreadyDiscounted: false, typeName: "กลุ่ม Box Mary" }]);
     expect(result.discountTotal.toString()).toBe("100");
   });
 
@@ -58,8 +58,8 @@ describe("resolveBillingNoteDiscounts — ส่วนลดระดับใ�
       ],
     });
 
-    expect(result.lines[0]).toEqual({ invoiceId: "inv1", pct: 0, amount: 0, alreadyDiscounted: true });
-    expect(result.lines[1]).toEqual({ invoiceId: "inv2", pct: 10, amount: 200, alreadyDiscounted: false });
+    expect(result.lines[0]).toEqual({ invoiceId: "inv1", pct: 0, amount: 0, alreadyDiscounted: true, typeName: "กลุ่ม Box Mary" });
+    expect(result.lines[1]).toEqual({ invoiceId: "inv2", pct: 10, amount: 200, alreadyDiscounted: false, typeName: "กลุ่ม Box Mary" });
     expect(result.discountTotal.toString()).toBe("200");
   });
 
@@ -71,7 +71,7 @@ describe("resolveBillingNoteDiscounts — ส่วนลดระดับใ�
       ],
     });
 
-    expect(result.lines).toEqual([{ invoiceId: "inv1", pct: 0, amount: 0, alreadyDiscounted: false }]);
+    expect(result.lines).toEqual([{ invoiceId: "inv1", pct: 0, amount: 0, alreadyDiscounted: false, typeName: null }]);
     expect(result.discountTotal.toString()).toBe("0");
   });
 
@@ -121,7 +121,7 @@ describe("discountLinesByInvoiceId — อ่าน Snapshot Json กลับ�
       { bad: "row" },
     ]);
     expect(map.size).toBe(2);
-    expect(map.get("inv1")).toEqual({ invoiceId: "inv1", pct: 10, amount: 100, alreadyDiscounted: false });
+    expect(map.get("inv1")).toEqual({ invoiceId: "inv1", pct: 10, amount: 100, alreadyDiscounted: false, typeName: null });
     expect(map.get("inv2")?.alreadyDiscounted).toBe(true);
   });
 });

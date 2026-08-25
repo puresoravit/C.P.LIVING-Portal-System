@@ -31,17 +31,18 @@ export const PRINT_PROFILES: Record<
   a4: {
     label: "A4 — Laser/Inkjet ทั่วไป / Save as PDF",
     pageSize: "A4",
-    // Smoke Test R3 (2026-08-25) — Owner: หัวกระดาษ/ท้ายกระดาษห่างขอบเกินไป — ลด Margin
-    // ประกาศจาก 10mm/12mm เหลือ 6mm/10mm (Chrome ใช้ค่านี้ตรงๆ ส่วน Safari จะถูกจำกัดด้วย
-    // Margin ขั้นต่ำของ Printer เอง ค่าเราเล็กกว่าก็ไม่ล้นเพิ่ม)
-    margin: "6mm 10mm",
-    // ประวัติการจูน (Smoke Test 2026-08-25): เดิม 297-20 เต็มพื้นที่พอดีเป๊ะ → Safari ล้น
-    // เป็นหน้า 2 เสมอ (Safari ไม่รองรับ @page{size} + ใช้ Margin ตัวเองที่ใหญ่กว่า + ปัดเศษ
-    // mm→px) → หัก 14mm ยังเกยนิด → 28mm หายล้นแต่ท้ายกระดาษห่างไป → รอบนี้ Margin ประกาศ
-    // ลดลง 8mm (บน+ล่าง) ดูดพื้นที่คืนมา แล้วคง Buffer สุทธิ ~16mm กันล้นไว้:
-    // 297 - 12 (Margin ใหม่) - 16 (Buffer) = 269mm — Profile continuous (EPSON 9×11
-    // ผ่าน Chrome) ทดสอบกับกระดาษจริงผ่านแล้ว ห้ามแตะ
-    contentHeightMm: 297 - 12 - 16,
+    // Smoke Test R4 (2026-08-25) — จูนตามมาร์คสีแดงของ Owner บนกระดาษจริง: หัวกระดาษขึ้น
+    // อีกนิด + ท้ายกระดาษลงอีกนิด — Margin บน-ล่าง 6mm → 4mm (Chrome/Safari รุ่นใหม่รองรับ
+    // @page margin — ตัวจำกัดจริงคือ Margin ขั้นต่ำของ Printer Driver ค่าเราเล็กกว่าก็แค่
+    // ถูก Clamp ไม่ล้นเพิ่ม)
+    margin: "4mm 10mm",
+    // ประวัติการจูน (Smoke Test 2026-08-25): 297-20 เต็มพอดี → Safari ล้นหน้า 2 เสมอ →
+    // Buffer 14mm ยังเกย → 28mm หายล้นแต่ห่างขอบไป → R3: Margin 6mm + Buffer 16mm ยังมี
+    // Footer เกยนิดเดียว (Safari ไม่สน break-inside:avoid ตอนพื้นที่เหลือพอดีเป๊ะ) →
+    // R4: Margin 4mm + Buffer 14mm = min-height 275mm (Slack จริงใน Safari ~14mm เพียงพอ
+    // ให้ Footer Block ไม่โดนตัด) — Profile continuous (EPSON 9×11 ผ่าน Chrome) ทดสอบกับ
+    // กระดาษจริงผ่านแล้ว ห้ามแตะเด็ดขาด
+    contentHeightMm: 297 - 8 - 14,
   },
 };
 

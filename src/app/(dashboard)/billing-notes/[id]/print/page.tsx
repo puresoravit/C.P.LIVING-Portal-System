@@ -131,6 +131,7 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
             discountAmount: line?.amount,
             discountPct: line?.pct,
             alreadyDiscounted: line?.alreadyDiscounted,
+            typeName: line?.typeName,
           };
         })}
         totalAmount={note.totalAmount}
