@@ -13,14 +13,19 @@ export const metadata: Metadata = {
   // ชี้ .ico โดยเฉพาะ (พฤติกรรมเก่าแก่ที่ WebKit ยังคงพึ่งอยู่) — ประกาศ icons ตรงนี้เอง
   // ให้ครบทุก rel/ขนาดที่ Browser หลากยุคมองหา แทนพึ่ง Auto-inject จาก Convention เพียง
   // เส้นทางเดียว — ไฟล์จริงยังเป็นชุดเดิม (icon.png/apple-icon.png/favicon.ico) ไม่เปลี่ยน
+  //
+  // ⚠️ กติกาสำคัญ: ทุกครั้งที่ "เนื้อไฟล์รูป" เปลี่ยน ต้อง Bump ?v= ทุกจุดพร้อมกันเสมอ —
+  // Query String นี้คือ Cache Buster ตัวเดียวของ Tag ชุดนี้ (ต่างจาก Convention Auto-inject
+  // ที่ Next.js แปะ Content Hash ให้เอง) — เคยพลาดจริงมาแล้ว: แก้รูปเป็น Full-bleed แต่คง
+  // v=2 ไว้ → Safari ใช้รูปเก่าจาก Cache ต่อ (ขอบขาว) ทั้งที่ Server เสิร์ฟไฟล์ใหม่แล้ว
   icons: {
     icon: [
-      { url: "/icon.png?v=2", sizes: "32x32", type: "image/png" },
-      { url: "/icon.png?v=2", sizes: "192x192", type: "image/png" },
-      { url: "/icon.png?v=2", sizes: "512x512", type: "image/png" },
+      { url: "/icon.png?v=3", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png?v=3", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png?v=3", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon.ico?v=2",
-    apple: "/apple-icon.png?v=2",
+    shortcut: "/favicon.ico?v=3",
+    apple: "/apple-icon.png?v=3",
   },
 };
 
