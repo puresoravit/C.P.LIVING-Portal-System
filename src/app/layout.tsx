@@ -6,6 +6,22 @@ import { manrope, lineSeedSansTH } from "@/fonts";
 export const metadata: Metadata = {
   title: "C.P. LIVING Billing",
   description: "ระบบจัดการลูกค้า สินค้า ราคา ส่วนลด และออกบิล",
+  // Post-Go-live (2026-08-25) — Owner พบว่า Safari ไม่แสดง Favicon เลยแม้ทดสอบใน Private
+  // Browsing (ตัดปัญหา Cache ออกไปแล้ว) — เดิมพึ่ง Next.js File Convention ล้วนๆ
+  // (src/app/icon.png ประกาศแค่ <link rel="icon" sizes="512x512">) ซึ่ง Safari บางเวอร์ชัน
+  // ไม่ค่อยเชื่อถือ Tag เดียวขนาดใหญ่แบบนี้สำหรับ Tab Icon และมักมองหา rel="shortcut icon"
+  // ชี้ .ico โดยเฉพาะ (พฤติกรรมเก่าแก่ที่ WebKit ยังคงพึ่งอยู่) — ประกาศ icons ตรงนี้เอง
+  // ให้ครบทุก rel/ขนาดที่ Browser หลากยุคมองหา แทนพึ่ง Auto-inject จาก Convention เพียง
+  // เส้นทางเดียว — ไฟล์จริงยังเป็นชุดเดิม (icon.png/apple-icon.png/favicon.ico) ไม่เปลี่ยน
+  icons: {
+    icon: [
+      { url: "/icon.png?v=2", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png?v=2", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png?v=2", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico?v=2",
+    apple: "/apple-icon.png?v=2",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
