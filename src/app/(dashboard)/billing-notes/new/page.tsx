@@ -1,10 +1,7 @@
 import { db } from "@/lib/db";
-import { createBillingNoteAction } from "../actions";
 import { startOfMonth, endOfCurrentMonth, safeDateParam, todayInputValue } from "@/lib/date-utils";
-
-function money(n: unknown) {
-  return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
-}
+import { BillingNoteUnbilledSelector } from "@/components/billing-note-unbilled-selector";
+import { BillingNoteBilledTable } from "@/components/billing-note-billed-selector";
 
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
@@ -58,10 +55,6 @@ export default async function NewBillingNotePage(props: {
         }),
       ])
     : [[], []];
-  // Owner UAT Bug Fix — ยอดเริ่มต้นในตารางฝั่ง unbilled เป็น 0.00 เสมอ (Checkbox ไม่ติ๊ก
-  // มาแต่แรกแล้ว — ยอดจริงคำนวณสดจากใบที่ติ๊กด้วย Script ในหน้า) จึงไม่ต้อง Sum ฝั่งนี้อีก
-  const billedTotalAmount = billedInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
-
   const today = todayInputValue();
   const viewLinkParams = (billing: "unbilled" | "billed") =>
     new URLSearchParams({
@@ -163,181 +156,34 @@ export default async function NewBillingNotePage(props: {
       )}
 
       {selectedCustomerId && billingView === "billed" && (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-left">
-              <tr>
-                <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
-                <th className="px-4 py-2 font-medium">วันที่</th>
-                <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
-                <th className="px-4 py-2 font-medium">ใบวางบิลที่ผูกอยู่</th>
-                {/* R7 — Owner: ใบที่วางบิลแล้วต้องพิมพ์ซ้ำได้ (กันลูกค้า/พนักงานทำใบหาย) */}
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {billedInvoices.map((inv) => (
-                <tr key={inv.id} className="border-t">
-                  <td className="px-4 py-2 font-mono">
-                    <a href={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
-                      {inv.invoiceNumber}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
-                  <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
-                  <td className="px-4 py-2">
-                    {inv.billingNote && (
-                      <a
-                        href={`/billing-notes/${inv.billingNote.id}`}
-                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 whitespace-nowrap"
-                      >
-                        {inv.billingNote.billingNoteNumber}
-                      </a>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {inv.billingNote && (
-                      <a
-                        href={`/billing-notes/${inv.billingNote.id}/print?back=${encodeURIComponent("/billing-notes/new?" + viewLinkParams("billed"))}`}
-                        className="text-xs text-blue-600 hover:underline whitespace-nowrap"
-                      >
-                        พิมพ์ซ้ำ
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {billedInvoices.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                    ลูกค้ารายนี้ไม่มี Invoice ที่วางบิลแล้วในช่วงวันที่นี้
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {billedInvoices.length > 0 && (
-              <tfoot>
-                <tr className="border-t font-medium bg-gray-50">
-                  <td colSpan={2} className="px-4 py-2 text-right">
-                    รวม ({billedInvoices.length} ใบ)
-                  </td>
-                  <td className="px-4 py-2 text-right">{money(billedTotalAmount)}</td>
-                  <td></td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-          </div>
-        </div>
+        <BillingNoteBilledTable
+          invoices={billedInvoices.map((inv) => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
+            amount: Number(inv.grandTotal),
+            billingNoteId: inv.billingNote!.id,
+            billingNoteNumber: inv.billingNote!.billingNoteNumber,
+            printBackHref: `/billing-notes/${inv.billingNote!.id}/print?back=${encodeURIComponent("/billing-notes/new?" + viewLinkParams("billed"))}`,
+          }))}
+          backHref={`/billing-notes/new?${viewLinkParams("billed")}`}
+        />
       )}
 
       {selectedCustomerId && billingView === "unbilled" && (
-        <form action={createBillingNoteAction}>
-          <input type="hidden" name="customerId" value={selectedCustomerId} />
-          {/* Owner UAT Fix Batch 3 — ข้อ 1: เอาช่อง "วันที่วางบิล" ออกจาก Flow ที่ User ต้อง
-              กรอกเอง — Field เดิมของ createBillingNote Action ยังต้องมีค่าอยู่ (ขับวันครบ
-              กำหนด = วันนี้ + creditDays) จึงส่งเป็น Hidden Input ค่าวันนี้ (Server-computed
-              ตอน Render หน้า ไม่มี Hydration Risk เพราะเป็นค่าคงที่ ไม่เปลี่ยนหลัง Mount) */}
-          <input type="hidden" name="billingNoteDate" value={today} />
-
-          <div className="bg-white border rounded-lg overflow-hidden mb-4">
-            <div className="overflow-x-auto">
-            <table id="billingNoteInvoiceTable" className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 text-left">
-                <tr>
-                  {/* R7 — เลือกทั้งหมดในคลิกเดียว (Owner: "ติ๊กได้หมด กับ เลือกเองได้ อย่างอิสระ") */}
-                  <th className="px-4 py-2">
-                    {eligibleInvoices.length > 0 && <input type="checkbox" id="billingNoteSelectAll" title="เลือกทั้งหมด" />}
-                  </th>
-                  <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
-                  <th className="px-4 py-2 font-medium">วันที่</th>
-                  <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eligibleInvoices.map((inv) => (
-                  <tr key={inv.id} className="border-t">
-                    <td className="px-4 py-2">
-                      {/* Owner UAT Bug Fix — เดิม defaultChecked ติ๊กมาให้ทุกใบแต่แรก เสี่ยง
-                          เผลอรวมใบที่ไม่ตั้งใจเข้าใบวางบิล → เริ่มต้นไม่ติ๊ก ให้ผู้ใช้เลือกเอง
-                          ทุกใบอย่างตั้งใจ (สรุปยอด/ปุ่มสร้าง อัปเดตตามที่ติ๊กด้วย Script เดิม) */}
-                      <input
-                        type="checkbox"
-                        name="invoiceIds"
-                        value={inv.id}
-                        data-amount={Number(inv.grandTotal)}
-                        className="billing-note-invoice-checkbox"
-                      />
-                    </td>
-                    <td className="px-4 py-2 font-mono">{inv.invoiceNumber}</td>
-                    <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
-                    <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
-                  </tr>
-                ))}
-                {eligibleInvoices.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                      ลูกค้ารายนี้ไม่มี Invoice ที่พิมพ์แล้ว (9×11) และยังไม่ถูกวางบิลในช่วงวันที่นี้
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {/* Owner UAT Fix Batch — ข้อ 2 + Bug Fix รอบนี้: "สรุปยอด" นับ/รวมเฉพาะใบ
-                  ที่ "ติ๊กเลือกจริง" — เริ่มต้น 0 ใบ/0.00 (ตรงกับ Checkbox ที่ไม่ติ๊กมาแต่แรก
-                  แล้ว) อัปเดตสดทั้งจำนวนใบและยอดรวมด้วย Vanilla Script ด้านล่าง */}
-              {eligibleInvoices.length > 0 && (
-                <tfoot>
-                  <tr className="border-t font-medium bg-gray-50">
-                    <td colSpan={3} className="px-4 py-2 text-right">
-                      สรุปยอดที่เลือก (<span id="billingNoteCount">0</span> ใบ)
-                    </td>
-                    <td id="billingNoteTotal" className="px-4 py-2 text-right">
-                      {money(0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-            </div>
-          </div>
-
-          {eligibleInvoices.length > 0 && (
-            <div className="space-y-3">
-              {/* Smoke Test (2026-08-25) — Owner: ใบส่งของส่วนใหญ่ออกราคาเต็ม แต่ใบวางบิล
-                  คือเงินเก็บจริง จึงเลือกหักส่วนลดกลุ่มได้ตรงนี้ (จุดเลือกใบ INV — ง่ายต่อ
-                  งานจริงตามที่ Owner ระบุ) — ใบที่หักส่วนลดไปแล้วตอนออกใบ จะไม่ถูกหักซ้ำ
-                  (กติกาสำคัญที่ Owner ยืนยัน) ยอดส่วนลดจริงคำนวณตอนสร้างและแจงต่อใบใน
-                  ใบวางบิลทันที */}
-              <label className="flex items-center gap-2 text-sm bg-white border rounded-lg px-4 py-3">
-                <input type="checkbox" name="applyDiscount" />
-                <span>
-                  ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขา ณ วันวางบิล)
-                  <span className="block text-xs text-gray-500">
-                    ใบที่หักส่วนลดแล้วตอนออกใบ จะไม่ถูกหักซ้ำ — ยอดส่วนลดแจงต่อใบในใบวางบิลหลังกดสร้าง
-                  </span>
-                </span>
-              </label>
-              <div className="flex items-center gap-3">
-                {/* Owner UAT Bug Fix — เดิมกด Submit โดยไม่ติ๊กใบไหนเลย → Server throw เป็น
-                    Error Boundary เต็มหน้า — ปุ่มเริ่มต้น disabled จนกว่าจะติ๊กอย่างน้อย 1 ใบ
-                    (Script ด้านล่างคุมสด) + Server Action มี Guard สุภาพซ้ำอีกชั้น (กรณี JS
-                    ถูกปิด — ดู createBillingNoteAction) */}
-                <button
-                  id="billingNoteSubmit"
-                  disabled
-                  className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2"
-                >
-                  ✓ สร้างใบวางบิลจากรายการที่เลือก
-                </button>
-                <span id="billingNoteHint" className="text-xs text-gray-500">
-                  ติ๊กเลือก Invoice อย่างน้อย 1 ใบก่อนสร้างใบวางบิล
-                </span>
-              </div>
-            </div>
-          )}
-        </form>
+        // Smoke Test R8 (2026-08-25) — เขียนใหม่เป็น React Client Component (ดูเหตุผลเต็มใน
+        // src/components/billing-note-unbilled-selector.tsx) แทน Vanilla Script เดิมที่เจอ
+        // บั๊ก "เลือกทั้งหมด" ไม่ Sync กับปุ่มสร้าง — State ทั้งหมดอยู่ใน React ตรงๆ
+        <BillingNoteUnbilledSelector
+          invoices={eligibleInvoices.map((inv) => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
+            amount: Number(inv.grandTotal),
+          }))}
+          customerId={selectedCustomerId}
+          billingNoteDate={today}
+        />
       )}
 
       {/* Server Guard แจ้งสุภาพ (กรณี JS ถูกปิดแล้วกด Submit โดยไม่เลือกใบไหนเลย) */}
@@ -347,66 +193,6 @@ export default async function NewBillingNotePage(props: {
         </div>
       )}
 
-      {selectedCustomerId && billingView === "unbilled" && eligibleInvoices.length > 0 && (
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              const boxes = Array.from(document.querySelectorAll('.billing-note-invoice-checkbox'));
-              const totalCell = document.getElementById('billingNoteTotal');
-              const countCell = document.getElementById('billingNoteCount');
-              const submitBtn = document.getElementById('billingNoteSubmit');
-              const hint = document.getElementById('billingNoteHint');
-              // R5 — จำ State ของหน้านี้ (URL + ใบที่ติ๊ก + ติ๊กส่วนลด) ไว้ใน sessionStorage
-              // เพื่อกลับมาหน้าเดิมหลังแวะไปดูข้อมูลหน้าอื่น (Script เด้งกลับอยู่หัวหน้า) —
-              // ล้างทิ้งตอน Submit สำเร็จ (สร้างใบแล้วถือว่าจบงานชุดนี้)
-              const BN_KEY = 'cp-bn-new-state';
-              const applyBox = document.querySelector('input[name="applyDiscount"]');
-              function saveBnState() {
-                try {
-                  sessionStorage.setItem(BN_KEY, JSON.stringify({
-                    url: location.pathname + location.search,
-                    checked: boxes.filter(b => b.checked).map(b => b.value),
-                    applyDiscount: !!(applyBox && applyBox.checked),
-                  }));
-                } catch (e) {}
-              }
-              function restoreBnState() {
-                try {
-                  const raw = sessionStorage.getItem(BN_KEY);
-                  if (!raw) return;
-                  const saved = JSON.parse(raw);
-                  if (!saved || saved.url !== location.pathname + location.search) return;
-                  const wanted = new Set(saved.checked || []);
-                  boxes.forEach(b => { if (wanted.has(b.value)) b.checked = true; });
-                  if (applyBox && saved.applyDiscount) applyBox.checked = true;
-                } catch (e) {}
-              }
-              function recomputeBillingNoteTotal() {
-                const picked = boxes.filter(b => b.checked);
-                const sum = picked.reduce((s, b) => s + Number(b.dataset.amount || 0), 0);
-                totalCell.textContent = sum.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                countCell.textContent = String(picked.length);
-                submitBtn.disabled = picked.length === 0;
-                hint.style.display = picked.length === 0 ? '' : 'none';
-              }
-              boxes.forEach(b => b.addEventListener('change', () => { recomputeBillingNoteTotal(); saveBnState(); }));
-              // R7 — เลือกทั้งหมด/เอาออกทั้งหมดในคลิกเดียว
-              const selectAllBox = document.getElementById('billingNoteSelectAll');
-              if (selectAllBox) selectAllBox.addEventListener('change', () => {
-                boxes.forEach(b => { b.checked = selectAllBox.checked; });
-                recomputeBillingNoteTotal();
-                saveBnState();
-              });
-              if (applyBox) applyBox.addEventListener('change', saveBnState);
-              const bnForm = submitBtn.closest('form');
-              if (bnForm) bnForm.addEventListener('submit', () => { try { sessionStorage.removeItem(BN_KEY); } catch (e) {} });
-              restoreBnState();
-              recomputeBillingNoteTotal();
-              saveBnState();
-            `,
-          }}
-        />
-      )}
     </div>
   );
 }
