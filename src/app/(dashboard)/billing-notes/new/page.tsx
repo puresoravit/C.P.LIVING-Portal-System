@@ -134,7 +134,7 @@ export default async function NewBillingNotePage(props: {
           <input name="dateTo" type="date" defaultValue={dateTo} className="w-full border rounded px-3 py-1.5 text-sm" />
         </div>
         <div className="col-span-1 sm:col-span-4">
-          <button className="text-sm text-blue-600 hover:underline">ดู Invoice ที่ยังไม่วางบิล</button>
+          <button className="text-sm text-blue-600 hover:underline">ดู Invoice ทั้งหมด</button>
         </div>
       </form>
 
@@ -172,6 +172,8 @@ export default async function NewBillingNotePage(props: {
                 <th className="px-4 py-2 font-medium">วันที่</th>
                 <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
                 <th className="px-4 py-2 font-medium">ใบวางบิลที่ผูกอยู่</th>
+                {/* R7 — Owner: ใบที่วางบิลแล้วต้องพิมพ์ซ้ำได้ (กันลูกค้า/พนักงานทำใบหาย) */}
+                <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -194,11 +196,21 @@ export default async function NewBillingNotePage(props: {
                       </a>
                     )}
                   </td>
+                  <td className="px-4 py-2 text-right">
+                    {inv.billingNote && (
+                      <a
+                        href={`/billing-notes/${inv.billingNote.id}/print?back=${encodeURIComponent("/billing-notes/new?" + viewLinkParams("billed"))}`}
+                        className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                      >
+                        พิมพ์ซ้ำ
+                      </a>
+                    )}
+                  </td>
                 </tr>
               ))}
               {billedInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                     ลูกค้ารายนี้ไม่มี Invoice ที่วางบิลแล้วในช่วงวันที่นี้
                   </td>
                 </tr>
@@ -211,6 +223,7 @@ export default async function NewBillingNotePage(props: {
                     รวม ({billedInvoices.length} ใบ)
                   </td>
                   <td className="px-4 py-2 text-right">{money(billedTotalAmount)}</td>
+                  <td></td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -234,7 +247,10 @@ export default async function NewBillingNotePage(props: {
             <table id="billingNoteInvoiceTable" className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-left">
                 <tr>
-                  <th className="px-4 py-2"></th>
+                  {/* R7 — เลือกทั้งหมดในคลิกเดียว (Owner: "ติ๊กได้หมด กับ เลือกเองได้ อย่างอิสระ") */}
+                  <th className="px-4 py-2">
+                    {eligibleInvoices.length > 0 && <input type="checkbox" id="billingNoteSelectAll" title="เลือกทั้งหมด" />}
+                  </th>
                   <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
                   <th className="px-4 py-2 font-medium">วันที่</th>
                   <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
@@ -374,6 +390,13 @@ export default async function NewBillingNotePage(props: {
                 hint.style.display = picked.length === 0 ? '' : 'none';
               }
               boxes.forEach(b => b.addEventListener('change', () => { recomputeBillingNoteTotal(); saveBnState(); }));
+              // R7 — เลือกทั้งหมด/เอาออกทั้งหมดในคลิกเดียว
+              const selectAllBox = document.getElementById('billingNoteSelectAll');
+              if (selectAllBox) selectAllBox.addEventListener('change', () => {
+                boxes.forEach(b => { b.checked = selectAllBox.checked; });
+                recomputeBillingNoteTotal();
+                saveBnState();
+              });
               if (applyBox) applyBox.addEventListener('change', saveBnState);
               const bnForm = submitBtn.closest('form');
               if (bnForm) bnForm.addEventListener('submit', () => { try { sessionStorage.removeItem(BN_KEY); } catch (e) {} });

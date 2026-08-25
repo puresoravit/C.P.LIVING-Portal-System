@@ -56,7 +56,7 @@ export default async function BillingNotePrintPage(props: {
   }
 
   const [note, company, template] = await Promise.all([
-    db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: true } }),
+    db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: { orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }] } } }),
     getCompanySettings(),
     getPrintTemplateSettings("BILLING_NOTE"),
   ]);

@@ -35,7 +35,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
 
   const note = await db.billingNote.findUnique({
     where: { id: params.id },
-    include: { invoices: true },
+    include: { invoices: { orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }] } },
   });
   if (!note) notFound();
 

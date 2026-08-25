@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { roundMoney } from "@/lib/pricing";
-import { resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
+import { resolveBillingNoteDiscounts, type BillingNoteDiscountLine } from "@/lib/billing-note-discount";
+import { partitionInvoicesForBilling } from "@/lib/billing-note-split";
 import { Decimal } from "@prisma/client/runtime/library";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -22,10 +23,14 @@ async function requireUser() {
 }
 
 // เลือก Invoice ที่ยังไม่เคยถูกวางบิล (billingNoteId = null) ของลูกค้ารายเดียว
-// มารวมเป็นใบวางบิลใบเดียว — ป้องกันไม่ให้ Invoice ใบเดียวถูกวางบิลซ้ำ
 // Smoke Test (2026-08-25) — applyDiscount: ติ๊ก "ใช้ส่วนลด" ตอนเลือกใบ → หักส่วนลดกลุ่ม
 // ณ วันวางบิล เฉพาะใบที่ออกราคาเต็ม (ไม่หักซ้ำ — ดู resolveBillingNoteDiscounts) แล้วเก็บ
 // Snapshot ต่อใบไว้ใน discountDetail — totalAmount กลายเป็นยอดสุทธิที่เรียกเก็บจริง
+// Smoke Test R7 (2026-08-25) — Auto-split ตามกลุ่มส่วนลด (Owner ยืนยัน "แยกคนละใบ BI"):
+// Invoice ที่เลือกถูกแบ่งเป็นใบวางบิลคนละเลขที่ต่อกลุ่มส่วนลดเสมอ (ไม่ผสมมั่ว — Semantic
+// เดียวกับที่ Invoice แยกใบตามกลุ่มตอน Confirm Order) ภายในกลุ่มเรียงตามวัน→เลขที่ แล้ว
+// พาไปหน้าพิมพ์ต่อเนื่องทีละใบทันที (Print Queue เดิม) — ลูกค้าที่มีกลุ่มเดียว/ไม่มีกลุ่ม
+// ได้ใบเดียวเหมือนเดิมทุกประการ
 export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string, applyDiscount = false) {
   const user = await requireUser();
   if (!can(user.role, "billingNote.create")) throw new Error("FORBIDDEN");
@@ -43,77 +48,97 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
     );
   }
 
-  const grossTotal = roundMoney(invoices.reduce((s, inv) => s.add(inv.grandTotal), new Decimal(0)));
   const date = new Date(billingNoteDate);
-
-  const discountResolution = applyDiscount
-    ? await resolveBillingNoteDiscounts({
-        customerId,
-        billingNoteDate: date,
-        invoices: invoices.map((inv) => ({
-          id: inv.id,
-          branchId: inv.branchId,
-          productTypeCode: inv.productTypeCode,
-          grandTotal: inv.grandTotal,
-          discountAmount: inv.discountAmount,
-        })),
-      })
-    : null;
-
-  const totalAmount = discountResolution ? roundMoney(grossTotal.sub(discountResolution.discountTotal)) : grossTotal;
   const period = currentPeriod(date);
+  const groups = partitionInvoicesForBilling(invoices);
 
-  const billingNote = await db.$transaction(async (tx) => {
-    const seq = await getNextSeq("BI", period, tx);
-    const billingNoteNumber = formatDocNumber("BI", period, seq, 3);
-
-    const created = await tx.billingNote.create({
-      data: {
-        billingNoteNumber,
-        billingNoteDate: date,
-        customerId,
-        customerNameSnapshot: customer.companyName,
-        taxIdSnapshot: customer.taxId,
-        addressSnapshot: null,
-        creditTermSnapshot: customer.creditTerm,
-        applyDiscount,
-        discountDetail: discountResolution ? discountResolution.lines : undefined,
-        totalAmount,
-        status: "CONFIRMED",
-        createdById: user.id,
-      },
+  // คำนวณส่วนลดต่อกลุ่มนอก Transaction (Read-only ทั้งหมด) — ผูกผลลัพธ์กับชุด Invoice
+  // ของกลุ่มนั้นตรงๆ ก่อนเข้าเขียนจริง
+  const groupPayloads: {
+    invoiceIds: string[];
+    totalAmount: Decimal;
+    discountDetail: BillingNoteDiscountLine[] | undefined;
+  }[] = [];
+  for (const groupInvoices of groups) {
+    const grossTotal = roundMoney(groupInvoices.reduce((s, inv) => s.add(inv.grandTotal), new Decimal(0)));
+    const discountResolution = applyDiscount
+      ? await resolveBillingNoteDiscounts({
+          customerId,
+          billingNoteDate: date,
+          invoices: groupInvoices.map((inv) => ({
+            id: inv.id,
+            branchId: inv.branchId,
+            productTypeCode: inv.productTypeCode,
+            grandTotal: inv.grandTotal,
+            discountAmount: inv.discountAmount,
+          })),
+        })
+      : null;
+    groupPayloads.push({
+      invoiceIds: groupInvoices.map((inv) => inv.id),
+      totalAmount: discountResolution ? roundMoney(grossTotal.sub(discountResolution.discountTotal)) : grossTotal,
+      discountDetail: discountResolution ? discountResolution.lines : undefined,
     });
+  }
 
-    // Stabilization — Concurrency Hardening: เดิมเช็ค "billingNoteId IS NULL" นอก Transaction
-    // แล้วค่อย connect ข้างใน → 2 Request พร้อมกัน (Double-submit) ผ่านเช็คทั้งคู่ สร้างใบวางบิล
-    // 2 ใบที่ connect Invoice ชุดเดียวกัน ใบที่ 2 เขียนทับ billingNoteId ทำให้ใบแรกกลายเป็น
-    // ใบวางบิล Active ที่ไม่มี Invoice เลย — แก้เป็น Compare-and-Set: อัปเดตเฉพาะ Invoice ที่
-    // "ยังว่าง" จริง ณ วินาทีนั้น ถ้าจำนวนไม่ครบ = มีคนชิงไปก่อน Rollback ทั้งหมด (รวมเลขรัน)
-    const attached = await tx.invoice.updateMany({
-      where: { id: { in: invoiceIds }, customerId, billingNoteId: null, status: { not: "CANCELLED" } },
-      data: { billingNoteId: created.id },
-    });
-    if (attached.count !== invoiceIds.length) {
-      throw new Error(
-        "มี Invoice บางใบที่เลือกไว้ถูกวางบิลไปแล้ว หรือถูกยกเลิกไปแล้ว — กรุณารีเฟรชหน้าแล้วเลือกใหม่"
-      );
+  const createdIds = await db.$transaction(async (tx) => {
+    const ids: string[] = [];
+    for (const payload of groupPayloads) {
+      const seq = await getNextSeq("BI", period, tx);
+      const billingNoteNumber = formatDocNumber("BI", period, seq, 3);
+
+      const created = await tx.billingNote.create({
+        data: {
+          billingNoteNumber,
+          billingNoteDate: date,
+          customerId,
+          customerNameSnapshot: customer.companyName,
+          taxIdSnapshot: customer.taxId,
+          addressSnapshot: null,
+          creditTermSnapshot: customer.creditTerm,
+          applyDiscount,
+          discountDetail: payload.discountDetail,
+          totalAmount: payload.totalAmount,
+          status: "CONFIRMED",
+          createdById: user.id,
+        },
+      });
+
+      // Stabilization — Concurrency Hardening: เดิมเช็ค "billingNoteId IS NULL" นอก Transaction
+      // แล้วค่อย connect ข้างใน → 2 Request พร้อมกัน (Double-submit) ผ่านเช็คทั้งคู่ สร้างใบวางบิล
+      // ซ้อนที่ connect Invoice ชุดเดียวกัน — Compare-and-Set: อัปเดตเฉพาะ Invoice ที่ "ยังว่าง"
+      // จริง ณ วินาทีนั้น ถ้าจำนวนไม่ครบ = มีคนชิงไปก่อน Rollback ทั้งหมด (รวมเลขรันทุกใบ)
+      const attached = await tx.invoice.updateMany({
+        where: { id: { in: payload.invoiceIds }, customerId, billingNoteId: null, status: { not: "CANCELLED" } },
+        data: { billingNoteId: created.id },
+      });
+      if (attached.count !== payload.invoiceIds.length) {
+        throw new Error(
+          "มี Invoice บางใบที่เลือกไว้ถูกวางบิลไปแล้ว หรือถูกยกเลิกไปแล้ว — กรุณารีเฟรชหน้าแล้วเลือกใหม่"
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CREATE",
+          module: "BillingNote",
+          recordId: created.id,
+          newValue: { billingNoteNumber, invoiceIds: payload.invoiceIds },
+        },
+      });
+
+      ids.push(created.id);
     }
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "CREATE",
-        module: "BillingNote",
-        recordId: created.id,
-        newValue: { billingNoteNumber, invoiceIds },
-      },
-    });
-
-    return created;
+    return ids;
   });
 
   revalidatePath("/billing-notes");
-  redirect(`/billing-notes/${billingNote.id}`);
+  // R7 — Owner Flow ข้อ 4: สร้างเสร็จ "ไปหน้าปริ้นได้" เลย — หลายใบ = Print Queue ต่อเนื่อง
+  const printParams = new URLSearchParams();
+  printParams.set("back", "/billing-notes");
+  if (createdIds.length > 1) printParams.set("queue", createdIds.slice(1).join(","));
+  redirect(`/billing-notes/${createdIds[0]}/print?${printParams.toString()}`);
 }
 
 export async function createBillingNoteAction(formData: FormData) {
