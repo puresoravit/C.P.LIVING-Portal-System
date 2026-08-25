@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { todayInputValue } from "@/lib/date-utils";
 import { notFound, redirect } from "next/navigation";
 import {
   addOrderItem,
@@ -317,7 +318,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       <div className="bg-white border rounded-lg p-3 mt-4 flex items-center gap-2">
         <span className="text-sm text-gray-600">คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่ (ราคา/ส่วนลดจะคำนวณใหม่ตามวันที่ที่เลือก):</span>
         <ActionForm action={duplicateOrder.bind(null, order.id)} className="flex gap-2 items-end">
-          <Field label="" name="newOrderDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
+          <Field label="" name="newOrderDate" type="date" defaultValue={todayInputValue()} required />
           <SubmitButton pendingLabel="กำลังคัดลอก..." className="text-sm bg-gray-800 hover:bg-gray-900 text-white rounded px-3 py-1">
             คัดลอก
           </SubmitButton>

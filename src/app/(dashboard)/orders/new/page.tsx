@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { todayInputValue } from "@/lib/date-utils";
 import { createDraftOrder } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
@@ -11,7 +12,7 @@ export default async function NewOrderPage() {
     orderBy: { companyName: "asc" },
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
 
   return (
     <div className="max-w-xl">

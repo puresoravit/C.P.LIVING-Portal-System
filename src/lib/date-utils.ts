@@ -10,6 +10,15 @@ function toDateInputValue(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** "วันนี้" ตามเวลา Local ของเครื่อง (Asia/Bangkok บน Production) ในรูปแบบ YYYY-MM-DD
+ * สำหรับ Default ของช่องวันที่เอกสารทุกฟอร์ม — Production Prep (Timezone Audit): เดิม
+ * ทุกฟอร์มใช้ `new Date().toISOString().slice(0, 10)` ซึ่งเป็น "วันที่ตาม UTC" → ช่วง
+ * 00:00-06:59 เวลาไทยจะได้วันที่ย้อนหลัง 1 วัน (บั๊กแฝงที่มีมาตั้งแต่รันบนเครื่อง Mac
+ * แต่ไม่มีใครคีย์งานช่วงตีหนึ่งถึงเจ็ดโมงเช้าจึงไม่เคยโผล่) */
+export function todayInputValue(): string {
+  return toDateInputValue(new Date());
+}
+
 export function startOfMonth(now: Date = new Date()): string {
   return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
 }

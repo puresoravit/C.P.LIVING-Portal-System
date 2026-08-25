@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { todayInputValue } from "@/lib/date-utils";
 import { createRepairReturnNote } from "../actions";
 import { RepairNoteItemEntry } from "@/components/repair-note-item-entry";
 import { safeJsonForScript } from "@/lib/safe-json-script";
@@ -10,7 +11,7 @@ export default async function NewRepairNotePage() {
     orderBy: { companyName: "asc" },
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
 
   return (
     <div className="max-w-4xl">

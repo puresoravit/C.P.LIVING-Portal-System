@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { createBillingNoteAction } from "../actions";
-import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
+import { startOfMonth, endOfCurrentMonth, safeDateParam, todayInputValue } from "@/lib/date-utils";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -62,7 +62,7 @@ export default async function NewBillingNotePage(props: {
   // มาแต่แรกแล้ว — ยอดจริงคำนวณสดจากใบที่ติ๊กด้วย Script ในหน้า) จึงไม่ต้อง Sum ฝั่งนี้อีก
   const billedTotalAmount = billedInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
   const viewLinkParams = (billing: "unbilled" | "billed") =>
     new URLSearchParams({
       ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),

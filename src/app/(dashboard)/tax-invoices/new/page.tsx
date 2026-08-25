@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { todayInputValue } from "@/lib/date-utils";
 import { createManualTaxInvoice } from "../actions";
 import { ManualTaxInvoiceItemEntry } from "@/components/manual-tax-invoice-item-entry";
 import { safeJsonForScript } from "@/lib/safe-json-script";
@@ -16,7 +17,7 @@ export default async function NewTaxInvoicePage() {
     getEffectiveVatRate(new Date()),
   ]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInputValue();
 
   return (
     <div className="max-w-4xl">

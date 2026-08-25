@@ -49,3 +49,22 @@ describe("safeDateParam", () => {
     expect(safeDateParam("23/08/2026", "F")).toBe("F");
   });
 });
+
+// Production Prep (Timezone Audit) — "วันนี้" ของฟอร์มต้องเป็นวันที่ Local ไม่ใช่ UTC
+import { todayInputValue } from "./date-utils";
+import { vi } from "vitest";
+describe("todayInputValue (local-date form default)", () => {
+  it("อ่านวันที่จาก Local Getters เสมอ (ไม่ผ่าน toISOString/UTC)", () => {
+    vi.useFakeTimers();
+    // 17:30 UTC = 00:30 ของ "วันถัดไป" ในโซนที่ล้ำหน้า UTC ≥ 6.5 ชม. (เช่นไทย +7)
+    vi.setSystemTime(new Date("2026-08-24T17:30:00Z"));
+    const d = new Date();
+    const expectedLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(todayInputValue()).toBe(expectedLocal);
+    // ใน TZ ที่ล้ำหน้า UTC (ไทย) ค่า Local ต้อง "ไม่เท่ากับ" ค่า UTC ที่เคยใช้ผิด
+    if (d.getTimezoneOffset() < 0) {
+      expect(todayInputValue()).not.toBe(d.toISOString().slice(0, 10));
+    }
+    vi.useRealTimers();
+  });
+});
