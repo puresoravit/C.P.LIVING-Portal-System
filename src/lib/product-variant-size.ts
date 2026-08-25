@@ -59,7 +59,21 @@ export async function syncStandardVariants(
     const price = computeStandardVariantPrice(params.pricePerFoot, std.value);
     const existingId = existingBySize.get(std.label);
     if (existingId) {
-      await tx.product.update({ where: { id: existingId }, data: { standardPrice: price, unit: params.unit } });
+      // Smoke Test (2026-08-25) — Owner พบทั้ง unit และ "กลุ่มส่วนลด/ประเภทสินค้า" ไม่ตาม
+      // ตัวหลักลงมาที่ไซส์ที่แตกไว้แล้ว (ราคาตามอยู่ตัวเดียว) — Sync ทุก Field ที่รับมาจาก
+      // ตัวหลักให้ครบเหมือนตอน create ด้านล่างทุกตัว ไม่เลือกซิงก์เป็นบาง Field อีก
+      await tx.product.update({
+        where: { id: existingId },
+        data: {
+          standardPrice: price,
+          unit: params.unit,
+          productTypeId: params.productTypeId,
+          categoryId: params.categoryId,
+          // ชื่อไซส์ = ชื่อตัวหลักเสมอ (Convention เดิมตอน create) — เปลี่ยนชื่อตัวหลักแล้ว
+          // ไซส์ต้องตามด้วย ไม่งั้นเอกสารใหม่จะโชว์ชื่อเก่าของไซส์ที่ค้างอยู่
+          name: params.parentName,
+        },
+      });
     } else {
       const sku = await generateNextSku(tx);
       await tx.product.create({

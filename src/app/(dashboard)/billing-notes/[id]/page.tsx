@@ -6,10 +6,13 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
-import { discountLinesByInvoiceId } from "@/lib/billing-note-discount";
+import { discountLinesByInvoiceId, liveTypeNamesByCode } from "@/lib/billing-note-discount";
 
+// R5 — Label ตรงกับหน้า List (CONFIRMED = สร้างแล้วแต่ยังไม่ยืนยันพิมพ์จริง — ดูเหตุผลเต็ม
+// ที่ billing-notes/page.tsx)
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
+  CONFIRMED: { label: "ยังไม่พิมพ์", className: "bg-yellow-100 text-yellow-700" },
+  PRINTED: { label: "พิมพ์แล้ว", className: "bg-green-100 text-green-700" },
   CANCELLED: { label: "ยกเลิก", className: "bg-gray-100 text-gray-500" },
 };
 
@@ -44,6 +47,8 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
   // — ใบวางบิล Legacy ที่ไม่มี discountDetail จะได้ Map ว่าง → แสดงผลเหมือนเดิมทุกประการ
   const showDiscount = note.applyDiscount;
   const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
+  // R5 — ชื่อกลุ่มเชื่อมโยงสดกับชื่อปัจจุบันเสมอ (Owner ยืนยัน) — Snapshot เป็นแค่ Fallback
+  const liveNames = await liveTypeNamesByCode(note.invoices.map((inv) => inv.productTypeCode));
   const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
   const discountTotal = grossTotal - Number(note.totalAmount);
 
@@ -81,6 +86,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
             {note.invoices.map((inv) => {
               const line = discountByInvoice.get(inv.id);
               const discountAmount = line?.amount ?? 0;
+              const typeName = liveNames.get(inv.productTypeCode) ?? line?.typeName ?? null;
               return (
                 <tr key={inv.id} className="border-t">
                   <td className="px-4 py-2">
@@ -99,7 +105,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
                         <span className="whitespace-nowrap">
                           {money(discountAmount)}{" "}
                           <span className="text-xs text-gray-500">
-                            ({line!.pct}%{line!.typeName ? ` — ${line!.typeName}` : ""})
+                            ({line!.pct}%{typeName ? ` — ${typeName}` : ""})
                           </span>
                         </span>
                       ) : (

@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const visibleTree = filterNav(NAV_TREE, (perm: Permission) => can(role as any, perm));
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen print:min-h-0 print:block flex-col md:flex-row">
       {/* Production Prep — Sliding Indicator Fix: บังคับเบราว์เซอร์รอ Parse ถึงจุดจบ
           ของ Sidebar (#cp-sidebar ใน sidebar-shell.tsx) ก่อนวาดเฟรมแรก — Cross-document
           View Transition จะ Capture Active Tab ของหน้าใหม่เจอเสมอ ไม่มีจังหวะ "แถบหาย
@@ -93,7 +93,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           เว้าเข้ามา อ่านเป็น Notch ธรรมชาติแบบ Reference โดยไม่ต้องวาด SVG Curve เพิ่ม —
           Mobile ไม่ใส่ (Sidebar เป็น Drawer ลอยทับ ไม่ได้ยืนติดกันจริง มุมมนจะดูแปลก) —
           print:rounded-none กันกระทบเอกสารพิมพ์ (เหมือน print:p-0/print:bg-white เดิม) */}
-      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white md:rounded-tl-[28px] print:rounded-none min-h-screen">{children}</main>
+      {/* Smoke Test R5 (2026-08-25) — print:min-h-0: min-h-screen (100vh) ตอนพิมพ์ทำให้
+          กล่อง main สูงเกินพื้นที่พิมพ์ 1 หน้าได้ (โดยเฉพาะ Safari ที่ตีความ vh บนกระดาษ
+          ไม่ตรงกับความสูงหน้าจริง) → เกิดหน้าที่ 2 เปล่า/มีเศษ Footer เกยติดมาตลอดการจูน
+          Margin ทุกครั้ง — ตอนพิมพ์ความสูงต้องมาจากเนื้อหา (.print-page-fill คุม min-height
+          ของตัวเองตาม Print Profile อยู่แล้ว) ไม่ใช่จาก Viewport */}
+      <main className="flex-1 p-6 print:p-0 bg-cp-cream print:bg-white md:rounded-tl-[28px] print:rounded-none min-h-screen print:min-h-0">{children}</main>
     </div>
   );
 }

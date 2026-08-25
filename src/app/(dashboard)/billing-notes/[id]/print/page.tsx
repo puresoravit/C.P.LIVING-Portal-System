@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
+import { markBillingNotePrinted } from "../../actions";
 import { getCompanySettings } from "@/lib/company-settings";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
 import { getServerSession } from "next-auth";
@@ -14,7 +15,7 @@ import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
-import { discountLinesByInvoiceId } from "@/lib/billing-note-discount";
+import { discountLinesByInvoiceId, liveTypeNamesByCode } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
@@ -40,8 +41,11 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
   if (!note) notFound();
 
   const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
-  // Smoke Test (2026-08-25) — อ่านส่วนลดต่อใบจาก Snapshot ตอนสร้าง (ใบพิมพ์นิ่งตลอดกาล)
+  // Smoke Test (2026-08-25) — ยอด/% อ่านจาก Snapshot ตอนสร้าง (ตัวเลขนิ่งตลอดกาล) แต่
+  // "ชื่อกลุ่ม" เชื่อมโยงสดกับชื่อปัจจุบันเสมอ (R5 — Owner ยืนยัน: เปลี่ยนชื่อกลุ่มแล้ว
+  // พิมพ์ซ้ำต้องเห็นชื่อใหม่) Snapshot typeName เป็นแค่ Fallback เมื่อกลุ่มถูกลบไปแล้ว
   const discountByInvoice = discountLinesByInvoiceId(note.discountDetail);
+  const liveNames = await liveTypeNamesByCode(note.invoices.map((inv) => inv.productTypeCode));
   const grossTotal = note.invoices.reduce((s, inv) => s + Number(inv.grandTotal), 0);
 
   const blocks: Record<PrintBlockKey, React.ReactNode> = {
@@ -111,8 +115,21 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
       }
     : {};
 
+  // R5 — PRINTED Checkpoint (Pattern เดียวกับหน้า Print ของ Invoice): CANCELLED ไม่ส่ง
+  // Action เลย (พิมพ์ซ้ำดูได้แต่ไม่มาร์ค), CONFIRMED ส่ง Action ให้ Confirmation Modal
+  // ถามหลังพิมพ์ 9×11 จริง, PRINTED โชว์วันที่ที่มาร์คไว้แทนปุ่ม
+  const markAction = note.status === "CONFIRMED" ? markBillingNotePrinted.bind(null, note.id) : undefined;
+
   return (
-    <PrintPage templateSettings={template} docType="BILLING_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/billing-notes/${note.id}`}>
+    <PrintPage
+      templateSettings={template}
+      docType="BILLING_NOTE"
+      canEditTemplate={can((session?.user as any)?.role, "user.manage")}
+      backHref={`/billing-notes/${note.id}`}
+      markPrintedAction={markAction}
+      isPrinted={note.status === "PRINTED"}
+      printedAtLabel={note.printedAt ? note.printedAt.toLocaleString("th-TH") : undefined}
+    >
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (
@@ -131,7 +148,7 @@ export default async function BillingNotePrintPage(props: { params: Promise<{ id
             discountAmount: line?.amount,
             discountPct: line?.pct,
             alreadyDiscounted: line?.alreadyDiscounted,
-            typeName: line?.typeName,
+            typeName: liveNames.get(inv.productTypeCode) ?? line?.typeName,
           };
         })}
         totalAmount={note.totalAmount}

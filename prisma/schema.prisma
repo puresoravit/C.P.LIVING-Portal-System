@@ -576,6 +576,11 @@ model TaxInvoiceItem {
 // ถูกวางบิลมาก่อน (Invoice.billingNoteId = null) เป็นเอกสารเดียว
 enum BillingNoteStatus {
   CONFIRMED
+  // Smoke Test R5 (2026-08-25) — Owner: ใบวางบิลต้องมี Checkpoint "พิมพ์แล้ว" แบบเดียวกับ
+  // Invoice (เดิมสร้างปุ๊บขึ้น "ยืนยันแล้ว" ทันที ทำให้เข้าใจผิดว่าพิมพ์ไปแล้วทั้งที่ยังไม่ได้กด
+  // พิมพ์เลย) — CONFIRMED = สร้างแล้วยังไม่พิมพ์, PRINTED = ยืนยันพิมพ์กระดาษจริงแล้ว
+  // (ผ่าน Confirmation Modal เดิมของ PrintButton — เฉพาะโปรไฟล์ 9×11 เหมือน Invoice)
+  PRINTED
   CANCELLED
 }
 
@@ -598,6 +603,10 @@ model BillingNote {
   applyDiscount        Boolean           @default(false)
   discountDetail       Json?
   totalAmount          Decimal           @db.Decimal(14, 2)
+  // R5 — PRINTED Checkpoint (Pattern เดียวกับ Invoice.printedAt/printedById ทุกประการ):
+  // เขียนครั้งเดียวตอน CONFIRMED→PRINTED, Reprint ไม่ Overwrite
+  printedAt            DateTime?
+  printedById          String?
   status               BillingNoteStatus @default(CONFIRMED)
   createdById          String
   createdAt            DateTime          @default(now())

@@ -131,6 +131,42 @@ export async function createBillingNoteAction(formData: FormData) {
   await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount);
 }
 
+// Smoke Test R5 (2026-08-25) — PRINTED Checkpoint ของใบวางบิล (Pattern เดียวกับ
+// markInvoicePrinted ทุกบรรทัด): Owner พบว่าเดิมสร้างใบปุ๊บขึ้น "ยืนยันแล้ว" ทันทีทั้งที่ยัง
+// ไม่ได้กดพิมพ์เลย — ตอนนี้ CONFIRMED = ยังไม่พิมพ์, จะเป็น PRINTED ได้ต้องผ่าน Confirmation
+// Modal หลังพิมพ์จริง (PrintButton เดิม — เปิดเฉพาะโปรไฟล์ 9×11 และ Server เช็ค Profile
+// ซ้ำอีกชั้นตรงนี้) — Reprint ทำได้เสมอไม่ว่าสถานะไหน (ปุ่มพิมพ์ไม่เคยถูกล็อก) แค่ไม่เขียน
+// printedAt ทับของเดิม (Write-once ผ่าน CAS)
+export async function markBillingNotePrinted(billingNoteId: string, formData: FormData) {
+  const user = await requireUser();
+  if (!can(user.role, "billingNote.create")) throw new Error("FORBIDDEN");
+
+  const printProfile = String(formData.get("printProfile") || "");
+
+  const note = await db.billingNote.findUniqueOrThrow({ where: { id: billingNoteId } });
+  if (note.status === "CANCELLED") throw new Error("ใบวางบิลนี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
+  if (note.status === "CONFIRMED" && printProfile === "continuous") {
+    const printedAt = new Date();
+    const cas = await db.billingNote.updateMany({
+      where: { id: billingNoteId, status: "CONFIRMED" },
+      data: { status: "PRINTED", printedAt, printedById: user.id },
+    });
+    if (cas.count === 1)
+      await db.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "BillingNote",
+          recordId: billingNoteId,
+          oldValue: { status: "CONFIRMED" },
+          newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile },
+        },
+      });
+  }
+  revalidatePath(`/billing-notes/${billingNoteId}`);
+  revalidatePath("/billing-notes");
+}
+
 // ยกเลิกใบวางบิล — ปลด Invoice กลับไปเป็น "ยังไม่ถูกวางบิล" เพื่อวางบิลใหม่ได้
 export async function cancelBillingNote(id: string): Promise<ActionResult> {
   const user = await requireUser();
@@ -148,8 +184,10 @@ export async function cancelBillingNote(id: string): Promise<ActionResult> {
   const ALREADY = "BILLING_NOTE_ALREADY_CANCELLED";
   try {
     await db.$transaction(async (tx) => {
+      // R5 — PRINTED ก็ยกเลิกได้เช่นกัน (เช่นวางบิลผิดใบหลังพิมพ์ไปแล้ว — Invoice ปลดกลับ
+      // ไปวางบิลใหม่ได้ตาม Business Rule เดิม) — CAS กันซ้อนเหมือนเดิมทุกประการ
       const cas = await tx.billingNote.updateMany({
-        where: { id, status: "CONFIRMED" },
+        where: { id, status: { in: ["CONFIRMED", "PRINTED"] } },
         data: { status: "CANCELLED" },
       });
       if (cas.count === 0) throw new Error(ALREADY);
@@ -163,7 +201,7 @@ export async function cancelBillingNote(id: string): Promise<ActionResult> {
           action: "CANCEL",
           module: "BillingNote",
           recordId: id,
-          oldValue: { status: "CONFIRMED" },
+          oldValue: { status: billingNote.status },
           newValue: { status: "CANCELLED" },
         },
       });

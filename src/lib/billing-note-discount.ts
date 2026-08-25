@@ -96,6 +96,19 @@ export async function resolveBillingNoteDiscounts(params: {
   return { lines, discountTotal: roundMoney(discountTotal) };
 }
 
+/** Smoke Test R5 — Owner ยืนยันชัด: ชื่อกลุ่มบนใบวางบิลต้อง "เชื่อมโยงสด" กับชื่อกลุ่มปัจจุบัน
+ * เสมอ (เปลี่ยนชื่อกลุ่มแล้วใบเดิม/พิมพ์ซ้ำต้องเห็นชื่อใหม่) — typeName ใน Snapshot จึงลดชั้น
+ * เป็นแค่ Fallback เมื่อกลุ่มถูกลบ/Code หายไปจากระบบเท่านั้น — Resolve จาก productTypeCode
+ * ของ Invoice แต่ละใบ (Code Unique) จุดเรียกใช้: หน้า Detail + หน้า Print ของใบวางบิล */
+export async function liveTypeNamesByCode(codes: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(codes)];
+  const types = await db.productType.findMany({
+    where: { code: { in: unique } },
+    select: { code: true, name: true },
+  });
+  return new Map(types.map((t) => [t.code, t.name]));
+}
+
 /** อ่าน discountDetail (Json) กลับเป็น Map ต่อ invoiceId อย่างปลอดภัย — แถว Legacy
  * (สร้างก่อน Feature นี้) ไม่มีค่า → Map ว่าง ทุกจุดแสดงผลเหมือนเดิมทุกประการ */
 export function discountLinesByInvoiceId(detail: unknown): Map<string, BillingNoteDiscountLine> {

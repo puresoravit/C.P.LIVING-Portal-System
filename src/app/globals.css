@@ -194,6 +194,15 @@ html.cp-app-enter body {
 }
 
 @media print {
+  /* Smoke Test R5 (2026-08-25) — กันหน้าเปล่า/เศษเกยหน้า 2: ห้ามมีความสูงที่อ้าง Viewport
+     (vh) เหลืออยู่ตอนพิมพ์เด็ดขาด ความสูงเอกสารต้องมาจากเนื้อหาเท่านั้น (คู่กับ
+     print:min-h-0 ใน (dashboard)/layout.tsx) */
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
   /* เอกสาร print ต้องเห็นเฉพาะตัวเอกสาร — ซ่อน Sidebar/ปุ่ม/Control ของระบบทั้งหมด
      (เพิ่ม print:hidden ที่ตัว Sidebar ใน (dashboard)/layout.tsx คู่กับกฎนี้)
      R5 — หัก --print-content-padding (Default 0mm = ไม่กระทบเลย) ออกทั้ง 2 ด้าน กัน

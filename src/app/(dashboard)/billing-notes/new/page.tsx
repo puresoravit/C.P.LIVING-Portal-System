@@ -73,6 +73,32 @@ export default async function NewBillingNotePage(props: {
 
   return (
     <div className="max-w-3xl">
+      {/* Smoke Test R5 (2026-08-25) — Owner: ออกไปเช็คข้อมูลหน้าอื่นระหว่างเลือกใบ แล้วกด
+          เมนูกลับมา ต้องเจอหน้าเดิม (ลูกค้า/ช่วงวันที่/ใบที่ติ๊ก/ติ๊กส่วนลด ครบ) — Pattern
+          เดียวกับ Draft Return ของ Order/Quotation แต่หน้านี้ไม่มี Draft ใน DB จึงจำ State
+          ทั้งหมดใน sessionStorage แทน (per-tab, หายเองเมื่อปิดแท็บ):
+          Script ตัวนี้ทำหน้าที่ "เด้งกลับ" — เข้าหน้าเปล่า (ไม่มี customerId) แล้วมี State
+          ค้างอยู่ → พากลับ URL เดิม / ?fresh=1 = ล้างทิ้งเริ่มใหม่ */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function () {
+              try {
+                var KEY = 'cp-bn-new-state';
+                var params = new URLSearchParams(location.search);
+                if (params.get('fresh')) { sessionStorage.removeItem(KEY); return; }
+                if (params.get('customerId')) return; // มาถึงหน้าที่เจาะจงลูกค้าแล้ว ไม่ต้องเด้ง
+                var raw = sessionStorage.getItem(KEY);
+                if (!raw) return;
+                var saved = JSON.parse(raw);
+                if (saved && saved.url && saved.url !== location.pathname + location.search) {
+                  location.replace(saved.url);
+                }
+              } catch (e) {}
+            })();
+          `,
+        }}
+      />
       <a href="/billing-notes" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการใบวางบิล
       </a>
@@ -314,6 +340,31 @@ export default async function NewBillingNotePage(props: {
               const countCell = document.getElementById('billingNoteCount');
               const submitBtn = document.getElementById('billingNoteSubmit');
               const hint = document.getElementById('billingNoteHint');
+              // R5 — จำ State ของหน้านี้ (URL + ใบที่ติ๊ก + ติ๊กส่วนลด) ไว้ใน sessionStorage
+              // เพื่อกลับมาหน้าเดิมหลังแวะไปดูข้อมูลหน้าอื่น (Script เด้งกลับอยู่หัวหน้า) —
+              // ล้างทิ้งตอน Submit สำเร็จ (สร้างใบแล้วถือว่าจบงานชุดนี้)
+              const BN_KEY = 'cp-bn-new-state';
+              const applyBox = document.querySelector('input[name="applyDiscount"]');
+              function saveBnState() {
+                try {
+                  sessionStorage.setItem(BN_KEY, JSON.stringify({
+                    url: location.pathname + location.search,
+                    checked: boxes.filter(b => b.checked).map(b => b.value),
+                    applyDiscount: !!(applyBox && applyBox.checked),
+                  }));
+                } catch (e) {}
+              }
+              function restoreBnState() {
+                try {
+                  const raw = sessionStorage.getItem(BN_KEY);
+                  if (!raw) return;
+                  const saved = JSON.parse(raw);
+                  if (!saved || saved.url !== location.pathname + location.search) return;
+                  const wanted = new Set(saved.checked || []);
+                  boxes.forEach(b => { if (wanted.has(b.value)) b.checked = true; });
+                  if (applyBox && saved.applyDiscount) applyBox.checked = true;
+                } catch (e) {}
+              }
               function recomputeBillingNoteTotal() {
                 const picked = boxes.filter(b => b.checked);
                 const sum = picked.reduce((s, b) => s + Number(b.dataset.amount || 0), 0);
@@ -322,8 +373,13 @@ export default async function NewBillingNotePage(props: {
                 submitBtn.disabled = picked.length === 0;
                 hint.style.display = picked.length === 0 ? '' : 'none';
               }
-              boxes.forEach(b => b.addEventListener('change', recomputeBillingNoteTotal));
+              boxes.forEach(b => b.addEventListener('change', () => { recomputeBillingNoteTotal(); saveBnState(); }));
+              if (applyBox) applyBox.addEventListener('change', saveBnState);
+              const bnForm = submitBtn.closest('form');
+              if (bnForm) bnForm.addEventListener('submit', () => { try { sessionStorage.removeItem(BN_KEY); } catch (e) {} });
+              restoreBnState();
               recomputeBillingNoteTotal();
+              saveBnState();
             `,
           }}
         />
