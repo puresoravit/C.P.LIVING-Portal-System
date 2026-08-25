@@ -4,7 +4,7 @@ import { createDraftOrder } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
-import { DraftResumeBanner } from "@/components/draft-return";
+import { DraftResumeBanner, PrintResumeBanner } from "@/components/draft-return";
 
 export default async function NewOrderPage() {
   const customers = await db.customer.findMany({
@@ -17,6 +17,8 @@ export default async function NewOrderPage() {
 
   return (
     <div className="max-w-xl">
+      {/* R14 — กลับไปหน้าพิมพ์ที่ค้างอยู่ (คิวพิมพ์ใบส่งของ) — แถบเสนอ ไม่บังคับเด้ง */}
+      <PrintResumeBanner docKey="invoice" label="ใบส่งของชั่วคราว" />
       <DraftResumeBanner docKey="order" label="ใบส่งของชั่วคราว" />
       <a href="/orders" className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการออเดอร์

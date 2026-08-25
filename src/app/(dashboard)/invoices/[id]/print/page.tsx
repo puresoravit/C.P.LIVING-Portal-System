@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { PrintPage } from "@/components/print/print-page";
+import { RememberPrintSession } from "@/components/draft-return";
 import { PrintDocumentHeader } from "@/components/print/print-document-header";
 import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
@@ -142,6 +143,17 @@ export default async function InvoicePrintPage(props: {
       }
     : {};
 
+  // Smoke Test R14 (2026-08-25) — จำหน้าพิมพ์นี้ (รวมคิวที่เหลือ) ให้กลับมาต่อได้จากเมนู
+  // "สร้างเอกสาร → ใบส่งของชั่วคราว" — ยัง Active ตราบใดที่ใบปัจจุบันยังไม่ยืนยันพิมพ์
+  // หรือยังมีใบเหลือในคิว / พิมพ์ครบแล้วล้างตัวเอง (ดู draft-return.tsx)
+  const printSessionParams = new URLSearchParams();
+  if (backHref) printSessionParams.set("back", backHref);
+  if (queueIds.length > 0) printSessionParams.set("queue", queueIds.join(","));
+  const printSessionQuery = printSessionParams.toString();
+  const printSessionUrl = `/invoices/${invoice.id}/print${printSessionQuery ? `?${printSessionQuery}` : ""}`;
+  const printSessionActive = (!isPrinted && invoice.status !== "CANCELLED") || queueIds.length > 0;
+  const printSessionRemaining = queueIds.length + (!isPrinted && invoice.status !== "CANCELLED" ? 1 : 0);
+
   return (
     <PrintPage
       markPrintedAction={markPrintedAction}
@@ -154,6 +166,12 @@ export default async function InvoicePrintPage(props: {
       nextHref={nextHref}
       nextRemaining={queueIds.length}
     >
+      <RememberPrintSession
+        docKey="invoice"
+        active={printSessionActive}
+        url={printSessionUrl}
+        remaining={printSessionRemaining}
+      />
       {template.headerLayout ? (
         <HeaderZone layout={template.headerLayout} elements={headerElements} />
       ) : (

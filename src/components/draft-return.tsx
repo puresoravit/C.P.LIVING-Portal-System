@@ -34,6 +34,75 @@ export function RememberDraft({ docKey, active, url }: { docKey: string; active:
   return null;
 }
 
+// Smoke Test R14 (2026-08-25) — Owner: ระหว่างไล่พิมพ์ใบส่งของในคิว (Print Preview + ยืนยัน
+// + ใบถัดไป) ถ้าเผลอออกไปเมนูอื่น แล้วกดกลับมา "สร้างเอกสาร → ใบส่งของชั่วคราว" ต้องกลับ
+// เข้าหน้าพิมพ์เดิมที่ค้างไว้ได้ — Pattern เดียวกับ Draft Resume (แถบเสนอ ไม่บังคับเด้ง):
+//   - RememberPrintSession: วางในหน้า Print — จำ URL ปัจจุบัน (รวม queue/back ทั้งคิว) ขณะ
+//     ยังพิมพ์ไม่จบ (ใบปัจจุบันยังไม่ยืนยัน หรือยังมีใบเหลือในคิว) — พิมพ์ครบเมื่อไหร่ล้างเอง
+//   - PrintResumeBanner: วางในหน้า /new — แถบ "กำลังพิมพ์ค้างอยู่ → กลับไปพิมพ์ต่อ" + ปุ่มปิด
+
+const printKeyFor = (docKey: string) => `cp-print-return:${docKey}`;
+
+export function RememberPrintSession({
+  docKey,
+  active,
+  url,
+  remaining,
+}: {
+  docKey: string;
+  /** true = ยังพิมพ์ไม่จบ (จำไว้) / false = จบคิวแล้ว (ล้างทิ้ง) */
+  active: boolean;
+  url: string;
+  remaining: number;
+}) {
+  useEffect(() => {
+    try {
+      if (active) sessionStorage.setItem(printKeyFor(docKey), JSON.stringify({ url, remaining }));
+      else sessionStorage.removeItem(printKeyFor(docKey));
+    } catch {
+      // ไม่มี sessionStorage — ข้าม Feature นี้เฉยๆ
+    }
+  }, [docKey, active, url, remaining]);
+  return null;
+}
+
+export function PrintResumeBanner({ docKey, label }: { docKey: string; label: string }) {
+  const [session, setSession] = useState<{ url: string; remaining: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(printKeyFor(docKey));
+      if (raw) setSession(JSON.parse(raw));
+    } catch {
+      // ไม่มี sessionStorage → ไม่โชว์แถบ
+    }
+  }, [docKey]);
+
+  function dismiss() {
+    try {
+      sessionStorage.removeItem(printKeyFor(docKey));
+    } catch {
+      // ignore
+    }
+    setSession(null);
+  }
+
+  if (!session?.url) return null;
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+      <span>
+        กำลังพิมพ์{label}ค้างอยู่{session.remaining > 0 ? ` (เหลืออีก ${session.remaining} ใบ)` : ""}
+      </span>
+      <a href={session.url} className="font-medium text-blue-700 hover:underline">
+        กลับไปหน้าพิมพ์ต่อ →
+      </a>
+      <button type="button" onClick={dismiss} className="text-xs text-blue-500 hover:text-blue-700 underline">
+        ปิดแจ้งเตือนนี้
+      </button>
+    </div>
+  );
+}
+
 export function DraftResumeBanner({ docKey, label }: { docKey: string; label: string }) {
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
 
