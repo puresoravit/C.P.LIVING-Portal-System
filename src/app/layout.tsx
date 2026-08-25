@@ -20,27 +20,32 @@ export const metadata: Metadata = {
   // แก้โดยย้ายไฟล์ทั้ง 3 ออกจาก src/app/ ไปเป็น Static File ธรรมดาใน public/ แทน (เหมือน
   // apple-touch-icon.png) ตัดผ่าน RSC Route Handler ไปเลย ไม่มี Vary Header ผิดปกติอีกต่อไป
   //
-  // Post-Go-live (2026-08-25) v7 — Owner พบขอบขาวใน Tab ของ Safari (macOS 26) แม้ Pixel
-  // ของไฟล์เดิมตรวจแล้วไม่มีสีขาวปนเลย (Alpha ไล่ 0→255 สะอาด ไม่มี RGB ขาว/เทาแทรก) —
-  // เทียบกับ Favicon เว็บอื่น (เช่น Facebook) ที่ไม่เจอปัญหานี้ พบว่ารูปแบบต่างกันตรงที่ของ
-  // เราเป็นสี่เหลี่ยมมนทึบเต็มขอบ Canvas (มีแค่ขอบมนที่มุม ไม่มีระยะขอบโปร่งใสจริงรอบรูป)
-  // ตรงตาม Apple Icon Guideline ที่เตือนไว้: อย่าวาดรูปทรงชนขอบ Canvas เอง เพราะระบบ/เบราว์
-  // เซอร์อาจ Mask + วาดเส้นขอบบางๆ ทับซ้อนที่ขอบรูปทรงนั้นพอดี (เห็นเป็นเส้นขาวเลียบขอบ) —
-  // แก้โดยเว้นระยะขอบโปร่งใสจริงรอบสี่เหลี่ยมมนสีกรมท่า (Margin 8% รอบด้าน ก่อนค่อยมนมุม)
-  // ให้เหมือน Favicon เว็บอื่นทั่วไปที่ไม่ชนขอบ Canvas ตรงๆ (ดู gen_icons.py แนวคิดเดียวกับ
-  // v5: Supersample เฉพาะกรอบ Vector ไม่ Upscale รูปโลโก้จริง คมชัดเหมือนเดิม)
+  // Post-Go-live (2026-08-25) v8 — v7 เคยลองเว้นระยะขอบโปร่งใส 8% รอบสี่เหลี่ยมมน โดยเข้าใจ
+  // ว่าขอบขาวเกิดจากรูปทรงชนขอบ Canvas ตรงๆ — Owner Feedback ตรงๆ ว่าขอบขาวใหญ่ขึ้นกว่าเดิม
+  // (A/B ชัดเจน: v6 ไม่มี Margin = ขอบเล็กที่ยอมรับได้ / v7 เพิ่ม Margin = ขอบใหญ่ขึ้น) พิสูจน์
+  // ว่าสมมติฐาน v7 ผิด — พื้นที่โปร่งใสมากขึ้นกลับทำให้ Safari แสดงพื้นที่ขาวมากขึ้นตาม ไม่ใช่
+  // น้อยลง — v8 จึงย้อนกลับไปดีไซน์แบบ v6 (สี่เหลี่ยมมนทึบเต็มขอบ Canvas มนเฉพาะมุม ไม่มี
+  // Margin) ซึ่งเป็นขนาดขอบที่ Owner เคยยอมรับได้มาก่อน (gen_icons.py: MARGIN_FRAC=0)
+  //
+  // แยกอีกประเด็น — /portal บาง Session แสดง Fallback "C" แทนไอคอนทั้งที่ /billing ขึ้นปกติ:
+  // Audit ครบแล้ว (โค้ด: metadata ประกาศจุดเดียวทั้งแอพ ไม่มี Override ต่อ Route เลย, ไม่มี
+  // manifest.json/Service Worker / Build: Chunk เดียวกัน (5376.js) ถูก Reference จากทั้ง
+  // portal/page.js และ (dashboard)/**/page.js เป๊ะ มี icons Object แค่ชุดเดียวในทั้ง Build /
+  // Network: Caddy Log ยืนยัน Request icon.png/favicon.ico ตอน Owner Reload หน้า Portal ได้
+  // 200 OK ครบ — รูปถึงเครื่องจริง) สรุปได้ว่าไม่ใช่ปัญหาฝั่ง Server/โค้ดแล้ว เป็นพฤติกรรม
+  // เฉพาะของ Safari เองหลัง Fetch สำเร็จ — ยังไม่ได้แก้ (Owner ปฏิเสธ JS Workaround ไปก่อน)
   //
   // ⚠️ กติกาสำคัญ: ทุกครั้งที่ "เนื้อไฟล์รูป" เปลี่ยน ต้อง Bump ?v= ทุกจุดพร้อมกันเสมอ —
   // Query String นี้คือ Cache Buster ตัวเดียวของ Tag ชุดนี้ — เคยพลาดจริงมาแล้ว: แก้รูปเป็น
   // Full-bleed แต่คง v=2 ไว้ → Browser ใช้รูปเก่าจาก Cache ต่อ ทั้งที่ Server เสิร์ฟไฟล์ใหม่แล้ว
   icons: {
     icon: [
-      { url: "/icon.png?v=7", sizes: "32x32", type: "image/png" },
-      { url: "/icon.png?v=7", sizes: "192x192", type: "image/png" },
-      { url: "/icon.png?v=7", sizes: "512x512", type: "image/png" },
+      { url: "/icon.png?v=8", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png?v=8", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png?v=8", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favicon.ico?v=7",
-    apple: "/apple-icon.png?v=7",
+    shortcut: "/favicon.ico?v=8",
+    apple: "/apple-icon.png?v=8",
   },
 };
 
