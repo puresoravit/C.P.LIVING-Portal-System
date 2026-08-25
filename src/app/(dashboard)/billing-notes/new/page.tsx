@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { startOfMonth, endOfCurrentMonth, safeDateParam, todayInputValue } from "@/lib/date-utils";
 import { BillingNoteUnbilledSelector } from "@/components/billing-note-unbilled-selector";
 import { BillingNoteBilledTable } from "@/components/billing-note-billed-selector";
-import { liveTypeNamesByCode } from "@/lib/billing-note-discount";
+import { liveTypeNamesByCode, resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
 
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
@@ -43,19 +43,32 @@ export default async function NewBillingNotePage(props: {
   // ไม่มี Time Component จริง (เก็บเป็นวันที่ล้วนตอนสร้างเอกสารเสมอ) จึง lte ตรงๆ ครอบคลุม
   // ทั้งวันนั้นถูกต้องอยู่แล้ว ไม่ต้องเติม 23:59:59 เพิ่ม
   const invoiceDateFilter = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+  // Smoke Test R10 (2026-08-25) — Owner ยืนยัน Semantic สุดท้าย: Invoice จะถือว่า "วางบิล
+  // แล้ว" ก็ต่อเมื่อใบวางบิลที่ผูกอยู่ผ่านการยืนยัน "พิมพ์สำเร็จ" แล้วเท่านั้น (status=
+  // PRINTED) — เดิมย้าย Tab ทันทีที่กดสร้างใบ (ยังไม่พิมพ์เลย) ทำให้ดูเหมือน Invoice หายไป
+  // เองทั้งที่ยังไม่ได้ทำอะไร — Tab "ยังไม่วางบิล" จึงรวม Invoice ที่ถูกผูกกับใบวางบิลที่
+  // "ยังไม่พิมพ์" ด้วย (โชว์ Badge บอกว่าค้างอยู่ในใบไหน ติ๊กซ้ำไม่ได้ — จะเอาคืนต้องยกเลิก
+  // ใบนั้นก่อน ซึ่งปลด Invoice กลับมาให้อัตโนมัติ) — Guard กันวางบิลซ้ำเดิม (billingNoteId
+  // ต้อง null ตอนสร้าง + CAS ใน Transaction) ไม่แตะเลย
   const [eligibleInvoices, billedInvoices] = selectedCustomerId
     ? await Promise.all([
         db.invoice.findMany({
-          where: { customerId: selectedCustomerId, billingNoteId: null, status: "PRINTED", invoiceDate: invoiceDateFilter },
+          where: {
+            customerId: selectedCustomerId,
+            status: "PRINTED",
+            invoiceDate: invoiceDateFilter,
+            OR: [{ billingNoteId: null }, { billingNote: { is: { status: "CONFIRMED" } } }],
+          },
+          include: { billingNote: { select: { id: true, billingNoteNumber: true, status: true } } },
           orderBy: { invoiceDate: "asc" },
         }),
         db.invoice.findMany({
-          where: { customerId: selectedCustomerId, billingNoteId: { not: null }, status: "PRINTED", invoiceDate: invoiceDateFilter },
-          // Smoke Test R9 (2026-08-25) — Owner: Tab "วางบิลแล้ว" เดิมไม่บอกว่าใบวางบิลที่
-          // ผูกอยู่ "พิมพ์แล้วจริงไหม" (Invoice ย้ายมา Tab นี้ทันทีที่ถูกผูกกับใบวางบิล
-          // ตอนสร้าง ไม่ใช่ตอนพิมพ์จริง — คนละความหมายกับ Invoice.status="PRINTED" ที่กรอง
-          // ไว้ข้างบน) — เพิ่ม status/applyDiscount ของ BillingNote มาแสดงด้วยเพื่อไม่ให้
-          // เข้าใจผิดว่า "วางบิลแล้ว" = "พิมพ์แล้ว" เสมอไป
+          where: {
+            customerId: selectedCustomerId,
+            status: "PRINTED",
+            invoiceDate: invoiceDateFilter,
+            billingNote: { is: { status: "PRINTED" } },
+          },
           include: { billingNote: { select: { id: true, billingNoteNumber: true, status: true, applyDiscount: true } } },
           orderBy: { invoiceDate: "asc" },
         }),
@@ -66,6 +79,25 @@ export default async function NewBillingNotePage(props: {
   const allCodes = [...eligibleInvoices, ...billedInvoices].map((inv) => inv.productTypeCode);
   const liveGroupNames = await liveTypeNamesByCode(allCodes);
   const today = todayInputValue();
+  // R10 — Owner (มาร์คแดงในรูป): ตารางเลือกใบต้องโชว์ % ส่วนลดต่อใบ และสรุปยอดต้องหัก
+  // ส่วนลดให้ดูล่วงหน้าเมื่อติ๊ก "ใช้ส่วนลด" — Preview ใช้ Resolver ตัวเดียวกับตอนสร้างจริง
+  // เป๊ะ (resolveBillingNoteDiscounts ณ วันนี้) ตัวเลขจึงตรงกับใบวางบิลที่จะออกเสมอ —
+  // คำนวณเฉพาะใบที่ยังเลือกได้ (ไม่ติดใบวางบิลค้าง)
+  const selectableForPreview = eligibleInvoices.filter((inv) => !inv.billingNote);
+  const discountPreview = selectedCustomerId
+    ? await resolveBillingNoteDiscounts({
+        customerId: selectedCustomerId,
+        billingNoteDate: new Date(today),
+        invoices: selectableForPreview.map((inv) => ({
+          id: inv.id,
+          branchId: inv.branchId,
+          productTypeCode: inv.productTypeCode,
+          grandTotal: inv.grandTotal,
+          discountAmount: inv.discountAmount,
+        })),
+      })
+    : { lines: [], discountTotal: null };
+  const previewByInvoiceId = new Map(discountPreview.lines.map((line) => [line.invoiceId, line]));
   const viewLinkParams = (billing: "unbilled" | "billed") =>
     new URLSearchParams({
       ...(selectedCustomerId ? { customerId: selectedCustomerId } : {}),
@@ -75,7 +107,10 @@ export default async function NewBillingNotePage(props: {
     }).toString();
 
   return (
-    <div className="max-w-3xl">
+    // R10 — Owner: ตาราง Tab "วางบิลแล้ว" คอลัมน์เยอะจนข้อความถูกบีบตัดหลายบรรทัด — ขยาย
+    // Container จาก max-w-3xl เป็น max-w-5xl ให้ทุกแถวอยู่บรรทัดเดียว (คู่กับ whitespace-nowrap
+    // ในตาราง)
+    <div className="max-w-5xl">
       {/* Smoke Test R5 (2026-08-25) — Owner: ออกไปเช็คข้อมูลหน้าอื่นระหว่างเลือกใบ แล้วกด
           เมนูกลับมา ต้องเจอหน้าเดิม (ลูกค้า/ช่วงวันที่/ใบที่ติ๊ก/ติ๊กส่วนลด ครบ) — Pattern
           เดียวกับ Draft Return ของ Order/Quotation แต่หน้านี้ไม่มี Draft ใน DB จึงจำ State
@@ -188,13 +223,22 @@ export default async function NewBillingNotePage(props: {
         // src/components/billing-note-unbilled-selector.tsx) แทน Vanilla Script เดิมที่เจอ
         // บั๊ก "เลือกทั้งหมด" ไม่ Sync กับปุ่มสร้าง — State ทั้งหมดอยู่ใน React ตรงๆ
         <BillingNoteUnbilledSelector
-          invoices={eligibleInvoices.map((inv) => ({
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
-            invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
-            amount: Number(inv.grandTotal),
-            groupLabel: liveGroupNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด",
-          }))}
+          invoices={eligibleInvoices.map((inv) => {
+            const preview = previewByInvoiceId.get(inv.id);
+            return {
+              id: inv.id,
+              invoiceNumber: inv.invoiceNumber,
+              invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
+              amount: Number(inv.grandTotal),
+              groupLabel: liveGroupNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด",
+              discountPct: preview?.pct ?? 0,
+              discountAmount: preview?.amount ?? 0,
+              alreadyDiscounted: preview?.alreadyDiscounted ?? false,
+              // R10 — ใบที่ค้างอยู่ในใบวางบิลที่ยังไม่ยืนยันพิมพ์: โชว์แต่ติ๊กซ้ำไม่ได้
+              pendingNoteId: inv.billingNote?.id ?? null,
+              pendingNoteNumber: inv.billingNote?.billingNoteNumber ?? null,
+            };
+          })}
           customerId={selectedCustomerId}
           billingNoteDate={today}
         />

@@ -93,13 +93,13 @@ export function BillingNoteBilledTable({
                 <th className="px-4 py-2 w-8">
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} title="เลือกทั้งหมด" />
                 </th>
-                <th className="px-4 py-2 font-medium">เลขที่ Invoice</th>
-                <th className="px-4 py-2 font-medium">วันที่</th>
-                <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
-                <th className="px-4 py-2 font-medium text-right">จำนวนเงิน</th>
-                <th className="px-4 py-2 font-medium">ใบวางบิลที่ผูกอยู่</th>
-                <th className="px-4 py-2 font-medium">สถานะใบวางบิล</th>
-                <th className="px-4 py-2 font-medium">ส่วนลด</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">เลขที่ Invoice</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">วันที่</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">กลุ่มส่วนลด</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap text-right">จำนวนเงิน</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">ใบวางบิลที่ผูกอยู่</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">สถานะใบวางบิล</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">ส่วนลด</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
@@ -111,14 +111,14 @@ export function BillingNoteBilledTable({
                     <td className="px-4 py-2">
                       <input type="checkbox" checked={checked.has(inv.id)} onChange={() => toggleOne(inv.id)} />
                     </td>
-                    <td className="px-4 py-2 font-mono">
+                    <td className="px-4 py-2 font-mono whitespace-nowrap">
                       <a href={`/invoices/${inv.id}`} className="text-blue-600 hover:underline">
                         {inv.invoiceNumber}
                       </a>
                     </td>
-                    <td className="px-4 py-2">{inv.invoiceDateLabel}</td>
-                    <td className="px-4 py-2 text-gray-600">{inv.groupLabel}</td>
-                    <td className="px-4 py-2 text-right">{inv.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{inv.invoiceDateLabel}</td>
+                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{inv.groupLabel}</td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap">{inv.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-2">
                       <a
                         href={`/billing-notes/${inv.billingNoteId}`}
