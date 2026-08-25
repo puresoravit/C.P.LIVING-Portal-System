@@ -59,7 +59,7 @@ export async function syncStandardVariants(
     const price = computeStandardVariantPrice(params.pricePerFoot, std.value);
     const existingId = existingBySize.get(std.label);
     if (existingId) {
-      await tx.product.update({ where: { id: existingId }, data: { standardPrice: price } });
+      await tx.product.update({ where: { id: existingId }, data: { standardPrice: price, unit: params.unit } });
     } else {
       const sku = await generateNextSku(tx);
       await tx.product.create({
