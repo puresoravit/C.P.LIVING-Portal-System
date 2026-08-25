@@ -25,5 +25,12 @@ export const config = {
   // ข้อยกเว้น: หน้า Splash/Login ต้องโหลดโลโก้ได้ก่อน Login (เดิม Middleware เด้ง
   // Request รูปไปหน้า Login ทำให้โลโก้ไม่ขึ้นตอนยังไม่มี Session) — เป็น Static Asset
   // สาธารณะของแบรนด์ ไม่มีข้อมูลอ่อนไหว
-  matcher: ["/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand).*)"],
+  // Production Smoke Test (2026-08-25) — เพิ่ม cp-app-switch.js เข้าข้อยกเว้น: เป็น
+  // Public Script (public/cp-app-switch.js) ที่ต้องโหลดได้จากทุกหน้ารวมหน้า Login/Splash
+  // ที่ยังไม่มี Session (Root Layout ฝัง <script src> ไว้ทุกหน้า) — เดิมไม่ได้ยกเว้นจึงถูก
+  // Middleware เด้งไป /login เป็น 307 Redirect แทนที่จะได้ไฟล์ Script จริง → Browser Block
+  // ด้วย CSP (script-src 'self' ไม่อนุญาต Redirect ข้าม Origin) → App-Switch Transition
+  // ไม่ทำงานเลยตั้งแต่ต้น — Bug เดียวกันกับที่เคยแก้ให้ "brand" ไปแล้วก่อนหน้า (Static
+  // Asset สาธารณะ ไม่มีข้อมูลอ่อนไหว)
+  matcher: ["/((?!login|api/auth|api/backup/auto|_next/static|_next/image|favicon.ico|brand|cp-app-switch\\.js).*)"],
 };

@@ -25,7 +25,7 @@ echo "[2/6] ส่งขึ้น VPS..."
 scp -i "$KEY" -o BatchMode=yes "/tmp/cutover-$TS.dump" "$VPS:/tmp/"
 
 echo "[3/6] หยุดแอปชั่วคราว + สำรองสถานะ VPS เดิมไว้ที่ /root/pre-cutover-$TS.dump (กันพลาด)..."
-ssh -i "$KEY" -o BatchMode=yes "$VPS" "systemctl stop bill-system && sudo -u postgres pg_dump -Fc -f /root/pre-cutover-$TS.dump bill_system"
+ssh -i "$KEY" -o BatchMode=yes "$VPS" "systemctl stop bill-system && sudo -u postgres pg_dump -Fc -f /tmp/pre-cutover-$TS.dump bill_system && mv /tmp/pre-cutover-$TS.dump /root/pre-cutover-$TS.dump && chmod 600 /root/pre-cutover-$TS.dump"
 
 echo "[4/6] Restore ทับ DB หลัก (seed เดิมถูกแทนที่ทั้งหมด)..."
 ssh -i "$KEY" -o BatchMode=yes "$VPS" "sudo -u postgres pg_restore -d bill_system --clean --if-exists --no-owner --role=billing /tmp/cutover-$TS.dump"

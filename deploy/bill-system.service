@@ -26,9 +26,16 @@ WorkingDirectory=/opt/bill-system
 EnvironmentFile=/opt/bill-system/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
-# Bind เฉพาะ localhost — ประตูสาธารณะทางเดียวคือ Caddy (443) เท่านั้น (Defense-in-depth
-# ซ้อนกับ ufw ที่ปิดพอร์ต 3000 อยู่แล้ว) — next start ต้องใช้ Flag -H (HOSTNAME env ไม่มีผล)
-ExecStart=/usr/bin/npm run start -- -H 127.0.0.1
+# Production Cutover (2026-08-25) — เดิมใส่ -H 127.0.0.1 เพื่อ Bind เฉพาะ Localhost
+# แต่พบระหว่าง Smoke Test จริงว่า Flag นี้ทำให้ next-auth Middleware สร้าง Absolute
+# Redirect URL ผิดเป็น "http://localhost:3000/login" เสมอ (ไม่ว่า Host Header ที่ส่ง
+# มาจริงจะเป็นอะไร — ยืนยันด้วยการรัน 2 แบบเทียบกัน: มี -H ได้ URL Hostname ผิด, ไม่มี
+# -H ได้ Redirect แบบ Relative Path ที่ถูกต้อง 100% เพราะ Browser Resolve เทียบกับ
+# Origin ปัจจุบันเองเสมอ ไม่ต้องพึ่ง Header ใดๆ) — ไม่ใส่ -H จึง Bind ทุก Interface
+# (0.0.0.0) แต่ยังปลอดภัยเท่าเดิมเพราะ ufw ปิดพอร์ต 3000 จากภายนอกอยู่แล้ว (ยืนยันแล้ว
+# ด้วย nc -z จากเครื่องนอก) — ufw คือ Security Boundary จริง ไม่ใช่ Bind Address —
+# ทางเข้าเดียวจากสาธารณะยังเป็น Caddy (443) ผ่าน 127.0.0.1:3000 ภายในเครื่องเท่านั้น
+ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=5
 

@@ -141,9 +141,16 @@ systemctl status bill-system     # ต้องเป็น active (running)
 ## ขั้นตอนที่ 7 — เปิด HTTPS ด้วย Caddy
 
 ```bash
+# สำคัญ: สร้างโฟลเดอร์ log ให้ user caddy เขียนได้ก่อนเสมอ (พบจริงตอน Cutover
+# 2026-08-25 — Caddy สร้างไฟล์ log เปล่าเป็น root ไว้ก่อนตอน apt install แล้ว
+# reload ครั้งแรกด้วย Caddyfile ที่มี log directive จะ Permission Denied)
+mkdir -p /var/log/caddy && chown caddy:caddy /var/log/caddy && chmod 750 /var/log/caddy
+rm -f /var/log/caddy/*.log   # ล้างไฟล์เปล่าที่อาจเป็นเจ้าของผิดจากตอนติดตั้ง
+
 cp deploy/Caddyfile /etc/caddy/Caddyfile
 cat /etc/caddy/Caddyfile         # ตรวจว่าเป็น portal.cplivingmattress.com ถูกต้อง
 systemctl reload caddy
+journalctl -u caddy --no-pager | tail -15   # ต้องเห็น "certificate obtained successfully"
 ```
 รอ DNS ทำงาน (ปกติไม่กี่นาที) แล้วเปิด `https://portal.cplivingmattress.com` — ต้องเจอหน้า Login พร้อมกุญแจเขียว
 
