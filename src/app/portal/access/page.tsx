@@ -7,7 +7,14 @@ import { getPortalUser } from "@/lib/app-access";
 import { APP_REGISTRY } from "@/lib/app-registry";
 import { CPLogo, CP_GOLD, CP_NAVY, CP_NAVY_DEEP } from "@/components/portal/cp-brand";
 import { AccessManager } from "./access-manager";
-import { updateUserAppAccess, resetUserPassword, createEmployeeUser } from "./actions";
+import {
+  updateUserAppAccess,
+  resetUserPassword,
+  createEmployeeUser,
+  updateUserRole,
+  setUserActive,
+  deleteUserPermanently,
+} from "./actions";
 
 // R6 Phase F — Access Management: เฉพาะ Owner (isOwner=true อ่านสดจาก DB) — Role
 // OWNER_ADMIN/user.manage ธรรมดาเข้าไม่ได้ตาม Requirement — Guard ฝั่ง Server ก่อน
@@ -19,11 +26,12 @@ export default async function AccessManagementPage() {
   if (!user) redirect("/login");
   if (!user.isOwner) redirect("/portal");
 
+  // Post-Go-live — รวมบัญชีที่ปิดใช้งานแล้วด้วย (Owner ต้องเห็นเพื่อเปิดกลับ/ลบถาวรได้
+  // จากหน้านี้ — เดิม where active:true ทำให้บัญชีที่ปิดหายไปจากหน้าจอถาวร ไม่มีทางแก้)
   const [users, accessRows] = await Promise.all([
     db.user.findMany({
-      where: { active: true },
-      select: { id: true, username: true, displayName: true, role: true, isOwner: true },
-      orderBy: { displayName: "asc" },
+      select: { id: true, username: true, displayName: true, role: true, isOwner: true, active: true },
+      orderBy: [{ active: "desc" }, { displayName: "asc" }],
     }),
     db.userAppAccess.findMany({ select: { userId: true, appId: true } }),
   ]);
@@ -78,12 +86,16 @@ export default async function AccessManagementPage() {
             role: u.role,
             isOwner: u.isOwner,
             isSelf: u.id === user.id,
+            active: u.active,
             appIds: accessByUser[u.id] ?? [],
           }))}
           apps={apps}
           action={updateUserAppAccess}
           resetPasswordAction={resetUserPassword}
           createUserAction={createEmployeeUser}
+          updateRoleAction={updateUserRole}
+          setActiveAction={setUserActive}
+          deleteUserAction={deleteUserPermanently}
           goldColor={CP_GOLD}
         />
       </main>

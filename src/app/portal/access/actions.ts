@@ -226,3 +226,156 @@ export async function resetUserPassword(targetUserId: string, formData: FormData
 
   return { success: true, message: `ตั้งรหัสผ่านใหม่ให้ ${target.username} สำเร็จ` };
 }
+
+// ==========================================================================
+// Post-Go-live — Owner ขอจัดการบัญชีพนักงานครบวงจรจากหน้า Access Management:
+// เปลี่ยนตำแหน่ง (Role) กรณีเลื่อน/ปรับตำแหน่ง, ปิดการใช้งานกรณีลาออก, และลบถาวร
+// เฉพาะบัญชีที่ไม่มีเอกสารอ้างถึง — ทุก Action ใช้ requireOwner + Exclude ตัวเอง/Owner
+// คนอื่น (Pattern เดียวกับ updateUserAppAccess) + AuditLog ครบทุกการเปลี่ยนแปลง
+// ==========================================================================
+
+/** เปลี่ยน Role ของพนักงาน — มีผลกับเมนู/สิทธิ์ทันทีตั้งแต่ Request ถัดไปโดยไม่ต้อง
+ * Logout (jwt callback ใน auth.ts อ่าน Role สดจาก DB แล้ว) */
+export async function updateUserRole(targetUserId: string, formData: FormData): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  if (targetUserId === owner.id) {
+    return { success: false, error: "ไม่สามารถเปลี่ยนตำแหน่งของตัวเองได้" };
+  }
+  const target = await db.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, username: true, isOwner: true, role: true },
+  });
+  if (!target) return { success: false, error: "ไม่พบผู้ใช้" };
+  if (target.isOwner) return { success: false, error: "ไม่สามารถเปลี่ยนตำแหน่งของเจ้าของกิจการได้" };
+
+  const newRole = String(formData.get("role") ?? "");
+  if (!(CREATABLE_ROLES as readonly string[]).includes(newRole)) {
+    return { success: false, error: "กรุณาเลือกตำแหน่งที่ถูกต้อง" };
+  }
+  if (newRole === target.role) return { success: true };
+
+  await db.$transaction([
+    db.user.update({ where: { id: targetUserId }, data: { role: newRole as (typeof CREATABLE_ROLES)[number] } }),
+    db.auditLog.create({
+      data: {
+        userId: owner.id,
+        action: "UPDATE_USER_ROLE",
+        module: "UserProfile",
+        recordId: targetUserId,
+        newValue: { targetUsername: target.username, before: target.role, after: newRole },
+      },
+    }),
+  ]);
+
+  revalidatePath("/portal/access");
+  revalidatePath("/", "layout");
+  return { success: true, message: `เปลี่ยนตำแหน่งของ ${target.username} เรียบร้อย — มีผลทันทีโดยไม่ต้องให้พนักงานออกจากระบบ` };
+}
+
+/** ปิด/เปิดการใช้งานบัญชี — ปิดแล้ว Login ไม่ได้ทันที (auth.ts เช็ค active) และ Session
+ * ที่ค้างอยู่ถูกเด้งออกใน Navigation ถัดไป (getPortalUser คืน null เมื่อ active=false) —
+ * ข้อมูลสิทธิ์เข้าแอป/Passkey ไม่ถูกลบ เปิดกลับมาได้ทุกอย่างเหมือนเดิม */
+export async function setUserActive(targetUserId: string, active: boolean): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  if (targetUserId === owner.id) {
+    return { success: false, error: "ไม่สามารถปิดการใช้งานบัญชีของตัวเองได้" };
+  }
+  const target = await db.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, username: true, isOwner: true, active: true },
+  });
+  if (!target) return { success: false, error: "ไม่พบผู้ใช้" };
+  if (target.isOwner) return { success: false, error: "ไม่สามารถปิดการใช้งานบัญชีของเจ้าของกิจการได้" };
+  if (target.active === active) return { success: true };
+
+  await db.$transaction([
+    db.user.update({ where: { id: targetUserId }, data: { active } }),
+    db.auditLog.create({
+      data: {
+        userId: owner.id,
+        action: active ? "REACTIVATE_USER" : "DEACTIVATE_USER",
+        module: "UserProfile",
+        recordId: targetUserId,
+        newValue: { targetUsername: target.username, before: target.active, after: active },
+      },
+    }),
+  ]);
+
+  revalidatePath("/portal/access");
+  revalidatePath("/", "layout");
+  return {
+    success: true,
+    message: active
+      ? `เปิดการใช้งานบัญชี ${target.username} อีกครั้งเรียบร้อย`
+      : `ปิดการใช้งานบัญชี ${target.username} เรียบร้อย — เข้าสู่ระบบไม่ได้อีกจนกว่าจะเปิดกลับ`,
+  };
+}
+
+/** ลบบัญชีถาวร — อนุญาตเฉพาะบัญชีที่ (1) ถูกปิดการใช้งานก่อนแล้ว และ (2) ไม่มีเอกสาร
+ * ในระบบอ้างถึงเลย (createdById/printedById ของเอกสารทุกชนิดเป็น Plain String ไม่มี FK —
+ * ลบ User ทิ้งทั้งที่มีเอกสารอ้างจะเหลือ id กำพร้าที่ไล่กลับไม่ได้ว่าใครทำรายการ ขัดหลัก
+ * Audit ของระบบ) — บัญชีที่เคยออกเอกสารแล้วให้ใช้ "ปิดการใช้งาน" แทนซึ่งผลทางปฏิบัติ
+ * เท่ากัน (เข้าระบบไม่ได้ถาวร) แต่ประวัติเอกสารยังสมบูรณ์ */
+export async function deleteUserPermanently(targetUserId: string): Promise<ActionResult> {
+  const owner = await requireOwner();
+
+  if (targetUserId === owner.id) {
+    return { success: false, error: "ไม่สามารถลบบัญชีของตัวเองได้" };
+  }
+  const target = await db.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, username: true, isOwner: true, active: true },
+  });
+  if (!target) return { success: false, error: "ไม่พบผู้ใช้" };
+  if (target.isOwner) return { success: false, error: "ไม่สามารถลบบัญชีของเจ้าของกิจการได้" };
+  if (target.active) {
+    return { success: false, error: "ต้องปิดการใช้งานบัญชีก่อน จึงจะลบถาวรได้ (กันการลบพลาดในคลิกเดียว)" };
+  }
+
+  // เช็คร่องรอยเอกสารทุกชนิดก่อนลบ — มีแม้แต่ใบเดียว = ห้ามลบ ให้คงบัญชีปิดใช้งานไว้
+  const [orders, quotations, invoices, invoicesPrinted, taxInvoices, taxInvoicesPrinted, billingNotes, billingNotesPrinted, repairNotes] =
+    await Promise.all([
+      db.order.count({ where: { createdById: targetUserId } }),
+      db.quotation.count({ where: { createdById: targetUserId } }),
+      db.invoice.count({ where: { createdById: targetUserId } }),
+      db.invoice.count({ where: { printedById: targetUserId } }),
+      db.taxInvoice.count({ where: { createdById: targetUserId } }),
+      db.taxInvoice.count({ where: { printedById: targetUserId } }),
+      db.billingNote.count({ where: { createdById: targetUserId } }),
+      db.billingNote.count({ where: { printedById: targetUserId } }),
+      db.repairReturnNote.count({ where: { createdById: targetUserId } }),
+    ]);
+  const docCount =
+    orders + quotations + invoices + invoicesPrinted + taxInvoices + taxInvoicesPrinted + billingNotes + billingNotesPrinted + repairNotes;
+  if (docCount > 0) {
+    return {
+      success: false,
+      error: `ลบถาวรไม่ได้ — บัญชีนี้มีเอกสารในระบบอ้างถึง ${docCount} รายการ (ประวัติต้องตามกลับได้ว่าใครออกเอกสาร) — ใช้ "ปิดการใช้งาน" แทน ซึ่งกันเข้าระบบได้ถาวรเหมือนกัน`,
+    };
+  }
+
+  await db.$transaction(async (tx) => {
+    // ลบข้อมูลลูกที่ผูก FK กับ User ก่อน — AuditLog ของบัญชีที่ไม่เคยออกเอกสารมีแค่
+    // ประวัติ Login/Profile ของตัวเอง (รายการที่ Owner ทำ "ต่อ" บัญชีนี้ actor เป็น Owner
+    // จึงยังอยู่ครบ รวมถึงรายการ DELETE_USER ด้านล่างนี้ด้วย)
+    await tx.webAuthnCredential.deleteMany({ where: { userId: targetUserId } });
+    await tx.userAppAccess.deleteMany({ where: { userId: targetUserId } });
+    await tx.auditLog.deleteMany({ where: { userId: targetUserId } });
+    await tx.user.delete({ where: { id: targetUserId } });
+    await tx.auditLog.create({
+      data: {
+        userId: owner.id,
+        action: "DELETE_USER",
+        module: "UserProfile",
+        recordId: targetUserId,
+        newValue: { targetUsername: target.username, deleted: true },
+      },
+    });
+  });
+
+  revalidatePath("/portal/access");
+  revalidatePath("/", "layout");
+  return { success: true, message: `ลบบัญชี ${target.username} ออกจากระบบถาวรเรียบร้อย` };
+}

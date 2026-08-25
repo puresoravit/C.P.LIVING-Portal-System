@@ -143,6 +143,18 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as any).role;
         token.uid = (user as any).id;
+      } else if (token.uid) {
+        // Post-Go-live — Owner เปลี่ยน Role พนักงานได้จาก Access Management แล้ว: Role
+        // ใน JWT เป็นค่าตอน Login ค้างได้นาน 30 วัน ถ้าไม่อ่านสดตรงนี้ พนักงานที่ถูก
+        // เลื่อน/ลดตำแหน่งจะเห็นเมนู/สิทธิ์ชุดเก่าจนกว่าจะ Logout เอง — อ่าน Role สดจาก
+        // DB ทุกครั้งที่ Session ถูกใช้ (PK Lookup เบามาก — Pattern เดียวกับ getPortalUser
+        // ที่อ่านสดต่อ Request อยู่แล้ว) — User หาย/ถูกปิดใช้งาน: ไม่แตะ Token ที่นี่
+        // (getPortalUser คืน null → ทุก Layout เด้ง /login เองอยู่แล้ว)
+        const fresh = await db.user.findUnique({
+          where: { id: token.uid as string },
+          select: { role: true },
+        });
+        if (fresh) token.role = fresh.role;
       }
       return token;
     },
