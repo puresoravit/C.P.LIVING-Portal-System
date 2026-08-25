@@ -496,6 +496,13 @@ model InvoiceItem {
   netAmount           Decimal  @db.Decimal(14, 2)
   vatAmount           Decimal  @db.Decimal(14, 2)
   totalAmount         Decimal  @db.Decimal(14, 2)
+  // Smoke Test R12 (2026-08-25) — Owner: "ยอดสุทธิ (Net)" ของ Dashboard/รายงานยอดขาย ต้องหัก
+  // ส่วนลดกลุ่มเสมอตามกลุ่มของสินค้า ไม่ขึ้นกับว่าใบส่งของใบนี้เลือกใช้/แสดงส่วนลดหรือไม่
+  // (การแสดงบนกระดาษเป็นการตัดสินใจของ Owner แยกจากตัวเลขวิเคราะห์โดยสิ้นเชิง) — Snapshot
+  // ณ ตอน Confirm ด้วย Resolver เดียวกับส่วนลดจริง (Branch Rule → Customer Rule → % กลุ่ม
+  // → 0) จัดสรรต่อบรรทัดแบบเดียวกับ discountAmount ทุกประการ — ถ้าใบนี้ใช้ส่วนลดจริงอยู่แล้ว
+  // ค่านี้ = discountAmount เป๊ะ / รายงานคำนวณ Net = grossAmount − statDiscountAmount
+  statDiscountAmount  Decimal  @default(0) @db.Decimal(14, 2)
 
   @@map("invoice_items")
 }

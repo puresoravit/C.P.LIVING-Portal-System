@@ -159,14 +159,19 @@ export function groupByTypeAndApplyDiscount(
  */
 export async function computeOrderPreview(
   orderId: string,
-  client: Prisma.TransactionClient | typeof db = db
+  client: Prisma.TransactionClient | typeof db = db,
+  // Smoke Test R12 (2026-08-25) — forceApplyDiscount: คำนวณเสมือนติ๊กใช้ส่วนลด โดยไม่สน
+  // ค่า order.applyDiscount จริง — ใช้เฉพาะตอน Confirm เพื่อ Snapshot "ส่วนลดเชิงสถิติ"
+  // (InvoiceItem.statDiscountAmount) สำหรับ Dashboard/รายงานยอดขายที่ Owner สั่งให้หัก
+  // ส่วนลดกลุ่มเสมอไม่ว่าใบจริงจะใช้ส่วนลดหรือไม่ — ไม่ส่ง = พฤติกรรมเดิมทุกประการ
+  options?: { forceApplyDiscount?: boolean }
 ): Promise<OrderPreview> {
   const order = await client.order.findUniqueOrThrow({ where: { id: orderId } });
   const lines = await buildPreviewLineItems(orderId, client);
 
   const typeIds = [...new Set(lines.map((l) => l.productTypeId))];
   const discountByTypeId: Record<string, Decimal> = {};
-  if (order.applyDiscount) {
+  if (order.applyDiscount || options?.forceApplyDiscount) {
     for (const typeId of typeIds) {
       // R4 — สินค้า "ไม่ระบุประเภท" ไม่มี DiscountRule ที่ Match ได้จริง (DiscountRule.
       // productTypeId ยัง required เสมอ) เป็นข้อเท็จจริงเชิงโครงสร้าง ไม่ใช่ Policy ที่ต้อง

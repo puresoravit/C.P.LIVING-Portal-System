@@ -85,8 +85,12 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
   return items.map((item) => ({
     quantity: Number(item.quantity),
     gross: Number(item.grossAmount),
-    discount: Number(item.discountAmount),
-    net: Number(item.netAmount),
+    // Smoke Test R12 (2026-08-25) — Owner: ยอดสุทธิ (Net) ของรายงาน/Dashboard ต้องหักส่วนลด
+    // กลุ่ม "เสมอ" ตามกลุ่มของสินค้า ไม่ขึ้นกับว่าใบส่งของใบนั้นเลือกใช้/แสดงส่วนลดหรือไม่
+    // (การแสดงบนกระดาษเป็นการตัดสินใจแยกของ Owner) — อ่านจาก statDiscountAmount ที่
+    // Snapshot ไว้ตอน Confirm (ใบที่ใช้ส่วนลดจริง ค่านี้ = discountAmount เป๊ะอยู่แล้ว)
+    discount: Number(item.statDiscountAmount),
+    net: Number(item.grossAmount) - Number(item.statDiscountAmount),
     vat: Number(item.vatAmount),
     total: Number(item.totalAmount),
     invoiceDate: item.invoice.invoiceDate,
@@ -301,8 +305,9 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
     return {
       quantity: Number(item.quantity),
       gross: Number(item.grossAmount),
-      discount: Number(item.discountAmount),
-      net: Number(item.netAmount),
+      // R12 — เหมือน fetchRows ด้านบน: Net เชิงสถิติหักส่วนลดกลุ่มเสมอ
+      discount: Number(item.statDiscountAmount),
+      net: Number(item.grossAmount) - Number(item.statDiscountAmount),
       vat: Number(item.vatAmount),
       total: Number(item.totalAmount),
       productId: item.productId,

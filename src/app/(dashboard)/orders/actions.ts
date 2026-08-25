@@ -278,6 +278,9 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
   // เพราะกำลังอยู่ระหว่างขั้นตอน Confirm — race condition อื่นถูกกันซ้ำอีกชั้นด้วย
   // การเช็คสถานะภายใน transaction ด้านล่าง)
   const preview = await computeOrderPreview(orderId);
+  // R12 — Snapshot ส่วนลดเชิงสถิติ (หักส่วนลดกลุ่มเสมอ ไม่สน applyDiscount) สำหรับ
+  // Dashboard/รายงานยอดขาย — ถ้าใบนี้ใช้ส่วนลดจริงอยู่แล้ว Forced = Actual ไม่ต้องคำนวณซ้ำ
+  const forcedPreview = order.applyDiscount ? preview : await computeOrderPreview(orderId, db, { forceApplyDiscount: true });
   const period = currentPeriod(order.orderDate);
 
   try {
@@ -346,6 +349,16 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
               // ผลรวมของ Invoice Item (จุดที่ข้อ 26 เตือนไว้โดยเฉพาะ)
               const grossAmounts = group.items.map((item) => item.grossAmount);
               const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
+              // R12 — จัดสรรส่วนลดเชิงสถิติ (Forced) ต่อบรรทัดด้วยกลไกเดียวกันเป๊ะ แล้ว Map
+              // กลับด้วย orderItemId (การจัดกลุ่ม/ลำดับของ 2 Preview เหมือนกันแต่ผูกด้วย id
+              // ชัดเจนกว่าพึ่ง Index)
+              const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
+              const forcedAlloc = forcedGroup
+                ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
+                : [];
+              const statByOrderItemId = new Map(
+                (forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]])
+              );
 
               return group.items.map((item, idx) => {
                 const lineDiscount = allocatedDiscounts[idx];
@@ -364,6 +377,7 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
                   netAmount: lineNet,
                   vatAmount: new Decimal(0),
                   totalAmount: lineNet,
+                  statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
                 };
               });
             })(),
@@ -566,6 +580,8 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       // อ่าน Preview จาก tx (ไม่ใช่ db เฉยๆ) เพราะต้องเห็น OrderItem ที่เพิ่ง insert
       // ข้างบนซึ่งยังไม่ commit — ราคาคิดตาม order.orderDate เดิมอัตโนมัติ (ไม่ใช่วันนี้)
       const preview = await computeOrderPreview(orderId, tx);
+      // R12 — Snapshot ส่วนลดเชิงสถิติ (เหมือน confirmOrder ทุกประการ) — อ่านจาก tx เดียวกัน
+      const forcedPreview = applyDiscount ? preview : await computeOrderPreview(orderId, tx, { forceApplyDiscount: true });
 
       for (const group of preview.groups) {
         const docType = `INV-${group.productTypeCode}`;
@@ -599,6 +615,14 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
               create: (() => {
                 const grossAmounts = group.items.map((item) => item.grossAmount);
                 const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
+                // R12 — เหมือน confirmOrder ทุกประการ
+                const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
+                const forcedAlloc = forcedGroup
+                  ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
+                  : [];
+                const statByOrderItemId = new Map(
+                  (forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]])
+                );
 
                 return group.items.map((item, idx) => {
                   const lineDiscount = allocatedDiscounts[idx];
@@ -617,6 +641,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
                     netAmount: lineNet,
                     vatAmount: new Decimal(0),
                     totalAmount: lineNet,
+                    statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
                   };
                 });
               })(),
