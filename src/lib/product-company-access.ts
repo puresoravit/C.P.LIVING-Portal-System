@@ -213,6 +213,118 @@ export async function addCompanyToCatalog(
   return null;
 }
 
+/** R9.1 — Drag & Drop รวมกลุ่ม: ย้าย/รวมบริษัท dragged เข้ากลุ่มของบริษัท target —
+ * ครอบคลุมทุกเคสใน Transaction เดียว (ตัดสินจากสถานะจริงใน DB ไม่เชื่อ Client):
+ *   1. dragged ยังไม่มีกลุ่ม → เข้ากลุ่มของ target (สร้างกลุ่มให้ target ถ้ายังไม่มี)
+ *   2. อยู่กลุ่มเดียวกันแล้ว → No-op
+ *   3. dragged อยู่กลุ่มเดิมคนเดียว → "รวมกลุ่ม": ย้ายสินค้า/รุ่นทุกหัวรายการของกลุ่มเดิม
+ *      ตามมาด้วย (Re-point catalogId — ไม่มีการสร้าง/ลบ/Duplicate สินค้าใดๆ) แล้วลบกลุ่ม
+ *      เปล่าทิ้ง — สองกลุ่มมีสินค้าทั้งคู่ก็แค่รวมเป็นรายการเดียว (SKU Unique ทั้งระบบ
+ *      อยู่แล้ว ชนกันไม่ได้) — จำนวนแจ้งกลับใน summary ให้ผู้ใช้เห็นชัด
+ *   4. dragged อยู่กลุ่มเดิมกับบริษัทอื่น → ย้ายเฉพาะบริษัท (สินค้าอยู่กับกลุ่มเดิม/สมาชิก
+ *      ที่เหลือ — Conflict ที่ต้องแจ้ง: บริษัทที่ย้ายจะไม่เห็นสินค้ากลุ่มเดิมอีก)
+ * ไม่แตะ Pricing/Discount/Snapshot/เอกสารใดๆ ทั้งสิ้น */
+export async function moveCompanyIntoGroup(params: {
+  draggedCustomerId: string;
+  targetCustomerId: string;
+  actorUserId: string;
+}): Promise<{ ok: true; summary: string } | { ok: false; error: string }> {
+  const { draggedCustomerId, targetCustomerId, actorUserId } = params;
+  if (draggedCustomerId === targetCustomerId) return { ok: false, error: "ลากมาทับบริษัทเดียวกันเอง — ไม่มีอะไรต้องทำ" };
+
+  const [dragged, target] = await Promise.all([
+    db.customer.findUnique({ where: { id: draggedCustomerId }, select: { id: true, companyName: true } }),
+    db.customer.findUnique({ where: { id: targetCustomerId }, select: { id: true, companyName: true } }),
+  ]);
+  if (!dragged || !target) return { ok: false, error: "ไม่พบบริษัทที่เลือก" };
+
+  const targetCatalog = await ensureCompanyCatalog(targetCustomerId, actorUserId);
+  const membership = await db.productCatalogCompany.findUnique({
+    where: { customerId: draggedCustomerId },
+    select: { catalogId: true, catalog: { select: { name: true } } },
+  });
+
+  if (!membership) {
+    await db.$transaction([
+      db.productCatalogCompany.create({ data: { catalogId: targetCatalog.id, customerId: draggedCustomerId, addedById: actorUserId } }),
+      db.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action: "ADD_CATALOG_COMPANY",
+          module: "ProductCatalog",
+          recordId: targetCatalog.id,
+          newValue: { customerId: draggedCustomerId, companyName: dragged.companyName, via: "dragMerge" },
+        },
+      }),
+    ]);
+    return { ok: true, summary: `เพิ่ม "${dragged.companyName}" เข้ากลุ่มของ "${target.companyName}" แล้ว — เห็นสินค้าชุดเดียวกันทันที` };
+  }
+
+  if (membership.catalogId === targetCatalog.id) {
+    return { ok: true, summary: `"${dragged.companyName}" อยู่กลุ่มเดียวกับ "${target.companyName}" อยู่แล้ว` };
+  }
+
+  const oldCatalogId = membership.catalogId;
+  const [otherMembers, oldHeadProducts, oldHeadModels, targetHeadProducts, targetHeadModels] = await Promise.all([
+    db.productCatalogCompany.count({ where: { catalogId: oldCatalogId, customerId: { not: draggedCustomerId } } }),
+    db.product.count({ where: { catalogId: oldCatalogId } }),
+    db.productModel.count({ where: { catalogId: oldCatalogId } }),
+    db.product.count({ where: { catalogId: targetCatalog.id } }),
+    db.productModel.count({ where: { catalogId: targetCatalog.id } }),
+  ]);
+  const oldHeads = oldHeadProducts + oldHeadModels;
+
+  if (otherMembers > 0) {
+    // เคส 4 — ย้ายเฉพาะบริษัท: สินค้าอยู่กับกลุ่มเดิม
+    await db.$transaction([
+      db.productCatalogCompany.update({ where: { customerId: draggedCustomerId }, data: { catalogId: targetCatalog.id, addedById: actorUserId } }),
+      db.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action: "MOVE_CATALOG_COMPANY",
+          module: "ProductCatalog",
+          recordId: targetCatalog.id,
+          newValue: { customerId: draggedCustomerId, from: oldCatalogId, productsStayedBehind: oldHeads },
+        },
+      }),
+    ]);
+    return {
+      ok: true,
+      summary: `ย้าย "${dragged.companyName}" มากลุ่มของ "${target.companyName}" แล้ว — สินค้า ${oldHeads} รายการของกลุ่มเดิมยังอยู่กับสมาชิกที่เหลือ (บริษัทที่ย้ายจะไม่เห็นรายการเหล่านั้นอีก)`,
+    };
+  }
+
+  // เคส 3 — รวมกลุ่ม: บริษัทเดียว + สินค้าทั้งกลุ่มตามมาด้วย แล้วลบกลุ่มเปล่า
+  await db.$transaction([
+    db.product.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: targetCatalog.id } }),
+    db.productModel.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: targetCatalog.id } }),
+    db.productCatalogCompany.update({ where: { customerId: draggedCustomerId }, data: { catalogId: targetCatalog.id, addedById: actorUserId } }),
+    db.productCatalog.delete({ where: { id: oldCatalogId } }),
+    db.auditLog.create({
+      data: {
+        userId: actorUserId,
+        action: "MERGE_CATALOG",
+        module: "ProductCatalog",
+        recordId: targetCatalog.id,
+        newValue: {
+          mergedCustomerId: draggedCustomerId,
+          fromCatalog: oldCatalogId,
+          movedHeadCount: oldHeads,
+          targetHadHeadCount: targetHeadProducts + targetHeadModels,
+        },
+      },
+    }),
+  ]);
+  const targetHeads = targetHeadProducts + targetHeadModels;
+  return {
+    ok: true,
+    summary:
+      oldHeads > 0
+        ? `รวมกลุ่มแล้ว — สินค้า ${oldHeads} รายการของ "${dragged.companyName}" มารวมกับของกลุ่ม "${target.companyName}"${targetHeads > 0 ? ` (${targetHeads} รายการ)` : ""} เป็นรายการเดียว ไม่มีสินค้าหาย/ซ้ำ`
+        : `ย้าย "${dragged.companyName}" มากลุ่มของ "${target.companyName}" แล้ว`,
+  };
+}
+
 /** ถอดบริษัทออกจาก Catalog — สินค้าใน Catalog ไม่ถูกแตะเลย (บริษัทที่ถูกถอดแค่มองไม่เห็น
  * ตอนสร้างเอกสารใหม่ — เอกสารเก่า/Snapshot ไม่กระทบตามหลักการเดิม) */
 export async function removeCompanyFromCatalog(

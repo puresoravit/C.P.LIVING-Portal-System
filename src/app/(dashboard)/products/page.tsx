@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { createProduct, toggleProductActive, deleteProduct, addCatalogCompany, removeCatalogCompany } from "./actions";
+import { createProduct, toggleProductActive, deleteProduct, addCatalogCompany, removeCatalogCompany, mergeCompanyGroups } from "./actions";
+import { CompanyCatalogBoard, type CompanyCard } from "@/components/company-catalog-board";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
@@ -105,6 +106,21 @@ export default async function ProductsPage(props: {
       )
     );
 
+    // R9.1 — Data สำหรับ Board (Drag & Drop รวมกลุ่ม): Client ใช้บรรยาย Confirm ตามเคส
+    // เท่านั้น — การตัดสิน/ทำจริงอยู่ฝั่ง Server (mergeCompanyGroups) เสมอ
+    const cards: CompanyCard[] = companies.map((c) => {
+      const catalog = c.catalogMembership?.catalog ?? null;
+      const partners = catalog ? catalog.companies.map((m) => m.customer).filter((cc) => cc.id !== c.id) : [];
+      return {
+        id: c.id,
+        code: c.code,
+        companyName: c.companyName,
+        catalogId: catalog?.id ?? null,
+        partnerNames: partners.map((pp) => pp.companyName),
+        productCount: catalog ? (catalogCounts.get(catalog.id) ?? 0) : 0,
+      };
+    });
+
     return (
       <div className="max-w-5xl">
         <h1 className="text-lg font-semibold mb-1">สินค้า — เลือกบริษัท</h1>
@@ -112,37 +128,11 @@ export default async function ProductsPage(props: {
           เลือกบริษัทเพื่อดู/เพิ่ม/แก้สินค้าของบริษัทนั้น — หลายบริษัทใช้รายการสินค้าร่วมกันได้ (จัดการจากหน้าบริษัทใดก็ได้ในกลุ่ม)
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {companies.map((c) => {
-            const catalog = c.catalogMembership?.catalog ?? null;
-            const partners = catalog ? catalog.companies.map((m) => m.customer).filter((cc) => cc.id !== c.id) : [];
-            const count = catalog ? (catalogCounts.get(catalog.id) ?? 0) : 0;
-            return (
-              <a key={c.id} href={`/products?company=${c.id}`} className="bg-white border rounded-lg p-4 hover:border-blue-400 hover:shadow-sm transition-colors">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-medium">
-                    {c.companyName} <span className="text-gray-400 text-sm">({c.code})</span>
-                  </div>
-                  <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 whitespace-nowrap">
-                    {count} รายการ
-                  </span>
-                </div>
-                <div className="mt-1.5 text-xs text-gray-500">
-                  {catalog ? (
-                    partners.length > 0 ? (
-                      <>ใช้รายการร่วมกับ: {partners.map((pp) => pp.companyName).join(", ")}</>
-                    ) : (
-                      <>รายการสินค้าเฉพาะบริษัทนี้</>
-                    )
-                  ) : (
-                    <>ยังไม่มีรายการสินค้าของตัวเอง — กดเพื่อเริ่มสร้าง (เห็นสินค้าส่วนกลางได้เสมอ)</>
-                  )}
-                </div>
-              </a>
-            );
-          })}
-          {companies.length === 0 && (
-            <div className="col-span-full bg-white border rounded-lg p-6 text-center text-sm text-gray-400">
+        <div className="mb-4">
+          {companies.length > 0 ? (
+            <CompanyCatalogBoard companies={cards} mergeAction={mergeCompanyGroups} />
+          ) : (
+            <div className="bg-white border rounded-lg p-6 text-center text-sm text-gray-400">
               ยังไม่มีบริษัทลูกค้าในระบบ — เพิ่มที่เมนู <a href="/customers" className="text-blue-600 hover:underline">ลูกค้า</a> ก่อน แล้วกลับมาสร้างรายการสินค้าของบริษัทที่นี่
             </div>
           )}

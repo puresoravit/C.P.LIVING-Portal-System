@@ -446,23 +446,50 @@ export function PrintTemplateDesigner({
                 )}
 
                 <Section title="หัวกระดาษบริษัท">
+                  {/* R9 Bug Fix — Owner พบว่าโหมด Custom ติ๊ก "แสดง" แล้ว Preview ไม่เปลี่ยน:
+                      เดิม Checkbox เขียนแค่ showAddress/showPhone/showTaxId ซึ่งโหมด Custom
+                      ไม่ได้ใช้เลย (ทั้ง Preview และหน้า Print จริงตัดสินด้วยธง visible ของ
+                      Element บน Canvas — ดู DesignerHeaderZone/หน้า Print ทั้ง 5) — แก้ให้
+                      Checkbox เป็น Source เดียวกับธง visible ของ Element ตอนอยู่โหมด Custom:
+                      อ่านค่าจาก visible จริง และติ๊กแล้วอัปเดตทั้ง visible + showX พร้อมกัน
+                      (สองทาง — กดซ่อนจาก Canvas Checkbox ก็สะท้อนตาม) โหมด Classic พฤติกรรม
+                      เดิมทุกประการ — Apply/Discard/Default ไม่ต้องแก้ (Persist headerLayout
+                      + showX อยู่แล้วทั้งคู่) */}
                   <div className="flex flex-wrap gap-3 text-sm">
-                    <label className="flex items-center gap-1.5">
-                      <input type="checkbox" checked={effective.showAddress} onChange={(e) => updateField({ showAddress: e.target.checked })} />
-                      แสดงที่อยู่
-                    </label>
-                    <label className="flex items-center gap-1.5">
-                      <input type="checkbox" checked={effective.showPhone} onChange={(e) => updateField({ showPhone: e.target.checked })} />
-                      แสดงเบอร์โทร
-                    </label>
-                    <label className="flex items-center gap-1.5">
-                      <input type="checkbox" checked={effective.showTaxId} onChange={(e) => updateField({ showTaxId: e.target.checked })} />
-                      แสดงเลขผู้เสียภาษี
-                    </label>
+                    {(
+                      [
+                        { field: "showAddress", element: "companyAddress", label: "แสดงที่อยู่" },
+                        { field: "showPhone", element: "companyPhone", label: "แสดงเบอร์โทร" },
+                        { field: "showTaxId", element: "companyTaxId", label: "แสดงเลขผู้เสียภาษี" },
+                      ] as const
+                    ).map(({ field, element, label }) => (
+                      <label key={field} className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={effective.headerLayout ? effective.headerLayout[element].visible : effective[field]}
+                          onChange={(e) => {
+                            const v = e.target.checked;
+                            if (effective.headerLayout) {
+                              updateField({
+                                [field]: v,
+                                headerLayout: {
+                                  ...effective.headerLayout,
+                                  [element]: { ...effective.headerLayout[element], visible: v },
+                                },
+                              });
+                            } else {
+                              updateField({ [field]: v });
+                            }
+                          }}
+                        />
+                        {label}
+                      </label>
+                    ))}
                   </div>
                   {effective.headerLayout && (
                     <p className="text-xs text-gray-400">
-                      * โหมด Custom ใช้ปุ่ม &quot;แสดง&quot; ของแต่ละ Element เอง (คลิก Element บน Canvas) — Checkbox ด้านบนมีผลเฉพาะโหมด Classic
+                      * โหมด Custom: Checkbox ชุดนี้ผูกกับปุ่ม &quot;แสดง&quot; ของ Element บน Canvas โดยตรง (ติ๊กที่ไหนอีกที่เปลี่ยนตาม) —
+                      ถ้าข้อมูลบริษัทช่องนั้นยังว่างอยู่ (เช่นไม่ได้กรอกเบอร์โทร) จะไม่แสดงแม้ติ๊กไว้
                     </p>
                   )}
                 </Section>

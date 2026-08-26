@@ -10,7 +10,7 @@ import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
 import { syncStandardVariants } from "@/lib/product-variant-size";
-import { setCompanyAccessForHead, ensureCompanyCatalog, addCompanyToCatalog, removeCompanyFromCatalog } from "@/lib/product-company-access";
+import { setCompanyAccessForHead, ensureCompanyCatalog, addCompanyToCatalog, removeCompanyFromCatalog, moveCompanyIntoGroup } from "@/lib/product-company-access";
 import { Decimal } from "@prisma/client/runtime/library";
 
 async function requireUser() {
@@ -386,4 +386,15 @@ export async function updateProductCatalog(productId: string, formData: FormData
   ]);
   revalidatePath("/products");
   return { success: true, message: catalogId ? "ย้ายสินค้าเข้ากลุ่ม Catalog แล้ว" : "ย้ายสินค้าออกเป็นสินค้าส่วนกลางแล้ว" };
+}
+
+/** R9.1 — Drag & Drop รวมกลุ่มบริษัทจากหน้ารายชื่อบริษัท (Logic เต็มใน
+ * moveCompanyIntoGroup — Server ตัดสินเคสจากสถานะจริงเสมอ ไม่เชื่อ Client) */
+export async function mergeCompanyGroups(draggedCustomerId: string, targetCustomerId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+  const result = await moveCompanyIntoGroup({ draggedCustomerId, targetCustomerId, actorUserId: user.id });
+  if (!result.ok) return { success: false, error: result.error };
+  revalidatePath("/products");
+  return { success: true, message: result.summary };
 }
