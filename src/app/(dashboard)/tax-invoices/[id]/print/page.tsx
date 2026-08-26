@@ -16,6 +16,7 @@ import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { TaxInvoicePrintBody } from "@/components/print/tax-invoice-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
+import { capacityForDocument, paginateRows, computeTaxInvoicePageSummary } from "@/lib/print-pagination";
 
 // Tax Invoice มี VAT จริง (extractVat ใน tax-invoices/actions.ts) — Phase D ไม่แตะ
 // สูตร VAT/Value/Net ใดๆ เปลี่ยนเฉพาะ Presentation
@@ -127,12 +128,8 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
       printedAtLabel={taxInvoice.printedAt ? taxInvoice.printedAt.toLocaleString("th-TH") : undefined}
       salesQuestion="นับใบกำกับภาษีใบนี้เป็นยอดขาย (Dashboard/รายงาน) — ติ๊กเฉพาะใบที่ขายตรงโดยไม่ได้ออกใบส่งของชั่วคราว (กันนับยอดซ้ำ)"
     >
-      {template.headerLayout ? (
-        <HeaderZone layout={template.headerLayout} elements={headerElements} />
-      ) : (
-        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-      )}
-
+      {/* R8 — Document Pagination: Header ซ้ำทุกหน้า + Summary ต่อหน้า (VAT ถอดด้วย
+          extractVat เดิม) — เอกสารหน้าเดียว Output เดิมทุกประการ (ดู print-pagination.ts) */}
       <TaxInvoicePrintBody
         items={taxInvoice.items}
         grossAmount={taxInvoice.grossAmount}
@@ -143,6 +140,17 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
         netAmount={taxInvoice.netAmount}
         amountInWords={toThaiBahtText(taxInvoice.netAmount)}
         footerNote={template.footerNote}
+        pagination={{
+          pages: paginateRows(taxInvoice.items, capacityForDocument(template, "TAX_INVOICE")).map((pageItems) => ({
+            items: pageItems,
+            summary: computeTaxInvoicePageSummary(pageItems, taxInvoice.vatPct),
+          })),
+          header: template.headerLayout ? (
+            <HeaderZone layout={template.headerLayout} elements={headerElements} />
+          ) : (
+            <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+          ),
+        }}
       />
     </PrintPage>
   );

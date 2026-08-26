@@ -18,6 +18,7 @@ import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { InvoicePrintBody } from "@/components/print/invoice-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
+import { capacityForDocument, paginateRows, computeItemsPageSummary } from "@/lib/print-pagination";
 
 // Invoice ในระบบนี้คือ "ใบส่งของชั่วคราว" — ไม่มี VAT ตามที่ยืนยันไว้ตั้งแต่แรก
 // (confirmOrder() ตั้ง vatPct/vatAmount = 0 เสมอ) Phase D ไม่แตะตัวเลข/สูตรใดๆ
@@ -172,12 +173,9 @@ export default async function InvoicePrintPage(props: {
         url={printSessionUrl}
         remaining={printSessionRemaining}
       />
-      {template.headerLayout ? (
-        <HeaderZone layout={template.headerLayout} elements={headerElements} />
-      ) : (
-        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-      )}
-
+      {/* R8 — Document Pagination: Header เต็มถูกส่งเข้า Body ผ่าน pagination.header เพื่อ
+          เรนเดอร์ซ้ำทุกหน้า (เอกสารหน้าเดียว Output เดิมทุกประการ) — การแบ่งหน้า/Summary
+          ต่อหน้า ดู src/lib/print-pagination.ts */}
       <InvoicePrintBody
         items={invoice.items}
         grossAmount={invoice.grossAmount}
@@ -192,9 +190,19 @@ export default async function InvoicePrintPage(props: {
             <span className="float-right">ทะเบียนรถยนต์ ____________________</span>
           </div>
         }
+        pagination={{
+          pages: paginateRows(invoice.items, capacityForDocument(template, "INVOICE")).map((pageItems) => ({
+            items: pageItems,
+            summary: computeItemsPageSummary(pageItems),
+          })),
+          header: template.headerLayout ? (
+            <HeaderZone layout={template.headerLayout} elements={headerElements} />
+          ) : (
+            <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+          ),
+          signature: <PrintSignatureBlock footerNote={template.footerNote} />,
+        }}
       />
-
-      <PrintSignatureBlock footerNote={template.footerNote} />
     </PrintPage>
   );
 }

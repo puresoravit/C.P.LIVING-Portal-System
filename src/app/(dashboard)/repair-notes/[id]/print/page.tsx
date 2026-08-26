@@ -14,6 +14,7 @@ import { HeaderZone } from "@/components/print/header-zone";
 import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
 import { RepairNotePrintBody } from "@/components/print/repair-note-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
+import { capacityForDocument, paginateRows } from "@/lib/print-pagination";
 
 // Repair/Return Note ไม่มีราคา/VAT เลย (ไม่ใช่เอกสารขาย) — ไม่มี Size column เพราะ
 // RepairReturnNoteItem ยังไม่มี field นี้ (ตามที่ตกลงไว้ ยังไม่แก้ Data Model รอบนี้)
@@ -113,13 +114,24 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
 
   return (
     <PrintPage templateSettings={template} docType="REPAIR_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/repair-notes/${note.id}`}>
-      {template.headerLayout ? (
-        <HeaderZone layout={template.headerLayout} elements={headerElements} />
-      ) : (
-        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-      )}
-
-      <RepairNotePrintBody items={note.items} remark={note.remark} footerNote={template.footerNote} />
+      {/* R8 — Document Pagination: เอกสารนี้ไม่มีจำนวนเงิน — แบ่งหน้า + Header ซ้ำทุกหน้า
+          หมายเหตุ/Signature หน้าสุดท้าย (ดู print-pagination.ts) */}
+      <RepairNotePrintBody
+        items={note.items}
+        remark={note.remark}
+        footerNote={template.footerNote}
+        pagination={{
+          pages: paginateRows(note.items, capacityForDocument(template, "REPAIR_NOTE")).map((pageItems) => ({
+            items: pageItems,
+            summary: null,
+          })),
+          header: template.headerLayout ? (
+            <HeaderZone layout={template.headerLayout} elements={headerElements} />
+          ) : (
+            <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+          ),
+        }}
+      />
     </PrintPage>
   );
 }

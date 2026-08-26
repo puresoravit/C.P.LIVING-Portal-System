@@ -157,6 +157,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               addAction={addItemAction}
               suggestPriceAction={suggestPriceAction}
               canManageProducts={canManageProducts}
+              customerId={order.customerId}
             />
           </div>
         </>
@@ -296,6 +297,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             action={editAction}
             suggestPriceAction={suggestPriceAction}
             canManageProducts={canManageProducts}
+            customerId={order.customerId}
           />
         )}
       </div>

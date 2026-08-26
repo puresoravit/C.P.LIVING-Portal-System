@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { updateProductModel, batchCreateProductVariants } from "../actions";
+import { updateProductModel, batchCreateProductVariants, updateModelCompanyAccess } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { BatchSizeForm } from "@/components/batch-size-form";
+import { ProductCompanyAccessForm } from "@/components/product-company-access-form";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -12,11 +13,16 @@ function money(n: unknown) {
 
 export default async function EditProductModelPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [model, productTypes, categories, variants] = await Promise.all([
-    db.productModel.findUnique({ where: { id: params.id } }),
+  const [model, productTypes, categories, variants, customers] = await Promise.all([
+    db.productModel.findUnique({ where: { id: params.id }, include: { companyAccess: { select: { customerId: true } } } }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.product.findMany({ where: { modelId: params.id }, orderBy: { size: "asc" } }),
+    db.customer.findMany({
+      where: { active: true },
+      select: { id: true, companyName: true, code: true },
+      orderBy: { companyName: "asc" },
+    }),
   ]);
   if (!model) notFound();
 
@@ -119,6 +125,16 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
 
         <h3 className="font-medium text-xs text-gray-600 mb-2">เพิ่มไซส์ใหม่</h3>
         <BatchSizeForm modelId={model.id} existingSizes={existingSizes} defaultUnit={commonUnit} action={batchSizeAction} />
+      </div>
+
+      {/* R8 — Product Assignment ตามบริษัทลูกค้า: กำหนดที่รุ่น (Family Head) — Variant
+          ทุกไซส์ของรุ่นนี้ใช้สิทธิ์เดียวกันเสมอ */}
+      <div className="mt-4">
+        <ProductCompanyAccessForm
+          customers={customers}
+          initialCustomerIds={model.companyAccess.map((a) => a.customerId)}
+          action={updateModelCompanyAccess.bind(null, model.id)}
+        />
       </div>
 
       {/* R6 Phase B — โชว์/ซ่อนช่องราคาต่อฟุตตาม Category ที่เลือก (usesSize) */}

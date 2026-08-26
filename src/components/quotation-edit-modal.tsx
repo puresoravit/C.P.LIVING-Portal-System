@@ -40,6 +40,7 @@ export function QuotationEditModal({
   action,
   suggestPriceAction,
   canManageProducts = false,
+  customerId,
 }: {
   quotationNumber: string;
   /** Owner UAT Fix Batch — ข้อ 3: เลขที่เอกสารที่จะได้หลังบันทึกครั้งนี้ (มี Suffix -N ต่อ
@@ -52,6 +53,8 @@ export function QuotationEditModal({
   /** Owner UAT Round 3 — ข้อ 3: เหมือน OrderEditModal ทุกประการ */
   suggestPriceAction: (productId: string) => Promise<{ price: number }>;
   canManageProducts?: boolean;
+  /** R8 — บริษัทลูกค้าของเอกสารนี้: ส่งต่อให้ Picker กรองเฉพาะสินค้าที่เปิดให้บริษัทนี้ */
+  customerId?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
@@ -313,6 +316,7 @@ export function QuotationEditModal({
                   <div className="col-span-2 sm:col-span-4">
                     <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า/รุ่น</label>
                     <ProductSearchPicker
+                      customerId={customerId}
                       onPick={pick}
                       onUnresolvedSize={handleUnresolvedSize}
                       onModelSelected={setSelectedModel}

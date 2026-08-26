@@ -43,6 +43,7 @@ export function OrderEditModal({
   action,
   suggestPriceAction,
   canManageProducts = false,
+  customerId,
 }: {
   orderNumber: string;
   initialItems: EditItem[];
@@ -53,6 +54,8 @@ export function OrderEditModal({
   /** Owner UAT Round 3 — ข้อ 3: เหมือน OrderItemEntryForm ทุกประการ */
   suggestPriceAction: (productId: string) => Promise<{ price: number }>;
   canManageProducts?: boolean;
+  /** R8 — บริษัทลูกค้าของเอกสารนี้: ส่งต่อให้ Picker กรองเฉพาะสินค้าที่เปิดให้บริษัทนี้ */
+  customerId?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
@@ -328,6 +331,7 @@ export function OrderEditModal({
                   <div className="col-span-2 sm:col-span-4">
                     <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า/รุ่น</label>
                     <ProductSearchPicker
+                      customerId={customerId}
                       onPick={pick}
                       onUnresolvedSize={handleUnresolvedSize}
                       onModelSelected={setSelectedModel}

@@ -13,6 +13,7 @@ import { z } from "zod";
 import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
+import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -178,6 +179,14 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
   }
   const parsed = rawParse.data;
+
+  // R8 — Product Assignment ตามบริษัทลูกค้า: Defense-in-depth เหมือน addOrderItem —
+  // ใบเสนอราคาแบบ Guest (customerId = null ลูกค้ากรอกเอง ไม่อยู่ในฐาน) ไม่มีบริษัทให้
+  // เทียบสิทธิ์ จึงไม่กรอง (เห็น/เลือกได้ทุกสินค้า ตามพฤติกรรม Picker ที่ไม่ส่ง customerId)
+  if (quotation.customerId) {
+    const accessError = await validateProductAllowedForCustomer(parsed.productId, quotation.customerId);
+    if (accessError) return { success: false, error: accessError };
+  }
 
   await db.quotationItem.create({
     data: {

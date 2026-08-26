@@ -10,6 +10,7 @@ import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
 import { syncStandardVariants } from "@/lib/product-variant-size";
+import { setCompanyAccessForHead } from "@/lib/product-company-access";
 import { Decimal } from "@prisma/client/runtime/library";
 import { z } from "zod";
 
@@ -332,4 +333,28 @@ export async function batchCreateProductVariants(modelId: string, formData: Form
   revalidatePath(`/product-models/${modelId}`);
   revalidatePath("/products");
   return { success: true };
+}
+
+
+// R8 (2026-08-26) — Product Assignment ตามบริษัทลูกค้า: ตั้งชุดบริษัทที่ใช้รุ่นสินค้านี้ได้
+// (Family Head — ดู product-company-access.ts) — สิทธิ์ product.edit เดียวกับการแก้รุ่นสินค้า
+export async function updateModelCompanyAccess(id: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+
+  const desiredCustomerIds = [...new Set(formData.getAll("customerIds").map(String))];
+  const { granted, revoked } = await setCompanyAccessForHead({
+    head: { kind: "model", id },
+    desiredCustomerIds,
+    actorUserId: user.id,
+  });
+
+  revalidatePath("/product-models");
+  return {
+    success: true,
+    message:
+      desiredCustomerIds.length === 0
+        ? "บันทึกแล้ว — สินค้านี้เป็นสินค้าส่วนกลาง ทุกบริษัทใช้ได้"
+        : `บันทึกแล้ว — จำกัดเฉพาะ ${desiredCustomerIds.length} บริษัท (เพิ่ม ${granted} / ถอด ${revoked})`,
+  };
 }

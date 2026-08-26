@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 import { mergeSizeOptions } from "@/lib/product-variant-size";
+import { companyAccessWhere } from "@/lib/product-company-access";
 
 // R4 — Size Architecture Path A: ค้นหา 2 กลุ่มแยกกัน — "รุ่นสินค้า" (Model) ที่ชื่อตรง
 // (คืน Size ทั้งหมดที่มี Product Variant จริงรองรับอยู่แล้วมาด้วยในครั้งเดียว ไม่ต้อง
@@ -22,6 +23,14 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (!q) return NextResponse.json({ models: [], products: [] });
 
+  // R8 — Product Assignment ตามบริษัทลูกค้า: เอกสารที่รู้บริษัทลูกค้าแล้ว (Order/Quotation/
+  // Repair Note) ส่ง customerId มากรองให้เห็นเฉพาะสินค้าที่เปิดให้บริษัทนั้น (Allowlist
+  // ระดับ Family Head — ดู product-company-access.ts) — ไม่ส่งมา = พฤติกรรมเดิมทุกประการ
+  // (เห็นทุกสินค้า เช่นหน้า Master/Tax Invoice ที่ยังไม่ผูกบริษัท) — การกรองนี้เป็น UX ชั้น
+  // แรกเท่านั้น Server Action ที่เพิ่มรายการจริง Validate ซ้ำอีกชั้นเสมอ (Defense-in-depth)
+  const customerId = req.nextUrl.searchParams.get("customerId")?.trim() || null;
+  const accessFilter = customerId ? companyAccessWhere(customerId) : null;
+
   // Owner UAT — ข้อ 1: Product ที่ตั้ง pricePerFoot ไว้เอง (Anchor ของตัวเอง ไม่ต้องพึ่ง
   // ProductModel) ต้องค้นหาเจอแล้วแสดง Size ให้เลือกได้เหมือน ProductModel ทุกประการ —
   // Query แยกต่างหาก แล้วรวมเข้ากับผลลัพธ์ "models" ชุดเดียวกัน (Shape เดียวกันเป๊ะ ให้
@@ -29,7 +38,7 @@ export async function GET(req: NextRequest) {
   // ต้อง Exclude Anchor พวกนี้ออก ไม่งั้นจะขึ้นซ้ำ 2 ที่
   const [models, productAnchors, standaloneProducts] = await Promise.all([
     db.productModel.findMany({
-      where: { active: true, name: { contains: q, mode: "insensitive" } },
+      where: { active: true, name: { contains: q, mode: "insensitive" }, ...(accessFilter ?? {}) },
       include: {
         productType: true,
         category: true,
@@ -41,7 +50,12 @@ export async function GET(req: NextRequest) {
       where: {
         active: true,
         pricePerFoot: { not: null },
-        OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }],
+        // AND ครอบเงื่อนไขค้นหา + Access Filter แยกกัน (ทั้งคู่มี OR ของตัวเอง ผสมใน
+        // Object เดียวไม่ได้ — OR ซ้ำ Key จะทับกัน)
+        AND: [
+          { OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] },
+          ...(accessFilter ? [accessFilter] : []),
+        ],
       },
       include: {
         productType: true,
@@ -59,7 +73,10 @@ export async function GET(req: NextRequest) {
         // ต้องไม่โผล่ซ้ำเป็นสินค้า Standalone แยกต่างหาก — เหมือนที่ modelId ไม่ว่างกันไม่ให้
         // Variant ของ ProductModel โผล่ซ้ำอยู่แล้วทุกประการ
         parentProductId: null,
-        OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }],
+        AND: [
+          { OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] },
+          ...(accessFilter ? [accessFilter] : []),
+        ],
       },
       include: { productType: true },
       take: 10,

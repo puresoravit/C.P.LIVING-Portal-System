@@ -17,6 +17,7 @@ import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
+import { capacityForDocument, paginateRows, computeQuotationPageSummary } from "@/lib/print-pagination";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
 // เดิมทั้งหมด ไม่มี VAT โดย Default (vatMode=NONE) แต่รองรับ vatMode=STANDARD ได้ —
@@ -148,12 +149,9 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
 
   return (
     <PrintPage templateSettings={template} docType="QUOTATION" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/quotations/${quotation.id}`}>
-      {template.headerLayout ? (
-        <HeaderZone layout={template.headerLayout} elements={headerElements} />
-      ) : (
-        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-      )}
-
+      {/* R8 — Document Pagination: Header เต็มเรนเดอร์ซ้ำทุกหน้าผ่าน pagination.header —
+          VAT ต่อหน้า (โหมด STANDARD) ถอดจากยอดสุทธิของหน้าด้วย extractVat เดิม (ดู
+          computeQuotationPageSummary) — เอกสารหน้าเดียว Output เดิมทุกประการ */}
       <QuotationPrintBody
         items={quotation.items}
         note={quotation.note}
@@ -166,9 +164,19 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         netBeforeVat={quotation.netBeforeVat}
         vatAmount={quotation.vatAmount}
         grandTotal={quotation.grandTotal}
+        pagination={{
+          pages: paginateRows(quotation.items, capacityForDocument(template, "QUOTATION")).map((pageItems) => ({
+            items: pageItems,
+            summary: computeQuotationPageSummary(pageItems, quotation.vatRateSnapshot ?? 0),
+          })),
+          header: template.headerLayout ? (
+            <HeaderZone layout={template.headerLayout} elements={headerElements} />
+          ) : (
+            <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+          ),
+          signature: <PrintSignatureBlock footerNote={template.footerNote} />,
+        }}
       />
-
-      <PrintSignatureBlock footerNote={template.footerNote} />
     </PrintPage>
   );
 }

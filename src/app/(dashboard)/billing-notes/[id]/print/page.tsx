@@ -17,6 +17,7 @@ import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
 import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel, resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
+import { capacityForDocument, paginateRows, computeBillingNotePageSummary } from "@/lib/print-pagination";
 
 const CREDIT_DAYS: Record<string, number> = { CASH: 0, NET30: 30, NET60: 60, NET90: 90 };
 
@@ -217,14 +218,11 @@ export default async function BillingNotePrintPage(props: {
         <span className="text-xs text-gray-400">(มีผลเฉพาะใบพิมพ์นี้ — ยอดที่บันทึกในระบบไม่เปลี่ยน)</span>
       </div>
 
-      {template.headerLayout ? (
-        <HeaderZone layout={template.headerLayout} elements={headerElements} />
-      ) : (
-        <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-      )}
-
-      <BillingNotePrintBody
-        invoices={note.invoices.map((inv) => {
+      {/* R8 — Document Pagination: แถวของเอกสารนี้คือใบ Invoice — แบ่งหน้า + tfoot
+          "รวมหน้านี้" ต่อหน้า + หน้าสุดท้ายมีแถวรวมทั้งเอกสาร (ดู print-pagination.ts) —
+          จำนวนเงินต่อหน้าคำนวณจากแถวจริงของหน้านั้นตามโหมดส่วนลดที่เลือกแสดงอยู่ */}
+      {(() => {
+        const rows = note.invoices.map((inv) => {
           const line = discountByInvoice.get(inv.id);
           return {
             id: inv.id,
@@ -237,15 +235,36 @@ export default async function BillingNotePrintPage(props: {
             alreadyDiscounted: line?.alreadyDiscounted,
             typeName: liveNames.get(inv.productTypeCode) ?? line?.typeName,
           };
-        })}
-        totalAmount={displayTotal}
-        amountInWords={toThaiBahtText(displayTotal)}
-        footerNote={template.footerNote}
-        showDiscount={showDiscount}
-        grossTotal={grossTotal}
-        discountTotal={displayDiscountTotal}
-        groupLabel={groupLabel}
-      />
+        });
+        return (
+          <BillingNotePrintBody
+            invoices={rows}
+            totalAmount={displayTotal}
+            amountInWords={toThaiBahtText(displayTotal)}
+            footerNote={template.footerNote}
+            showDiscount={showDiscount}
+            grossTotal={grossTotal}
+            discountTotal={displayDiscountTotal}
+            groupLabel={groupLabel}
+            pagination={{
+              pages: paginateRows(rows, capacityForDocument(template, "BILLING_NOTE")).map((pageRows) => ({
+                items: pageRows,
+                // โหมด "แสดงจำนวนเงินเต็ม" (showDiscount=false): ส่วนลดต่อหน้าต้องเป็น 0
+                // ให้สอดคล้องกับยอดรวมเอกสารที่แสดง (displayTotal = ยอดเต็ม) — โหมดแจงส่วนลด
+                // คำนวณจากส่วนลดจริงต่อใบของหน้านั้น
+                summary: computeBillingNotePageSummary(
+                  showDiscount ? pageRows : pageRows.map((r) => ({ grandTotal: r.grandTotal, discountAmount: 0 }))
+                ),
+              })),
+              header: template.headerLayout ? (
+                <HeaderZone layout={template.headerLayout} elements={headerElements} />
+              ) : (
+                <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
+              ),
+            }}
+          />
+        );
+      })()}
     </PrintPage>
   );
 }

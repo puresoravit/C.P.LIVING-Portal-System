@@ -15,6 +15,7 @@ import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
+import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -200,6 +201,11 @@ export async function addOrderItem(orderId: string, formData: FormData): Promise
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
   }
   const parsed = rawParse.data;
+
+  // R8 — Product Assignment ตามบริษัทลูกค้า: Defense-in-depth หลัง UI กรองแล้วชั้นหนึ่ง
+  // (Picker เห็นเฉพาะสินค้าที่เปิดให้บริษัทนี้อยู่แล้ว แต่ Server ไม่เชื่อ Client เสมอ)
+  const accessError = await validateProductAllowedForCustomer(parsed.productId, order.customerId);
+  if (accessError) return { success: false, error: accessError };
 
   await db.orderItem.create({
     data: {

@@ -1,21 +1,31 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { updateProduct } from "../actions";
+import { updateProduct, updateProductCompanyAccess } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
+import { ProductCompanyAccessForm } from "@/components/product-company-access-form";
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, productTypes, categories, productModels] = await Promise.all([
-    db.product.findUnique({ where: { id: params.id } }),
+  const [product, productTypes, categories, productModels, customers] = await Promise.all([
+    db.product.findUnique({ where: { id: params.id }, include: { companyAccess: { select: { customerId: true } } } }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.customer.findMany({
+      where: { active: true },
+      select: { id: true, companyName: true, code: true },
+      orderBy: { companyName: "asc" },
+    }),
   ]);
   if (!product) notFound();
 
   const updateWithId = updateProduct.bind(null, product.id);
+  // R8 — Product Assignment ตามบริษัทลูกค้า: กำหนดได้เฉพาะที่ Family Head (Standalone/
+  // Anchor) — Variant (parentProductId/modelId ไม่ว่าง) ตามสิทธิ์ของหัวเสมอ ไม่มีของตัวเอง
+  const isFamilyHead = !product.parentProductId && !product.modelId;
+  const accessAction = updateProductCompanyAccess.bind(null, product.id);
   const modelsByType = productModels.map((m) => ({ id: m.id, name: m.name, productTypeId: m.productTypeId }));
   const modelsForCurrentType = productModels.filter((m) => m.productTypeId === product.productTypeId);
   // Owner UAT Fix Batch 1 — ข้อ 1: คำนวณป้ายราคาเริ่มต้นฝั่ง Server ตาม Category ปัจจุบัน
@@ -129,6 +139,31 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           </a>
         </div>
       </ActionForm>
+
+      {/* R8 — Product Assignment ตามบริษัทลูกค้า (เฉพาะ Family Head — Variant ตามหัวเสมอ) */}
+      <div className="mt-4">
+        {isFamilyHead ? (
+          <ProductCompanyAccessForm
+            customers={customers}
+            initialCustomerIds={product.companyAccess.map((a) => a.customerId)}
+            action={accessAction}
+          />
+        ) : (
+          <p className="text-xs text-gray-500 bg-gray-50 border rounded px-3 py-2">
+            การกำหนดบริษัทลูกค้าของสินค้านี้ทำที่ตัวหลักของครอบครัวสินค้า (
+            {product.parentProductId ? (
+              <a href={`/products/${product.parentProductId}`} className="text-blue-600 hover:underline">
+                สินค้าหลัก
+              </a>
+            ) : (
+              <a href={`/product-models/${product.modelId}`} className="text-blue-600 hover:underline">
+                รุ่นสินค้า
+              </a>
+            )}
+            ) — Size Variant ทุกตัวใช้สิทธิ์เดียวกับตัวหลักเสมอ
+          </p>
+        )}
+      </div>
 
       {/* Type→Model dependent dropdown — ถ้าเปลี่ยน Type ระหว่างแก้ไข ให้กรอง Model
           ใหม่ตาม Type ที่เลือก (Model เดิมของ Type เก่าจะไม่ตรงกันอีกต่อไป) */}

@@ -118,6 +118,23 @@ function sizeOptionToUnresolved(model: ModelResult, s: ModelSizeOption): Unresol
   };
 }
 
+/** R8 — Hook ติดตามค่าบริษัทลูกค้าจาก <select id="..."> ที่ Server Page เรนเดอร์ไว้นอก
+ * Component นี้ (Pattern หน้า repair-notes/new และ tax-invoices/new ที่ฟอร์มหัวเอกสารเป็น
+ * Server-rendered + Inline Script เดิม) — ให้ Client Item Entry รู้บริษัทที่เลือกอยู่จริง
+ * เพื่อส่งต่อให้ ProductSearchPicker กรองสินค้า — คืน undefined เมื่อยังไม่เลือก/ไม่พบ Element */
+export function useCustomerSelectValue(selectId = "customerSelect"): string | undefined {
+  const [customerId, setCustomerId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const el = document.getElementById(selectId) as HTMLSelectElement | null;
+    if (!el) return;
+    const sync = () => setCustomerId(el.value || undefined);
+    sync();
+    el.addEventListener("change", sync);
+    return () => el.removeEventListener("change", sync);
+  }, [selectId]);
+  return customerId;
+}
+
 export function ProductSearchPicker({
   onPick,
   onUnresolvedSize,
@@ -126,7 +143,12 @@ export function ProductSearchPicker({
   autoFocus,
   placeholder = "เช่น GT-David หรือ M001",
   resetToken,
+  customerId,
 }: {
+  /** R8 — Product Assignment ตามบริษัทลูกค้า: ส่งมาเมื่อเอกสารรู้บริษัทลูกค้าแล้ว →
+   * ผลค้นหาถูกกรองฝั่ง Server ให้เหลือเฉพาะสินค้าที่เปิดให้บริษัทนั้น (ดู
+   * /api/products/search) — ไม่ส่ง = เห็นทุกสินค้าเหมือนเดิมทุกประการ */
+  customerId?: string;
   onPick: (p: PickedProduct) => void;
   /** R6 Phase B — เรียกเมื่อเลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา หรือขนาดพิเศษ) — ไม่ implement = พฤติกรรมเดิม (ตัวเลือกนั้นจะเลือกไม่ได้จริง เพราะไม่มี onPick ให้เรียก) */
   onUnresolvedSize?: (info: UnresolvedSizeInfo | null) => void;
@@ -177,7 +199,8 @@ export function ProductSearchPicker({
     }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}`);
+        const customerParam = customerId ? `&customerId=${encodeURIComponent(customerId)}` : "";
+        const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}${customerParam}`);
         const data = await res.json();
         setModels(data.models ?? []);
         setProducts(data.products ?? []);
@@ -188,7 +211,7 @@ export function ProductSearchPicker({
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [query, selectedModel, picked]);
+  }, [query, selectedModel, picked, customerId]);
 
   function pickProduct(p: ProductResult) {
     setQuery(`${p.sku} — ${p.name}`);

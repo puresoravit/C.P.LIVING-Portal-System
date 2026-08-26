@@ -230,4 +230,35 @@ html.cp-app-enter body {
   .print-keep-together {
     break-inside: avoid;
   }
+
+  /* R8 — Document Pagination: แต่ละ Section คือ 1 หน้ากระดาษเต็ม (Header + ตาราง +
+     Summary ของหน้านั้น — ดู print-pagination.ts) — บังคับขึ้นหน้าใหม่หลังทุกหน้า ยกเว้น
+     หน้าสุดท้าย และแต่ละหน้าสูงเต็มพื้นที่พิมพ์เพื่อให้ flex-1 Spacer เดิมภายในดัน Summary
+     ลงท้ายหน้าเหมือนพฤติกรรม print-page-fill เดิมทุกประการ (หักตาม --print-content-padding
+     ด้วยสูตรเดียวกัน) */
+  .print-doc-page {
+    break-after: page;
+    break-inside: avoid;
+    min-height: calc(var(--print-content-height) - (var(--print-content-padding) * 2));
+  }
+  .print-doc-page:last-child {
+    break-after: auto;
+  }
+}
+
+/* R8 — Document Pagination (หน้าจอ Preview): แต่ละหน้าเป็น Flex Column เหมือนโครงเดิมของ
+   print-page-fill (flex-1 Spacer/mt-auto ภายในยังทำงานเหมือนเดิม) — flex:1 ให้เอกสารหน้า
+   เดียวสูงเต็มพื้นที่พิมพ์ตอน Print เป๊ะแบบเดิม (Parent .print-page-fill มี min-height) —
+   เส้นประคั่นระหว่างหน้าเห็นเฉพาะบนจอ (ตอน Print ขึ้นหน้าใหม่จริง ไม่มีเส้น) */
+.print-doc-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+}
+@media screen {
+  .print-doc-page + .print-doc-page {
+    border-top: 2px dashed #d1d5db;
+    margin-top: 20px;
+    padding-top: 20px;
+  }
 }

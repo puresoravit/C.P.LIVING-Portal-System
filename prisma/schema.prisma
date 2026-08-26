@@ -150,6 +150,7 @@ model Customer {
   billingNotes   BillingNote[]
   repairReturnNotes RepairReturnNote[]
   quotations     Quotation[]
+  productAccess  ProductCompanyAccess[]
 
   @@map("customers")
 }
@@ -252,9 +253,41 @@ model ProductModel {
   updatedAt     DateTime    @updatedAt
 
   products Product[]
+  companyAccess ProductCompanyAccess[]
 
   @@unique([productTypeId, name]) // กัน Model ชื่อซ้ำเป๊ะภายใน Type เดียวกัน
   @@map("product_models")
+}
+
+// R8 (2026-08-26) — Product Assignment ตามบริษัทลูกค้า: จำกัดว่าสินค้า Family ไหนเปิดให้
+// บริษัท (Customer) ไหนเลือกใช้ในเอกสารได้บ้าง — ออกแบบเป็น "Allowlist ระดับ Family Head"
+// ไม่ใช่รายแถว Product:
+//   - ไม่มีแถวเลยสำหรับ Family นั้น = สินค้าส่วนกลาง เปิดให้ทุกบริษัท (Default — ข้อมูล
+//     Production เดิมทั้งหมดเข้าเคสนี้ทันทีโดยไม่ต้อง Backfill = Zero-behavior-change ตอน Migrate)
+//   - มีแถว = เปิดเฉพาะบริษัทที่มีแถวเท่านั้น
+// Family Head คือจุดเดียวที่ผูกแถว (กัน Variant แต่ละ Size ต้องตั้งซ้ำและ Drift กันเอง):
+//   - productModelId → ProductModel Family (Variant ทุกตัวของ Model ตามหัวเสมอ)
+//   - productId → Standalone Product หรือ Product Anchor (pricePerFoot) — Variant ที่มี
+//     parentProductId ตามหัว (Anchor) เสมอ ไม่มีแถวของตัวเอง
+// productId/productModelId เป็น XOR (แถวหนึ่งผูกอย่างใดอย่างหนึ่ง) — บังคับที่ Application
+// Layer (Server Action เป็นผู้สร้างเสมอ) ตาม Pattern เดียวกับ PriceRule scope เดิม
+// การลบ/เปลี่ยนแถว = เปลี่ยนแค่ "ตัวเลือกตอนสร้างเอกสารใหม่" — ไม่แตะ Product จริง ไม่แตะ
+// เอกสารเก่า/Snapshot ใดๆ ทั้งสิ้น (เอกสารอ้าง productId + Snapshot ของตัวเองเสมอ)
+model ProductCompanyAccess {
+  id             String        @id @default(cuid())
+  productId      String?
+  product        Product?      @relation(fields: [productId], references: [id])
+  productModelId String?
+  productModel   ProductModel? @relation(fields: [productModelId], references: [id])
+  customerId     String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  grantedById    String? // User id ผู้กำหนดสิทธิ์ (Audit ฉบับเต็มอยู่ใน AuditLog)
+  createdAt      DateTime      @default(now())
+
+  @@unique([productId, customerId])
+  @@unique([productModelId, customerId])
+  @@index([customerId])
+  @@map("product_company_access")
 }
 
 model Product {
@@ -300,6 +333,7 @@ model Product {
   orderItems   OrderItem[]
   invoiceItems InvoiceItem[]
   quotationItems QuotationItem[]
+  companyAccess ProductCompanyAccess[]
 
   @@map("products")
 }

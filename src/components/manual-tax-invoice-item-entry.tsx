@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
+import { ProductSearchPicker, useCustomerSelectValue, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 import { getSuggestedTaxInvoiceItem, getSuggestedTaxInvoiceGroupDiscounts } from "@/app/(dashboard)/tax-invoices/actions";
 import { useToast } from "@/components/toast/toast-provider";
@@ -63,6 +63,8 @@ export function ManualTaxInvoiceItemEntry({
   });
   const [err, setErr] = useState("");
   const [pickerResetToken, setPickerResetToken] = useState(0);
+  // R8 — กรองสินค้าตามบริษัทลูกค้าที่เลือกในฟอร์มหัวเอกสาร (Server-rendered #customerSelect)
+  const customerId = useCustomerSelectValue();
   // Owner UAT Round 3 — ข้อ 4: Model ที่เลือกไว้ (รอเลือกขนาด) — ตอนมีค่านี้ ช่อง "ขนาด"
   // จะเปลี่ยนจาก Free-text เป็น <ModelSizeSelect> (Dropdown ขนาดจริงของ Model นั้น)
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
@@ -276,6 +278,7 @@ export function ManualTaxInvoiceItemEntry({
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการ/ราคาอัตโนมัติ
             </label>
             <ProductSearchPicker
+              customerId={customerId}
               onPick={handlePick}
               onUnresolvedSize={handleUnresolvedSize}
               onModelSelected={setSelectedModel}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
+import { ProductSearchPicker, useCustomerSelectValue, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 
 type Item = { description: string; size: string; quantity: number; unit: string };
@@ -16,6 +16,8 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
   const [draft, setDraft] = useState<Item>({ description: "", size: "", quantity: 1, unit: "หลัง" });
   const [err, setErr] = useState("");
   const [pickerResetToken, setPickerResetToken] = useState(0);
+  // R8 — กรองสินค้าตามบริษัทลูกค้าที่เลือกในฟอร์มหัวเอกสาร (Server-rendered #customerSelect)
+  const customerId = useCustomerSelectValue();
   // Owner UAT Round 3 — ข้อ 4: เหมือน Tax Invoice ทุกประการ
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
 
@@ -70,6 +72,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
               สินค้า/รุ่น — ค้นหาแล้วเลือกขนาด (ถ้ามี) เพื่อดึงรายการอัตโนมัติ
             </label>
             <ProductSearchPicker
+              customerId={customerId}
               onPick={handlePick}
               onUnresolvedSize={handleUnresolvedSize}
               onModelSelected={setSelectedModel}
