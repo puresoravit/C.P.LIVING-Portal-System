@@ -198,6 +198,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
               suggestPriceAction={suggestPriceAction}
               canManageProducts={canManageProducts}
               customerId={quotation.customerId ?? undefined}
+              guestQuotation={!quotation.customerId}
             />
           </div>
         </>
@@ -332,6 +333,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             suggestPriceAction={suggestPriceAction}
             canManageProducts={canManageProducts}
             customerId={quotation.customerId ?? undefined}
+            guestQuotation={!quotation.customerId}
           />
         )}
       </div>

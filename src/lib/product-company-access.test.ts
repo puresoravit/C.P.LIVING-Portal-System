@@ -76,18 +76,64 @@ describe("isVisibleToCompany (R9 — Catalog + Legacy)", () => {
   });
 });
 
-describe("companyAccessWhere (R9)", () => {
-  it("Fragment ตัดสินตามลำดับ: สมาชิก Catalog ก่อน แล้วค่อย Legacy สำหรับ Head ที่ catalogId null", () => {
+describe("companyAccessWhere (R10)", () => {
+  it("Fragment ตัดสินตามลำดับ: Private → สมาชิก Catalog (ไม่รวมสินค้าเสนอราคา) → Legacy", () => {
     expect(companyAccessWhere("c1")).toEqual({
       OR: [
-        { catalog: { companies: { some: { customerId: "c1" } } } },
+        { ownerCustomerId: "c1" },
         {
           AND: [
+            { ownerCustomerId: null },
+            { catalog: { isQuotationCatalog: false, companies: { some: { customerId: "c1" } } } },
+          ],
+        },
+        {
+          AND: [
+            { ownerCustomerId: null },
             { catalogId: null },
             { OR: [{ companyAccess: { none: {} } }, { companyAccess: { some: { customerId: "c1" } } }] },
           ],
         },
       ],
     });
+  });
+});
+
+// R10 — Private / สินค้าเสนอราคา
+describe("isVisibleToCompany (R10 — Private + Quotation Catalog)", () => {
+  it("Private ของบริษัทนี้ = เห็นเสมอ (ไม่สนกลุ่ม/Allowlist)", () => {
+    expect(
+      isVisibleToCompany({ ownerCustomerId: "a", catalogCompanyIds: null, accessCustomerIds: [], customerId: "a" })
+    ).toBe(true);
+  });
+
+  it("Private ของบริษัทอื่น = ไม่เห็น แม้อยู่กลุ่มเดียวกัน", () => {
+    expect(
+      isVisibleToCompany({ ownerCustomerId: "b", catalogCompanyIds: ["a", "b"], accessCustomerIds: [], customerId: "a" })
+    ).toBe(false);
+  });
+
+  it("Head ใน Catalog สินค้าเสนอราคา = Customer Master ไม่เห็นเสมอ", () => {
+    expect(
+      isVisibleToCompany({
+        ownerCustomerId: null,
+        catalogCompanyIds: [],
+        isQuotationCatalog: true,
+        accessCustomerIds: [],
+        customerId: "a",
+      })
+    ).toBe(false);
+  });
+
+  it("ตัวอย่างกลุ่มปีนัง: สมาชิกเห็น Shared ของกลุ่ม + Private ของตัวเองเท่านั้น", () => {
+    const group = ["cm", "sc", "korat"];
+    // Shared A/B/C ของกลุ่ม — ทุกสมาชิกเห็น
+    for (const member of group) {
+      expect(isVisibleToCompany({ ownerCustomerId: null, catalogCompanyIds: group, accessCustomerIds: [], customerId: member })).toBe(true);
+    }
+    // Private CM-01 ของเชียงใหม่ — สมาชิกอื่นไม่เห็น
+    expect(isVisibleToCompany({ ownerCustomerId: "cm", catalogCompanyIds: null, accessCustomerIds: [], customerId: "cm" })).toBe(true);
+    expect(isVisibleToCompany({ ownerCustomerId: "cm", catalogCompanyIds: null, accessCustomerIds: [], customerId: "sc" })).toBe(false);
+    expect(isVisibleToCompany({ ownerCustomerId: "cm", catalogCompanyIds: null, accessCustomerIds: [], customerId: "korat" })).toBe(false);
   });
 });

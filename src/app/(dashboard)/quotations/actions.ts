@@ -100,6 +100,21 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
   const parsed = rawParse.data;
 
   const quotation = await db.$transaction(async (tx) => {
+    // R10 — "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ": Guest QT ทุกใบสร้าง "ราย" (Prospect) ของ
+    // ตัวเองเสมอ (ห้าม Auto-merge จากชื่อโดยไม่ให้ User ยืนยัน — การรวมรายทำที่หน้า
+    // /quotations/prospects ด้วยการกดยืนยันเองเท่านั้น)
+    const prospect =
+      parsed.customerMode === "GUEST"
+        ? await tx.quotationProspect.create({
+            data: {
+              name: parsed.guestName!,
+              taxId: parsed.guestTaxId || null,
+              address: parsed.guestAddress || null,
+              contactPerson: parsed.guestContact || null,
+              phone: parsed.guestPhone || null,
+            },
+          })
+        : null;
     // Quotation เป็นเอกสารแยกเด็ดขาดจาก Order/Invoice — ไม่ผูก Relation ใดๆ กัน,
     // ไม่แตกตาม ProductType, ไม่นับใน Dashboard/Report/Sales SOT/Billing Note/
     // Tax Invoice — Running Number จองตอน Draft สร้าง (ก่อน Confirm) เพราะ Quotation
@@ -124,6 +139,7 @@ export async function createDraftQuotation(formData: FormData): Promise<ActionRe
               addressSnapshot: parsed.guestAddress || null,
               contactSnapshot: parsed.guestContact || null,
               phoneSnapshot: parsed.guestPhone || null,
+              prospectId: prospect!.id,
             }),
         reference: parsed.reference,
         note: parsed.note,

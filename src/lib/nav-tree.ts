@@ -16,6 +16,9 @@ export type NavLink = {
   label: string;
   perm: Permission | null;
   icon?: NavIconKey;
+  // R10 — คำอธิบายตอน Hover (title Attribute) — ใช้กับเมนูที่ชื่อสั้นตาม Requirement แต่
+  // ต้องมีคำอธิบายเพิ่มตอนเอา Cursor ไปค้าง (เช่น "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ")
+  tooltip?: string;
   // เมนูย่อยที่ยังไม่มี Route/Feature จริงตาม Implementation Plan — แสดงไว้ให้เห็น
   // โครงสร้างเมนูที่อนุมัติแล้ว แต่กดไม่ได้ (ห้ามสร้าง Business Logic ปลอมเพื่อให้ใช้ได้)
   disabled?: true;
@@ -82,6 +85,14 @@ export const NAV_TREE: NavNode[] = [
     items: [
       { type: "link", href: "/orders", label: "เอกสารทั้งหมด", perm: "order.create", icon: "list" },
       { type: "link", href: "/quotations", label: "เอกสารใบเสนอราคา", perm: "quotation.view", icon: "quotation" },
+      {
+        type: "link",
+        href: "/quotations/prospects",
+        label: "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ",
+        perm: "quotation.view",
+        icon: "quotation",
+        tooltip: "ใบเสนอราคาที่สร้างจากการกรอกข้อมูลลูกค้าเอง และยังไม่ได้เชื่อมกับ Customer Master",
+      },
       { type: "link", href: "/invoices", label: "เอกสารใบส่งของชั่วคราว", perm: "invoice.create", icon: "delivery" },
       { type: "link", href: "/tax-invoices", label: "เอกสารใบกำกับภาษี", perm: "taxInvoice.create", icon: "receipt" },
       // Owner UAT (2026-08-23) — /billing-notes และ /repair-notes (List Page) มีอยู่แล้ว

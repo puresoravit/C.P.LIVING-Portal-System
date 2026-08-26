@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { createProduct, toggleProductActive, deleteProduct, addCatalogCompany, removeCatalogCompany, mergeCompanyGroups } from "./actions";
-import { CompanyCatalogBoard, type CompanyCard } from "@/components/company-catalog-board";
+import { createProduct, toggleProductActive, deleteProduct, addCatalogCompany, removeCatalogCompany, createCatalogGroupAction, renameCatalogAction, moveCompanyToCatalogAction } from "./actions";
+import { CatalogGroupBoard, type BoardGroup, type BoardMember } from "@/components/catalog-group-board";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
@@ -28,6 +28,8 @@ type StatusFilter = "active" | "inactive" | undefined;
 
 type ViewCtx =
   | { kind: "landing" }
+  | { kind: "groups" }
+  | { kind: "quotation" }
   | { kind: "company"; customerId: string }
   | { kind: "central" }
   | { kind: "all" };
@@ -45,19 +47,36 @@ function catalogRowsWhere(catalogId: string) {
   };
 }
 
-/** แถวสินค้าส่วนกลาง = Head ไม่สังกัด Catalog ใดเลย */
+/** แถวสินค้าส่วนกลาง = Head ไม่สังกัด Catalog/ไม่ Private เลย */
 function centralRowsWhere() {
   return {
     OR: [
-      { AND: [{ parentProductId: null }, { modelId: null }, { catalogId: null }] },
-      { parentProduct: { catalogId: null } },
-      { AND: [{ parentProductId: null }, { modelId: { not: null } }, { model: { catalogId: null } }] },
+      { AND: [{ parentProductId: null }, { modelId: null }, { catalogId: null }, { ownerCustomerId: null }] },
+      { parentProduct: { catalogId: null, ownerCustomerId: null } },
+      {
+        AND: [
+          { parentProductId: null },
+          { modelId: { not: null } },
+          { model: { catalogId: null, ownerCustomerId: null } },
+        ],
+      },
+    ],
+  };
+}
+
+/** R10 — แถวสินค้า Private ของบริษัท (ตาม Family Head เช่นเดียวกับ Shared) */
+function privateRowsWhere(customerId: string) {
+  return {
+    OR: [
+      { ownerCustomerId: customerId },
+      { parentProduct: { ownerCustomerId: customerId } },
+      { AND: [{ parentProductId: null }, { model: { ownerCustomerId: customerId } }] },
     ],
   };
 }
 
 export default async function ProductsPage(props: {
-  searchParams: Promise<{ q?: string; unassigned?: string; status?: string; company?: string; view?: string }>;
+  searchParams: Promise<{ q?: string; unassigned?: string; status?: string; company?: string; view?: string; pscope?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const q = searchParams.q?.trim();
@@ -66,86 +85,133 @@ export default async function ProductsPage(props: {
 
   const ctx: ViewCtx = searchParams.company
     ? { kind: "company", customerId: searchParams.company }
-    : searchParams.view === "central"
-      ? { kind: "central" }
-      : searchParams.view === "all"
-        ? { kind: "all" }
-        : { kind: "landing" };
+    : searchParams.view === "groups"
+      ? { kind: "groups" }
+      : searchParams.view === "quotation"
+        ? { kind: "quotation" }
+        : searchParams.view === "central"
+          ? { kind: "central" }
+          : searchParams.view === "all"
+            ? { kind: "all" }
+            : { kind: "landing" };
+  // R10 — Company View: กรองย่อย Shared/Private (Default = ทั้งสองอย่างของบริษัทนั้น)
+  const pscope = searchParams.pscope === "shared" || searchParams.pscope === "private" ? searchParams.pscope : undefined;
 
-  // ---------- Landing: รายชื่อบริษัท ----------
+  // ---------- Landing: 2 หมวดหลักตามโครงที่ Owner กำหนด ----------
   if (ctx.kind === "landing") {
-    const [companies, centralCount, allCount] = await Promise.all([
-      db.customer.findMany({
-        where: { active: true },
-        select: {
-          id: true,
-          code: true,
-          companyName: true,
-          catalogMembership: {
-            select: {
-              catalog: {
-                select: {
-                  id: true,
-                  companies: { select: { customer: { select: { id: true, code: true, companyName: true } } } },
-                },
-              },
-            },
-          },
-        },
-        orderBy: { companyName: "asc" },
-      }),
+    const qcat = await db.productCatalog.findFirst({ where: { isQuotationCatalog: true }, select: { id: true } });
+    const [companyCount, groupCount, quotationCount, centralCount, allCount] = await Promise.all([
+      db.customer.count({ where: { active: true } }),
+      db.productCatalog.count({ where: { isQuotationCatalog: false, active: true } }),
+      qcat ? db.product.count({ where: catalogRowsWhere(qcat.id) }) : Promise.resolve(0),
       db.product.count({ where: centralRowsWhere() }),
       db.product.count(),
     ]);
 
-    // นับสินค้าต่อ Catalog ครั้งเดียวต่อกลุ่ม (หลายบริษัทแชร์กลุ่มเดียว ไม่นับซ้ำ)
-    const catalogIds = [...new Set(companies.map((c) => c.catalogMembership?.catalog.id).filter((v): v is string => !!v))];
-    const catalogCounts = new Map<string, number>(
-      await Promise.all(
-        catalogIds.map(async (id) => [id, await db.product.count({ where: catalogRowsWhere(id) })] as [string, number])
-      )
-    );
-
-    // R9.1 — Data สำหรับ Board (Drag & Drop รวมกลุ่ม): Client ใช้บรรยาย Confirm ตามเคส
-    // เท่านั้น — การตัดสิน/ทำจริงอยู่ฝั่ง Server (mergeCompanyGroups) เสมอ
-    const cards: CompanyCard[] = companies.map((c) => {
-      const catalog = c.catalogMembership?.catalog ?? null;
-      const partners = catalog ? catalog.companies.map((m) => m.customer).filter((cc) => cc.id !== c.id) : [];
-      return {
-        id: c.id,
-        code: c.code,
-        companyName: c.companyName,
-        catalogId: catalog?.id ?? null,
-        partnerNames: partners.map((pp) => pp.companyName),
-        productCount: catalog ? (catalogCounts.get(catalog.id) ?? 0) : 0,
-      };
-    });
-
     return (
       <div className="max-w-5xl">
-        <h1 className="text-lg font-semibold mb-1">สินค้า — เลือกบริษัท</h1>
-        <p className="text-sm text-gray-500 mb-4">
-          เลือกบริษัทเพื่อดู/เพิ่ม/แก้สินค้าของบริษัทนั้น — หลายบริษัทใช้รายการสินค้าร่วมกันได้ (จัดการจากหน้าบริษัทใดก็ได้ในกลุ่ม)
-        </p>
+        <h1 className="text-lg font-semibold mb-1">รายการสินค้า</h1>
+        <p className="text-sm text-gray-500 mb-4">เลือกหมวดรายการสินค้าที่ต้องการจัดการ</p>
 
-        <div className="mb-4">
-          {companies.length > 0 ? (
-            <CompanyCatalogBoard companies={cards} mergeAction={mergeCompanyGroups} />
-          ) : (
-            <div className="bg-white border rounded-lg p-6 text-center text-sm text-gray-400">
-              ยังไม่มีบริษัทลูกค้าในระบบ — เพิ่มที่เมนู <a href="/customers" className="text-blue-600 hover:underline">ลูกค้า</a> ก่อน แล้วกลับมาสร้างรายการสินค้าของบริษัทที่นี่
-            </div>
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <a href="/products?view=quotation" className="bg-white border rounded-lg p-5 hover:border-blue-400 hover:shadow-sm">
+            <div className="font-medium">สินค้าเสนอราคา</div>
+            <p className="mt-1 text-xs text-gray-500">
+              Catalog สำหรับใบเสนอราคาแบบ &quot;กรอกข้อมูลเอง&quot; — ลูกค้าใน Customer Master ไม่เห็นหมวดนี้
+            </p>
+            <span className="mt-2 inline-block text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+              {quotationCount} รายการ
+            </span>
+          </a>
+          <a href="/products?view=groups" className="bg-white border rounded-lg p-5 hover:border-blue-400 hover:shadow-sm">
+            <div className="font-medium">สินค้าของลูกค้าที่อยู่ในระบบ</div>
+            <p className="mt-1 text-xs text-gray-500">
+              จัดกลุ่มบริษัท (Catalog Group) — Shared ทั้งกลุ่มเห็นร่วมกัน / Private เฉพาะบริษัท
+            </p>
+            <span className="mt-2 inline-block text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+              {groupCount} กลุ่ม · {companyCount} บริษัท
+            </span>
+          </a>
         </div>
 
         <div className="flex flex-wrap gap-3 text-sm">
-          <a href="/products?view=central" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400">
+          <a href="/products?view=central" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400 text-gray-600">
             สินค้าส่วนกลาง (ทุกบริษัทเห็น) — {centralCount} รายการ
           </a>
           <a href="/products?view=all" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400 text-gray-600">
             ตารางรวมทุกสินค้า (มุมมองเดิม) — {allCount} รายการ
           </a>
         </div>
+      </div>
+    );
+  }
+
+  // ---------- R10: บอร์ดกลุ่มบริษัท (สินค้าของลูกค้าที่อยู่ในระบบ) ----------
+  if (ctx.kind === "groups") {
+    const [catalogs, allCompanies] = await Promise.all([
+      db.productCatalog.findMany({
+        where: { isQuotationCatalog: false, active: true },
+        select: {
+          id: true,
+          name: true,
+          companies: {
+            select: { customer: { select: { id: true, code: true, companyName: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.customer.findMany({
+        where: { active: true },
+        select: { id: true, code: true, companyName: true, catalogMembership: { select: { catalogId: true } } },
+        orderBy: { companyName: "asc" },
+      }),
+    ]);
+
+    const sharedCounts = new Map<string, number>(
+      await Promise.all(
+        catalogs.map(async (c) => [c.id, await db.product.count({ where: catalogRowsWhere(c.id) })] as [string, number])
+      )
+    );
+    const privateCounts = new Map<string, number>(
+      await Promise.all(
+        allCompanies.map(async (c) => [c.id, await db.product.count({ where: privateRowsWhere(c.id) })] as [string, number])
+      )
+    );
+
+    const toMember = (c: { id: string; code: string; companyName: string }): BoardMember => ({
+      id: c.id,
+      code: c.code,
+      companyName: c.companyName,
+      privateCount: privateCounts.get(c.id) ?? 0,
+    });
+    const groups: BoardGroup[] = catalogs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      sharedCount: sharedCounts.get(c.id) ?? 0,
+      members: c.companies.map((m) => toMember(m.customer)),
+    }));
+    const ungrouped: BoardMember[] = allCompanies.filter((c) => !c.catalogMembership).map(toMember);
+
+    return (
+      <div className="max-w-5xl">
+        <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายการสินค้า</a>
+        <h1 className="text-lg font-semibold mt-2 mb-1">สินค้าของลูกค้าที่อยู่ในระบบ — กลุ่มบริษัท</h1>
+        <p className="text-sm text-gray-500 mb-4">
+          กดชื่อบริษัทเพื่อดู/เพิ่มสินค้า (Shared ของกลุ่ม + Private ของบริษัท) — ลากบริษัทเพื่อจัดกลุ่ม
+        </p>
+        <CatalogGroupBoard
+          groups={groups}
+          ungrouped={ungrouped}
+          moveAction={moveCompanyToCatalogAction}
+          createGroupAction={createCatalogGroupAction}
+          renameAction={renameCatalogAction}
+        />
+        {allCompanies.length === 0 && (
+          <p className="mt-4 text-sm text-gray-400">
+            ยังไม่มีบริษัทลูกค้าในระบบ — เพิ่มที่เมนู <a href="/customers" className="text-blue-600 hover:underline">ลูกค้า</a> ก่อน
+          </p>
+        )}
       </div>
     );
   }
@@ -186,15 +252,31 @@ export default async function ProductsPage(props: {
   }
   const catalog = company?.catalogMembership?.catalog ?? null;
 
-  // Context Where: บริษัท (มี Catalog = แถวของกลุ่ม / ยังไม่มี = ว่างเปล่า รอสร้างสินค้าแรก)
+  // R10 — Catalog "สินค้าเสนอราคา" (มุมมอง quotation) — อ่านอย่างเดียวตอน Render (ยังไม่มี
+  // = ตารางว่าง; Action สร้างให้เองตอนบันทึกสินค้าแรกผ่าน quotationCatalog=1)
+  const quotationCatalog =
+    ctx.kind === "quotation"
+      ? await db.productCatalog.findFirst({ where: { isQuotationCatalog: true }, select: { id: true, name: true } })
+      : null;
+
+  // Context Where ต่อมุมมอง — Company = Shared ของกลุ่ม + Private ของบริษัท (กรองย่อยด้วย
+  // pscope ได้) / Quotation = แถวของ Catalog สินค้าเสนอราคา
+  const companyShared = ctx.kind === "company" && catalog ? catalogRowsWhere(catalog.id) : null;
+  const companyPrivate = ctx.kind === "company" ? privateRowsWhere(ctx.customerId) : null;
   const ctxWhere =
     ctx.kind === "company"
-      ? catalog
-        ? catalogRowsWhere(catalog.id)
-        : { id: "__none__" } // ยังไม่มี Catalog — โชว์ตารางว่าง (สร้างสินค้าแรกแล้ว Catalog ถูกสร้างเองอัตโนมัติ)
-      : ctx.kind === "central"
-        ? centralRowsWhere()
-        : {};
+      ? pscope === "shared"
+        ? (companyShared ?? { id: "__none__" })
+        : pscope === "private"
+          ? companyPrivate!
+          : { OR: [...(companyShared ? [companyShared] : []), companyPrivate!] }
+      : ctx.kind === "quotation"
+        ? quotationCatalog
+          ? catalogRowsWhere(quotationCatalog.id)
+          : { id: "__none__" }
+        : ctx.kind === "central"
+          ? centralRowsWhere()
+          : {};
 
   const searchWhere = {
     ...(q
@@ -210,9 +292,12 @@ export default async function ProductsPage(props: {
       include: {
         productType: true,
         category: true,
-        model: { include: { catalog: { select: { name: true } } } },
+        model: { include: { catalog: { select: { name: true } }, ownerCustomer: { select: { companyName: true } } } },
         catalog: { select: { name: true } },
-        parentProduct: { select: { catalog: { select: { name: true } } } },
+        ownerCustomer: { select: { companyName: true } },
+        parentProduct: {
+          select: { catalog: { select: { name: true } }, ownerCustomer: { select: { companyName: true } } },
+        },
         _count: { select: { priceRules: true, orderItems: true, invoiceItems: true, quotationItems: true, sizeVariants: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -244,8 +329,14 @@ export default async function ProductsPage(props: {
   ];
   // R9 — คง Context (company/view) ในทุกลิงก์ Filter/Search/Tab
   const ctxParams: Record<string, string> =
-    ctx.kind === "company" ? { company: ctx.customerId } : ctx.kind === "central" ? { view: "central" } : { view: "all" };
-  const ctxQuery = ctx.kind === "company" ? `company=${ctx.customerId}` : ctx.kind === "central" ? "view=central" : "view=all";
+    ctx.kind === "company"
+      ? { company: ctx.customerId, ...(pscope ? { pscope } : {}) }
+      : ctx.kind === "quotation"
+        ? { view: "quotation" }
+        : ctx.kind === "central"
+          ? { view: "central" }
+          : { view: "all" };
+  const ctxQuery = new URLSearchParams(ctxParams).toString();
 
   const preserveParams: Record<string, string> = { ...ctxParams };
   if (q) preserveParams.q = q;
@@ -259,25 +350,69 @@ export default async function ProductsPage(props: {
   const heading =
     ctx.kind === "company"
       ? `สินค้าของ ${company!.companyName} (${company!.code})`
-      : ctx.kind === "central"
-        ? "สินค้าส่วนกลาง (ทุกบริษัทเห็น)"
-        : "ตารางรวมทุกสินค้า";
+      : ctx.kind === "quotation"
+        ? "สินค้าเสนอราคา"
+        : ctx.kind === "central"
+          ? "สินค้าส่วนกลาง (ทุกบริษัทเห็น)"
+          : "ตารางรวมทุกสินค้า";
 
-  /** ชื่อกลุ่ม Catalog ของแถว (ตาม Family Head) — ใช้ในคอลัมน์มุมมองรวม */
-  const rowCatalogName = (p: (typeof products)[number]): string | null =>
-    p.parentProduct?.catalog?.name ?? (p.parentProductId ? null : p.model?.catalog?.name ?? p.catalog?.name ?? null);
+  /** ป้ายสังกัดของแถว (ตาม Family Head): ชื่อกลุ่ม Shared / "Private — บริษัท" / ส่วนกลาง */
+  const rowCatalogName = (p: (typeof products)[number]): string | null => {
+    if (p.parentProductId) {
+      return p.parentProduct?.catalog?.name ?? (p.parentProduct?.ownerCustomer ? `Private — ${p.parentProduct.ownerCustomer.companyName}` : null);
+    }
+    if (p.modelId) {
+      return p.model?.catalog?.name ?? (p.model?.ownerCustomer ? `Private — ${p.model.ownerCustomer.companyName}` : null);
+    }
+    return p.catalog?.name ?? (p.ownerCustomer ? `Private — ${p.ownerCustomer.companyName}` : null);
+  };
+  /** R10 — Company View: แถวนี้เป็น Private ของบริษัทที่กำลังดูอยู่ไหม (แสดง Badge) */
+  const rowIsPrivate = (p: (typeof products)[number]): boolean =>
+    p.parentProductId
+      ? !!p.parentProduct?.ownerCustomer
+      : p.modelId
+        ? !!p.model?.ownerCustomer
+        : !!p.ownerCustomer;
 
   return (
     <div className="max-w-5xl">
-      <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายชื่อบริษัท</a>
+      <a href={ctx.kind === "company" ? "/products?view=groups" : "/products"} className="text-sm text-blue-600 hover:underline">
+        {ctx.kind === "company" ? "← กลับกลุ่มบริษัท" : "← กลับรายการสินค้า"}
+      </a>
       <h1 className="text-lg font-semibold mt-2 mb-1">{heading}</h1>
       {ctx.kind === "company" && (
         <p className="text-sm text-gray-500 mb-3">
-          สินค้าที่สร้างจากหน้านี้ผูกกับกลุ่มของบริษัทนี้อัตโนมัติ — ตอนออกเอกสารให้บริษัทนี้จะเห็นเฉพาะรายการในกลุ่ม + สินค้าส่วนกลาง
+          เห็นทั้ง Shared ของกลุ่ม{catalog ? ` "${catalog.name}"` : ""} และ Private ของบริษัทนี้ — ตอนออกเอกสารให้บริษัทนี้เห็น Shared + Private + สินค้าส่วนกลาง
+        </p>
+      )}
+      {ctx.kind === "quotation" && (
+        <p className="text-sm text-gray-500 mb-3">
+          Catalog สำหรับใบเสนอราคาแบบ &quot;กรอกข้อมูลเอง&quot; — ลูกค้าใน Customer Master ไม่เห็นรายการหมวดนี้ตอนออกเอกสาร
+          (นำสินค้าไปใช้กับลูกค้าจริงได้จากหน้า &quot;ใบเสนอราคาลูกค้าที่ไม่มีในระบบ&quot; หลังเชื่อมลูกค้าแล้ว)
         </p>
       )}
       {ctx.kind === "central" && (
         <p className="text-sm text-gray-500 mb-3">สินค้าที่ไม่สังกัดกลุ่มบริษัทใด — ทุกบริษัทค้นหา/เลือกใช้ได้ตอนออกเอกสารเสมอ</p>
+      )}
+      {/* R10 — Company View: กรองย่อย Shared/Private */}
+      {ctx.kind === "company" && (
+        <div className="flex items-center gap-2 mb-3 text-xs">
+          {(
+            [
+              { key: undefined, label: "ทั้งหมด" },
+              { key: "shared", label: `Shared ของกลุ่ม` },
+              { key: "private", label: "Private ของบริษัทนี้" },
+            ] as const
+          ).map((t) => (
+            <a
+              key={t.label}
+              href={`/products?company=${ctx.customerId}${t.key ? `&pscope=${t.key}` : ""}`}
+              className={`rounded-full border px-3 py-1 ${pscope === t.key ? "bg-blue-600 text-white border-blue-600" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              {t.label}
+            </a>
+          ))}
+        </div>
       )}
 
       {/* R9 — Panel บริษัทร่วมกลุ่ม (Shared Catalog): A+B+C ใช้รายการเดียวกัน เพิ่ม/ถอดจากหน้าเดียว */}
@@ -329,12 +464,34 @@ export default async function ProductsPage(props: {
 
       <details className="mb-6 bg-white border rounded-lg">
         <summary className="cursor-pointer px-4 py-3 font-medium text-sm">
-          + เพิ่มสินค้าใหม่{ctx.kind === "company" ? ` (เข้ากลุ่มของ ${company!.companyName})` : ctx.kind === "central" ? " (สินค้าส่วนกลาง)" : ""}
+          + เพิ่มสินค้าใหม่
+          {ctx.kind === "company"
+            ? ` (ของ ${company!.companyName})`
+            : ctx.kind === "quotation"
+              ? " (เข้าสินค้าเสนอราคา)"
+              : ctx.kind === "central"
+                ? " (สินค้าส่วนกลาง)"
+                : ""}
         </summary>
         <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* R9 — สร้างจากหน้าบริษัท = ผูก Catalog บริษัทนั้นอัตโนมัติ (Server สร้าง Catalog
               ให้เองถ้ายังไม่มี) — มุมมองส่วนกลาง/รวม ไม่ส่ง = สินค้าส่วนกลาง */}
           {ctx.kind === "company" && <input type="hidden" name="companyId" value={company!.id} />}
+          {ctx.kind === "quotation" && <input type="hidden" name="quotationCatalog" value="1" />}
+          {/* R10 — เลือกปลายทาง Shared/Private ตอนสร้างจากหน้าบริษัท */}
+          {ctx.kind === "company" && (
+            <div className="col-span-1 sm:col-span-3 flex flex-wrap items-center gap-4 text-sm bg-gray-50 border rounded px-3 py-2">
+              <span className="text-xs text-gray-600">สินค้านี้เป็นของ:</span>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" name="visibility" value="shared" defaultChecked />
+                Shared — ทุกบริษัทในกลุ่ม{catalog ? ` "${catalog.name}"` : ""}เห็นร่วมกัน
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" name="visibility" value="private" />
+                Private — เฉพาะ {company!.companyName}
+              </label>
+            </div>
+          )}
           <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
           <div className="col-span-1 sm:col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
@@ -447,6 +604,7 @@ export default async function ProductsPage(props: {
               <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">รุ่นสินค้า</th>
               {ctx.kind === "all" && <th className="px-4 py-2 font-medium">กลุ่มบริษัท</th>}
+              {ctx.kind === "company" && <th className="px-4 py-2 font-medium">ประเภท</th>}
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2 font-medium text-right">ราคาตั้งต้น</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
@@ -476,6 +634,19 @@ export default async function ProductsPage(props: {
                 {ctx.kind === "all" && (
                   <td className="px-4 py-2">
                     {rowCatalogName(p) ?? <span className="text-gray-400">ส่วนกลาง</span>}
+                  </td>
+                )}
+                {ctx.kind === "company" && (
+                  <td className="px-4 py-2">
+                    {rowIsPrivate(p) ? (
+                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                        Private
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                        Shared
+                      </span>
+                    )}
                   </td>
                 )}
                 <td className="px-4 py-2">{p.unit}</td>
@@ -537,9 +708,11 @@ export default async function ProductsPage(props: {
             {products.length === 0 && (
               <tr>
                 <td colSpan={12} className="px-4 py-8 text-center text-gray-400">
-                  {ctx.kind === "company" && !catalog
-                    ? "บริษัทนี้ยังไม่มีรายการสินค้าของตัวเอง — กด “+ เพิ่มสินค้าใหม่” ด้านบนเพื่อเริ่ม (ระบบสร้างกลุ่มให้อัตโนมัติ) หรือเพิ่มบริษัทนี้เข้ากลุ่มของบริษัทอื่นจากหน้าบริษัทนั้น"
-                    : "ไม่พบสินค้า"}
+                  {ctx.kind === "company"
+                    ? "ยังไม่มีสินค้าในมุมมองนี้ — กด “+ เพิ่มสินค้าใหม่” ด้านบน (เลือก Shared เข้ากลุ่ม หรือ Private เฉพาะบริษัทนี้) หรือจัดกลุ่มบริษัทจากหน้ากลุ่ม"
+                    : ctx.kind === "quotation"
+                      ? "ยังไม่มีสินค้าเสนอราคา — กด “+ เพิ่มสินค้าใหม่” เพื่อเริ่ม (ระบบสร้าง Catalog สินค้าเสนอราคาให้อัตโนมัติ)"
+                      : "ไม่พบสินค้า"}
                 </td>
               </tr>
             )}

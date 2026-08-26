@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 import { mergeSizeOptions } from "@/lib/product-variant-size";
-import { companyAccessWhere } from "@/lib/product-company-access";
+import { companyAccessWhere, quotationGuestWhere } from "@/lib/product-company-access";
 
 // R4 — Size Architecture Path A: ค้นหา 2 กลุ่มแยกกัน — "รุ่นสินค้า" (Model) ที่ชื่อตรง
 // (คืน Size ทั้งหมดที่มี Product Variant จริงรองรับอยู่แล้วมาด้วยในครั้งเดียว ไม่ต้อง
@@ -29,7 +29,11 @@ export async function GET(req: NextRequest) {
   // (เห็นทุกสินค้า เช่นหน้า Master/Tax Invoice ที่ยังไม่ผูกบริษัท) — การกรองนี้เป็น UX ชั้น
   // แรกเท่านั้น Server Action ที่เพิ่มรายการจริง Validate ซ้ำอีกชั้นเสมอ (Defense-in-depth)
   const customerId = req.nextUrl.searchParams.get("customerId")?.trim() || null;
-  const accessFilter = customerId ? companyAccessWhere(customerId) : null;
+  // R10 — scope=guest: ใบเสนอราคาแบบกรอกข้อมูลเอง เห็นเฉพาะ "สินค้าเสนอราคา" + สินค้า
+  // ส่วนกลางแท้ (ดู quotationGuestWhere) — ไม่ส่งทั้ง customerId/scope = ไม่กรอง (หน้า
+  // Master เดิม)
+  const scope = req.nextUrl.searchParams.get("scope");
+  const accessFilter = customerId ? companyAccessWhere(customerId) : scope === "guest" ? quotationGuestWhere() : null;
 
   // Owner UAT — ข้อ 1: Product ที่ตั้ง pricePerFoot ไว้เอง (Anchor ของตัวเอง ไม่ต้องพึ่ง
   // ProductModel) ต้องค้นหาเจอแล้วแสดง Size ให้เลือกได้เหมือน ProductModel ทุกประการ —

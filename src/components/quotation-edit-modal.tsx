@@ -41,6 +41,7 @@ export function QuotationEditModal({
   suggestPriceAction,
   canManageProducts = false,
   customerId,
+  guestQuotation,
 }: {
   quotationNumber: string;
   /** Owner UAT Fix Batch — ข้อ 3: เลขที่เอกสารที่จะได้หลังบันทึกครั้งนี้ (มี Suffix -N ต่อ
@@ -55,6 +56,8 @@ export function QuotationEditModal({
   canManageProducts?: boolean;
   /** R8 — บริษัทลูกค้าของเอกสารนี้: ส่งต่อให้ Picker กรองเฉพาะสินค้าที่เปิดให้บริษัทนี้ */
   customerId?: string;
+  /** R10 — ใบเสนอราคาแบบกรอกข้อมูลเอง (Guest): Picker เห็นเฉพาะ "สินค้าเสนอราคา" + ส่วนกลาง */
+  guestQuotation?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<EditItem[]>(initialItems);
@@ -317,6 +320,7 @@ export function QuotationEditModal({
                     <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า/รุ่น</label>
                     <ProductSearchPicker
                       customerId={customerId}
+                      guestQuotation={guestQuotation}
                       onPick={pick}
                       onUnresolvedSize={handleUnresolvedSize}
                       onModelSelected={setSelectedModel}

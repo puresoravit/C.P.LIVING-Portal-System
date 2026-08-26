@@ -267,7 +267,7 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
     // Label ห่อ truncate (min-w-0 ให้ Flex Item หดได้จริง) บังคับ 1 บรรทัดเสมอตาม
     // Acceptance (ไม่มีทางแตก 2 บรรทัดไม่ว่าข้อความยาวแค่ไหน)
     return (
-      <a href={node.href} className={ACTIVE_CLASS}>
+      <a href={node.href} className={ACTIVE_CLASS} title={node.tooltip}>
         <ActiveFillet edge="top" />
         <ActiveFillet edge="bottom" />
         {/* Wrapper แยกสำหรับ rise-in — Transform อยู่ที่เนื้อในเท่านั้น ตัว Tab/Fillet
@@ -280,7 +280,7 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
     );
   }
   return (
-    <a href={node.href} className={`${LINK_CLASS} ${INACTIVE_CLASS}`}>
+    <a href={node.href} className={`${LINK_CLASS} ${INACTIVE_CLASS}`} title={node.tooltip}>
       <IconSlot name={node.icon} active={false} depth={depth} />
       {node.label}
     </a>

@@ -8,20 +8,49 @@ import { db } from "@/lib/db";
 // ==========================================================================
 
 /** Prisma where Fragment สำหรับกรอง "Family Head" (Product Anchor/Standalone หรือ
- * ProductModel — ทั้งคู่มี Relation ชื่อ catalog + companyAccess เหมือนกัน) ให้เหลือ
- * เฉพาะที่บริษัท customerId ใช้ได้ — R9 ลำดับการตัดสิน:
- *   1. Head อยู่ใน Catalog → เห็นเฉพาะบริษัทสมาชิก Catalog นั้น
- *   2. Head ไม่มี Catalog (สินค้าส่วนกลาง) → กฎเดิม: ไม่มีแถว ProductCompanyAccess เลย =
- *      ทุกบริษัทเห็น / มีแถว = เฉพาะบริษัทที่มีแถว (Compatibility ของกลไก R8 เดิม) */
+ * ProductModel — ทั้งคู่มี Relation ชื่อ catalog + companyAccess + ownerCustomer เหมือน
+ * กัน) ให้เหลือเฉพาะที่บริษัท customerId ใช้ได้ — R10 ลำดับการตัดสิน:
+ *   1. Private ของบริษัทนี้ (ownerCustomerId ตรง) → เห็นเสมอ
+ *   2. Head อยู่ใน Catalog (ที่ไม่ใช่ "สินค้าเสนอราคา") → เห็นเฉพาะบริษัทสมาชิกกลุ่ม
+ *      (Catalog สินค้าเสนอราคาไม่มีสมาชิกเลยโดยเจตนา จึงไม่มีทางเข้าเงื่อนไขนี้อยู่แล้ว —
+ *      เงื่อนไข isQuotationCatalog:false เป็น Defense-in-depth กันเผลอเพิ่มสมาชิกในอนาคต)
+ *   3. Head ไม่มี Catalog/ไม่ Private (สินค้าส่วนกลาง) → กฎ R8 เดิม: ไม่มีแถว Allowlist =
+ *      ทุกบริษัทเห็น / มีแถว = เฉพาะบริษัทที่มีแถว */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function companyAccessWhere(customerId: string): any {
   return {
     OR: [
-      { catalog: { companies: { some: { customerId } } } },
+      { ownerCustomerId: customerId },
       {
         AND: [
+          { ownerCustomerId: null },
+          { catalog: { isQuotationCatalog: false, companies: { some: { customerId } } } },
+        ],
+      },
+      {
+        AND: [
+          { ownerCustomerId: null },
           { catalogId: null },
           { OR: [{ companyAccess: { none: {} } }, { companyAccess: { some: { customerId } } }] },
+        ],
+      },
+    ],
+  };
+}
+
+/** R10 — Fragment สำหรับ Scope "guest" (ใบเสนอราคาแบบกรอกข้อมูลเอง): เห็นเฉพาะ
+ * "สินค้าเสนอราคา" (Catalog พิเศษ) + สินค้าส่วนกลางแท้ (ไม่มี Catalog/Private/Allowlist)
+ * — ไม่มีทางเห็นสินค้าของกลุ่มบริษัทใดๆ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function quotationGuestWhere(): any {
+  return {
+    OR: [
+      { catalog: { isQuotationCatalog: true } },
+      {
+        AND: [
+          { ownerCustomerId: null },
+          { catalogId: null },
+          { companyAccess: { none: {} } },
         ],
       },
     ],
@@ -48,16 +77,25 @@ export function isAllowedByAccessList(accessCustomerIds: string[], customerId: s
   return accessCustomerIds.length === 0 || accessCustomerIds.includes(customerId);
 }
 
-/** Pure Function (R9) — ตัดสินสิทธิ์รวม Catalog + Legacy Allowlist ของ Head เดียว:
- * catalogCompanyIds = null → Head ไม่มี Catalog → ใช้กฎ Legacy (isAllowedByAccessList)
- * catalogCompanyIds = รายชื่อสมาชิก → เห็นเฉพาะสมาชิก Catalog เท่านั้น (Allowlist เดิมไม่
- * เกี่ยวอีกต่อไปสำหรับ Head ที่ย้ายเข้า Catalog แล้ว — Catalog คือคำตอบเดียว) */
+/** Pure Function (R10) — ตัดสินสิทธิ์รวมของ Head เดียว ตามลำดับเดียวกับ
+ * companyAccessWhere เป๊ะ: Private → Shared (สมาชิก Catalog — Catalog สินค้าเสนอราคาไม่
+ * นับ) → Legacy (ส่วนกลาง/Allowlist) */
 export function isVisibleToCompany(params: {
+  /** ownerCustomerId ของ Head (null = ไม่ใช่ Private) */
+  ownerCustomerId?: string | null;
+  /** null = Head ไม่มี Catalog / Array = รายชื่อสมาชิกกลุ่ม */
   catalogCompanyIds: string[] | null;
+  /** true = Catalog ของ Head คือ "สินค้าเสนอราคา" (Customer Master ไม่เห็นเสมอ) */
+  isQuotationCatalog?: boolean;
   accessCustomerIds: string[];
   customerId: string;
 }): boolean {
-  if (params.catalogCompanyIds !== null) return params.catalogCompanyIds.includes(params.customerId);
+  const owner = params.ownerCustomerId ?? null;
+  if (owner !== null) return owner === params.customerId;
+  if (params.catalogCompanyIds !== null) {
+    if (params.isQuotationCatalog) return false;
+    return params.catalogCompanyIds.includes(params.customerId);
+  }
   return isAllowedByAccessList(params.accessCustomerIds, params.customerId);
 }
 
@@ -75,12 +113,18 @@ export async function validateProductAllowedForCustomer(
   if (!product) return "ไม่พบสินค้าที่เลือก";
 
   const head = resolveAccessHead(product);
-  // R9 — โหลด catalogId ของ Head + สมาชิก Catalog (ถ้ามี) + แถว Allowlist เดิม แล้วตัดสิน
-  // ด้วย isVisibleToCompany (Logic เดียวกับ companyAccessWhere ที่ใช้กรองผลค้นหาเป๊ะ)
+  // R10 — โหลดสถานะ Head (Private/Catalog/Allowlist) แล้วตัดสินด้วย isVisibleToCompany
+  // (Logic เดียวกับ companyAccessWhere ที่ใช้กรองผลค้นหาเป๊ะ)
   const headRecord =
     head.kind === "product"
-      ? await db.product.findUnique({ where: { id: head.id }, select: { catalogId: true } })
-      : await db.productModel.findUnique({ where: { id: head.id }, select: { catalogId: true } });
+      ? await db.product.findUnique({
+          where: { id: head.id },
+          select: { catalogId: true, ownerCustomerId: true, catalog: { select: { isQuotationCatalog: true } } },
+        })
+      : await db.productModel.findUnique({
+          where: { id: head.id },
+          select: { catalogId: true, ownerCustomerId: true, catalog: { select: { isQuotationCatalog: true } } },
+        });
   const catalogCompanyIds = headRecord?.catalogId
     ? (
         await db.productCatalogCompany.findMany({
@@ -93,7 +137,15 @@ export async function validateProductAllowedForCustomer(
     where: head.kind === "product" ? { productId: head.id } : { productModelId: head.id },
     select: { customerId: true },
   });
-  if (isVisibleToCompany({ catalogCompanyIds, accessCustomerIds: rows.map((r) => r.customerId), customerId }))
+  if (
+    isVisibleToCompany({
+      ownerCustomerId: headRecord?.ownerCustomerId ?? null,
+      catalogCompanyIds,
+      isQuotationCatalog: headRecord?.catalog?.isQuotationCatalog ?? false,
+      accessCustomerIds: rows.map((r) => r.customerId),
+      customerId,
+    })
+  )
     return null;
   return `สินค้า "${product.name}" ไม่ได้เปิดให้บริษัทลูกค้ารายนี้ใช้งาน — ตรวจสอบ Catalog/การกำหนดบริษัทที่หน้าสินค้า หรือเลือกสินค้าอื่น`;
 }
@@ -213,17 +265,126 @@ export async function addCompanyToCatalog(
   return null;
 }
 
-/** R9.1 — Drag & Drop รวมกลุ่ม: ย้าย/รวมบริษัท dragged เข้ากลุ่มของบริษัท target —
- * ครอบคลุมทุกเคสใน Transaction เดียว (ตัดสินจากสถานะจริงใน DB ไม่เชื่อ Client):
- *   1. dragged ยังไม่มีกลุ่ม → เข้ากลุ่มของ target (สร้างกลุ่มให้ target ถ้ายังไม่มี)
- *   2. อยู่กลุ่มเดียวกันแล้ว → No-op
- *   3. dragged อยู่กลุ่มเดิมคนเดียว → "รวมกลุ่ม": ย้ายสินค้า/รุ่นทุกหัวรายการของกลุ่มเดิม
- *      ตามมาด้วย (Re-point catalogId — ไม่มีการสร้าง/ลบ/Duplicate สินค้าใดๆ) แล้วลบกลุ่ม
- *      เปล่าทิ้ง — สองกลุ่มมีสินค้าทั้งคู่ก็แค่รวมเป็นรายการเดียว (SKU Unique ทั้งระบบ
- *      อยู่แล้ว ชนกันไม่ได้) — จำนวนแจ้งกลับใน summary ให้ผู้ใช้เห็นชัด
- *   4. dragged อยู่กลุ่มเดิมกับบริษัทอื่น → ย้ายเฉพาะบริษัท (สินค้าอยู่กับกลุ่มเดิม/สมาชิก
- *      ที่เหลือ — Conflict ที่ต้องแจ้ง: บริษัทที่ย้ายจะไม่เห็นสินค้ากลุ่มเดิมอีก)
+/** R10 — ย้ายบริษัทเข้า Catalog Group ปลายทาง (หรือ null = ออกจากกลุ่ม) — จุดเดียวของ
+ * ทุกการย้ายสมาชิก (Drag & Drop บนบอร์ดกลุ่ม, ปุ่ม Fallback, การลากการ์ดบริษัททับกัน) —
+ * Semantics ใหม่ตามแนวคิด Shared/Private:
+ *   - การย้ายบริษัท "ไม่เปลี่ยนการมองเห็นของบริษัทอื่นเสมอ" (Invariant หลัก)
+ *   - บริษัทเดิมอยู่กลุ่มเดี่ยว (สมาชิกคนเดียว) และกลุ่มนั้นมีสินค้า → สินค้าทั้งหมดแปลง
+ *     เป็น Private ของบริษัทนั้น (มองเห็นเท่าเดิมเป๊ะ ไม่ Leak ให้กลุ่มใหม่/ไม่หาย) แล้วลบ
+ *     กลุ่มเปล่าทิ้ง — อยากแชร์เข้ากลุ่มใหม่ค่อยย้ายเป็นรายตัว/ชุดผ่านเครื่องมือย้ายสินค้า
+ *   - บริษัทอยู่กลุ่มหลายสมาชิก → ย้ายเฉพาะบริษัท (Shared เดิมอยู่กับกลุ่มเดิม) พร้อมแจ้ง
+ *     Conflict ว่าจะไม่เห็น Shared เดิมอีก (Private ของบริษัทติดตัวไปเสมอ ไม่เกี่ยวกับกลุ่ม)
  * ไม่แตะ Pricing/Discount/Snapshot/เอกสารใดๆ ทั้งสิ้น */
+export async function moveCompanyToCatalog(params: {
+  customerId: string;
+  targetCatalogId: string | null;
+  actorUserId: string;
+}): Promise<{ ok: true; summary: string } | { ok: false; error: string }> {
+  const { customerId, targetCatalogId, actorUserId } = params;
+  const customer = await db.customer.findUnique({ where: { id: customerId }, select: { id: true, companyName: true } });
+  if (!customer) return { ok: false, error: "ไม่พบบริษัทที่เลือก" };
+
+  const target = targetCatalogId
+    ? await db.productCatalog.findUnique({ where: { id: targetCatalogId }, select: { id: true, name: true, isQuotationCatalog: true } })
+    : null;
+  if (targetCatalogId && !target) return { ok: false, error: "ไม่พบกลุ่มปลายทาง" };
+  if (target?.isQuotationCatalog) return { ok: false, error: `"${target.name}" เป็นกลุ่มสินค้าเสนอราคา — เพิ่มบริษัทสมาชิกไม่ได้` };
+
+  const membership = await db.productCatalogCompany.findUnique({
+    where: { customerId },
+    select: { catalogId: true, catalog: { select: { name: true } } },
+  });
+
+  if (!membership) {
+    if (!target) return { ok: true, summary: `"${customer.companyName}" ไม่ได้อยู่กลุ่มใดอยู่แล้ว` };
+    await db.$transaction([
+      db.productCatalogCompany.create({ data: { catalogId: target.id, customerId, addedById: actorUserId } }),
+      db.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action: "ADD_CATALOG_COMPANY",
+          module: "ProductCatalog",
+          recordId: target.id,
+          newValue: { customerId, companyName: customer.companyName },
+        },
+      }),
+    ]);
+    return { ok: true, summary: `เพิ่ม "${customer.companyName}" เข้ากลุ่ม "${target.name}" แล้ว — เห็น Shared ของกลุ่มทันที` };
+  }
+
+  if (target && membership.catalogId === target.id) {
+    return { ok: true, summary: `"${customer.companyName}" อยู่ในกลุ่ม "${target.name}" อยู่แล้ว` };
+  }
+
+  const oldCatalogId = membership.catalogId;
+  const [otherMembers, oldHeadProducts, oldHeadModels] = await Promise.all([
+    db.productCatalogCompany.count({ where: { catalogId: oldCatalogId, customerId: { not: customerId } } }),
+    db.product.count({ where: { catalogId: oldCatalogId } }),
+    db.productModel.count({ where: { catalogId: oldCatalogId } }),
+  ]);
+  const oldHeads = oldHeadProducts + oldHeadModels;
+  const soloWithProducts = otherMembers === 0 && oldHeads > 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ops: any[] = [];
+  if (soloWithProducts) {
+    // Shared ของกลุ่มเดี่ยวเดิม → Private ของบริษัท (มองเห็นเท่าเดิมเป๊ะ)
+    ops.push(db.product.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: null, ownerCustomerId: customerId } }));
+    ops.push(db.productModel.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: null, ownerCustomerId: customerId } }));
+  }
+  if (target) {
+    ops.push(db.productCatalogCompany.update({ where: { customerId }, data: { catalogId: target.id, addedById: actorUserId } }));
+  } else {
+    ops.push(db.productCatalogCompany.delete({ where: { customerId } }));
+  }
+  if (otherMembers === 0) {
+    ops.push(db.productCatalog.delete({ where: { id: oldCatalogId } }));
+  }
+  ops.push(
+    db.auditLog.create({
+      data: {
+        userId: actorUserId,
+        action: target ? "MOVE_CATALOG_COMPANY" : "REMOVE_CATALOG_COMPANY",
+        module: "ProductCatalog",
+        recordId: target?.id ?? oldCatalogId,
+        newValue: {
+          customerId,
+          from: oldCatalogId,
+          to: target?.id ?? null,
+          convertedToPrivate: soloWithProducts ? oldHeads : 0,
+          sharedStayedBehind: otherMembers > 0 ? oldHeads : 0,
+        },
+      },
+    })
+  );
+  await db.$transaction(ops);
+
+  if (soloWithProducts) {
+    return {
+      ok: true,
+      summary: target
+        ? `ย้าย "${customer.companyName}" เข้ากลุ่ม "${target.name}" แล้ว — สินค้าเดิม ${oldHeads} รายการกลายเป็น Private ของบริษัทนี้ (สมาชิกกลุ่มอื่นไม่เห็น — ย้ายเข้า Shared ของกลุ่มได้ทีหลังจากหน้าสินค้า)`
+        : `นำ "${customer.companyName}" ออกจากกลุ่มแล้ว — สินค้าเดิม ${oldHeads} รายการกลายเป็น Private ของบริษัทนี้ (มองเห็นเท่าเดิม)`,
+    };
+  }
+  if (otherMembers > 0 && oldHeads > 0) {
+    return {
+      ok: true,
+      summary: target
+        ? `ย้าย "${customer.companyName}" เข้ากลุ่ม "${target.name}" แล้ว — Shared ${oldHeads} รายการของกลุ่ม "${membership.catalog.name}" ยังอยู่กับสมาชิกที่เหลือ (บริษัทนี้จะไม่เห็นรายการเหล่านั้นอีก — Private ของบริษัทติดตัวมาตามปกติ)`
+        : `นำ "${customer.companyName}" ออกจากกลุ่ม "${membership.catalog.name}" แล้ว — จะไม่เห็น Shared ${oldHeads} รายการของกลุ่มอีก (Private ของบริษัทยังอยู่ครบ)`,
+    };
+  }
+  return {
+    ok: true,
+    summary: target
+      ? `ย้าย "${customer.companyName}" เข้ากลุ่ม "${target.name}" แล้ว`
+      : `นำ "${customer.companyName}" ออกจากกลุ่มแล้ว`,
+  };
+}
+
+/** Wrapper เดิมของการลากการ์ดบริษัททับกัน (dragged มาใช้กลุ่มของ target) — Semantics
+ * ใหม่ทั้งหมดอยู่ใน moveCompanyToCatalog */
 export async function moveCompanyIntoGroup(params: {
   draggedCustomerId: string;
   targetCustomerId: string;
@@ -231,97 +392,101 @@ export async function moveCompanyIntoGroup(params: {
 }): Promise<{ ok: true; summary: string } | { ok: false; error: string }> {
   const { draggedCustomerId, targetCustomerId, actorUserId } = params;
   if (draggedCustomerId === targetCustomerId) return { ok: false, error: "ลากมาทับบริษัทเดียวกันเอง — ไม่มีอะไรต้องทำ" };
-
-  const [dragged, target] = await Promise.all([
-    db.customer.findUnique({ where: { id: draggedCustomerId }, select: { id: true, companyName: true } }),
-    db.customer.findUnique({ where: { id: targetCustomerId }, select: { id: true, companyName: true } }),
-  ]);
-  if (!dragged || !target) return { ok: false, error: "ไม่พบบริษัทที่เลือก" };
-
   const targetCatalog = await ensureCompanyCatalog(targetCustomerId, actorUserId);
-  const membership = await db.productCatalogCompany.findUnique({
-    where: { customerId: draggedCustomerId },
-    select: { catalogId: true, catalog: { select: { name: true } } },
+  return moveCompanyToCatalog({ customerId: draggedCustomerId, targetCatalogId: targetCatalog.id, actorUserId });
+}
+
+// ---------------------------------------------------------------------------
+// R10 — Catalog Group Management + สินค้าเสนอราคา + การนำสินค้าไปใช้กับลูกค้าจริง
+// ---------------------------------------------------------------------------
+
+export const QUOTATION_CATALOG_NAME = "สินค้าเสนอราคา";
+
+/** Catalog พิเศษ "สินค้าเสนอราคา" — Singleton โดยการใช้งาน (หาแถว isQuotationCatalog
+ * ตัวแรก ไม่มีค่อยสร้าง) — ไม่มีบริษัทสมาชิกเลยโดยเจตนา */
+export async function ensureQuotationCatalog(): Promise<{ id: string; name: string }> {
+  const existing = await db.productCatalog.findFirst({
+    where: { isQuotationCatalog: true },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
   });
+  if (existing) return existing;
+  return db.productCatalog.create({
+    data: { name: QUOTATION_CATALOG_NAME, isQuotationCatalog: true },
+    select: { id: true, name: true },
+  });
+}
 
-  if (!membership) {
-    await db.$transaction([
-      db.productCatalogCompany.create({ data: { catalogId: targetCatalog.id, customerId: draggedCustomerId, addedById: actorUserId } }),
-      db.auditLog.create({
-        data: {
-          userId: actorUserId,
-          action: "ADD_CATALOG_COMPANY",
-          module: "ProductCatalog",
-          recordId: targetCatalog.id,
-          newValue: { customerId: draggedCustomerId, companyName: dragged.companyName, via: "dragMerge" },
-        },
-      }),
-    ]);
-    return { ok: true, summary: `เพิ่ม "${dragged.companyName}" เข้ากลุ่มของ "${target.companyName}" แล้ว — เห็นสินค้าชุดเดียวกันทันที` };
-  }
+/** สร้าง Catalog Group เปล่า (ตั้งชื่อเอง แล้วค่อยลากบริษัทเข้า) */
+export async function createCatalogGroup(name: string, actorUserId: string): Promise<{ id: string } | { error: string }> {
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "กรุณาตั้งชื่อกลุ่ม" };
+  if (trimmed.length > 80) return { error: "ชื่อกลุ่มยาวเกิน 80 ตัวอักษร" };
+  const catalog = await db.productCatalog.create({ data: { name: trimmed } });
+  await db.auditLog.create({
+    data: { userId: actorUserId, action: "CREATE_PRODUCT_CATALOG", module: "ProductCatalog", recordId: catalog.id, newValue: { name: trimmed } },
+  });
+  return { id: catalog.id };
+}
 
-  if (membership.catalogId === targetCatalog.id) {
-    return { ok: true, summary: `"${dragged.companyName}" อยู่กลุ่มเดียวกับ "${target.companyName}" อยู่แล้ว` };
-  }
-
-  const oldCatalogId = membership.catalogId;
-  const [otherMembers, oldHeadProducts, oldHeadModels, targetHeadProducts, targetHeadModels] = await Promise.all([
-    db.productCatalogCompany.count({ where: { catalogId: oldCatalogId, customerId: { not: draggedCustomerId } } }),
-    db.product.count({ where: { catalogId: oldCatalogId } }),
-    db.productModel.count({ where: { catalogId: oldCatalogId } }),
-    db.product.count({ where: { catalogId: targetCatalog.id } }),
-    db.productModel.count({ where: { catalogId: targetCatalog.id } }),
-  ]);
-  const oldHeads = oldHeadProducts + oldHeadModels;
-
-  if (otherMembers > 0) {
-    // เคส 4 — ย้ายเฉพาะบริษัท: สินค้าอยู่กับกลุ่มเดิม
-    await db.$transaction([
-      db.productCatalogCompany.update({ where: { customerId: draggedCustomerId }, data: { catalogId: targetCatalog.id, addedById: actorUserId } }),
-      db.auditLog.create({
-        data: {
-          userId: actorUserId,
-          action: "MOVE_CATALOG_COMPANY",
-          module: "ProductCatalog",
-          recordId: targetCatalog.id,
-          newValue: { customerId: draggedCustomerId, from: oldCatalogId, productsStayedBehind: oldHeads },
-        },
-      }),
-    ]);
-    return {
-      ok: true,
-      summary: `ย้าย "${dragged.companyName}" มากลุ่มของ "${target.companyName}" แล้ว — สินค้า ${oldHeads} รายการของกลุ่มเดิมยังอยู่กับสมาชิกที่เหลือ (บริษัทที่ย้ายจะไม่เห็นรายการเหล่านั้นอีก)`,
-    };
-  }
-
-  // เคส 3 — รวมกลุ่ม: บริษัทเดียว + สินค้าทั้งกลุ่มตามมาด้วย แล้วลบกลุ่มเปล่า
+/** เปลี่ยนชื่อกลุ่ม — เป็นแค่ป้าย ไม่กระทบสมาชิก/สินค้า/เอกสารใดๆ (FK ทุกตัวอ้าง id) */
+export async function renameCatalog(catalogId: string, name: string, actorUserId: string): Promise<string | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return "กรุณาตั้งชื่อกลุ่ม";
+  if (trimmed.length > 80) return "ชื่อกลุ่มยาวเกิน 80 ตัวอักษร";
+  const catalog = await db.productCatalog.findUnique({ where: { id: catalogId }, select: { id: true, name: true } });
+  if (!catalog) return "ไม่พบกลุ่ม";
   await db.$transaction([
-    db.product.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: targetCatalog.id } }),
-    db.productModel.updateMany({ where: { catalogId: oldCatalogId }, data: { catalogId: targetCatalog.id } }),
-    db.productCatalogCompany.update({ where: { customerId: draggedCustomerId }, data: { catalogId: targetCatalog.id, addedById: actorUserId } }),
-    db.productCatalog.delete({ where: { id: oldCatalogId } }),
+    db.productCatalog.update({ where: { id: catalogId }, data: { name: trimmed } }),
+    db.auditLog.create({
+      data: { userId: actorUserId, action: "RENAME_PRODUCT_CATALOG", module: "ProductCatalog", recordId: catalogId, newValue: { from: catalog.name, to: trimmed } },
+    }),
+  ]);
+  return null;
+}
+
+/** R10 — นำ Product Family Head (เช่นจาก "สินค้าเสนอราคา") ไปใช้กับลูกค้าจริง โดยไม่
+ * Duplicate: ตั้งเป็น Shared ของกลุ่มบริษัทนั้น หรือ Private ของบริษัทนั้น — Head เดิมแถว
+ * เดิม เอกสาร/Snapshot เดิมอ้างต่อได้ทุกใบ */
+export async function adoptProductHeadsForCustomer(params: {
+  customerId: string;
+  productIds: string[];
+  target: "shared" | "private";
+  actorUserId: string;
+}): Promise<{ ok: true; moved: number; summary: string } | { ok: false; error: string }> {
+  const { customerId, productIds, target, actorUserId } = params;
+  const customer = await db.customer.findUnique({ where: { id: customerId }, select: { id: true, companyName: true } });
+  if (!customer) return { ok: false, error: "ไม่พบบริษัทลูกค้า" };
+  const heads = await db.product.findMany({
+    where: { id: { in: productIds }, parentProductId: null, modelId: null },
+    select: { id: true },
+  });
+  if (heads.length === 0) return { ok: false, error: "ไม่พบสินค้า (Family Head) ที่เลือก" };
+
+  const data =
+    target === "shared"
+      ? { catalogId: (await ensureCompanyCatalog(customerId, actorUserId)).id, ownerCustomerId: null }
+      : { catalogId: null, ownerCustomerId: customerId };
+
+  await db.$transaction([
+    db.product.updateMany({ where: { id: { in: heads.map((h) => h.id) } }, data }),
     db.auditLog.create({
       data: {
         userId: actorUserId,
-        action: "MERGE_CATALOG",
-        module: "ProductCatalog",
-        recordId: targetCatalog.id,
-        newValue: {
-          mergedCustomerId: draggedCustomerId,
-          fromCatalog: oldCatalogId,
-          movedHeadCount: oldHeads,
-          targetHadHeadCount: targetHeadProducts + targetHeadModels,
-        },
+        action: "ADOPT_PRODUCTS_FOR_CUSTOMER",
+        module: "Product",
+        recordId: customerId,
+        newValue: { productIds: heads.map((h) => h.id), target, companyName: customer.companyName },
       },
     }),
   ]);
-  const targetHeads = targetHeadProducts + targetHeadModels;
   return {
     ok: true,
+    moved: heads.length,
     summary:
-      oldHeads > 0
-        ? `รวมกลุ่มแล้ว — สินค้า ${oldHeads} รายการของ "${dragged.companyName}" มารวมกับของกลุ่ม "${target.companyName}"${targetHeads > 0 ? ` (${targetHeads} รายการ)` : ""} เป็นรายการเดียว ไม่มีสินค้าหาย/ซ้ำ`
-        : `ย้าย "${dragged.companyName}" มากลุ่มของ "${target.companyName}" แล้ว`,
+      target === "shared"
+        ? `ย้ายสินค้า ${heads.length} รายการเข้า Shared ของกลุ่ม "${customer.companyName}" แล้ว`
+        : `ย้ายสินค้า ${heads.length} รายการเป็น Private ของ "${customer.companyName}" แล้ว`,
   };
 }
 

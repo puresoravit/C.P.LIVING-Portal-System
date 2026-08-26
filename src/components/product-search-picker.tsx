@@ -144,11 +144,15 @@ export function ProductSearchPicker({
   placeholder = "เช่น GT-David หรือ M001",
   resetToken,
   customerId,
+  guestQuotation,
 }: {
   /** R8 — Product Assignment ตามบริษัทลูกค้า: ส่งมาเมื่อเอกสารรู้บริษัทลูกค้าแล้ว →
    * ผลค้นหาถูกกรองฝั่ง Server ให้เหลือเฉพาะสินค้าที่เปิดให้บริษัทนั้น (ดู
    * /api/products/search) — ไม่ส่ง = เห็นทุกสินค้าเหมือนเดิมทุกประการ */
   customerId?: string;
+  /** R10 — true = ใบเสนอราคาแบบกรอกข้อมูลเอง (Guest): เห็นเฉพาะ "สินค้าเสนอราคา" +
+   * สินค้าส่วนกลาง (scope=guest ฝั่ง Server) — ใช้เมื่อไม่มี customerId เท่านั้น */
+  guestQuotation?: boolean;
   onPick: (p: PickedProduct) => void;
   /** R6 Phase B — เรียกเมื่อเลือก Size ที่ยังไม่มี Product จริงรองรับ (Standard ที่ยังไม่ตั้งราคา หรือขนาดพิเศษ) — ไม่ implement = พฤติกรรมเดิม (ตัวเลือกนั้นจะเลือกไม่ได้จริง เพราะไม่มี onPick ให้เรียก) */
   onUnresolvedSize?: (info: UnresolvedSizeInfo | null) => void;
@@ -199,7 +203,11 @@ export function ProductSearchPicker({
     }
     const t = setTimeout(async () => {
       try {
-        const customerParam = customerId ? `&customerId=${encodeURIComponent(customerId)}` : "";
+        const customerParam = customerId
+          ? `&customerId=${encodeURIComponent(customerId)}`
+          : guestQuotation
+            ? "&scope=guest"
+            : "";
         const res = await fetch(`/api/products/search?q=${encodeURIComponent(query)}${customerParam}`);
         const data = await res.json();
         setModels(data.models ?? []);
@@ -211,7 +219,7 @@ export function ProductSearchPicker({
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [query, selectedModel, picked, customerId]);
+  }, [query, selectedModel, picked, customerId, guestQuotation]);
 
   function pickProduct(p: ProductResult) {
     setQuery(`${p.sku} — ${p.name}`);

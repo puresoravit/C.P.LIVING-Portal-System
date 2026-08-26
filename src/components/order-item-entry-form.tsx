@@ -27,6 +27,7 @@ export function OrderItemEntryForm({
   suggestPriceAction,
   canManageProducts = false,
   customerId,
+  guestQuotation,
 }: {
   addAction: (formData: FormData) => Promise<ActionResult>;
   /** Owner UAT Round 3 — ข้อ 3: Bind ล่วงหน้าจาก Parent ด้วย customerId/branchId/orderDate
@@ -36,6 +37,8 @@ export function OrderItemEntryForm({
   canManageProducts?: boolean;
   /** R8 — บริษัทลูกค้าของเอกสารนี้: ส่งต่อให้ Picker กรองเฉพาะสินค้าที่เปิดให้บริษัทนี้ */
   customerId?: string;
+  /** R10 — ใบเสนอราคาแบบกรอกข้อมูลเอง (Guest): Picker เห็นเฉพาะ "สินค้าเสนอราคา" + ส่วนกลาง */
+  guestQuotation?: boolean;
 }) {
   const [selected, setSelected] = useState<PickedProduct | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
@@ -164,6 +167,7 @@ export function OrderItemEntryForm({
           </label>
           <ProductSearchPicker
             customerId={customerId}
+            guestQuotation={guestQuotation}
             onPick={pick}
             onUnresolvedSize={handleUnresolvedSize}
             onModelSelected={setSelectedModel}

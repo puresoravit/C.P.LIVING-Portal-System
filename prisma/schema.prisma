@@ -152,6 +152,9 @@ model Customer {
   quotations     Quotation[]
   productAccess  ProductCompanyAccess[]
   catalogMembership ProductCatalogCompany?
+  privateProducts Product[]      @relation("CustomerPrivateProducts")
+  privateModels   ProductModel[] @relation("CustomerPrivateModels")
+  linkedProspects QuotationProspect[]
 
   @@map("customers")
 }
@@ -256,6 +259,9 @@ model ProductModel {
   // R9 — Company Catalog (เหมือน Product.catalogId ทุกประการ)
   catalogId String?
   catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
+  // R10 — Private (เหมือน Product.ownerCustomerId ทุกประการ)
+  ownerCustomerId String?
+  ownerCustomer   Customer? @relation("CustomerPrivateModels", fields: [ownerCustomerId], references: [id])
 
   products Product[]
   companyAccess ProductCompanyAccess[]
@@ -310,6 +316,12 @@ model ProductCompanyAccess {
 model ProductCatalog {
   id        String   @id @default(cuid())
   name      String
+  // R10 — "สินค้าเสนอราคา": Catalog พิเศษหนึ่งเดียวสำหรับใบเสนอราคาแบบกรอกข้อมูลเอง
+  // (Guest QT) — ไม่มีบริษัทสมาชิกเลยโดยเจตนา จึงไม่มีทางโผล่ให้ Customer Master เห็น
+  // ผ่านกฎสมาชิกกลุ่มปกติ (Default ตาม Requirement) — เห็นได้เฉพาะ Scope "guest" ของ
+  // Product Search (ดู quotationGuestWhere ใน product-company-access.ts) — สร้าง/ค้นหา
+  // ผ่าน ensureQuotationCatalog() เท่านั้น (Singleton โดยการใช้งาน ไม่ใช่ Constraint)
+  isQuotationCatalog Boolean @default(false)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -377,6 +389,12 @@ model Product {
   // ไม่มีค่าของตัวเอง (Resolution ผ่าน resolveAccessHead ใน product-company-access.ts)
   catalogId String?
   catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
+  // R10 — Private Product: สินค้าเฉพาะบริษัทเดียว (สมาชิกอื่นในกลุ่มไม่เห็น) — ตั้งได้
+  // เฉพาะ Family Head และ Mutually Exclusive กับ catalogId (Application Layer บังคับ:
+  // Private → catalogId null เสมอ) — ลำดับตัดสินการมองเห็น: Private → Shared (Catalog)
+  // → ส่วนกลาง/Allowlist เดิม (ดู companyAccessWhere)
+  ownerCustomerId String?
+  ownerCustomer   Customer? @relation("CustomerPrivateProducts", fields: [ownerCustomerId], references: [id])
 
   priceRules   PriceRule[]
   orderItems   OrderItem[]
@@ -783,8 +801,34 @@ enum QuotationVatMode {
   STANDARD
 }
 
+// R10 — "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ": ราย (Prospect) ของลูกค้าที่กรอกข้อมูลเองตอน
+// สร้าง Guest QT — 1 Guest QT ใหม่ = 1 Prospect ใหม่เสมอ (ห้าม Auto-merge จากชื่อโดยไม่
+// ให้ User ยืนยัน — การรวมรายทำผ่าน mergeProspects ที่ User กดยืนยันเองเท่านั้น) —
+// linkedCustomerId = เชื่อมกับ Customer Master แล้ว (สร้างใหม่จากข้อมูลราย หรือเลือกของ
+// เดิม) — QT เก่าไม่ถูกแตะเลย (customerId ของ QT ยังเป็น null + Snapshot เดิมทุกประการ
+// ตาม Document Snapshot Principle — Prospect เป็นแค่สมุดรวมประวัติ/จุดเชื่อม)
+model QuotationProspect {
+  id               String    @id @default(cuid())
+  name             String
+  taxId            String?
+  address          String?
+  contactPerson    String?
+  phone            String?
+  linkedCustomerId String?
+  linkedCustomer   Customer? @relation(fields: [linkedCustomerId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  quotations Quotation[]
+
+  @@map("quotation_prospects")
+}
+
 model Quotation {
   id              String   @id @default(cuid())
+  // R10 — ราย (Prospect) ของ Guest QT — ตั้งเฉพาะใบที่กรอกข้อมูลเอง (customerId null)
+  prospectId String?
+  prospect   QuotationProspect? @relation(fields: [prospectId], references: [id])
   quotationNumber String   @unique // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
   quotationDate   DateTime
   // Fresh UAT Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: customerId เป็น null ได้
