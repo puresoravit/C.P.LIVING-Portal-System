@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { createProduct, toggleProductActive, deleteProduct } from "./actions";
+import { createProduct, toggleProductActive, deleteProduct, addCatalogCompany, removeCatalogCompany } from "./actions";
 import { bulkAssignProductModel } from "../product-models/actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
@@ -9,16 +9,202 @@ import { StatusTabs } from "@/components/status-tabs";
 import { SearchInputWithClear } from "@/components/search-input-with-clear";
 
 // Owner UAT Fix Batch — ข้อ 1: Product Status เป็น Active/Inactive ชัดเจนแบบเดียวกับ
-// Document Status Tabs (StatusTabs Component เดิม ใช้ร่วมกันอยู่แล้วที่ Order/Invoice/
-// TaxInvoice/Quotation/BillingNote/RepairNote — Product เป็น Master Data ตัวแรกที่ใช้
-// Pattern นี้ เพราะมี field `active` อยู่แล้วพอดี ไม่ต้องเพิ่ม Schema ใดๆ)
+// Document Status Tabs (StatusTabs Component เดิม)
 type StatusFilter = "active" | "inactive" | undefined;
 
-export default async function ProductsPage(props: { searchParams: Promise<{ q?: string; unassigned?: string; status?: string }> }) {
+// ==========================================================================
+// R9 (2026-08-26) — Company-first Product UX ตามที่ Owner กำหนด:
+//   /products                    → หน้าแรกเป็น "รายชื่อบริษัท" (จาก Customer Master) +
+//                                  การ์ดสินค้าส่วนกลาง + ลิงก์มุมมองตารางรวมแบบเดิม
+//   /products?company=<id>       → รายการสินค้าของ Catalog บริษัทนั้น (เพิ่ม/แก้สินค้า =
+//                                  ผูกกลุ่มอัตโนมัติ) + Panel จัดการบริษัทร่วมกลุ่ม (A+B+C
+//                                  ใช้รายการเดียวกัน เพิ่ม/ถอดจากหน้าเดียว)
+//   /products?view=central       → สินค้าส่วนกลาง (ทุกบริษัทเห็น — กฎเดิม)
+//   /products?view=all           → ตารางรวมทุกสินค้าแบบเดิม + คอลัมน์กลุ่ม Catalog
+// ตาราง/ฟอร์มสร้างสินค้า/Bulk Assign/สคริปต์ Dependent Dropdown = ของเดิมทั้งหมด แค่
+// ถูกครอบด้วย Context การกรอง — Business Logic (Pricing/Size/SKU) ไม่แตะเลย
+// ==========================================================================
+
+type ViewCtx =
+  | { kind: "landing" }
+  | { kind: "company"; customerId: string }
+  | { kind: "central" }
+  | { kind: "all" };
+
+/** Where Fragment ของ "แถวสินค้าที่สังกัด Catalog K" — แถวสังกัดตาม Family Head ของมัน:
+ * ตัวเอง (Standalone/Anchor) / Anchor แม่ (parentProduct) / ProductModel — เงื่อนไข
+ * เดียวกับ Resolution ใน product-company-access.ts เสมอ */
+function catalogRowsWhere(catalogId: string) {
+  return {
+    OR: [
+      { catalogId },
+      { parentProduct: { catalogId } },
+      { AND: [{ parentProductId: null }, { model: { catalogId } }] },
+    ],
+  };
+}
+
+/** แถวสินค้าส่วนกลาง = Head ไม่สังกัด Catalog ใดเลย */
+function centralRowsWhere() {
+  return {
+    OR: [
+      { AND: [{ parentProductId: null }, { modelId: null }, { catalogId: null }] },
+      { parentProduct: { catalogId: null } },
+      { AND: [{ parentProductId: null }, { modelId: { not: null } }, { model: { catalogId: null } }] },
+    ],
+  };
+}
+
+export default async function ProductsPage(props: {
+  searchParams: Promise<{ q?: string; unassigned?: string; status?: string; company?: string; view?: string }>;
+}) {
   const searchParams = await props.searchParams;
   const q = searchParams.q?.trim();
   const unassignedOnly = searchParams.unassigned === "1";
   const status: StatusFilter = searchParams.status === "active" || searchParams.status === "inactive" ? searchParams.status : undefined;
+
+  const ctx: ViewCtx = searchParams.company
+    ? { kind: "company", customerId: searchParams.company }
+    : searchParams.view === "central"
+      ? { kind: "central" }
+      : searchParams.view === "all"
+        ? { kind: "all" }
+        : { kind: "landing" };
+
+  // ---------- Landing: รายชื่อบริษัท ----------
+  if (ctx.kind === "landing") {
+    const [companies, centralCount, allCount] = await Promise.all([
+      db.customer.findMany({
+        where: { active: true },
+        select: {
+          id: true,
+          code: true,
+          companyName: true,
+          catalogMembership: {
+            select: {
+              catalog: {
+                select: {
+                  id: true,
+                  companies: { select: { customer: { select: { id: true, code: true, companyName: true } } } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { companyName: "asc" },
+      }),
+      db.product.count({ where: centralRowsWhere() }),
+      db.product.count(),
+    ]);
+
+    // นับสินค้าต่อ Catalog ครั้งเดียวต่อกลุ่ม (หลายบริษัทแชร์กลุ่มเดียว ไม่นับซ้ำ)
+    const catalogIds = [...new Set(companies.map((c) => c.catalogMembership?.catalog.id).filter((v): v is string => !!v))];
+    const catalogCounts = new Map<string, number>(
+      await Promise.all(
+        catalogIds.map(async (id) => [id, await db.product.count({ where: catalogRowsWhere(id) })] as [string, number])
+      )
+    );
+
+    return (
+      <div className="max-w-5xl">
+        <h1 className="text-lg font-semibold mb-1">สินค้า — เลือกบริษัท</h1>
+        <p className="text-sm text-gray-500 mb-4">
+          เลือกบริษัทเพื่อดู/เพิ่ม/แก้สินค้าของบริษัทนั้น — หลายบริษัทใช้รายการสินค้าร่วมกันได้ (จัดการจากหน้าบริษัทใดก็ได้ในกลุ่ม)
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          {companies.map((c) => {
+            const catalog = c.catalogMembership?.catalog ?? null;
+            const partners = catalog ? catalog.companies.map((m) => m.customer).filter((cc) => cc.id !== c.id) : [];
+            const count = catalog ? (catalogCounts.get(catalog.id) ?? 0) : 0;
+            return (
+              <a key={c.id} href={`/products?company=${c.id}`} className="bg-white border rounded-lg p-4 hover:border-blue-400 hover:shadow-sm transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-medium">
+                    {c.companyName} <span className="text-gray-400 text-sm">({c.code})</span>
+                  </div>
+                  <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                    {count} รายการ
+                  </span>
+                </div>
+                <div className="mt-1.5 text-xs text-gray-500">
+                  {catalog ? (
+                    partners.length > 0 ? (
+                      <>ใช้รายการร่วมกับ: {partners.map((pp) => pp.companyName).join(", ")}</>
+                    ) : (
+                      <>รายการสินค้าเฉพาะบริษัทนี้</>
+                    )
+                  ) : (
+                    <>ยังไม่มีรายการสินค้าของตัวเอง — กดเพื่อเริ่มสร้าง (เห็นสินค้าส่วนกลางได้เสมอ)</>
+                  )}
+                </div>
+              </a>
+            );
+          })}
+          {companies.length === 0 && (
+            <div className="col-span-full bg-white border rounded-lg p-6 text-center text-sm text-gray-400">
+              ยังไม่มีบริษัทลูกค้าในระบบ — เพิ่มที่เมนู <a href="/customers" className="text-blue-600 hover:underline">ลูกค้า</a> ก่อน แล้วกลับมาสร้างรายการสินค้าของบริษัทที่นี่
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-3 text-sm">
+          <a href="/products?view=central" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400">
+            สินค้าส่วนกลาง (ทุกบริษัทเห็น) — {centralCount} รายการ
+          </a>
+          <a href="/products?view=all" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400 text-gray-600">
+            ตารางรวมทุกสินค้า (มุมมองเดิม) — {allCount} รายการ
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Company / Central / All: ตารางสินค้า (โครงเดิม + Context กรอง) ----------
+  const company =
+    ctx.kind === "company"
+      ? await db.customer.findUnique({
+          where: { id: ctx.customerId },
+          select: {
+            id: true,
+            code: true,
+            companyName: true,
+            catalogMembership: {
+              select: {
+                catalog: {
+                  select: {
+                    id: true,
+                    name: true,
+                    companies: {
+                      select: { customer: { select: { id: true, code: true, companyName: true } } },
+                      orderBy: { createdAt: "asc" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : null;
+  if (ctx.kind === "company" && !company) {
+    return (
+      <div className="max-w-5xl">
+        <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายชื่อบริษัท</a>
+        <p className="mt-4 text-sm text-gray-500">ไม่พบบริษัทนี้</p>
+      </div>
+    );
+  }
+  const catalog = company?.catalogMembership?.catalog ?? null;
+
+  // Context Where: บริษัท (มี Catalog = แถวของกลุ่ม / ยังไม่มี = ว่างเปล่า รอสร้างสินค้าแรก)
+  const ctxWhere =
+    ctx.kind === "company"
+      ? catalog
+        ? catalogRowsWhere(catalog.id)
+        : { id: "__none__" } // ยังไม่มี Catalog — โชว์ตารางว่าง (สร้างสินค้าแรกแล้ว Catalog ถูกสร้างเองอัตโนมัติ)
+      : ctx.kind === "central"
+        ? centralRowsWhere()
+        : {};
 
   const searchWhere = {
     ...(q
@@ -26,14 +212,17 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
       : {}),
     ...(unassignedOnly ? { modelId: null } : {}),
   };
+  const baseWhere = { AND: [searchWhere, ctxWhere] };
 
   const [products, productTypes, categories, productModels, activeCount, inactiveCount, totalCount] = await Promise.all([
     db.product.findMany({
-      where: { ...searchWhere, ...(status ? { active: status === "active" } : {}) },
+      where: { AND: [baseWhere, ...(status ? [{ active: status === "active" }] : [])] },
       include: {
         productType: true,
         category: true,
-        model: true,
+        model: { include: { catalog: { select: { name: true } } } },
+        catalog: { select: { name: true } },
+        parentProduct: { select: { catalog: { select: { name: true } } } },
         _count: { select: { priceRules: true, orderItems: true, invoiceItems: true, quotationItems: true, sizeVariants: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -41,38 +230,121 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    db.product.count({ where: { ...searchWhere, active: true } }),
-    db.product.count({ where: { ...searchWhere, active: false } }),
-    db.product.count({ where: searchWhere }),
+    db.product.count({ where: { AND: [baseWhere, { active: true }] } }),
+    db.product.count({ where: { AND: [baseWhere, { active: false }] } }),
+    db.product.count({ where: baseWhere }),
   ]);
 
-  const unassignedCount = await db.product.count({ where: { modelId: null } });
+  const unassignedCount = await db.product.count({ where: { AND: [{ modelId: null }, ctxWhere] } });
+
+  // บริษัทที่ยังไม่อยู่กลุ่มไหนเลย — ตัวเลือกสำหรับ "เพิ่มบริษัทร่วมใช้รายการนี้"
+  const availableCompanies =
+    ctx.kind === "company" && catalog
+      ? await db.customer.findMany({
+          where: { active: true, catalogMembership: null },
+          select: { id: true, code: true, companyName: true },
+          orderBy: { companyName: "asc" },
+        })
+      : [];
 
   const statusTabs = [
     { key: "all", label: "ทั้งหมด", count: totalCount },
     { key: "active", label: "ใช้งาน", count: activeCount },
     { key: "inactive", label: "ไม่ใช้งาน", count: inactiveCount },
   ];
-  const preserveParams: Record<string, string> = {};
+  // R9 — คง Context (company/view) ในทุกลิงก์ Filter/Search/Tab
+  const ctxParams: Record<string, string> =
+    ctx.kind === "company" ? { company: ctx.customerId } : ctx.kind === "central" ? { view: "central" } : { view: "all" };
+  const ctxQuery = ctx.kind === "company" ? `company=${ctx.customerId}` : ctx.kind === "central" ? "view=central" : "view=all";
+
+  const preserveParams: Record<string, string> = { ...ctxParams };
   if (q) preserveParams.q = q;
   if (unassignedOnly) preserveParams.unassigned = "1";
-  // Owner UAT Fix Batch 3 — ข้อ 5: ปุ่ม × ล้างเฉพาะ q — คง unassigned/status เดิมไว้
-  const preserveParamsNoQ: Record<string, string> = {};
+  const preserveParamsNoQ: Record<string, string> = { ...ctxParams };
   if (unassignedOnly) preserveParamsNoQ.unassigned = "1";
   if (status) preserveParamsNoQ.status = status;
 
-  // ข้อมูลสำหรับ Model dropdown ที่กรองตาม Type ที่เลือก (Pattern เดียวกับ
-  // Customer→Branch dependent select ที่ใช้อยู่แล้วในระบบ) — ไม่ auto-derive ชื่อ
-  // Model จากอะไรทั้งสิ้น เป็นแค่ filter รายการที่มีอยู่แล้วให้เลือกง่ายขึ้น
   const modelsByType = productModels.map((m) => ({ id: m.id, name: m.name, productTypeId: m.productTypeId }));
+
+  const heading =
+    ctx.kind === "company"
+      ? `สินค้าของ ${company!.companyName} (${company!.code})`
+      : ctx.kind === "central"
+        ? "สินค้าส่วนกลาง (ทุกบริษัทเห็น)"
+        : "ตารางรวมทุกสินค้า";
+
+  /** ชื่อกลุ่ม Catalog ของแถว (ตาม Family Head) — ใช้ในคอลัมน์มุมมองรวม */
+  const rowCatalogName = (p: (typeof products)[number]): string | null =>
+    p.parentProduct?.catalog?.name ?? (p.parentProductId ? null : p.model?.catalog?.name ?? p.catalog?.name ?? null);
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-lg font-semibold mb-4">สินค้า</h1>
+      <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายชื่อบริษัท</a>
+      <h1 className="text-lg font-semibold mt-2 mb-1">{heading}</h1>
+      {ctx.kind === "company" && (
+        <p className="text-sm text-gray-500 mb-3">
+          สินค้าที่สร้างจากหน้านี้ผูกกับกลุ่มของบริษัทนี้อัตโนมัติ — ตอนออกเอกสารให้บริษัทนี้จะเห็นเฉพาะรายการในกลุ่ม + สินค้าส่วนกลาง
+        </p>
+      )}
+      {ctx.kind === "central" && (
+        <p className="text-sm text-gray-500 mb-3">สินค้าที่ไม่สังกัดกลุ่มบริษัทใด — ทุกบริษัทค้นหา/เลือกใช้ได้ตอนออกเอกสารเสมอ</p>
+      )}
+
+      {/* R9 — Panel บริษัทร่วมกลุ่ม (Shared Catalog): A+B+C ใช้รายการเดียวกัน เพิ่ม/ถอดจากหน้าเดียว */}
+      {ctx.kind === "company" && catalog && (
+        <div className="bg-white border rounded-lg p-4 mb-4">
+          <div className="text-sm font-medium mb-1">บริษัทที่ใช้รายการสินค้าชุดนี้ร่วมกัน</div>
+          <p className="text-xs text-gray-500 mb-2">
+            ถอดบริษัทออก = บริษัทนั้นไม่เห็นรายการนี้ตอนออกเอกสารใหม่ (สินค้า/เอกสารเดิมไม่ถูกกระทบ)
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {catalog.companies.map((m) => (
+              <span key={m.customer.id} className="inline-flex items-center gap-1.5 text-sm bg-blue-50 text-blue-800 border border-blue-200 rounded-full pl-3 pr-1.5 py-1">
+                {m.customer.companyName} ({m.customer.code})
+                {catalog.companies.length > 1 && (
+                  <CancelButton
+                    action={removeCatalogCompany.bind(null, catalog.id, m.customer.id)}
+                    confirmMessage={`ถอด "${m.customer.companyName}" ออกจากกลุ่มรายการสินค้านี้? บริษัทนั้นจะไม่เห็นรายการนี้ตอนออกเอกสารใหม่ (สินค้า/เอกสารเดิมไม่ถูกกระทบ)`}
+                    label="×"
+                    successMessage="ถอดบริษัทออกจากกลุ่มแล้ว"
+                    className="text-xs text-blue-400 hover:text-red-600 border-0 rounded-full px-1.5 py-0.5"
+                  />
+                )}
+              </span>
+            ))}
+          </div>
+          {availableCompanies.length > 0 ? (
+            <ActionForm
+              action={addCatalogCompany.bind(null, catalog.id)}
+              successMessage="เพิ่มบริษัทเข้ากลุ่มแล้ว"
+              className="flex items-end gap-2 max-w-md"
+            >
+              <div className="flex-1">
+                <SelectField label="เพิ่มบริษัทร่วมใช้รายการนี้" name="customerId" defaultValue="">
+                  <option value="" disabled>— เลือกบริษัท —</option>
+                  {availableCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.companyName} ({c.code})
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              <SubmitButton className="text-sm bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">เพิ่มเข้ากลุ่ม</SubmitButton>
+            </ActionForm>
+          ) : (
+            <p className="text-xs text-gray-400">ทุกบริษัทมีกลุ่มรายการสินค้าของตัวเองแล้ว — ถ้าต้องการย้ายบริษัทมากลุ่มนี้ ให้ถอดออกจากกลุ่มเดิมก่อน</p>
+          )}
+        </div>
+      )}
 
       <details className="mb-6 bg-white border rounded-lg">
-        <summary className="cursor-pointer px-4 py-3 font-medium text-sm">+ เพิ่มสินค้าใหม่</summary>
+        <summary className="cursor-pointer px-4 py-3 font-medium text-sm">
+          + เพิ่มสินค้าใหม่{ctx.kind === "company" ? ` (เข้ากลุ่มของ ${company!.companyName})` : ctx.kind === "central" ? " (สินค้าส่วนกลาง)" : ""}
+        </summary>
         <ActionForm id="createProductForm" action={createProduct} successMessage="เพิ่มสินค้าสำเร็จ" resetOnSuccess className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* R9 — สร้างจากหน้าบริษัท = ผูก Catalog บริษัทนั้นอัตโนมัติ (Server สร้าง Catalog
+              ให้เองถ้ายังไม่มี) — มุมมองส่วนกลาง/รวม ไม่ส่ง = สินค้าส่วนกลาง */}
+          {ctx.kind === "company" && <input type="hidden" name="companyId" value={company!.id} />}
           <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
           <div className="col-span-1 sm:col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
@@ -100,31 +372,14 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
             <option value="">— ไม่ผูก (ปกติ) —</option>
           </SelectField>
-          {/* Owner UAT — ข้อ 1: เตือนเฉพาะกรณีเลือกประเภทสินค้าที่ใช้ขนาด แต่ทั้งไม่ได้ผูก
-              รุ่นสินค้า (Legacy) และไม่ได้กรอกราคาต่อฟุตด้านล่างเลย — ชี้ตรงไปที่ช่องราคาต่อ
-              ฟุตในฟอร์มนี้เอง ไม่ต้องออกไปหน้าอื่นอีกต่อไป */}
           <div id="createUsesSizeWarning" className="col-span-1 sm:col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
             มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
           </div>
           <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
-          {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาสลับตาม ProductCategory.usesSize ที่
-              เลือก (ราคาต่อฟุต / ราคาต่อหน่วย) — ยังคงเป็น Field เดียวกัน (standardPrice)
-              ไม่มีการเพิ่ม Field คู่ขนานใดๆ ทั้งสิ้น เปลี่ยนแค่ป้ายข้อความให้ตรงความหมาย —
-              Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน Field นี้ไปเลยตอน usesSize=true และไม่ได้
-              ผูกรุ่นสินค้า (Legacy) เพราะกรณีนั้นใช้ "ราคาต่อฟุต" ด้านล่างเป็น Source เดียว
-              พอ (ห้ามกรอกราคาซ้ำสองช่อง) ค่าเริ่มต้น (ไม่เลือกประเภทสินค้าเลย) ไม่ใช่กรณีนี้
-              จึงเห็น Field ตั้งแต่โหลดหน้าเหมือนเดิม ไม่มี Hydration Mismatch */}
           <div id="createStandardPriceWrap">
             <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           </div>
-          {/* Owner UAT — ข้อ 1: Product เป็น Size Family Anchor ของตัวเองได้เลย ไม่ต้อง
-              สร้างรุ่นสินค้าแยก — กรอกราคาต่อฟุตตรงนี้ = ระบบสร้าง/อัปเดต Size 3/3.5/4/5/6
-              ฟุต + ขนาดพิเศษ ให้อัตโนมัติทันที (เหมือนหน้ารุ่นสินค้าทุกประการ) เว้นว่าง =
-              สินค้านี้มีราคาเดียวตายตัว ไม่มี Size ย่อย — ใช้ไม่ได้ถ้าผูกรุ่นสินค้า (Legacy)
-              ไว้ด้านบนแล้ว (เลือกได้ทางใดทางหนึ่งเท่านั้น) — Owner UAT Fix Batch 3 — ข้อ 4:
-              บังคับกรอก (required) เฉพาะตอนเป็น Source ราคาเดียวจริงๆ (usesSize=true และ
-              ไม่ได้ผูกรุ่นสินค้า) */}
           <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden">
             <Field
               label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
@@ -152,7 +407,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
           />
         </form>
         <a
-          href={unassignedOnly ? "/products" : "/products?unassigned=1"}
+          href={unassignedOnly ? `/products?${ctxQuery}` : `/products?${ctxQuery}&unassigned=1`}
           className={`text-xs whitespace-nowrap px-3 py-2 rounded border ${
             unassignedOnly ? "bg-amber-50 border-amber-300 text-amber-700" : "text-gray-600 hover:bg-gray-50"
           }`}
@@ -197,13 +452,11 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
               {unassignedOnly && <th className="px-4 py-2 w-8"></th>}
               <th className="px-4 py-2 font-medium">รหัสสินค้า</th>
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
-              {/* Owner UAT (2026-08-23) — Variant เลิกฝังขนาดในชื่อแล้ว (ดู
-                  product-variant-size.ts) — ต้องมีคอลัมน์ขนาดแยกให้แถว Variant ของรุ่น
-                  เดียวกันยังแยกกันออกด้วยตา ไม่ใช่พึ่ง SKU อย่างเดียว */}
               <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
               <th className="px-4 py-2 font-medium">ประเภทสินค้า</th>
               <th className="px-4 py-2 font-medium">รุ่นสินค้า</th>
+              {ctx.kind === "all" && <th className="px-4 py-2 font-medium">กลุ่มบริษัท</th>}
               <th className="px-4 py-2 font-medium">หน่วย</th>
               <th className="px-4 py-2 font-medium text-right">ราคาตั้งต้น</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
@@ -230,16 +483,15 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                 <td className="px-4 py-2">
                   {p.model ? p.model.name : <span className="text-gray-400">— ยังไม่ระบุ —</span>}
                 </td>
+                {ctx.kind === "all" && (
+                  <td className="px-4 py-2">
+                    {rowCatalogName(p) ?? <span className="text-gray-400">ส่วนกลาง</span>}
+                  </td>
+                )}
                 <td className="px-4 py-2">{p.unit}</td>
                 <td className="px-4 py-2 text-right">
                   {Number(p.standardPrice).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                 </td>
-                {/* Owner UAT Fix Batch — ข้อ 1: Status เป็น Active/Inactive ชัดเจน (ตรงกับ
-                    Status Tab ด้านบนเป๊ะ) — เดิมใช้คำว่า "ปิดใช้งาน" เป็น Label ของทั้ง
-                    "สถานะ" และ "ปุ่ม Action" ปนกัน ทำให้กำกวม แยกแล้ว: Badge นี้บอก "สถานะ"
-                    (คำนาม/adjective — ใช้งาน/ไม่ใช้งาน) ส่วนปุ่มด้านล่างเป็น "การกระทำ"
-                    (กริยา — ปิดใช้งาน/เปิดใช้งาน) whitespace-nowrap กัน Thai Line-breaking
-                    ตัดคำกลางคัน (ข้อ 10 เดิม ยังคงไว้) */}
                 <td className="px-4 py-2 whitespace-nowrap">
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
@@ -253,22 +505,8 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
                   <a href={`/products/${p.id}`} className="text-xs text-blue-600 hover:underline">
                     แก้ไข
                   </a>
-                  {/* Owner UAT Fix Batch — ข้อ 1: เดิมปุ่ม "ลบ" กดแล้วบางครั้งกลายเป็นแค่
-                      ปิดใช้งานเงียบๆ ทำให้ User สับสนว่า "ลบ" แปลว่าอะไรกันแน่ — เปลี่ยนเป็น
-                      Status-based Management ชัดเจน: ปุ่ม "ปิดใช้งาน/เปิดใช้งาน" เป็นทางหลัก
-                      (ปลอดภัย ย้อนกลับได้เสมอ ไม่กระทบ Historical Reference ใดๆ) ส่วนปุ่ม
-                      "ลบถาวร" (Hard Delete จริง ย้อนกลับไม่ได้) โผล่ให้เห็น เฉพาะแถวที่ไม่มี
-                      Relation/Reference ใดๆ อ้างอิงอยู่เลย (_count รวมทุกประเภท = 0) เท่านั้น
-                      — deleteProduct ฝั่ง Server ยัง Double-check totalRefs ซ้ำเองเสมอ (กัน
-                      Race Condition ระหว่าง Render หน้ากับตอนกดปุ่มจริง) ถ้ามี Reference โผล่
-                      ขึ้นมาระหว่างนั้นจะ Fallback ไปปิดใช้งานแทนแทนที่จะลบทับข้อมูลอ้างอิง */}
                   {(() => {
-                    // Owner UAT Fix Batch 3 — ข้อ 2: เดิมซ่อนปุ่ม "ลบถาวร" เงียบๆ ตอนมี
-                    // Reference — Owner ต้องการเห็นเหตุผลชัดเจนว่าลบถาวรไม่ได้เพราะอะไร
-                    // (ไม่ใช่แค่ปุ่มหายไปเฉยๆ) — ประกอบข้อความจาก _count จริงแต่ละประเภท
-                    // (Audit ตรงจาก DB ทุกครั้งที่ Render หน้า ไม่ใช่ Static Text) แสดงเป็น
-                    // Label แบบอ่านได้ทันทีในตาราง (ไม่ต้อง Hover ถึงจะเห็น) พร้อม title
-                    // Attribute ขยายรายละเอียดเต็มไว้ด้วยเผื่อคอลัมน์แคบ
+                    // Owner UAT Fix Batch 3 — ข้อ 2: แสดงเหตุผลชัดเจนว่าลบถาวรไม่ได้เพราะอะไร
                     const refBreakdown: { count: number; label: string }[] = [
                       { count: p._count.sizeVariants, label: "ขนาดย่อย" },
                       { count: p._count.orderItems, label: "รายการในออเดอร์" },
@@ -308,8 +546,10 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan={unassignedOnly ? 11 : 10} className="px-4 py-8 text-center text-gray-400">
-                  ไม่พบสินค้า
+                <td colSpan={12} className="px-4 py-8 text-center text-gray-400">
+                  {ctx.kind === "company" && !catalog
+                    ? "บริษัทนี้ยังไม่มีรายการสินค้าของตัวเอง — กด “+ เพิ่มสินค้าใหม่” ด้านบนเพื่อเริ่ม (ระบบสร้างกลุ่มให้อัตโนมัติ) หรือเพิ่มบริษัทนี้เข้ากลุ่มของบริษัทอื่นจากหน้าบริษัทนั้น"
+                    : "ไม่พบสินค้า"}
                 </td>
               </tr>
             )}
@@ -361,17 +601,10 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
             categorySelect.addEventListener('change', updatePriceLabel);
 
             // Owner UAT — ข้อ 1: โชว์ช่อง "ราคาต่อฟุต" เฉพาะตอนเลือกประเภทสินค้าที่ใช้ขนาด
-            // และไม่ได้ผูกรุ่นสินค้า (Legacy) — ปิดใช้งาน (ไม่ใช่ซ่อนเฉยๆ) ตอนผูกรุ่นสินค้า
-            // ไว้แล้ว เพื่อกันส่งค่าซ้อนกันทั้งสองทาง (Mutual Exclusive ตาม Server
-            // Validation) — เตือนเพิ่มเมื่อ usesSize=true แต่ไม่ได้กรอกราคาต่อฟุตและไม่ได้
-            // ผูกรุ่นสินค้าเลยทั้งคู่ (ไม่เรียกตอนโหลดหน้า เพราะค่าเริ่มต้น hidden ตรงกับ
-            // Server Render อยู่แล้ว — Category/pricePerFoot เริ่มต้นว่างเสมอ)
+            // และไม่ได้ผูกรุ่นสินค้า (Legacy) — ดูคำอธิบายเต็มใน History ของไฟล์นี้
             const usesSizeWarning = document.getElementById('createUsesSizeWarning');
             const pricePerFootWrap = document.getElementById('createPricePerFootWrap');
             const pricePerFootInput = document.querySelector('#createProductForm input[name="pricePerFoot"]');
-            // Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน "ราคาตั้งต้น" ทั้ง Wrap ตอนเป็น Sized
-            // Anchor (usesSize=true && ไม่ได้ผูกรุ่นสินค้า) ใช้ "ราคาต่อฟุต" เป็น Source
-            // เดียวแทน — สลับ required ไปมาด้วยเพื่อไม่ให้ Field ที่ซ่อนอยู่บล็อก Submit
             const standardPriceWrap = document.getElementById('createStandardPriceWrap');
             const standardPriceInput = document.querySelector('#createProductForm input[name="standardPrice"]');
             function updatePricePerFootUi() {

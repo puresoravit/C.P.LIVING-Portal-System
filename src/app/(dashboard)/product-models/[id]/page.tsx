@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { updateProductModel, batchCreateProductVariants, updateModelCompanyAccess } from "../actions";
+import { updateProductModel, batchCreateProductVariants, updateModelCompanyAccess, updateModelCatalog } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
@@ -13,8 +13,14 @@ function money(n: unknown) {
 
 export default async function EditProductModelPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [model, productTypes, categories, variants, customers] = await Promise.all([
-    db.productModel.findUnique({ where: { id: params.id }, include: { companyAccess: { select: { customerId: true } } } }),
+  const [model, productTypes, categories, variants, customers, catalogs] = await Promise.all([
+    db.productModel.findUnique({
+      where: { id: params.id },
+      include: {
+        companyAccess: { select: { customerId: true } },
+        catalog: { select: { id: true, name: true, companies: { select: { customer: { select: { companyName: true } } } } } },
+      },
+    }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.product.findMany({ where: { modelId: params.id }, orderBy: { size: "asc" } }),
@@ -22,6 +28,11 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
       where: { active: true },
       select: { id: true, companyName: true, code: true },
       orderBy: { companyName: "asc" },
+    }),
+    db.productCatalog.findMany({
+      where: { active: true },
+      select: { id: true, name: true, companies: { select: { customer: { select: { companyName: true } } } } },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
   if (!model) notFound();
@@ -127,15 +138,40 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
         <BatchSizeForm modelId={model.id} existingSizes={existingSizes} defaultUnit={commonUnit} action={batchSizeAction} />
       </div>
 
-      {/* R8 — Product Assignment ตามบริษัทลูกค้า: กำหนดที่รุ่น (Family Head) — Variant
-          ทุกไซส์ของรุ่นนี้ใช้สิทธิ์เดียวกันเสมอ */}
-      <div className="mt-4">
-        <ProductCompanyAccessForm
-          customers={customers}
-          initialCustomerIds={model.companyAccess.map((a) => a.customerId)}
-          action={updateModelCompanyAccess.bind(null, model.id)}
-        />
+      {/* R9 — Company Catalog ของรุ่นนี้ (Family Head — Variant ทุกไซส์ตามหัวเสมอ) */}
+      <div className="mt-4 bg-white border rounded-lg p-4">
+        <h2 className="text-sm font-semibold mb-1">กลุ่มบริษัท (Catalog) ของรุ่นนี้</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          {model.catalog
+            ? `ปัจจุบันอยู่ในกลุ่ม "${model.catalog.name}" — บริษัทที่เห็น: ${model.catalog.companies.map((m) => m.customer.companyName).join(", ")}`
+            : "ปัจจุบันเป็นสินค้าส่วนกลาง — ทุกบริษัทเห็นรุ่นนี้ตอนออกเอกสาร"}
+        </p>
+        <ActionForm action={updateModelCatalog.bind(null, model.id)} successMessage="บันทึกกลุ่มบริษัทสำเร็จ" className="flex items-end gap-2 max-w-md">
+          <div className="flex-1">
+            <SelectField label="ย้ายไปกลุ่ม" name="catalogId" defaultValue={model.catalogId ?? ""}>
+              <option value="">— สินค้าส่วนกลาง (ทุกบริษัทเห็น) —</option>
+              {catalogs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.companies.map((m) => m.customer.companyName).join(", ") || "ยังไม่มีบริษัท"})
+                </option>
+              ))}
+            </SelectField>
+          </div>
+          <SubmitButton className="text-sm bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">บันทึก</SubmitButton>
+        </ActionForm>
       </div>
+
+      {/* R8 — Allowlist รายบริษัทแบบเดิม: เหลือเป็นเครื่องมือขั้นสูงเฉพาะรุ่นที่เป็นสินค้า
+          ส่วนกลาง (อยู่ใน Catalog แล้ว = สมาชิก Catalog ตัดสินอย่างเดียว ซ่อนกันสับสน) */}
+      {!model.catalogId && (
+        <div className="mt-4">
+          <ProductCompanyAccessForm
+            customers={customers}
+            initialCustomerIds={model.companyAccess.map((a) => a.customerId)}
+            action={updateModelCompanyAccess.bind(null, model.id)}
+          />
+        </div>
+      )}
 
       {/* R6 Phase B — โชว์/ซ่อนช่องราคาต่อฟุตตาม Category ที่เลือก (usesSize) */}
       <script

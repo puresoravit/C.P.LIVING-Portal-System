@@ -151,6 +151,7 @@ model Customer {
   repairReturnNotes RepairReturnNote[]
   quotations     Quotation[]
   productAccess  ProductCompanyAccess[]
+  catalogMembership ProductCatalogCompany?
 
   @@map("customers")
 }
@@ -252,6 +253,10 @@ model ProductModel {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
+  // R9 — Company Catalog (เหมือน Product.catalogId ทุกประการ)
+  catalogId String?
+  catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
+
   products Product[]
   companyAccess ProductCompanyAccess[]
 
@@ -288,6 +293,45 @@ model ProductCompanyAccess {
   @@unique([productModelId, customerId])
   @@index([customerId])
   @@map("product_company_access")
+}
+
+// R9 (2026-08-26) — Company-first Catalog: "กลุ่มบริษัทที่ใช้รายการสินค้าร่วมกัน" เป็นวิธี
+// หลักของการกำหนดว่าใครเห็นสินค้าไหน (ตาม UX ใหม่ของ Owner: รายการสินค้า → เลือกบริษัท →
+// เห็น/เพิ่ม/แก้สินค้าของบริษัทนั้น — หลายบริษัทแชร์ Catalog เดียวกันได้ เช่น A+B+C โดย
+// เพิ่ม/ถอดบริษัทจากหน้าเดียว ไม่ต้อง Assign ทีละสินค้า):
+//   - 1 บริษัท อยู่ได้สูงสุด 1 Catalog (customerId unique) — โมเดลใจของ Owner คือ "หน้า
+//     บริษัท = รายการสินค้าของบริษัทนั้น" การแชร์คือดึงบริษัทอื่นเข้ามาใช้รายการเดียวกัน
+//   - Product/ProductModel (Family Head) ผูก catalogId — สินค้าที่สร้างจากหน้า Catalog ผูก
+//     กลุ่มนั้นอัตโนมัติ / catalogId = null คือ "สินค้าส่วนกลาง" ตามกฎเดิม (ทุกบริษัทเห็น
+//     เว้นแต่มีแถว ProductCompanyAccess จำกัดไว้ — กลไกเก่ายังทำงานเพื่อ Compatibility แต่
+//     UX หลักคือ Catalog)
+// การลบบริษัทออกจาก Catalog เปลี่ยนแค่การมองเห็นตอนสร้างเอกสารใหม่ — ไม่แตะ Product จริง
+// ไม่แตะเอกสารเก่า/Snapshot ใดๆ (หลักการเดียวกับ ProductCompanyAccess เดิมทุกประการ)
+model ProductCatalog {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies     ProductCatalogCompany[]
+  products      Product[]
+  productModels ProductModel[]
+
+  @@map("product_catalogs")
+}
+
+model ProductCatalogCompany {
+  id         String         @id @default(cuid())
+  catalogId  String
+  catalog    ProductCatalog @relation(fields: [catalogId], references: [id])
+  // unique = 1 บริษัทอยู่ได้ Catalog เดียว (ดูเหตุผลใน Comment ของ ProductCatalog)
+  customerId String         @unique
+  customer   Customer       @relation(fields: [customerId], references: [id])
+  addedById  String? // User id ผู้เพิ่มบริษัทเข้ากลุ่ม (Audit ฉบับเต็มอยู่ใน AuditLog)
+  createdAt  DateTime       @default(now())
+
+  @@map("product_catalog_companies")
 }
 
 model Product {
@@ -328,6 +372,11 @@ model Product {
   sizeVariants    Product[] @relation("ProductSizeFamily")
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  // R9 — Company Catalog ของ Family Head (null = สินค้าส่วนกลาง) — Variant ตามหัวเสมอ
+  // ไม่มีค่าของตัวเอง (Resolution ผ่าน resolveAccessHead ใน product-company-access.ts)
+  catalogId String?
+  catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
 
   priceRules   PriceRule[]
   orderItems   OrderItem[]

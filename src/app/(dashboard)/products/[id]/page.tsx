@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { updateProduct, updateProductCompanyAccess } from "../actions";
+import { updateProduct, updateProductCompanyAccess, updateProductCatalog } from "../actions";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
@@ -8,8 +8,14 @@ import { ProductCompanyAccessForm } from "@/components/product-company-access-fo
 
 export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, productTypes, categories, productModels, customers] = await Promise.all([
-    db.product.findUnique({ where: { id: params.id }, include: { companyAccess: { select: { customerId: true } } } }),
+  const [product, productTypes, categories, productModels, customers, catalogs] = await Promise.all([
+    db.product.findUnique({
+      where: { id: params.id },
+      include: {
+        companyAccess: { select: { customerId: true } },
+        catalog: { select: { id: true, name: true, companies: { select: { customer: { select: { companyName: true, code: true } } } } } },
+      },
+    }),
     db.productType.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.productModel.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
@@ -17,6 +23,11 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
       where: { active: true },
       select: { id: true, companyName: true, code: true },
       orderBy: { companyName: "asc" },
+    }),
+    db.productCatalog.findMany({
+      where: { active: true },
+      select: { id: true, name: true, companies: { select: { customer: { select: { companyName: true } } } } },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
   if (!product) notFound();
@@ -140,9 +151,36 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         </div>
       </ActionForm>
 
-      {/* R8 — Product Assignment ตามบริษัทลูกค้า (เฉพาะ Family Head — Variant ตามหัวเสมอ) */}
+      {/* R9 — Company Catalog ของสินค้านี้ (เฉพาะ Family Head — Variant ตามหัวเสมอ) */}
+      {isFamilyHead && (
+        <div className="mt-4 bg-white border rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-1">กลุ่มบริษัท (Catalog) ของสินค้านี้</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            {product.catalog
+              ? `ปัจจุบันอยู่ในกลุ่ม "${product.catalog.name}" — บริษัทที่เห็นสินค้านี้: ${product.catalog.companies.map((m) => m.customer.companyName).join(", ")}`
+              : "ปัจจุบันเป็นสินค้าส่วนกลาง — ทุกบริษัทเห็นสินค้านี้ตอนออกเอกสาร"}
+          </p>
+          <ActionForm action={updateProductCatalog.bind(null, product.id)} successMessage="บันทึกกลุ่มบริษัทสำเร็จ" className="flex items-end gap-2 max-w-md">
+            <div className="flex-1">
+              <SelectField label="ย้ายไปกลุ่ม" name="catalogId" defaultValue={product.catalogId ?? ""}>
+                <option value="">— สินค้าส่วนกลาง (ทุกบริษัทเห็น) —</option>
+                {catalogs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.companies.map((m) => m.customer.companyName).join(", ") || "ยังไม่มีบริษัท"})
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+            <SubmitButton className="text-sm bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">บันทึก</SubmitButton>
+          </ActionForm>
+        </div>
+      )}
+
+      {/* R8 — Allowlist รายบริษัทแบบเดิม: เหลือเป็นเครื่องมือขั้นสูงเฉพาะ "สินค้าส่วนกลาง"
+          (Head ที่อยู่ใน Catalog แล้ว การมองเห็นตัดสินด้วยสมาชิก Catalog อย่างเดียว —
+          Allowlist ไม่มีผลจึงซ่อนไปเลยกันสับสน) — Variant ตามหัวเสมอเหมือนเดิม */}
       <div className="mt-4">
-        {isFamilyHead ? (
+        {isFamilyHead && product.catalogId ? null : isFamilyHead ? (
           <ProductCompanyAccessForm
             customers={customers}
             initialCustomerIds={product.companyAccess.map((a) => a.customerId)}

@@ -10,7 +10,7 @@ import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
 import { syncStandardVariants } from "@/lib/product-variant-size";
-import { setCompanyAccessForHead } from "@/lib/product-company-access";
+import { setCompanyAccessForHead, ensureCompanyCatalog, addCompanyToCatalog, removeCompanyFromCatalog } from "@/lib/product-company-access";
 import { Decimal } from "@prisma/client/runtime/library";
 
 async function requireUser() {
@@ -96,6 +96,12 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
   const parsed = raw.data;
 
+  // R9 — Company-first Catalog: สร้างสินค้าจากหน้าบริษัทไหน ผูก Catalog ของบริษัทนั้น
+  // อัตโนมัติ (สร้าง Catalog ให้เองถ้าบริษัทยังไม่มี — Idempotent) — ไม่ส่ง companyId มา
+  // (หน้า "สินค้าส่วนกลาง"/มุมมองรวม) = catalogId null คือสินค้าส่วนกลางตามกฎเดิม
+  const companyId = String(formData.get("companyId") ?? "").trim() || null;
+  const catalogId = companyId ? (await ensureCompanyCatalog(companyId, user.id)).id : null;
+
   const category = parsed.categoryId ? await db.productCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
   const pricePerFootError = validateProductPricePerFoot(parsed.pricePerFoot, parsed.modelId, category?.usesSize ?? false);
   if (pricePerFootError) {
@@ -118,7 +124,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   }
 
   const product = await db.$transaction(async (tx) => {
-    const created = await tx.product.create({ data: { ...parsed, sku, standardPrice: standardPriceResult.value } });
+    const created = await tx.product.create({ data: { ...parsed, sku, standardPrice: standardPriceResult.value, catalogId } });
     // Owner UAT — ข้อ 1: กรอก pricePerFoot มา = Product แถวนี้เป็น Anchor ของตัวเอง —
     // Sync Standard Variant (3/3.5/4/5/6 ฟุต) ให้ทันที เหมือน ProductModel ทุกประการ
     if (parsed.pricePerFoot !== undefined) {
@@ -138,7 +144,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   });
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku, standardPrice: standardPriceResult.value } },
+    data: { userId: user.id, action: "CREATE", module: "Product", recordId: product.id, newValue: { ...parsed, sku, standardPrice: standardPriceResult.value, catalogId } },
   });
 
   revalidatePath("/products");
@@ -328,4 +334,56 @@ export async function updateProductCompanyAccess(id: string, formData: FormData)
         ? "บันทึกแล้ว — สินค้านี้เป็นสินค้าส่วนกลาง ทุกบริษัทใช้ได้"
         : `บันทึกแล้ว — จำกัดเฉพาะ ${desiredCustomerIds.length} บริษัท (เพิ่ม ${granted} / ถอด ${revoked})`,
   };
+}
+
+// R9 — Company-first Catalog: จัดการสมาชิกกลุ่มบริษัทจากหน้ารายการสินค้าของบริษัท
+// (Logic จริงอยู่ใน product-company-access.ts — Action เป็นเปลือกเช็คสิทธิ์ + Revalidate)
+export async function addCatalogCompany(catalogId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+  const customerId = String(formData.get("customerId") ?? "").trim();
+  if (!customerId) return { success: false, error: "กรุณาเลือกบริษัทที่จะเพิ่มเข้ากลุ่ม" };
+  const error = await addCompanyToCatalog(catalogId, customerId, user.id);
+  if (error) return { success: false, error };
+  revalidatePath("/products");
+  return { success: true, message: "เพิ่มบริษัทเข้ากลุ่มแล้ว — บริษัทนี้เห็นสินค้าทุกตัวในกลุ่มทันที" };
+}
+
+export async function removeCatalogCompany(catalogId: string, customerId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+  const error = await removeCompanyFromCatalog(catalogId, customerId, user.id);
+  if (error) return { success: false, error };
+  revalidatePath("/products");
+  return { success: true, message: "ถอดบริษัทออกจากกลุ่มแล้ว — สินค้า/เอกสารเดิมไม่ถูกกระทบ" };
+}
+
+/** R9 — ย้ายสินค้า (Family Head) เข้า/ออก Catalog จากหน้าแก้ไขสินค้า — null = สินค้าส่วนกลาง */
+export async function updateProductCatalog(productId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+  const catalogId = String(formData.get("catalogId") ?? "").trim() || null;
+  if (catalogId) {
+    const catalog = await db.productCatalog.findUnique({ where: { id: catalogId }, select: { id: true } });
+    if (!catalog) return { success: false, error: "ไม่พบกลุ่ม Catalog ที่เลือก" };
+  }
+  const product = await db.product.findUnique({ where: { id: productId }, select: { id: true, parentProductId: true, modelId: true, catalogId: true } });
+  if (!product) return { success: false, error: "ไม่พบสินค้า" };
+  if (product.parentProductId || product.modelId) {
+    return { success: false, error: "สินค้านี้เป็น Size Variant — ย้าย Catalog ที่ตัวหลักของครอบครัวสินค้าเท่านั้น" };
+  }
+  await db.$transaction([
+    db.product.update({ where: { id: productId }, data: { catalogId } }),
+    db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "SET_PRODUCT_CATALOG",
+        module: "Product",
+        recordId: productId,
+        newValue: { from: product.catalogId, to: catalogId },
+      },
+    }),
+  ]);
+  revalidatePath("/products");
+  return { success: true, message: catalogId ? "ย้ายสินค้าเข้ากลุ่ม Catalog แล้ว" : "ย้ายสินค้าออกเป็นสินค้าส่วนกลางแล้ว" };
 }

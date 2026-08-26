@@ -358,3 +358,32 @@ export async function updateModelCompanyAccess(id: string, formData: FormData): 
         : `บันทึกแล้ว — จำกัดเฉพาะ ${desiredCustomerIds.length} บริษัท (เพิ่ม ${granted} / ถอด ${revoked})`,
   };
 }
+
+/** R9 — ย้ายรุ่นสินค้า (Family Head) เข้า/ออก Catalog — null = สินค้าส่วนกลาง (Pattern
+ * เดียวกับ updateProductCatalog ของ Product ทุกประการ) */
+export async function updateModelCatalog(modelId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "product.edit")) throw new Error("FORBIDDEN");
+  const catalogId = String(formData.get("catalogId") ?? "").trim() || null;
+  if (catalogId) {
+    const catalog = await db.productCatalog.findUnique({ where: { id: catalogId }, select: { id: true } });
+    if (!catalog) return { success: false, error: "ไม่พบกลุ่ม Catalog ที่เลือก" };
+  }
+  const model = await db.productModel.findUnique({ where: { id: modelId }, select: { id: true, catalogId: true } });
+  if (!model) return { success: false, error: "ไม่พบรุ่นสินค้า" };
+  await db.$transaction([
+    db.productModel.update({ where: { id: modelId }, data: { catalogId } }),
+    db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "SET_PRODUCT_CATALOG",
+        module: "ProductModel",
+        recordId: modelId,
+        newValue: { from: model.catalogId, to: catalogId },
+      },
+    }),
+  ]);
+  revalidatePath("/products");
+  revalidatePath("/product-models");
+  return { success: true, message: catalogId ? "ย้ายรุ่นสินค้าเข้ากลุ่ม Catalog แล้ว" : "ย้ายรุ่นสินค้าออกเป็นสินค้าส่วนกลางแล้ว" };
+}
