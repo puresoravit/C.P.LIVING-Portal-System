@@ -57,6 +57,13 @@ export async function createCustomer(formData: FormData): Promise<ActionResult> 
     },
   });
 
+  // R10.1 — ลูกค้าใหม่ต้องโผล่ในช่องเลือกลูกค้าของทุกหน้าสร้างเอกสารทันที (Real-time)
+  revalidatePath("/orders/new");
+  revalidatePath("/quotations/new");
+  revalidatePath("/repair-notes/new");
+  revalidatePath("/tax-invoices/new");
+  revalidatePath("/billing-notes/new");
+  revalidatePath("/products");
   revalidatePath("/customers");
   return { success: true };
 }

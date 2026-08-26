@@ -100,11 +100,10 @@ export default async function ProductsPage(props: {
   // ---------- Landing: 2 หมวดหลักตามโครงที่ Owner กำหนด ----------
   if (ctx.kind === "landing") {
     const qcat = await db.productCatalog.findFirst({ where: { isQuotationCatalog: true }, select: { id: true } });
-    const [companyCount, groupCount, quotationCount, centralCount, allCount] = await Promise.all([
+    const [companyCount, groupCount, quotationCount, allCount] = await Promise.all([
       db.customer.count({ where: { active: true } }),
       db.productCatalog.count({ where: { isQuotationCatalog: false, active: true } }),
       qcat ? db.product.count({ where: catalogRowsWhere(qcat.id) }) : Promise.resolve(0),
-      db.product.count({ where: centralRowsWhere() }),
       db.product.count(),
     ]);
 
@@ -134,10 +133,9 @@ export default async function ProductsPage(props: {
           </a>
         </div>
 
+        {/* R10.1 — Owner: ตัดการ์ด "สินค้าส่วนกลาง" ออกจากหน้าแรก (มีแค่ 2 หมวดหลักพอ) —
+            Route ?view=central ยังอยู่เผื่อ Legacy/Link เก่า แค่ไม่โชว์เป็นทางเข้า */}
         <div className="flex flex-wrap gap-3 text-sm">
-          <a href="/products?view=central" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400 text-gray-600">
-            สินค้าส่วนกลาง (ทุกบริษัทเห็น) — {centralCount} รายการ
-          </a>
           <a href="/products?view=all" className="bg-white border rounded-lg px-4 py-3 hover:border-blue-400 text-gray-600">
             ตารางรวมทุกสินค้า (มุมมองเดิม) — {allCount} รายการ
           </a>
@@ -480,7 +478,7 @@ export default async function ProductsPage(props: {
           {ctx.kind === "quotation" && <input type="hidden" name="quotationCatalog" value="1" />}
           {/* R10 — เลือกปลายทาง Shared/Private ตอนสร้างจากหน้าบริษัท */}
           {ctx.kind === "company" && (
-            <div className="col-span-1 sm:col-span-3 flex flex-wrap items-center gap-4 text-sm bg-gray-50 border rounded px-3 py-2">
+            <div className="col-span-1 sm:col-span-3 flex flex-wrap items-center gap-4 text-sm bg-indigo-50/70 border-l-4 border-indigo-400 rounded-lg px-3 py-2">
               <span className="text-xs text-gray-600">สินค้านี้เป็นของ:</span>
               <label className="flex items-center gap-1.5">
                 <input type="radio" name="visibility" value="shared" defaultChecked />
@@ -492,49 +490,62 @@ export default async function ProductsPage(props: {
               </label>
             </div>
           )}
-          <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
-          <div className="col-span-1 sm:col-span-2">
+          {/* R10.1 — Owner: ลงสีแต่ละช่องต่างกัน (โทนแม่สีอ่อน) ให้พนักงานสังเกตหัวข้อ
+              ง่ายขึ้น ลดคีย์ผิดช่อง — เป็นแค่พื้นหลัง/เส้นขอบซ้ายของช่องกรอก ไม่แตะ
+              โครงสร้าง/ชื่อ Field/Script Dependent Dropdown ใดๆ */}
+          <div className="rounded-lg p-2 bg-blue-50/70 border-l-4 border-blue-400">
+            <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
+          </div>
+          <div className="col-span-1 sm:col-span-2 rounded-lg p-2 bg-amber-50/70 border-l-4 border-amber-400">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
-          <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
-            <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
-            {productTypes.map((pt) => (
-              <option key={pt.id} value={pt.id}>
-                {pt.name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
-            <option value="">— ไม่ระบุประเภทสินค้า —</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </SelectField>
+          <div className="rounded-lg p-2 bg-violet-50/70 border-l-4 border-violet-400">
+            <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
+              <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
+              {productTypes.map((pt) => (
+                <option key={pt.id} value={pt.id}>
+                  {pt.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+          <div className="rounded-lg p-2 bg-emerald-50/70 border-l-4 border-emerald-400">
+            <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
+              <option value="">— ไม่ระบุประเภทสินค้า —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
           {/* Owner UAT — ข้อ 1: "รุ่นสินค้า" เป็น Legacy/Advanced แล้ว — ปกติไม่ต้องใช้อีก
               ต่อไป (เว้นว่างไว้เสมอ) เพราะ Size/Pricing ทำงานจาก Product ตรงๆ ได้แล้วผ่าน
               ช่อง "ราคาต่อฟุต" ด้านล่าง — ยังคง Field ไว้เพื่อ Backward Compatible กับ
               Workflow เดิม (ผูก Product เข้ากับ ProductModel ที่มีอยู่แล้วได้เหมือนเดิม) */}
-          <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
-            <option value="">— ไม่ผูก (ปกติ) —</option>
-          </SelectField>
+          <div className="rounded-lg p-2 bg-slate-100/70 border-l-4 border-slate-300">
+            <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
+              <option value="">— ไม่ผูก (ปกติ) —</option>
+            </SelectField>
+          </div>
           <div id="createUsesSizeWarning" className="col-span-1 sm:col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
             มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
           </div>
-          <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
-          <div id="createStandardPriceWrap">
+          <div className="rounded-lg p-2 bg-pink-50/70 border-l-4 border-pink-400">
+            <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
+          </div>
+          <div id="createStandardPriceWrap" className="rounded-lg p-2 bg-red-50/70 border-l-4 border-red-400">
             <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           </div>
-          <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden">
+          <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden rounded-lg p-2 bg-orange-50/70 border-l-4 border-orange-400">
             <Field
               label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
               name="pricePerFoot"
               type="number"
             />
           </div>
-          <div className="col-span-1 sm:col-span-3">
+          <div className="col-span-1 sm:col-span-3 rounded-lg p-2 bg-teal-50/70 border-l-4 border-teal-400">
             <Field label="คำอธิบาย" name="description" />
           </div>
           <div className="col-span-1 sm:col-span-3">
@@ -663,7 +674,12 @@ export default async function ProductsPage(props: {
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right space-x-2">
-                  <a href={`/products/${p.id}`} className="text-xs text-blue-600 hover:underline">
+                  {/* R10.1 — Owner: กดแก้ไขแล้วกดกลับ ต้องกลับหน้ารายการเดิม (บริษัท/มุมมอง
+                      ที่เปิดอยู่) ไม่ใช่เด้งไปหน้าแรกให้เลือกใหม่ */}
+                  <a
+                    href={`/products/${p.id}?back=${encodeURIComponent(`/products?${ctxQuery}`)}`}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
                     แก้ไข
                   </a>
                   {(() => {

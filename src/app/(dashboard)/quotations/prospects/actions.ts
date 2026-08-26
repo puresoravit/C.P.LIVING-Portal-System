@@ -104,6 +104,13 @@ export async function linkProspectToCustomer(prospectId: string, formData: FormD
       },
     }),
   ]);
+  // R10.1 — ลูกค้าใหม่/ที่เพิ่งเชื่อม ต้องโผล่ในช่องเลือกลูกค้าของทุกหน้าสร้างเอกสารทันที
+  revalidatePath("/orders/new");
+  revalidatePath("/quotations/new");
+  revalidatePath("/repair-notes/new");
+  revalidatePath("/tax-invoices/new");
+  revalidatePath("/billing-notes/new");
+  revalidatePath("/products");
   revalidatePath("/quotations/prospects");
   return { success: true, message: `เชื่อม "${prospect.name}" กับลูกค้า "${customer.companyName}" แล้ว` };
 }
@@ -154,9 +161,16 @@ export async function createCustomerFromProspect(prospectId: string, formData: F
     return created;
   });
 
+  // R10.1 — ลูกค้าใหม่/ที่เพิ่งเชื่อม ต้องโผล่ในช่องเลือกลูกค้าของทุกหน้าสร้างเอกสารทันที
+  revalidatePath("/orders/new");
+  revalidatePath("/quotations/new");
+  revalidatePath("/repair-notes/new");
+  revalidatePath("/tax-invoices/new");
+  revalidatePath("/billing-notes/new");
+  revalidatePath("/products");
   revalidatePath("/quotations/prospects");
   revalidatePath("/customers");
-  return { success: true, message: `สร้างลูกค้า "${customer.companyName}" และเชื่อมกับรายนี้แล้ว` };
+  return { success: true, message: `สร้างลูกค้า "${customer.companyName}" และเชื่อมกับรายนี้แล้ว — เลือกได้ทันทีในทุกหน้าสร้างเอกสาร` };
 }
 
 /** นำสินค้า (Family Head จาก "สินค้าเสนอราคา") ไปใช้กับลูกค้าที่เชื่อมไว้ — ไม่ Duplicate
@@ -172,12 +186,14 @@ export async function adoptProspectProducts(prospectId: string, formData: FormDa
   if (!prospect?.linkedCustomerId) return { success: false, error: "ต้องเชื่อมรายนี้กับลูกค้าก่อน จึงนำสินค้าไปใช้ได้" };
 
   const productIds = [...new Set(formData.getAll("productIds").map(String))];
+  const modelIds = [...new Set(formData.getAll("modelIds").map(String))];
   const target = String(formData.get("target") ?? "shared") === "private" ? ("private" as const) : ("shared" as const);
-  if (productIds.length === 0) return { success: false, error: "กรุณาเลือกสินค้าอย่างน้อย 1 รายการ" };
+  if (productIds.length === 0 && modelIds.length === 0) return { success: false, error: "กรุณาเลือกสินค้าอย่างน้อย 1 รายการ" };
 
   const result = await adoptProductHeadsForCustomer({
     customerId: prospect.linkedCustomerId,
     productIds,
+    modelIds,
     target,
     actorUserId: user.id,
   });

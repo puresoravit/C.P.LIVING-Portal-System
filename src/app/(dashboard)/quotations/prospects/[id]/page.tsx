@@ -68,18 +68,25 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
         select: { id: true, sku: true, name: true, parentProductId: true, modelId: true },
       })
     : [];
-  const headIds = [
-    ...new Set(
-      usedProducts.map((pr) => resolveAccessHead(pr)).filter((h) => h.kind === "product").map((h) => h.id)
-    ),
-  ];
-  const adoptableHeads = headIds.length
-    ? await db.product.findMany({
-        where: { id: { in: headIds }, catalog: { isQuotationCatalog: true } },
-        select: { id: true, sku: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
+  const heads = usedProducts.map((pr) => resolveAccessHead(pr));
+  const headProductIds = [...new Set(heads.filter((h) => h.kind === "product").map((h) => h.id))];
+  const headModelIds = [...new Set(heads.filter((h) => h.kind === "model").map((h) => h.id))];
+  const [adoptableHeads, adoptableModels] = await Promise.all([
+    headProductIds.length
+      ? db.product.findMany({
+          where: { id: { in: headProductIds }, catalog: { isQuotationCatalog: true } },
+          select: { id: true, sku: true, name: true, _count: { select: { sizeVariants: true } } },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    headModelIds.length
+      ? db.productModel.findMany({
+          where: { id: { in: headModelIds }, catalog: { isQuotationCatalog: true } },
+          select: { id: true, name: true, _count: { select: { products: true } } },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="max-w-4xl">
@@ -166,12 +173,13 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
       )}
 
       {/* นำสินค้าเสนอราคาที่เคยใช้ ไปใช้กับลูกค้าจริง */}
-      {prospect.linkedCustomer && canManageProducts && adoptableHeads.length > 0 && (
+      {prospect.linkedCustomer && canManageProducts && (adoptableHeads.length > 0 || adoptableModels.length > 0) && (
         <div className="bg-white border rounded-lg p-4 mb-4">
           <h2 className="text-sm font-semibold mb-1">นำสินค้าที่เคยเสนอ ไปใช้กับลูกค้าจริง</h2>
           <p className="text-xs text-gray-500 mb-3">
             สินค้าเหล่านี้ยังอยู่ใน &quot;สินค้าเสนอราคา&quot; — เลือกแล้วย้ายเข้า Shared ของกลุ่ม หรือ Private ของ{" "}
-            {prospect.linkedCustomer.companyName} (ไม่ Duplicate — ใบเสนอราคาเดิมยังอ้างสินค้าตัวเดิมได้ครบ)
+            {prospect.linkedCustomer.companyName} (ไม่ Duplicate — ใบเสนอราคาเดิมยังอ้างสินค้าตัวเดิมได้ครบ) —
+            สินค้าที่มีไซส์ (เช่นที่นอน) ย้ายทั้งครอบครัว: <b>ทุกไซส์ตามไปครบ</b> ไม่ใช่เฉพาะไซส์ที่เคยสั่ง
           </p>
           <ActionForm action={adoptProspectProducts.bind(null, prospect.id)} successMessage="ย้ายสินค้าสำเร็จ" className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -179,6 +187,20 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
                 <label key={h.id} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1.5 py-1 hover:bg-gray-50">
                   <input type="checkbox" name="productIds" value={h.id} className="w-4 h-4" />
                   <span className="font-mono text-xs text-gray-500">{h.sku}</span> {h.name}
+                  {h._count.sizeVariants > 0 && (
+                    <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-1.5">
+                      +{h._count.sizeVariants} ไซส์
+                    </span>
+                  )}
+                </label>
+              ))}
+              {adoptableModels.map((m) => (
+                <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1.5 py-1 hover:bg-gray-50">
+                  <input type="checkbox" name="modelIds" value={m.id} className="w-4 h-4" />
+                  {m.name}
+                  <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-1.5">
+                    รุ่นสินค้า · {m._count.products} ไซส์
+                  </span>
                 </label>
               ))}
             </div>

@@ -6,8 +6,16 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { ProductCompanyAccessForm } from "@/components/product-company-access-form";
 
-export default async function EditProductPage(props: { params: Promise<{ id: string }> }) {
+export default async function EditProductPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string }>;
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
+  // R10.1 — Owner: กดแก้ไขจากหน้ารายการบริษัท/มุมมองไหน กดกลับต้องกลับหน้านั้น (Validate
+  // เป็น Internal /products Path เท่านั้น — Pattern เดียวกับ back ของหน้า Print)
+  const rawBack = searchParams.back;
+  const backHref = rawBack && rawBack.startsWith("/products") && !rawBack.startsWith("//") ? rawBack : "/products";
   const [product, productTypes, categories, productModels, customers, catalogs] = await Promise.all([
     db.product.findUnique({
       where: { id: params.id },
@@ -56,7 +64,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
 
   return (
     <div className="max-w-2xl">
-      <a href="/products" className="text-sm text-blue-600 hover:underline">
+      <a href={backHref} className="text-sm text-blue-600 hover:underline">
         ← กลับไปรายการสินค้า
       </a>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขสินค้า: {product.name}</h1>
@@ -71,35 +79,44 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         successMessage="บันทึกการแก้ไขสำเร็จ"
         className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
       >
-        <Field label="รหัสสินค้า / Code *" name="sku" defaultValue={product.sku} required autoFocus />
-        <div className="col-span-1 sm:col-span-2">
+        {/* R10.1 — ลงสีช่องเดียวกับฟอร์มสร้างสินค้า (สีเดียวกันต่อ Field เสมอ ให้จำง่าย) */}
+        <div className="rounded-lg p-2 bg-blue-50/70 border-l-4 border-blue-400">
+          <Field label="รหัสสินค้า / Code *" name="sku" defaultValue={product.sku} required autoFocus />
+        </div>
+        <div className="col-span-1 sm:col-span-2 rounded-lg p-2 bg-amber-50/70 border-l-4 border-amber-400">
           <Field label="ชื่อสินค้า *" name="name" defaultValue={product.name} required />
         </div>
-        <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
-          <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
-          {productTypes.map((pt) => (
-            <option key={pt.id} value={pt.id}>
-              {pt.name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue={product.categoryId ?? ""}>
-          <option value="">— ไม่ระบุประเภทสินค้า —</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </SelectField>
+        <div className="rounded-lg p-2 bg-violet-50/70 border-l-4 border-violet-400">
+          <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue={product.productTypeId ?? ""}>
+            <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
+            {productTypes.map((pt) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+        <div className="rounded-lg p-2 bg-emerald-50/70 border-l-4 border-emerald-400">
+          <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue={product.categoryId ?? ""}>
+            <option value="">— ไม่ระบุประเภทสินค้า —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
         {/* Owner UAT — ข้อ 1: Legacy/Advanced — ปกติไม่ต้องใช้อีกต่อไป */}
-        <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue={product.modelId ?? ""}>
-          <option value="">— ไม่ผูก (ปกติ) —</option>
-          {modelsForCurrentType.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </SelectField>
+        <div className="rounded-lg p-2 bg-slate-100/70 border-l-4 border-slate-300">
+          <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue={product.modelId ?? ""}>
+            <option value="">— ไม่ผูก (ปกติ) —</option>
+            {modelsForCurrentType.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
         {/* Owner UAT — ข้อ 1: เตือนเฉพาะตอน usesSize=true และไม่ได้ผูกรุ่นสินค้า (Legacy)
             และไม่ได้กรอกราคาต่อฟุตไว้เลยทั้งคู่ — ค่าเริ่มต้นคำนวณจาก
             showInitialUsesSizeWarning ด้านบน ให้ตรงกับสถานะจริงของสินค้านี้ทันทีที่โหลด
@@ -111,14 +128,16 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
           ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
           มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
         </div>
-        <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
+        <div className="rounded-lg p-2 bg-pink-50/70 border-l-4 border-pink-400">
+          <Field label="หน่วย *" name="unit" defaultValue={product.unit} required />
+        </div>
         {/* Owner UAT Fix Batch 1 — ข้อ 1: ป้ายราคาเริ่มต้นคำนวณจาก Category ปัจจุบันแล้ว
             (initialPriceLabel ด้านบน) — Script ด้านล่างจะอัปเดตต่อเฉพาะตอนมี change
             Event จริงจากผู้ใช้เท่านั้น ไม่เรียกซ้ำตอนโหลดหน้า (กัน Hydration Mismatch) —
             Owner UAT Fix Batch 3 — ข้อ 4: ซ่อน Field นี้ไปเลยตอนสินค้านี้เป็น Sized Anchor
             อยู่แล้ว (usesSize=true และไม่ได้ผูกรุ่นสินค้า) — isSizedAnchor คำนวณฝั่ง Server
             ให้ตรงกับสถานะปัจจุบันเป๊ะ กัน Hydration Mismatch เหมือน Field อื่นในหน้านี้ */}
-        <div id="editStandardPriceWrap" className={isSizedAnchor ? "hidden" : ""}>
+        <div id="editStandardPriceWrap" className={`rounded-lg p-2 bg-red-50/70 border-l-4 border-red-400 ${isSizedAnchor ? "hidden" : ""}`}>
           <Field
             label={initialPriceLabel}
             name="standardPrice"
@@ -131,7 +150,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             ฟุตตรงนี้จะ Recalculate Size Variant ที่มีอยู่แล้วทันที (เหมือนหน้ารุ่นสินค้า) —
             Owner UAT Fix Batch 3 — ข้อ 4: บังคับกรอก (required) เฉพาะตอนเป็น Source ราคา
             เดียวจริงๆ (isSizedAnchor) */}
-        <div id="editPricePerFootWrap" className={`col-span-3 ${showPricePerFootField ? "" : "hidden"}`}>
+        <div id="editPricePerFootWrap" className={`col-span-3 rounded-lg p-2 bg-orange-50/70 border-l-4 border-orange-400 ${showPricePerFootField ? "" : "hidden"}`}>
           <Field
             label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง/อัปเดต Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
             name="pricePerFoot"
@@ -140,12 +159,12 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
             required={isSizedAnchor}
           />
         </div>
-        <div className="col-span-1 sm:col-span-3">
+        <div className="col-span-1 sm:col-span-3 rounded-lg p-2 bg-teal-50/70 border-l-4 border-teal-400">
           <Field label="คำอธิบาย" name="description" defaultValue={product.description ?? ""} />
         </div>
         <div className="col-span-1 sm:col-span-3 flex gap-2">
           <SubmitButton>บันทึกการแก้ไข</SubmitButton>
-          <a href="/products" className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
+          <a href={backHref} className="text-sm text-gray-600 hover:text-gray-900 rounded px-4 py-2 border">
             ยกเลิก
           </a>
         </div>

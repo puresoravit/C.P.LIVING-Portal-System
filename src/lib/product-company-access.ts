@@ -451,17 +451,22 @@ export async function renameCatalog(catalogId: string, name: string, actorUserId
 export async function adoptProductHeadsForCustomer(params: {
   customerId: string;
   productIds: string[];
+  /** R10.1 — Family Head ชนิด ProductModel (Legacy) ก็นำไปใช้ต่อได้เช่นกัน */
+  modelIds?: string[];
   target: "shared" | "private";
   actorUserId: string;
 }): Promise<{ ok: true; moved: number; summary: string } | { ok: false; error: string }> {
-  const { customerId, productIds, target, actorUserId } = params;
+  const { customerId, productIds, modelIds = [], target, actorUserId } = params;
   const customer = await db.customer.findUnique({ where: { id: customerId }, select: { id: true, companyName: true } });
   if (!customer) return { ok: false, error: "ไม่พบบริษัทลูกค้า" };
-  const heads = await db.product.findMany({
-    where: { id: { in: productIds }, parentProductId: null, modelId: null },
-    select: { id: true },
-  });
-  if (heads.length === 0) return { ok: false, error: "ไม่พบสินค้า (Family Head) ที่เลือก" };
+  // ย้ายที่ระดับ Family Head เสมอ — Size Variant ทุกตัว (เช่นที่นอนทุกไซส์ 3/3.5/4/5/6 ฟุต)
+  // ตามหัวไปด้วยครบโดยกลไก Resolution เดิม ไม่ใช่เฉพาะไซส์ที่เคยสั่งในใบเสนอราคา
+  const [productHeads, modelHeads] = await Promise.all([
+    db.product.findMany({ where: { id: { in: productIds }, parentProductId: null, modelId: null }, select: { id: true } }),
+    db.productModel.findMany({ where: { id: { in: modelIds } }, select: { id: true } }),
+  ]);
+  const moved = productHeads.length + modelHeads.length;
+  if (moved === 0) return { ok: false, error: "ไม่พบสินค้า (Family Head) ที่เลือก" };
 
   const data =
     target === "shared"
@@ -469,24 +474,30 @@ export async function adoptProductHeadsForCustomer(params: {
       : { catalogId: null, ownerCustomerId: customerId };
 
   await db.$transaction([
-    db.product.updateMany({ where: { id: { in: heads.map((h) => h.id) } }, data }),
+    db.product.updateMany({ where: { id: { in: productHeads.map((h) => h.id) } }, data }),
+    db.productModel.updateMany({ where: { id: { in: modelHeads.map((h) => h.id) } }, data }),
     db.auditLog.create({
       data: {
         userId: actorUserId,
         action: "ADOPT_PRODUCTS_FOR_CUSTOMER",
         module: "Product",
         recordId: customerId,
-        newValue: { productIds: heads.map((h) => h.id), target, companyName: customer.companyName },
+        newValue: {
+          productIds: productHeads.map((h) => h.id),
+          modelIds: modelHeads.map((h) => h.id),
+          target,
+          companyName: customer.companyName,
+        },
       },
     }),
   ]);
   return {
     ok: true,
-    moved: heads.length,
+    moved,
     summary:
       target === "shared"
-        ? `ย้ายสินค้า ${heads.length} รายการเข้า Shared ของกลุ่ม "${customer.companyName}" แล้ว`
-        : `ย้ายสินค้า ${heads.length} รายการเป็น Private ของ "${customer.companyName}" แล้ว`,
+        ? `ย้ายสินค้า ${moved} รายการ (รวมทุกไซส์ของแต่ละรายการ) เข้า Shared ของกลุ่ม "${customer.companyName}" แล้ว`
+        : `ย้ายสินค้า ${moved} รายการ (รวมทุกไซส์ของแต่ละรายการ) เป็น Private ของ "${customer.companyName}" แล้ว`,
   };
 }
 
