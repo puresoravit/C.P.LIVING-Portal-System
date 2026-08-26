@@ -205,16 +205,16 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
               ))}
             </div>
             {/* R10.2 — โทนสีเดียวกับกล่อง Shared/Private ของหน้ารายการสินค้า (เขียว/เหลือง) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <label className="flex items-start gap-2.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 px-3 py-2.5 cursor-pointer text-emerald-900">
-                <input type="radio" name="target" value="shared" defaultChecked className="mt-0.5 accent-emerald-600" />
-                <span className="text-sm">
+            <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-2 rounded-full border-2 border-emerald-500 bg-emerald-50 pl-4 pr-5 py-2 cursor-pointer text-emerald-900">
+                <input type="radio" name="target" value="shared" defaultChecked className="accent-emerald-600" />
+                <span className="text-sm whitespace-nowrap">
                   <span className="font-semibold">Shared</span> — ทุกบริษัทในกลุ่มของลูกค้ารายนี้เห็นร่วมกัน
                 </span>
               </label>
-              <label className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2.5 cursor-pointer text-amber-900">
-                <input type="radio" name="target" value="private" className="mt-0.5 accent-amber-600" />
-                <span className="text-sm">
+              <label className="flex items-center gap-2 rounded-full border-2 border-amber-500 bg-amber-50 pl-4 pr-5 py-2 cursor-pointer text-amber-900">
+                <input type="radio" name="target" value="private" className="accent-amber-600" />
+                <span className="text-sm whitespace-nowrap">
                   <span className="font-semibold">Private</span> — เฉพาะ {prospect.linkedCustomer.companyName}
                 </span>
               </label>

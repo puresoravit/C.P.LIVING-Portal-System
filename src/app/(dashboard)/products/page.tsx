@@ -498,16 +498,16 @@ export default async function ProductsPage(props: {
           {ctx.kind === "company" && (
             <div className="col-span-1 sm:col-span-3">
               <div className="text-xs text-gray-600 mb-1.5">สินค้านี้เป็นของ:</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <label className="flex items-start gap-2.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 px-3 py-2.5 cursor-pointer text-emerald-900">
-                  <input type="radio" name="visibility" value="shared" defaultChecked className="mt-0.5 accent-emerald-600" />
-                  <span className="text-sm">
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 rounded-full border-2 border-emerald-500 bg-emerald-50 pl-4 pr-5 py-2 cursor-pointer text-emerald-900">
+                  <input type="radio" name="visibility" value="shared" defaultChecked className="accent-emerald-600" />
+                  <span className="text-sm whitespace-nowrap">
                     <span className="font-semibold">Shared</span> — ทุกบริษัทในกลุ่ม{catalog ? ` "${catalog.name}"` : ""}เห็นร่วมกัน
                   </span>
                 </label>
-                <label className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2.5 cursor-pointer text-amber-900">
-                  <input type="radio" name="visibility" value="private" className="mt-0.5 accent-amber-600" />
-                  <span className="text-sm">
+                <label className="flex items-center gap-2 rounded-full border-2 border-amber-500 bg-amber-50 pl-4 pr-5 py-2 cursor-pointer text-amber-900">
+                  <input type="radio" name="visibility" value="private" className="accent-amber-600" />
+                  <span className="text-sm whitespace-nowrap">
                     <span className="font-semibold">Private</span> — เฉพาะ {company!.companyName}
                   </span>
                 </label>
