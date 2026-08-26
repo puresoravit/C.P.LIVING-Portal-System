@@ -395,17 +395,33 @@ export default async function ProductsPage(props: {
       {/* R10 — Company View: กรองย่อย Shared/Private */}
       {ctx.kind === "company" && (
         <div className="flex items-center gap-2 mb-3 text-xs">
+          {/* R10.2 — สี Chip สอดคล้องกล่อง Shared/Private ในฟอร์ม: Shared=เขียว Private=เหลือง */}
           {(
             [
-              { key: undefined, label: "ทั้งหมด" },
-              { key: "shared", label: `Shared ของกลุ่ม` },
-              { key: "private", label: "Private ของบริษัทนี้" },
+              {
+                key: undefined,
+                label: "ทั้งหมด",
+                active: "bg-blue-600 text-white border-blue-600",
+                idle: "text-gray-600 hover:bg-gray-50",
+              },
+              {
+                key: "shared",
+                label: "Shared ของกลุ่ม",
+                active: "bg-emerald-600 text-white border-emerald-600",
+                idle: "text-emerald-700 border-emerald-300 bg-emerald-50/60 hover:bg-emerald-50",
+              },
+              {
+                key: "private",
+                label: "Private ของบริษัทนี้",
+                active: "bg-amber-500 text-white border-amber-500",
+                idle: "text-amber-700 border-amber-300 bg-amber-50/60 hover:bg-amber-50",
+              },
             ] as const
           ).map((t) => (
             <a
               key={t.label}
               href={`/products?company=${ctx.customerId}${t.key ? `&pscope=${t.key}` : ""}`}
-              className={`rounded-full border px-3 py-1 ${pscope === t.key ? "bg-blue-600 text-white border-blue-600" : "text-gray-600 hover:bg-gray-50"}`}
+              className={`rounded-full border px-3 py-1 ${pscope === t.key ? t.active : t.idle}`}
             >
               {t.label}
             </a>
@@ -476,76 +492,71 @@ export default async function ProductsPage(props: {
               ให้เองถ้ายังไม่มี) — มุมมองส่วนกลาง/รวม ไม่ส่ง = สินค้าส่วนกลาง */}
           {ctx.kind === "company" && <input type="hidden" name="companyId" value={company!.id} />}
           {ctx.kind === "quotation" && <input type="hidden" name="quotationCatalog" value="1" />}
-          {/* R10 — เลือกปลายทาง Shared/Private ตอนสร้างจากหน้าบริษัท */}
+          {/* R10.2 — Owner: เน้นสีเฉพาะจุดตัดสินใจ Shared/Private เท่านั้น (ไม่สาดสีทุกช่อง)
+              — สองกรอบแยกชัด สีทั้งกรอบโทน Earth ให้ตัวอักษรยังชัด: Shared=เขียว /
+              Private=เหลือง — โทนเดียวกันนี้ใช้ซ้ำทั้ง Chip กรองและ Badge ในตารางให้จำง่าย */}
           {ctx.kind === "company" && (
-            <div className="col-span-1 sm:col-span-3 flex flex-wrap items-center gap-4 text-sm bg-indigo-50/70 border-l-4 border-indigo-400 rounded-lg px-3 py-2">
-              <span className="text-xs text-gray-600">สินค้านี้เป็นของ:</span>
-              <label className="flex items-center gap-1.5">
-                <input type="radio" name="visibility" value="shared" defaultChecked />
-                Shared — ทุกบริษัทในกลุ่ม{catalog ? ` "${catalog.name}"` : ""}เห็นร่วมกัน
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input type="radio" name="visibility" value="private" />
-                Private — เฉพาะ {company!.companyName}
-              </label>
+            <div className="col-span-1 sm:col-span-3">
+              <div className="text-xs text-gray-600 mb-1.5">สินค้านี้เป็นของ:</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="flex items-start gap-2.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 px-3 py-2.5 cursor-pointer text-emerald-900">
+                  <input type="radio" name="visibility" value="shared" defaultChecked className="mt-0.5 accent-emerald-600" />
+                  <span className="text-sm">
+                    <span className="font-semibold">Shared</span> — ทุกบริษัทในกลุ่ม{catalog ? ` "${catalog.name}"` : ""}เห็นร่วมกัน
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2.5 cursor-pointer text-amber-900">
+                  <input type="radio" name="visibility" value="private" className="mt-0.5 accent-amber-600" />
+                  <span className="text-sm">
+                    <span className="font-semibold">Private</span> — เฉพาะ {company!.companyName}
+                  </span>
+                </label>
+              </div>
             </div>
           )}
-          {/* R10.1 — Owner: ลงสีแต่ละช่องต่างกัน (โทนแม่สีอ่อน) ให้พนักงานสังเกตหัวข้อ
-              ง่ายขึ้น ลดคีย์ผิดช่อง — เป็นแค่พื้นหลัง/เส้นขอบซ้ายของช่องกรอก ไม่แตะ
-              โครงสร้าง/ชื่อ Field/Script Dependent Dropdown ใดๆ */}
-          <div className="rounded-lg p-2 bg-blue-50/70 border-l-4 border-blue-400">
-            <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
-          </div>
-          <div className="col-span-1 sm:col-span-2 rounded-lg p-2 bg-amber-50/70 border-l-4 border-amber-400">
+          <Field label="รหัสสินค้า / Code (เว้นว่าง = ระบบสร้างให้อัตโนมัติ)" name="sku" />
+          <div className="col-span-1 sm:col-span-2">
             <Field label="ชื่อสินค้า *" name="name" required />
           </div>
-          <div className="rounded-lg p-2 bg-violet-50/70 border-l-4 border-violet-400">
-            <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
-              <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
-              {productTypes.map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name}
-                </option>
-              ))}
-            </SelectField>
-          </div>
-          <div className="rounded-lg p-2 bg-emerald-50/70 border-l-4 border-emerald-400">
-            <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
-              <option value="">— ไม่ระบุประเภทสินค้า —</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </SelectField>
-          </div>
+          <SelectField label="กลุ่มส่วนลด (ถ้ามี)" name="productTypeId" defaultValue="">
+            <option value="">— ไม่ระบุกลุ่มส่วนลด —</option>
+            {productTypes.map((pt) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="ประเภทสินค้า (ถ้ามี)" name="categoryId" defaultValue="">
+            <option value="">— ไม่ระบุประเภทสินค้า —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </SelectField>
           {/* Owner UAT — ข้อ 1: "รุ่นสินค้า" เป็น Legacy/Advanced แล้ว — ปกติไม่ต้องใช้อีก
               ต่อไป (เว้นว่างไว้เสมอ) เพราะ Size/Pricing ทำงานจาก Product ตรงๆ ได้แล้วผ่าน
               ช่อง "ราคาต่อฟุต" ด้านล่าง — ยังคง Field ไว้เพื่อ Backward Compatible กับ
               Workflow เดิม (ผูก Product เข้ากับ ProductModel ที่มีอยู่แล้วได้เหมือนเดิม) */}
-          <div className="rounded-lg p-2 bg-slate-100/70 border-l-4 border-slate-300">
-            <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
-              <option value="">— ไม่ผูก (ปกติ) —</option>
-            </SelectField>
-          </div>
+          <SelectField label="รุ่นสินค้า (Legacy — ปกติไม่ต้องใช้)" name="modelId" defaultValue="">
+            <option value="">— ไม่ผูก (ปกติ) —</option>
+          </SelectField>
           <div id="createUsesSizeWarning" className="col-span-1 sm:col-span-3 hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             ⚠️ ประเภทสินค้านี้ใช้ขนาด (Size) — กรุณากรอก &quot;ราคาต่อฟุต&quot; ด้านล่าง เพื่อให้เลือกขนาดได้ตอนออกเอกสาร
             มิฉะนั้นสินค้านี้จะไม่มีตัวเลือกขนาดให้เลือกเลย
           </div>
-          <div className="rounded-lg p-2 bg-pink-50/70 border-l-4 border-pink-400">
-            <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
-          </div>
-          <div id="createStandardPriceWrap" className="rounded-lg p-2 bg-red-50/70 border-l-4 border-red-400">
+          <Field label="หน่วย * (เช่น หลัง, ใบ)" name="unit" required />
+          <div id="createStandardPriceWrap">
             <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           </div>
-          <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden rounded-lg p-2 bg-orange-50/70 border-l-4 border-orange-400">
+          <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden">
             <Field
               label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"
               name="pricePerFoot"
               type="number"
             />
           </div>
-          <div className="col-span-1 sm:col-span-3 rounded-lg p-2 bg-teal-50/70 border-l-4 border-teal-400">
+          <div className="col-span-1 sm:col-span-3">
             <Field label="คำอธิบาย" name="description" />
           </div>
           <div className="col-span-1 sm:col-span-3">
@@ -650,11 +661,11 @@ export default async function ProductsPage(props: {
                 {ctx.kind === "company" && (
                   <td className="px-4 py-2">
                     {rowIsPrivate(p) ? (
-                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded-full px-2 py-0.5 whitespace-nowrap">
                         Private
                       </span>
                     ) : (
-                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                      <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-full px-2 py-0.5 whitespace-nowrap">
                         Shared
                       </span>
                     )}

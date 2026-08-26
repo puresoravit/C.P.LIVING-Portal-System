@@ -257,7 +257,7 @@ export function CatalogGroupBoard({
                   </button>
                 </>
               )}
-              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+              <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-full px-2 py-0.5">
                 Shared {g.sharedCount} รายการ
               </span>
               <span className="text-xs text-gray-400">{g.members.length} บริษัท</span>

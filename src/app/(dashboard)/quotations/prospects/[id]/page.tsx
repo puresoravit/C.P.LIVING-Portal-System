@@ -204,14 +204,19 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
                 </label>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <label className="flex items-center gap-1.5">
-                <input type="radio" name="target" value="shared" defaultChecked />
-                Shared — ทุกบริษัทในกลุ่มของลูกค้ารายนี้เห็นร่วมกัน
+            {/* R10.2 — โทนสีเดียวกับกล่อง Shared/Private ของหน้ารายการสินค้า (เขียว/เหลือง) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-start gap-2.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 px-3 py-2.5 cursor-pointer text-emerald-900">
+                <input type="radio" name="target" value="shared" defaultChecked className="mt-0.5 accent-emerald-600" />
+                <span className="text-sm">
+                  <span className="font-semibold">Shared</span> — ทุกบริษัทในกลุ่มของลูกค้ารายนี้เห็นร่วมกัน
+                </span>
               </label>
-              <label className="flex items-center gap-1.5">
-                <input type="radio" name="target" value="private" />
-                Private — เฉพาะ {prospect.linkedCustomer.companyName}
+              <label className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2.5 cursor-pointer text-amber-900">
+                <input type="radio" name="target" value="private" className="mt-0.5 accent-amber-600" />
+                <span className="text-sm">
+                  <span className="font-semibold">Private</span> — เฉพาะ {prospect.linkedCustomer.companyName}
+                </span>
               </label>
             </div>
             <SubmitButton className="text-sm bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
