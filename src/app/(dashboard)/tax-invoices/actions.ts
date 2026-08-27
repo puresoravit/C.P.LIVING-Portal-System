@@ -153,6 +153,8 @@ const manualTaxInvoiceSchema = z.object({
   // Phase H — โหมดส่วนลดที่ผู้ใช้เลือก (เก็บลง Audit เพื่อตรวจสอบย้อนหลัง — ตัวเลขจริง
   // อยู่ที่ discountAmount ต่อบรรทัดเสมอ ไม่ว่าจะมาจาก Rule หรือกรอกเอง)
   discountMode: z.enum(["NONE", "GROUP", "CUSTOM"]).default("NONE"),
+  // R11 — วิธีคิด VAT (EXTRACT = ถอดจากราคารวม VAT เดิม / ADD_ON = บวกเพิ่มจากราคาก่อน VAT)
+  vatCalcMode: z.enum(["EXTRACT", "ADD_ON"]).default("EXTRACT"),
   items: z.array(manualItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการ"),
 });
 
@@ -166,6 +168,7 @@ export async function createManualTaxInvoice(formData: FormData) {
     customerId: formData.get("customerId"),
     branchId: formData.get("branchId") || undefined,
     taxInvoiceDate: formData.get("taxInvoiceDate"),
+    vatCalcMode: formData.get("vatCalcMode") || "EXTRACT",
     placeToDelivery: formData.get("placeToDelivery") || undefined,
     discountMode: formData.get("discountMode") || "NONE",
     items: itemsRaw,
@@ -183,7 +186,7 @@ export async function createManualTaxInvoice(formData: FormData) {
   // Phase H — คำนวณ Server-side ทั้งหมดผ่าน Pure Function เดียว (หักส่วนลดก่อน → ถอด
   // VAT จากยอดหลังหักส่วนลด — ลำดับเดียวกับ Quotation/AUTO ทุกประการ) — throw ข้อความ
   // ภาษาไทยเมื่อส่วนลดเกินขอบเขต
-  const totals = computeManualTaxInvoiceTotals(parsed.items, vatPct);
+  const totals = computeManualTaxInvoiceTotals(parsed.items, vatPct, parsed.vatCalcMode);
 
   const taxInvoice = await db.$transaction(async (tx) => {
     const seq = await getNextSeq("TX", period, tx);
@@ -207,6 +210,7 @@ export async function createManualTaxInvoice(formData: FormData) {
         vatPct,
         vatAmount: totals.vatAmount,
         netAmount: totals.netAmount,
+        vatCalcMode: parsed.vatCalcMode,
         status: "CONFIRMED",
         createdById: user.id,
         items: {
@@ -233,6 +237,7 @@ export async function createManualTaxInvoice(formData: FormData) {
           taxInvoiceNumber,
           mode: "MANUAL",
           discountMode: parsed.discountMode,
+          vatCalcMode: parsed.vatCalcMode,
           discountAmount: totals.discountAmount.toString(),
         },
       },

@@ -57,7 +57,7 @@ const createQuotationSchema = z.discriminatedUnion("customerMode", [
     reference: z.string().optional(),
     note: z.string().optional(),
     placeToDelivery: z.string().optional(),
-    vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
+    vatMode: z.enum(["NONE", "STANDARD", "ADD_ON"]).default("NONE"),
   }),
   z.object({
     customerMode: z.literal("GUEST"),
@@ -70,7 +70,7 @@ const createQuotationSchema = z.discriminatedUnion("customerMode", [
     reference: z.string().optional(),
     note: z.string().optional(),
     placeToDelivery: z.string().optional(),
-    vatMode: z.enum(["NONE", "STANDARD"]).default("NONE"),
+    vatMode: z.enum(["NONE", "STANDARD", "ADD_ON"]).default("NONE"),
   }),
 ]);
 
@@ -245,7 +245,7 @@ export async function updateQuotationDraftSettings(quotationId: string, formData
     return { success: false, error: "แก้ไขการตั้งค่าได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
   }
 
-  const vatModeParse = z.enum(["NONE", "STANDARD"]).safeParse(formData.get("vatMode"));
+  const vatModeParse = z.enum(["NONE", "STANDARD", "ADD_ON"]).safeParse(formData.get("vatMode"));
   if (!vatModeParse.success) {
     return { success: false, error: "VAT Mode ไม่ถูกต้อง" };
   }
@@ -388,7 +388,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
 
   const itemsRaw = JSON.parse(String(formData.get("itemsJson") || "[]"));
   const parsedItems = editItemsSchema.parse(itemsRaw);
-  const vatMode = z.enum(["NONE", "STANDARD"]).parse(formData.get("vatMode"));
+  const vatMode = z.enum(["NONE", "STANDARD", "ADD_ON"]).parse(formData.get("vatMode"));
   // R3 — QuotationEditModal เป็น Client Component สร้าง FormData เอง ใช้ Convention "1"/"0"
   // เดียวกับ Order E3 (OrderEditModal)
   const applyDiscount = formData.get("applyDiscount") === "1";

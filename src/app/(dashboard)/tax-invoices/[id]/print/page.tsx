@@ -142,7 +142,7 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
         pagination={{
           pages: paginateRows(taxInvoice.items, capacityForDocument(template, "TAX_INVOICE")).map((pageItems) => ({
             items: pageItems,
-            summary: computeTaxInvoicePageSummary(pageItems, taxInvoice.vatPct),
+            summary: computeTaxInvoicePageSummary(pageItems, taxInvoice.vatPct, taxInvoice.vatCalcMode),
           })),
           header: template.headerLayout ? (
             <HeaderZone layout={template.headerLayout} elements={headerElements} />

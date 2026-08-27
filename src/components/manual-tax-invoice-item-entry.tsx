@@ -69,6 +69,10 @@ export function ManualTaxInvoiceItemEntry({
   // จะเปลี่ยนจาก Free-text เป็น <ModelSizeSelect> (Dropdown ขนาดจริงของ Model นั้น)
   const [selectedModel, setSelectedModel] = useState<ModelResult | null>(null);
   const [discountMode, setDiscountMode] = useState<DiscountMode>("NONE");
+  // R11 — Owner: เลือกวิธีคิด VAT ต่อใบ — EXTRACT (Default เดิม: ราคาที่กรอกรวม VAT แล้ว
+  // ถอดออกมาแสดง ยอดสุทธิเท่าที่กรอก) / ADD_ON (ราคายังไม่รวม VAT บวกเพิ่มตามอัตรา
+  // ยอดสุทธิ = ฐาน + VAT) — ส่วนลดหักก่อน VAT เสมอทั้งสองโหมด (สูตรที่ Owner เคาะ)
+  const [vatCalcMode, setVatCalcMode] = useState<"EXTRACT" | "ADD_ON">("EXTRACT");
   const [wholeDocDiscount, setWholeDocDiscount] = useState(0);
   // Fresh UAT Fix — % ที่ Resolve ได้จริงต่อบรรทัดจาก Server (Index ตรงกับ items) —
   // ใช้แสดงเหตุผลให้ผู้ใช้เห็นว่าส่วนลดแต่ละบรรทัดมาจาก Rule กี่ % และเตือนชัดๆ เมื่อ
@@ -264,8 +268,13 @@ export function ManualTaxInvoiceItemEntry({
   const gross = round2(itemAmounts.reduce((s, a) => s + a, 0));
   const discountTotal = round2(items.reduce((s, i) => s + round2(i.discountAmount || 0), 0));
   const net = round2(gross - discountTotal);
-  const vatAmount = round2((net * vatPctToday) / (100 + vatPctToday));
-  const valueAmount = round2(net - vatAmount);
+  // R11 — Preview ตามโหมด VAT (ลำดับเดียวกับ computeManualTaxInvoiceTotals ฝั่ง Server):
+  // EXTRACT: VAT = net × rate ÷ (100+rate), ฐาน = net − VAT, สุทธิ = net (เท่าที่กรอก)
+  // ADD_ON: ฐาน = net, VAT = net × rate ÷ 100, สุทธิ = net + VAT
+  const vatAmount =
+    vatCalcMode === "ADD_ON" ? round2((net * vatPctToday) / 100) : round2((net * vatPctToday) / (100 + vatPctToday));
+  const valueAmount = vatCalcMode === "ADD_ON" ? net : round2(net - vatAmount);
+  const grandPreview = vatCalcMode === "ADD_ON" ? round2(net + vatAmount) : net;
   const discountInvalid =
     discountTotal < 0 || net < 0 || items.some((i, idx) => i.discountAmount < 0 || round2(i.discountAmount) > itemAmounts[idx]);
 
@@ -350,6 +359,21 @@ export function ManualTaxInvoiceItemEntry({
           </div>
         </div>
         {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
+      </div>
+
+      {/* R11 — เลือกวิธีคิด VAT (ถอด/เพิ่ม จากราคาขาย) — ตามเงื่อนไขที่ Owner กำหนด */}
+      <div className="bg-white border rounded-lg p-3 mb-3 text-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-xs font-medium text-gray-600">VAT:</span>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="vatCalcModeChoice" checked={vatCalcMode === "EXTRACT"} onChange={() => setVatCalcMode("EXTRACT")} />
+            ถอด VAT จากราคาขาย (ราคาที่กรอกรวม VAT แล้ว — ยอดสุทธิเท่าที่กรอก)
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="vatCalcModeChoice" checked={vatCalcMode === "ADD_ON"} onChange={() => setVatCalcMode("ADD_ON")} />
+            เพิ่ม VAT จากราคาขาย (ราคายังไม่รวม VAT — บวก {vatPctToday}% จากยอดหลังส่วนลด)
+          </label>
+        </div>
       </div>
 
       {/* Phase H — เลือกโหมดส่วนลด */}
@@ -540,12 +564,14 @@ export function ManualTaxInvoiceItemEntry({
             <span>{fmt(valueAmount)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">ภาษีมูลค่าเพิ่ม / VAT {vatPctToday}% (รวมในยอดแล้ว)</span>
+            <span className="text-gray-500">
+              ภาษีมูลค่าเพิ่ม / VAT {vatPctToday}% {vatCalcMode === "ADD_ON" ? "(บวกเพิ่มจากฐาน)" : "(รวมในยอดแล้ว)"}
+            </span>
             <span>{fmt(vatAmount)}</span>
           </div>
           <div className="flex justify-between font-medium border-t pt-1">
             <span>ยอดสุทธิ / Net Amount</span>
-            <span>{fmt(net)}</span>
+            <span>{fmt(grandPreview)}</span>
           </div>
           {discountInvalid && (
             <p className="text-xs text-red-600 pt-1">ส่วนลดติดลบหรือเกินยอดของรายการ/เอกสาร — แก้ไขก่อนสร้างเอกสาร</p>
@@ -569,6 +595,7 @@ export function ManualTaxInvoiceItemEntry({
           )}
         />
         <input type="hidden" name="discountMode" value={discountMode} />
+        <input type="hidden" name="vatCalcMode" value={vatCalcMode} />
         <button
           type="submit"
           disabled={items.length === 0 || discountInvalid}

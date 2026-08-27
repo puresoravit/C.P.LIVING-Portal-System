@@ -263,7 +263,8 @@ export function QuotationEditModal({
                   <label className="block text-xs font-medium text-gray-600 mb-1">VAT ในเอกสาร</label>
                   <select value={vatMode} onChange={(e) => setVatMode(e.target.value)} className="border rounded px-3 py-1.5 text-sm">
                     <option value="NONE">ไม่แยกแสดง VAT</option>
-                    <option value="STANDARD">แยกแสดง VAT (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
+                    <option value="STANDARD">แยกแสดง VAT — ถอด VAT จากราคาขาย (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
+                    <option value="ADD_ON">แยกแสดง VAT — เพิ่ม VAT จากราคาขาย (บวกตามอัตรา VAT — ยอดรวมเพิ่มขึ้น)</option>
                   </select>
                 </div>
                 <label className="flex items-center gap-1.5 text-sm pb-2">

@@ -167,7 +167,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         pagination={{
           pages: paginateRows(quotation.items, capacityForDocument(template, "QUOTATION")).map((pageItems) => ({
             items: pageItems,
-            summary: computeQuotationPageSummary(pageItems, quotation.vatRateSnapshot ?? 0),
+            summary: computeQuotationPageSummary(pageItems, quotation.vatRateSnapshot ?? 0, quotation.vatMode as "NONE" | "STANDARD" | "ADD_ON"),
           })),
           header: template.headerLayout ? (
             <HeaderZone layout={template.headerLayout} elements={headerElements} />

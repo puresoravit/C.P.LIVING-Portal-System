@@ -98,3 +98,31 @@ describe("computeManualTaxInvoiceTotals", () => {
     expect(t.netAmount.toNumber()).toBeCloseTo(900, 2);
   });
 });
+
+// R11 — โหมด VAT ถอด/เพิ่ม ของใบกำกับภาษี Manual (ตัวเลขตัวอย่างที่ Owner เคาะ)
+import { describe as d3, it as it3, expect as ex3 } from "vitest";
+import { Decimal as Dec3 } from "@prisma/client/runtime/library";
+import { computeManualTaxInvoiceTotals as computeR11 } from "./tax-invoice-totals";
+
+d3("computeManualTaxInvoiceTotals — R11 vatCalcMode", () => {
+  it3("EXTRACT (Default เดิม): 1,540 → ฐาน 1,439.25 / VAT 100.75 / สุทธิ 1,540", () => {
+    const t = computeR11([{ quantity: 1, unitPrice: 1540 }], new Dec3(7));
+    ex3(t.valueAmount.toFixed(2)).toBe("1439.25");
+    ex3(t.vatAmount.toFixed(2)).toBe("100.75");
+    ex3(t.netAmount.toFixed(2)).toBe("1540.00");
+  });
+
+  it3("ADD_ON: 1,540 → ฐาน 1,540 / VAT 107.80 / สุทธิ 1,647.80", () => {
+    const t = computeR11([{ quantity: 1, unitPrice: 1540 }], new Dec3(7), "ADD_ON");
+    ex3(t.valueAmount.toFixed(2)).toBe("1540.00");
+    ex3(t.vatAmount.toFixed(2)).toBe("107.80");
+    ex3(t.netAmount.toFixed(2)).toBe("1647.80");
+  });
+
+  it3("ADD_ON + ส่วนลด: ฐาน = ยอดหลังหักส่วนลด (ส่วนลดมาก่อน VAT เสมอ)", () => {
+    const t = computeR11([{ quantity: 1, unitPrice: 2000, discountAmount: 460 }], new Dec3(7), "ADD_ON");
+    ex3(t.valueAmount.toFixed(2)).toBe("1540.00");
+    ex3(t.vatAmount.toFixed(2)).toBe("107.80");
+    ex3(t.netAmount.toFixed(2)).toBe("1647.80");
+  });
+});

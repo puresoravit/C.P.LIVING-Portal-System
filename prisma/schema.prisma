@@ -614,6 +614,11 @@ model InvoiceItem {
 // เต็มยอด generate จาก Invoice ได้เลย (Auto) — referenceInvoiceId เป็น
 // null ได้ถ้าเป็น Manual mode ล้วนๆ ไม่ได้อิง Invoice ใบไหนโดยตรง
 
+enum TaxVatCalcMode {
+  EXTRACT
+  ADD_ON
+}
+
 enum TaxInvoiceStatus {
   CONFIRMED
   // Smoke Test R13 (2026-08-25) — Owner: ลูกค้า VAT เต็มบางรายออกใบกำกับภาษีตรงโดยไม่ผ่าน
@@ -655,6 +660,11 @@ model TaxInvoice {
   vatAmount   Decimal @db.Decimal(14, 2)
   netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive หลังหักส่วนลด)
 
+  // R11 (2026-08-27) — วิธีคิด VAT ของใบนี้ (Snapshot ตรวจย้อนหลังได้):
+  //   EXTRACT (Default — พฤติกรรมเดิมทุกใบ) = ราคาที่กรอกรวม VAT แล้ว ถอดออกมาแสดง
+  //   ADD_ON = ราคาที่กรอกยังไม่รวม VAT บวกเพิ่มตามอัตรา (ฐาน = ยอดหลังหักส่วนลด)
+  // โหมด AUTO (ดึงจากใบส่งของ) เป็น EXTRACT เสมอ — ส่วนลดหักก่อน VAT เสมอทั้งสองโหมด
+  vatCalcMode TaxVatCalcMode @default(EXTRACT)
   status      TaxInvoiceStatus @default(CONFIRMED)
   // R13 — PRINTED Checkpoint (Pattern เดียวกับ Invoice.printedAt/printedById ทุกประการ)
   printedAt   DateTime?
@@ -799,6 +809,10 @@ enum QuotationStatus {
 enum QuotationVatMode {
   NONE
   STANDARD
+  // R11 (2026-08-27) — Owner: "เพิ่ม VAT จากราคาขาย" — ฐาน VAT = ยอดขายหลังหักส่วนลด
+  // แล้วบวก VAT เพิ่มตามอัตรา (ยอดรวมเพิ่มขึ้น) — ต่างจาก STANDARD ที่ "ถอด" VAT ออกจาก
+  // ราคาขายที่รวม VAT อยู่แล้ว (ยอดรวมไม่เปลี่ยน) — ส่วนลดหักก่อน VAT เสมอทั้งสองโหมด
+  ADD_ON
 }
 
 // R10 — "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ": ราย (Prospect) ของลูกค้าที่กรอกข้อมูลเองตอน

@@ -43,3 +43,43 @@ describe("aggregateQuotationTotals", () => {
     expect(result.vatAmount.toNumber()).toBe(0);
   });
 });
+
+// R11 — โหมด VAT ถอด/เพิ่ม (ตัวเลขตัวอย่างที่ Owner เคาะเป๊ะ — ส่วนลดหักก่อน VAT เสมอ)
+import { describe as d2, it as it2, expect as ex2 } from "vitest";
+import { Decimal as Dec } from "@prisma/client/runtime/library";
+import { aggregateQuotationTotals } from "./quotation-pricing";
+
+d2("aggregateQuotationTotals — R11 VAT modes (ตัวอย่าง Owner)", () => {
+  const items = [{ grossAmount: new Dec("1540.00"), discountAmount: new Dec("0") }];
+
+  it2("STANDARD (ถอด): 1,540 → ฐาน 1,439.25 / VAT 100.75 / สุทธิ 1,540 (ไม่เปลี่ยน)", () => {
+    const t = aggregateQuotationTotals(items, "STANDARD", new Dec(7));
+    ex2(t.netBeforeVat.toFixed(2)).toBe("1439.25");
+    ex2(t.vatAmount.toFixed(2)).toBe("100.75");
+    ex2(t.grandTotal.toFixed(2)).toBe("1540.00");
+  });
+
+  it2("ADD_ON (เพิ่ม): 1,540 → ฐาน 1,540 / VAT 107.80 / สุทธิ 1,647.80", () => {
+    const t = aggregateQuotationTotals(items, "ADD_ON", new Dec(7));
+    ex2(t.netBeforeVat.toFixed(2)).toBe("1540.00");
+    ex2(t.vatAmount.toFixed(2)).toBe("107.80");
+    ex2(t.grandTotal.toFixed(2)).toBe("1647.80");
+  });
+
+  it2("ADD_ON + ส่วนลด: หักส่วนลดก่อนแล้วค่อยบวก VAT (ฐาน = ยอดหลังส่วนลด)", () => {
+    const t = aggregateQuotationTotals(
+      [{ grossAmount: new Dec("2000.00"), discountAmount: new Dec("460.00") }],
+      "ADD_ON",
+      new Dec(7)
+    );
+    ex2(t.netBeforeVat.toFixed(2)).toBe("1540.00");
+    ex2(t.vatAmount.toFixed(2)).toBe("107.80");
+    ex2(t.grandTotal.toFixed(2)).toBe("1647.80");
+  });
+
+  it2("NONE: ไม่มี VAT — สุทธิ = หลังหักส่วนลด", () => {
+    const t = aggregateQuotationTotals(items, "NONE", new Dec(0));
+    ex2(t.vatAmount.toFixed(2)).toBe("0.00");
+    ex2(t.grandTotal.toFixed(2)).toBe("1540.00");
+  });
+});

@@ -40,7 +40,12 @@ export type ManualTaxInvoiceTotals = {
  */
 export function computeManualTaxInvoiceTotals(
   rawItems: ManualTaxInvoiceItemInput[],
-  vatPct: Decimal
+  vatPct: Decimal,
+  // R11 (2026-08-27) — Owner เคาะสูตร (ส่วนลดหักก่อน VAT เสมอ):
+  //   EXTRACT (Default เดิม): ราคารวม VAT → ถอดออกมาแสดง (ยอดสุทธิ = ยอดที่กรอก)
+  //   ADD_ON: ราคายังไม่รวม VAT → ฐาน = ยอดหลังส่วนลด, VAT = ฐาน×อัตรา÷100,
+  //           ยอดสุทธิ = ฐาน + VAT (เช่น 1,540 → VAT 107.80 → สุทธิ 1,647.80)
+  vatCalcMode: "EXTRACT" | "ADD_ON" = "EXTRACT"
 ): ManualTaxInvoiceTotals {
   const items: ManualTaxInvoiceItemTotal[] = rawItems.map((raw, idx) => {
     const amount = roundMoney(new Decimal(raw.quantity).mul(raw.unitPrice));
@@ -59,6 +64,18 @@ export function computeManualTaxInvoiceTotals(
   const netAmount = roundMoney(grossAmount.sub(discountAmount));
   if (netAmount.isNegative()) {
     throw new Error("ส่วนลดรวมเกินยอดรวมของเอกสาร");
+  }
+
+  if (vatCalcMode === "ADD_ON") {
+    const vatAmount = roundMoney(netAmount.mul(vatPct).div(100));
+    return {
+      items,
+      grossAmount,
+      discountAmount,
+      valueAmount: netAmount, // ฐานภาษี = ยอดหลังหักส่วนลด (ราคาที่กรอกยังไม่รวม VAT)
+      vatAmount,
+      netAmount: roundMoney(netAmount.add(vatAmount)), // ยอดสุทธิ = ฐาน + VAT
+    };
   }
 
   const { netBeforeVat, vatAmount } = extractVat(netAmount, vatPct);

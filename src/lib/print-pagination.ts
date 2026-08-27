@@ -146,14 +146,26 @@ export function computeItemsPageSummary(items: { netAmount: unknown; discountAmo
 
 export type VatPageSummary = MoneyPageSummary & { netBeforeVat: number; vatAmount: number };
 
-/** Quotation (โหมด VAT STANDARD): ถอด VAT จากยอดสุทธิของหน้า (VAT-inclusive หลังหัก
- * ส่วนลด) ด้วย extractVat เดิม — ลำดับ "หักส่วนลดก่อน ค่อยถอด VAT" ตรงกับ
- * aggregateQuotationTotals ระดับเอกสารทุกประการ */
+/** Quotation: Summary VAT ต่อหน้า ตามโหมดของเอกสาร (ลำดับ "หักส่วนลดก่อน ค่อยคิด VAT"
+ * ตรงกับ aggregateQuotationTotals ระดับเอกสารทุกประการ):
+ *   STANDARD — ถอด VAT จากยอดหน้า (บรรทัดเป็น VAT-inclusive) → net คือยอดรวมของหน้า
+ *   ADD_ON — บรรทัดเป็นราคาก่อน VAT: ฐาน = ยอดหน้า, VAT = ฐาน×อัตรา÷100, net = ฐาน+VAT */
 export function computeQuotationPageSummary(
   items: { netAmount: unknown; discountAmount: unknown }[],
-  vatRatePct: unknown
+  vatRatePct: unknown,
+  vatMode: "NONE" | "STANDARD" | "ADD_ON" = "STANDARD"
 ): VatPageSummary {
   const base = computeItemsPageSummary(items);
+  if (vatMode === "ADD_ON") {
+    const vatAmount = new Decimal(base.net).mul(D(vatRatePct)).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    return {
+      gross: base.gross,
+      discount: base.discount,
+      netBeforeVat: base.net,
+      vatAmount: vatAmount.toNumber(),
+      net: new Decimal(base.net).add(vatAmount).toNumber(),
+    };
+  }
   const { netBeforeVat, vatAmount } = extractVat(new Decimal(base.net), D(vatRatePct));
   return { ...base, netBeforeVat: netBeforeVat.toNumber(), vatAmount: vatAmount.toNumber() };
 }
@@ -166,20 +178,33 @@ export type TaxInvoicePageSummary = {
   vatAmount: number;
 };
 
-/** Tax Invoice Item: amount (ก่อนหักส่วนลดบรรทัด) + discountAmount — net ของหน้า =
- * subtotal − discount แล้วถอด VAT ด้วย extractVat เดิม (ตรง computeManualTaxInvoiceTotals) */
+/** Tax Invoice Item: amount (ก่อนหักส่วนลดบรรทัด) + discountAmount — ยอดหลังส่วนลดของ
+ * หน้าแล้วคิด VAT ตามโหมดของเอกสาร (ตรง computeManualTaxInvoiceTotals):
+ *   EXTRACT — ราคารวม VAT: ถอดออก (net = ยอดหน้า)
+ *   ADD_ON — ราคาก่อน VAT: ฐาน = ยอดหน้า, VAT = ฐาน×อัตรา÷100, net = ฐาน+VAT */
 export function computeTaxInvoicePageSummary(
   items: { amount: unknown; discountAmount?: unknown }[],
-  vatPct: unknown
+  vatPct: unknown,
+  vatCalcMode: "EXTRACT" | "ADD_ON" = "EXTRACT"
 ): TaxInvoicePageSummary {
   const subtotal = items.reduce((s, i) => s.add(D(i.amount)), new Decimal(0));
   const discount = items.reduce((s, i) => s.add(D(i.discountAmount)), new Decimal(0));
-  const net = subtotal.sub(discount);
-  const { netBeforeVat, vatAmount } = extractVat(net, D(vatPct));
+  const afterDiscount = subtotal.sub(discount);
+  if (vatCalcMode === "ADD_ON") {
+    const vatAmount = afterDiscount.mul(D(vatPct)).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    return {
+      subtotal: subtotal.toNumber(),
+      discount: discount.toNumber(),
+      valueAmount: afterDiscount.toNumber(),
+      vatAmount: vatAmount.toNumber(),
+      net: afterDiscount.add(vatAmount).toNumber(),
+    };
+  }
+  const { netBeforeVat, vatAmount } = extractVat(afterDiscount, D(vatPct));
   return {
     subtotal: subtotal.toNumber(),
     discount: discount.toNumber(),
-    net: net.toNumber(),
+    net: afterDiscount.toNumber(),
     valueAmount: netBeforeVat.toNumber(),
     vatAmount: vatAmount.toNumber(),
   };

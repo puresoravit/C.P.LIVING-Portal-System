@@ -190,7 +190,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             <ActionForm action={updateDraftSettingsAction} successMessage="บันทึกการตั้งค่าสำเร็จ" className="flex flex-wrap items-end gap-3">
               <SelectField label="VAT ในเอกสาร" name="vatMode" defaultValue={quotation.vatMode}>
                 <option value="NONE">ไม่แยกแสดง VAT</option>
-                <option value="STANDARD">แยกแสดง VAT (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
+                <option value="STANDARD">แยกแสดง VAT — ถอด VAT จากราคาขาย (ราคาที่ตั้งไว้รวม VAT อยู่แล้ว — ยอดรวมไม่เปลี่ยน)</option>
+                <option value="ADD_ON">แยกแสดง VAT — เพิ่ม VAT จากราคาขาย (บวกตามอัตรา VAT — ยอดรวมเพิ่มขึ้น)</option>
               </SelectField>
               <label className="flex items-center gap-1.5 text-sm pb-2">
                 <AutoSubmitCheckbox name="applyDiscount" defaultChecked={quotation.applyDiscount} />

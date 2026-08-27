@@ -166,3 +166,28 @@ describe("per-page summaries — ผลรวมทุกหน้าต้อ�
     expect(s.net).toBeCloseTo(1400, 2);
   });
 });
+
+// R11 — Summary ต่อหน้าโหมด ADD_ON (เอกสารหลายหน้าโหมดเพิ่ม VAT ต้องคิดต่อหน้าให้ถูกทาง)
+describe("per-page summaries — R11 VAT ADD_ON", () => {
+  it("computeQuotationPageSummary ADD_ON: ฐาน = ยอดหน้า, VAT = ฐาน×7%, net = ฐาน+VAT", () => {
+    const s = computeQuotationPageSummary(
+      [{ netAmount: new Decimal("1540.00"), discountAmount: new Decimal("0") }],
+      new Decimal(7),
+      "ADD_ON"
+    );
+    expect(s.netBeforeVat).toBeCloseTo(1540, 2);
+    expect(s.vatAmount).toBeCloseTo(107.8, 2);
+    expect(s.net).toBeCloseTo(1647.8, 2);
+  });
+
+  it("computeTaxInvoicePageSummary ADD_ON: เหมือนกัน (หักส่วนลดก่อน)", () => {
+    const s = computeTaxInvoicePageSummary(
+      [{ amount: new Decimal("2000.00"), discountAmount: new Decimal("460.00") }],
+      new Decimal(7),
+      "ADD_ON"
+    );
+    expect(s.valueAmount).toBeCloseTo(1540, 2);
+    expect(s.vatAmount).toBeCloseTo(107.8, 2);
+    expect(s.net).toBeCloseTo(1647.8, 2);
+  });
+});

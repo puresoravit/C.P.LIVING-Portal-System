@@ -63,7 +63,7 @@ export function QuotationPrintBody({
   // ไม่มีผลต่อ Grand Total ที่แสดงเลย (ซ่อนแค่ 2 แถวรายละเอียด "มูลค่าก่อน VAT"/"VAT %")
   // ใช้ได้เฉพาะตอน hasVat เท่านั้น
   const [showVatBreakdown, setShowVatBreakdown] = useState(true);
-  const hasVat = vatMode === "STANDARD";
+  const hasVat = vatMode !== "NONE"; // R11 — STANDARD (ถอด) และ ADD_ON (เพิ่ม) แสดง Breakdown เหมือนกัน
 
   const vatToggle = hasVat && (
     <div className="print:hidden flex items-center gap-4 mb-2 text-sm">

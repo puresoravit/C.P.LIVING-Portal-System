@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, getEffectiveVatRate, extractVat, roundMoney } from "@/lib/pricing";
 import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
 
-export type QuotationVatModeValue = "NONE" | "STANDARD";
+// R11 (2026-08-27) — Owner เคาะสูตรชัดเจน (ส่วนลดหักก่อน VAT เสมอทั้งสองโหมด):
+//   STANDARD ("ถอด VAT จากราคาขาย"): ยอดขาย 1,540 → ฐาน 1,439.25 / VAT 100.75 / สุทธิ 1,540 (ไม่เปลี่ยน)
+//   ADD_ON  ("เพิ่ม VAT จากราคาขาย"): ยอดขาย 1,540 → ฐาน 1,540 / VAT 107.80 / สุทธิ 1,647.80
+export type QuotationVatModeValue = "NONE" | "STANDARD" | "ADD_ON";
 
 export type QuotationItemCalc = {
   productId: string;
@@ -56,6 +59,20 @@ export function aggregateQuotationTotals(
       netBeforeVat,
       vatAmount,
       grandTotal: roundMoney(netBeforeVat.add(vatAmount)),
+    };
+  }
+
+  if (vatMode === "ADD_ON") {
+    // R11 — บวก VAT เพิ่มจากยอดขายหลังหักส่วนลด: ฐาน = ยอดหลังส่วนลด, VAT = ฐาน × อัตรา
+    // ÷ 100 (Round Half Up เดิม), ยอดรวม = ฐาน + VAT (ยอดรวมเพิ่มขึ้น)
+    const vatAmount = roundMoney(rawAfterDiscount.mul(effectiveVatRate).div(100));
+    return {
+      grossAmount,
+      discountAmount,
+      vatRateSnapshot: effectiveVatRate,
+      netBeforeVat: rawAfterDiscount,
+      vatAmount,
+      grandTotal: roundMoney(rawAfterDiscount.add(vatAmount)),
     };
   }
 
@@ -156,7 +173,7 @@ export async function computeQuotationCalc(
     });
   }
 
-  const effectiveVatRate = params.vatMode === "STANDARD" ? await getEffectiveVatRate(params.quotationDate) : new Decimal(0);
+  const effectiveVatRate = params.vatMode !== "NONE" ? await getEffectiveVatRate(params.quotationDate) : new Decimal(0);
   const totals = aggregateQuotationTotals(items, params.vatMode, effectiveVatRate);
 
   return { items, ...totals };
