@@ -16,6 +16,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
+import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -532,10 +533,11 @@ const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
 };
 
 // E3 — แก้ไข Order ที่ Confirmed ไปแล้ว (Case A เท่านั้น: ยังไม่มีเอกสารอ้างอิงต่อ)
-// ยกเลิก Invoice เดิมทั้งหมดของ Order นี้ (คงไว้เป็น CANCELLED ห้าม delete/reuse เลข)
-// แล้วแตก Invoice ใหม่ด้วยรายการที่แก้ไข ในทรานแซคชันเดียวกันทั้งหมด (atomic เหมือน
-// confirmOrder) — Order.status คงเป็น CONFIRMED ตลอด ไม่มี Status ใหม่ระหว่างทาง
-// (ตามที่อนุมัติ ไม่เพิ่ม EDITING status)
+// R11 ข้อ 5 (Owner): เดิมยกเลิกทุกใบแล้วออกเลขใหม่หมด → เปลี่ยนเป็น Reconcile รายกลุ่ม
+// ส่วนลด "ใช้เลขเดิม": กลุ่มที่ยังอยู่แก้ยอดในใบเดิม (เลข/สถานะ/printedAt คงเดิม — ใบที่
+// พิมพ์แล้วนับยอดขายต่อด้วยยอดใหม่), กลุ่มที่รายการหายหมดถูกยกเลิก (คง CANCELLED ห้าม
+// delete/reuse เลข), กลุ่มใหม่เท่านั้นที่ได้เลขใหม่ — ทั้งหมดในทรานแซคชันเดียว (atomic
+// เหมือน confirmOrder) — Order.status คงเป็น CONFIRMED ตลอด ไม่มี Status ใหม่ระหว่างทาง
 export async function editConfirmedOrder(orderId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "order.confirm")) throw new Error("FORBIDDEN");
@@ -570,7 +572,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
   if (guard.requiresPrintedAck && !acknowledgePrinted) {
     return {
       success: false,
-      error: "กรุณายืนยันว่ารับทราบว่าเอกสารที่เคยพิมพ์แล้วจะถูกยกเลิก ก่อนดำเนินการแก้ไขต่อ",
+      error: "กรุณายืนยันว่ารับทราบว่ายอดของใบส่งของชั่วคราวที่เคยพิมพ์แล้วจะถูกแก้ไข (เลขเดิม) ก่อนดำเนินการแก้ไขต่อ",
     };
   }
 
@@ -587,20 +589,8 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
 
       const freshOrder = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
       const activeInvoices = freshOrder.invoices.filter((i) => i.status !== "CANCELLED");
-
-      for (const inv of activeInvoices) {
-        await tx.invoice.update({ where: { id: inv.id }, data: { status: "CANCELLED" } });
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "CANCEL",
-            module: "Invoice",
-            recordId: inv.id,
-            oldValue: { status: inv.status },
-            newValue: { status: "CANCELLED", reason: "แก้ไข Order ต้นทาง (E3 Edit Confirmed Order)" },
-          },
-        });
-      }
+      // R11 — ข้อ 5: ไม่ยกเลิกยกชุดอีกต่อไป — รอคำนวณ Preview ใหม่ก่อน แล้วค่อย Reconcile
+      // เป็นรายกลุ่ม (คงเลขเดิม / ยกเลิกเฉพาะกลุ่มที่หาย / ออกเลขใหม่เฉพาะกลุ่มที่เพิ่งมี)
 
       const oldItems = await tx.orderItem.findMany({ where: { orderId } });
       await tx.orderItem.deleteMany({ where: { orderId } });
@@ -638,7 +628,109 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       // R12 — Snapshot ส่วนลดเชิงสถิติ (เหมือน confirmOrder ทุกประการ) — อ่านจาก tx เดียวกัน
       const forcedPreview = applyDiscount ? preview : await computeOrderPreview(orderId, tx, { forceApplyDiscount: true });
 
-      for (const group of preview.groups) {
+      // R11 — ข้อ 5 (Owner): "ถ้ามีการแก้ใช้เลขเดิม แต่ถ้ากลุ่มไหนลบออกหมด เลข INV ก็ลบไป"
+      // Reconcile รายกลุ่มส่วนลด: กลุ่มเดิมที่ยังอยู่ = แก้ยอดในใบเลขเดิม (สถานะ/printedAt
+      // คงเดิม — ใบที่พิมพ์แล้วยังนับยอดขายต่อด้วยยอดใหม่), กลุ่มที่หายไป = ยกเลิกใบ,
+      // กลุ่มใหม่ = ออกใบเลขใหม่เฉพาะใบนั้น
+      const plan = reconcileInvoiceGroups(
+        activeInvoices.map((i) => ({ id: i.id, productTypeCode: i.productTypeCode })),
+        preview.groups.map((g) => g.productTypeCode)
+      );
+      const groupByCode = new Map(preview.groups.map((g) => [g.productTypeCode, g]));
+      const invoiceById = new Map(activeInvoices.map((i) => [i.id, i]));
+
+      // Payload รายการสินค้าใช้ร่วมกันทั้ง Branch แก้ใบเดิม/สร้างใบใหม่ (Logic เดิมจาก
+      // confirmOrder ทุกประการ รวม statDiscountAmount R12)
+      const buildItemsForGroup = (group: (typeof preview.groups)[number]) => {
+        const grossAmounts = group.items.map((item) => item.grossAmount);
+        const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
+        const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
+        const forcedAlloc = forcedGroup
+          ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
+          : [];
+        const statByOrderItemId = new Map((forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]]));
+
+        return group.items.map((item, idx) => {
+          const lineDiscount = allocatedDiscounts[idx];
+          const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
+          return {
+            productId: item.productId,
+            skuSnapshot: item.sku,
+            productNameSnapshot: item.productName,
+            productTypeSnapshot: item.productTypeName,
+            sizeSnapshot: item.size,
+            quantity: item.quantity,
+            unitSnapshot: item.unit,
+            unitPriceSnapshot: item.unitPrice,
+            grossAmount: item.grossAmount,
+            discountAmount: lineDiscount,
+            netAmount: lineNet,
+            vatAmount: new Decimal(0),
+            totalAmount: lineNet,
+            statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
+          };
+        });
+      };
+
+      for (const invoiceId of plan.cancels) {
+        const inv = invoiceById.get(invoiceId)!;
+        await tx.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CANCEL",
+            module: "Invoice",
+            recordId: invoiceId,
+            oldValue: { status: inv.status },
+            newValue: {
+              status: "CANCELLED",
+              reason: "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังแก้ไข Order (E3 Edit Confirmed Order)",
+            },
+          },
+        });
+      }
+
+      for (const { productTypeCode, invoiceId } of plan.updates) {
+        const group = groupByCode.get(productTypeCode)!;
+        const inv = invoiceById.get(invoiceId)!;
+        await tx.invoiceItem.deleteMany({ where: { invoiceId } });
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            // เลขใบ/วันที่/สถานะ/printedAt/Snapshot ลูกค้า คงเดิมทั้งหมด — แก้เฉพาะยอด+รายการ
+            grossAmount: group.grossAmount,
+            discountPct: group.discountPct,
+            discountAmount: group.discountAmount,
+            applyDiscount,
+            netBeforeVat: group.netAmount,
+            grandTotal: group.netAmount,
+            items: { create: buildItemsForGroup(group) },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE",
+            module: "Invoice",
+            recordId: invoiceId,
+            oldValue: {
+              grossAmount: inv.grossAmount.toString(),
+              discountAmount: inv.discountAmount.toString(),
+              grandTotal: inv.grandTotal.toString(),
+            },
+            newValue: {
+              invoiceNumber: inv.invoiceNumber,
+              grossAmount: group.grossAmount.toString(),
+              discountAmount: group.discountAmount.toString(),
+              grandTotal: group.netAmount.toString(),
+              note: "แก้ยอดในใบเลขเดิมจากการแก้ไข Order ที่ Confirmed แล้ว (E3/R11)",
+            },
+          },
+        });
+      }
+
+      for (const productTypeCode of plan.creates) {
+        const group = groupByCode.get(productTypeCode)!;
         const docType = `INV-${group.productTypeCode}`;
         const seq = await getNextSeq(docType, period, tx);
         const invoiceNumber = formatDocNumber(docType, period, seq, 4);
@@ -666,41 +758,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
             grandTotal: group.netAmount,
             status: "CONFIRMED",
             createdById: user.id,
-            items: {
-              create: (() => {
-                const grossAmounts = group.items.map((item) => item.grossAmount);
-                const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
-                // R12 — เหมือน confirmOrder ทุกประการ
-                const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
-                const forcedAlloc = forcedGroup
-                  ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
-                  : [];
-                const statByOrderItemId = new Map(
-                  (forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]])
-                );
-
-                return group.items.map((item, idx) => {
-                  const lineDiscount = allocatedDiscounts[idx];
-                  const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
-                  return {
-                    productId: item.productId,
-                    skuSnapshot: item.sku,
-                    productNameSnapshot: item.productName,
-                    productTypeSnapshot: item.productTypeName,
-                    sizeSnapshot: item.size,
-                    quantity: item.quantity,
-                    unitSnapshot: item.unit,
-                    unitPriceSnapshot: item.unitPrice,
-                    grossAmount: item.grossAmount,
-                    discountAmount: lineDiscount,
-                    netAmount: lineNet,
-                    vatAmount: new Decimal(0),
-                    totalAmount: lineNet,
-                    statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
-                  };
-                });
-              })(),
-            },
+            items: { create: buildItemsForGroup(group) },
           },
         });
 
@@ -714,7 +772,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
               invoiceNumber,
               parentOrderId: order.id,
               productTypeCode: group.productTypeCode,
-              note: "สร้างจากการแก้ไข Order ที่ Confirmed แล้ว (E3)",
+              note: "กลุ่มส่วนลดใหม่จากการแก้ไข Order ที่ Confirmed แล้ว (E3/R11)",
             },
           },
         });
