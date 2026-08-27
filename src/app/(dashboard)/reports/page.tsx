@@ -124,7 +124,16 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
 
       {/* R11 — ข้อ 8.1: รายงานยอดขาย (จากใบส่งของชั่วคราว) — เรียงรายใบตามวันที่/เลข INV
           ไม่แยกบริษัท (PRINTED เท่านั้น — SOT เดิม) ตามฟอร์แมตที่ Owner กำหนด */}
-      <h2 className="text-base font-semibold mb-2">8.1 รายงานยอดขาย (จากใบส่งของชั่วคราว)</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-base font-semibold">8.1 รายงานยอดขาย (จากใบส่งของชั่วคราว)</h2>
+        {/* R11 UAT — Owner: ปุ่มสร้างแบบฟอร์มรายงานสำหรับพิมพ์ (ใช้ตัวกรองชุดเดียวกับตารางนี้) */}
+        <a
+          href={`/reports/print?${new URLSearchParams({ ...searchParamsToObject(searchParams), type: "sales" }).toString()}`}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded px-3 py-1.5"
+        >
+          🖨 สร้างแบบฟอร์มรายงาน 8.1
+        </a>
+      </div>
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -277,7 +286,19 @@ export default async function ReportsPage(props: { searchParams: Promise<SearchP
       {/* R11 — ข้อ 8.2: รายงานใบกำกับภาษี (ภาษีขาย) — เรียงรายใบตามวันที่/เลข TX ไม่แยก
           บริษัท (PRINTED เท่านั้น ตามที่ Owner เคาะ) — ยอดฝั่งนี้ห้ามบวกรวมกับ 8.1
           (ใบโหมด AUTO ยอดซ้ำกับใบส่งของโดยธรรมชาติ — เป็นคนละมุมมองกัน) */}
-      <h2 className="text-base font-semibold mt-8 mb-2">8.2 รายงานใบกำกับภาษี (ภาษีขาย)</h2>
+      <div className="flex items-center justify-between mt-8 mb-2">
+        <h2 className="text-base font-semibold">8.2 รายงานใบกำกับภาษี (ภาษีขาย)</h2>
+        <a
+          href={`/reports/print?${new URLSearchParams({
+            ...(searchParams.dateFrom ? { dateFrom: searchParams.dateFrom } : {}),
+            ...(searchParams.dateTo ? { dateTo: searchParams.dateTo } : {}),
+            type: "tax",
+          }).toString()}`}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded px-3 py-1.5"
+        >
+          🖨 สร้างแบบฟอร์มรายงาน 8.2
+        </a>
+      </div>
       <p className="text-xs text-gray-500 mb-2">
         ช่วงวันที่ตามตัวกรองด้านบน — นับเฉพาะใบที่พิมพ์แล้ว (9×11) · ตัวกรองลูกค้า/สาขา/กลุ่มส่วนลดไม่มีผลกับตารางนี้
       </p>

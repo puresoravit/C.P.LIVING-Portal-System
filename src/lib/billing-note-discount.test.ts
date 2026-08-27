@@ -135,7 +135,7 @@ describe("resolveNoteGroupLabel — Label กลุ่มส่วนลดข�
     expect(resolveNoteGroupLabel([])).toBeNull();
   });
 
-  it("ใบวางบิล Legacy ที่มีหลายกลุ่มปน (สร้างก่อน R7) → 'หลายกลุ่มส่วนลด' ไม่ฟันธงผิด", () => {
-    expect(resolveNoteGroupLabel(["กลุ่ม Box Mary", "กลุ่มที่นอนสปริง"])).toBe("หลายกลุ่มส่วนลด");
+  it("หลายกลุ่มปน (โหมดรวมใบเดียว R11 / Legacy) → null ไม่แสดงบรรทัดกลุ่มเลย (Owner R11 UAT)", () => {
+    expect(resolveNoteGroupLabel(["กลุ่ม Box Mary", "กลุ่มที่นอนสปริง"])).toBeNull();
   });
 });

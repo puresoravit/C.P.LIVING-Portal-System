@@ -112,13 +112,13 @@ export async function liveTypeNamesByCode(codes: string[]): Promise<Map<string, 
 /** Smoke Test R9 (2026-08-25) — Owner: ไม่ว่าจะติ๊ก "ใช้ส่วนลด" หรือไม่ ใบวางบิลต้องบอกชัดว่า
  * เป็นของกลุ่มส่วนลดไหน (R7 แยกใบตามกลุ่มเสมออยู่แล้ว จึงควรเป็นกลุ่มเดียวต่อใบ) — ฟังก์ชันนี้
  * รับชื่อกลุ่มที่ Resolve แล้วของทุก Invoice ในใบวางบิลใบเดียว มาสรุปเป็น Label เดียว:
- * เหมือนกันหมด → ใช้ชื่อนั้น, ไม่มี Invoice เลย → null (ไม่แสดง), ต่างกัน → "หลายกลุ่มส่วนลด"
- * (เผื่อใบวางบิล Legacy ที่สร้างก่อน R7 ซึ่งยังไม่บังคับแยกตามกลุ่ม — ไม่กล้าฟันธงว่าเป็น
- * กลุ่มเดียวผิดๆ) */
+ * เหมือนกันหมด → ใช้ชื่อนั้น, ไม่มี Invoice เลย → null (ไม่แสดง)
+ * R11 UAT (2026-08-27) — Owner: ใบวางบิลโหมดรวมใบเดียว (หลายกลุ่มปนกัน) ไม่ต้องมีบรรทัด
+ * กลุ่มส่วนลดเลย — ต่างกัน → null (เดิมเคยพิมพ์ "หลายกลุ่มส่วนลด" ซึ่งไม่มีประโยชน์บนกระดาษ) */
 export function resolveNoteGroupLabel(invoiceGroupLabels: string[]): string | null {
   if (invoiceGroupLabels.length === 0) return null;
   const unique = new Set(invoiceGroupLabels);
-  return unique.size === 1 ? invoiceGroupLabels[0] : "หลายกลุ่มส่วนลด";
+  return unique.size === 1 ? invoiceGroupLabels[0] : null;
 }
 
 /** อ่าน discountDetail (Json) กลับเป็น Map ต่อ invoiceId อย่างปลอดภัย — แถว Legacy
