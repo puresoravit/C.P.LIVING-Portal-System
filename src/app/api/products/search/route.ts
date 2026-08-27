@@ -53,10 +53,10 @@ export async function GET(req: NextRequest) {
     db.product.findMany({
       where: {
         active: true,
-        pricePerFoot: { not: null },
-        // AND ครอบเงื่อนไขค้นหา + Access Filter แยกกัน (ทั้งคู่มี OR ของตัวเอง ผสมใน
-        // Object เดียวไม่ได้ — OR ซ้ำ Key จะทับกัน)
+        // R11 — ข้อ 6: Family Anchor = ตั้งราคาต่อฟุต (เดิม) หรือ "มี Size Variant จริง"
+        // (ไซส์ราคากำหนดเอง/ขายต่อหลัง — pricePerFoot เป็น null โดยเจตนา)
         AND: [
+          { OR: [{ pricePerFoot: { not: null } }, { sizeVariants: { some: {} } }] },
           { OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] },
           ...(accessFilter ? [accessFilter] : []),
         ],
@@ -77,6 +77,9 @@ export async function GET(req: NextRequest) {
         // ต้องไม่โผล่ซ้ำเป็นสินค้า Standalone แยกต่างหาก — เหมือนที่ modelId ไม่ว่างกันไม่ให้
         // Variant ของ ProductModel โผล่ซ้ำอยู่แล้วทุกประการ
         parentProductId: null,
+        // R11 — ข้อ 6: Anchor แบบไซส์กำหนดเอง (ไม่มี pricePerFoot แต่มี Variant) ไปโผล่
+        // ฝั่ง Family แล้ว ห้ามซ้ำใน Standalone
+        sizeVariants: { none: {} },
         AND: [
           { OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] },
           ...(accessFilter ? [accessFilter] : []),

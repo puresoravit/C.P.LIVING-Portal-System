@@ -153,3 +153,42 @@ export function mergeSizeOptions(
   options.push({ productId: null, sku: null, unit: fallbackUnit, size: "", label: CUSTOM_SIZE_LABEL, resolved: false, custom: true });
   return options;
 }
+
+/** R11 (2026-08-27) — ข้อ 6 (Owner): ที่นอนบางรุ่นขาย "ต่อหลัง" ไม่ใช่ต่อฟุต — สร้าง Size
+ * Variant พร้อมราคากำหนดเองต่อไซส์ (ไม่ผ่าน pricePerFoot เลย) ใต้ Product Anchor เดียวกัน
+ * — Reuse โครง parentProductId + Auto SKU เดิมทั้งหมด จึงเชื่อมกับระบบสร้างเอกสาร/Picker/
+ * Pricing (standardPrice ต่อ Variant) โดยอัตโนมัติเหมือน Variant ต่อฟุตทุกประการ —
+ * Variant พวกนี้แก้ราคาทีหลังรายตัวได้จากหน้าสินค้า (ไม่ถูก Sync ทับเพราะ Anchor ไม่มี
+ * pricePerFoot ให้ syncStandardVariants ทำงาน) */
+export async function createManualSizeVariants(
+  params: {
+    anchorProductId: string;
+    parentName: string;
+    productTypeId: string | null;
+    categoryId: string | null;
+    unit: string;
+    sizes: { size: string; price: Decimal }[];
+  },
+  tx: Prisma.TransactionClient
+): Promise<number> {
+  let created = 0;
+  for (const row of params.sizes) {
+    const size = row.size.trim();
+    if (!size) continue;
+    const sku = await generateNextSku(tx);
+    await tx.product.create({
+      data: {
+        sku,
+        name: params.parentName,
+        size,
+        unit: params.unit,
+        standardPrice: roundMoney(row.price),
+        productTypeId: params.productTypeId,
+        categoryId: params.categoryId,
+        parentProductId: params.anchorProductId,
+      },
+    });
+    created++;
+  }
+  return created;
+}

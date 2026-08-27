@@ -549,6 +549,47 @@ export default async function ProductsPage(props: {
           <div id="createStandardPriceWrap">
             <Field label="ราคาตั้งต้น (รวม VAT) *" name="standardPrice" type="number" required />
           </div>
+          {/* R11 — ข้อ 6 (Owner): "Size สินค้า" สำหรับที่นอนที่ขายต่อหลัง (ราคาไม่ผูกกับ
+              ฟุต) — กรอกราคาเฉพาะไซส์ที่ต้องการ ระบบสร้าง Variant ให้ทันทีและเชื่อมระบบ
+              เลือกสินค้าตอนออกเอกสารอัตโนมัติ (โครง Anchor+Variant เดิม) — ใช้ไม่ได้พร้อม
+              ราคาต่อฟุต/รุ่นสินค้า (Server ตรวจซ้ำ) */}
+          <details className="col-span-1 sm:col-span-3 border rounded-lg bg-gray-50/60">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+              + Size สินค้า (กำหนดราคาเองต่อไซส์ — สำหรับสินค้าที่ขายต่อหลัง/ต่อหน่วย)
+            </summary>
+            <div className="px-3 pb-3">
+              <p className="text-xs text-gray-500 mb-2">
+                กรอกราคาเฉพาะไซส์ที่มีขาย (เว้นว่าง = ไม่สร้างไซส์นั้น) — แต่ละไซส์แก้ราคาทีหลังได้รายตัวจากหน้ารายการสินค้า
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {["3 ฟุต", "3.5 ฟุต", "4 ฟุต", "5 ฟุต", "6 ฟุต"].map((sz) => (
+                  <div key={sz} className="flex items-center gap-2">
+                    <input type="hidden" name="msLabel" value={sz} />
+                    <span className="text-sm w-14 shrink-0">{sz}</span>
+                    <input
+                      name="msPrice"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="ราคา (รวม VAT)"
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <input name="msLabel" placeholder="ไซส์พิเศษ" className="w-24 shrink-0 border rounded px-2 py-1.5 text-sm" />
+                  <input
+                    name="msPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="ราคา (รวม VAT)"
+                    className="w-full border rounded px-2 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
           <div id="createPricePerFootWrap" className="col-span-1 sm:col-span-3 hidden">
             <Field
               label="ราคาต่อฟุต (รวม VAT) — กรอกเพื่อสร้าง Size 3/3.5/4/5/6 ฟุต + ขนาดพิเศษ อัตโนมัติ"

@@ -47,7 +47,6 @@ describe("aggregateQuotationTotals", () => {
 // R11 — โหมด VAT ถอด/เพิ่ม (ตัวเลขตัวอย่างที่ Owner เคาะเป๊ะ — ส่วนลดหักก่อน VAT เสมอ)
 import { describe as d2, it as it2, expect as ex2 } from "vitest";
 import { Decimal as Dec } from "@prisma/client/runtime/library";
-import { aggregateQuotationTotals } from "./quotation-pricing";
 
 d2("aggregateQuotationTotals — R11 VAT modes (ตัวอย่าง Owner)", () => {
   const items = [{ grossAmount: new Dec("1540.00"), discountAmount: new Dec("0") }];

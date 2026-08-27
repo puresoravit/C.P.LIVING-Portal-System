@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { generateNextSku } from "@/lib/sku-sequence";
-import { syncStandardVariants } from "@/lib/product-variant-size";
+import { syncStandardVariants, createManualSizeVariants } from "@/lib/product-variant-size";
 import { setCompanyAccessForHead, ensureCompanyCatalog, ensureQuotationCatalog, addCompanyToCatalog, removeCompanyFromCatalog, moveCompanyToCatalog, createCatalogGroup, renameCatalog } from "@/lib/product-company-access";
 import { Decimal } from "@prisma/client/runtime/library";
 
@@ -124,6 +124,27 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     return { success: false, ...standardPriceResult };
   }
 
+  // R11 — ข้อ 6 (Owner): ไซส์แบบกำหนดราคาเองต่อไซส์ (ขายต่อหลัง — ไม่ใช้ราคาต่อฟุต):
+  // อ่านคู่ msLabel[]/msPrice[] เฉพาะแถวที่กรอกราคา > 0 — ใช้ไม่ได้พร้อมราคาต่อฟุต/รุ่นสินค้า
+  const manualSizes: { size: string; price: Decimal }[] = [];
+  const msLabels = formData.getAll("msLabel").map(String);
+  const msPrices = formData.getAll("msPrice").map(String);
+  for (let i = 0; i < msLabels.length; i++) {
+    const sizeLabel = (msLabels[i] ?? "").trim();
+    const priceNum = Number(msPrices[i] ?? "");
+    if (sizeLabel && Number.isFinite(priceNum) && priceNum > 0) manualSizes.push({ size: sizeLabel, price: new Decimal(priceNum) });
+  }
+  if (manualSizes.length > 0 && parsed.pricePerFoot !== undefined) {
+    return { success: false, error: "เลือกได้ทางเดียว: ราคาต่อฟุต (Auto ทุกไซส์) หรือ กำหนดราคาต่อไซส์เอง" };
+  }
+  if (manualSizes.length > 0 && parsed.modelId) {
+    return { success: false, error: "สินค้าที่ผูกรุ่นสินค้า (Legacy) กำหนดไซส์เองที่ตัวสินค้าไม่ได้ — จัดการไซส์ที่หน้ารุ่นสินค้า" };
+  }
+  const dupSize = manualSizes.map((m) => m.size).find((v, i, arr) => arr.indexOf(v) !== i);
+  if (dupSize) {
+    return { success: false, error: `ไซส์ "${dupSize}" ถูกกรอกซ้ำ — แต่ละไซส์กรอกได้ครั้งเดียว` };
+  }
+
   // R4 — รหัสสินค้า (Product.sku) เว้นว่างได้แล้ว: ถ้าไม่กรอก ให้ระบบสร้างให้อัตโนมัติผ่าน
   // ProductSkuSequence (Atomic, ไม่ผูกกับ ProductType เพราะ nullable แล้ว) ถ้ากรอกเอง ใช้ค่าที่กรอกตามเดิม
   const sku = parsed.sku || (await generateNextSku());
@@ -139,6 +160,21 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     const created = await tx.product.create({ data: { ...parsed, sku, standardPrice: standardPriceResult.value, catalogId, ownerCustomerId } });
     // Owner UAT — ข้อ 1: กรอก pricePerFoot มา = Product แถวนี้เป็น Anchor ของตัวเอง —
     // Sync Standard Variant (3/3.5/4/5/6 ฟุต) ให้ทันที เหมือน ProductModel ทุกประการ
+    // R11 — ข้อ 6: สร้างไซส์ราคากำหนดเองใต้ Anchor นี้ (ขายต่อหลัง) — เชื่อม Picker/
+    // เอกสารอัตโนมัติผ่านโครง parentProductId เดิม
+    if (manualSizes.length > 0) {
+      await createManualSizeVariants(
+        {
+          anchorProductId: created.id,
+          parentName: parsed.name,
+          productTypeId: parsed.productTypeId || null,
+          categoryId: parsed.categoryId || null,
+          unit: parsed.unit,
+          sizes: manualSizes,
+        },
+        tx
+      );
+    }
     if (parsed.pricePerFoot !== undefined) {
       await syncStandardVariants(
         {
