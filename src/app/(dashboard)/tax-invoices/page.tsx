@@ -10,6 +10,8 @@ import { StatusTabs } from "@/components/status-tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
 import { SearchInputWithClear } from "@/components/search-input-with-clear";
+import { CancelButton } from "@/components/cancel-button";
+import { cancelTaxInvoice } from "./actions";
 
 // Smoke Test R13 (2026-08-25) — เพิ่มสถานะ PRINTED (Checkpoint พิมพ์ 9×11 + ยืนยันด้วยมือ
 // แบบเดียวกับ Invoice/ใบวางบิล) — CONFIRMED จึงเปลี่ยน Label เป็น "ยังไม่พิมพ์" ให้ตรงความหมาย
@@ -31,7 +33,11 @@ type SearchParams = { status?: string; q?: string; dateFrom?: string; dateTo?: s
 export default async function TaxInvoicesPage(props: { searchParams: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
-  if (!can((session?.user as any)?.role, "taxInvoice.create")) redirect("/");
+  const role = (session?.user as any)?.role;
+  if (!can(role, "taxInvoice.create")) redirect("/");
+  // Owner UAT (2026-08-27): เพิ่มปุ่มยกเลิกในตารางรายการ — เดิมต้องกดเข้าไปหน้ารายละเอียด
+  // ก่อนถึงจะยกเลิกได้ ทำงานช้า — ใช้ CancelButton/action ตัวเดียวกับหน้ารายละเอียดทุกประการ
+  const canCancel = can(role, "taxInvoice.cancel");
 
   const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
   const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
@@ -134,6 +140,7 @@ export default async function TaxInvoicesPage(props: { searchParams: Promise<Sea
               <th className="px-4 py-2 font-medium text-right">VAT</th>
               <th className="px-4 py-2 font-medium text-right">สุทธิ</th>
               <th className="px-4 py-2 font-medium">สถานะ</th>
+              {canCancel && <th className="px-4 py-2 font-medium"></th>}
             </tr>
           </thead>
           <tbody>
@@ -153,11 +160,24 @@ export default async function TaxInvoicesPage(props: { searchParams: Promise<Sea
                 <td className="px-4 py-2">
                   <StatusBadge status={tx.status} config={STATUS_LABEL} />
                 </td>
+                {canCancel && (
+                  <td className="px-4 py-2">
+                    {tx.status !== "CANCELLED" && (
+                      <CancelButton
+                        action={cancelTaxInvoice.bind(null, tx.id)}
+                        confirmMessage={`ยืนยันยกเลิกใบกำกับภาษี ${tx.taxInvoiceNumber}?`}
+                        label="ยกเลิก"
+                        successMessage="ยกเลิกใบกำกับภาษีสำเร็จ"
+                        className="text-xs text-gray-500 hover:text-red-600 border rounded px-2 py-1"
+                      />
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {taxInvoices.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={canCancel ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
                   ไม่พบใบกำกับภาษีที่ตรงกับเงื่อนไข
                 </td>
               </tr>
