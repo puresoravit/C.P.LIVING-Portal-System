@@ -37,9 +37,15 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
   });
   if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกแล้ว ออกใบกำกับภาษีไม่ได้");
 
-  const today = new Date();
-  const vatPct = await getEffectiveVatRate(today);
-  const period = currentPeriod(today);
+  // Owner (2026-08-27) — โหมด AUTO ต้องยึดวันที่ของ Invoice ต้นทางเสมอ (ไม่ใช่วันที่กดปุ่ม
+  // สร้าง) เพราะ Owner รวบยอดออกใบกำกับภาษีท้ายเดือนจาก Invoice ที่ทยอยออกมาตลอดทั้งเดือน
+  // — ให้ทั้งวันที่เอกสาร/อัตรา VAT ที่มีผล ณ วันนั้น/Running Number Period ตาม
+  // invoice.invoiceDate สอดคล้องกันทั้งชุด (Pattern เดียวกับที่ Order→Invoice ใช้
+  // order.orderDate อยู่แล้วทั้งระบบ ไม่ใช่ Pattern ใหม่) — โหมด MANUAL (createManualTaxInvoice
+  // ด้านล่าง) ไม่ถูกแตะเลย ยังให้ผู้ใช้เลือกวันที่เองเหมือนเดิมทุกประการ
+  const taxInvoiceDate = invoice.invoiceDate;
+  const vatPct = await getEffectiveVatRate(taxInvoiceDate);
+  const period = currentPeriod(taxInvoiceDate);
 
   // Stabilization — Duplicate Guard: กฎ "Invoice หนึ่งใบมีใบกำกับภาษีที่ยังไม่ยกเลิกได้ใบเดียว"
   // มีอยู่แล้วในระบบ (หน้า /tax-invoices/from-invoice บล็อกปุ่มพร้อมข้อความ "มีใบกำกับภาษี
@@ -69,7 +75,7 @@ export async function createTaxInvoiceFromInvoice(invoiceId: string) {
     const created = await tx.taxInvoice.create({
       data: {
         taxInvoiceNumber,
-        taxInvoiceDate: today,
+        taxInvoiceDate,
         customerId: invoice.customerId,
         branchId: invoice.branchId,
         referenceInvoiceId: invoice.id,
