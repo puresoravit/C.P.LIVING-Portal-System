@@ -5,6 +5,7 @@ import {
   getAvailableSalesYears,
   getPreviousDecemberNet,
   computeSalesGrowth,
+  getTaxInvoiceSummary,
 } from "@/lib/reports";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -72,8 +73,9 @@ export default async function HomePage(
   // Query ใหม่ ไม่แตะ Sales SOT
   const currentGregorianYear = new Date().getFullYear();
   const selectedYear = Number(searchParams.year) || currentGregorianYear;
-  const [{ summary, customerCards, topCustomers, topProducts }, availableYears, monthlyGroups, previousDecemberNet] = await Promise.all([
+  const [{ summary, customerCards, topCustomers, topProducts }, taxSummary, availableYears, monthlyGroups, previousDecemberNet] = await Promise.all([
     getDashboard({ dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }),
+    getTaxInvoiceSummary({ dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }),
     getAvailableSalesYears(),
     getSalesByGroup(
       { dateFrom: new Date(selectedYear, 0, 1), dateTo: new Date(selectedYear, 11, 31) },
@@ -126,7 +128,7 @@ export default async function HomePage(
             <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
               <NavIcon name="chart" className="w-[18px] h-[18px]" />
             </span>
-            <div className="text-xs text-white/80">ยอดขาย (จำนวนเงิน)</div>
+            <div className="text-xs text-white/80">ยอดขาย (จำนวนเงิน) — จากใบส่งของชั่วคราว</div>
           </div>
           <div className="relative text-2xl font-semibold">{money(summary.gross)} บาท</div>
         </div>
@@ -136,7 +138,7 @@ export default async function HomePage(
             <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
               <NavIcon name="receipt" className="w-[18px] h-[18px]" />
             </span>
-            <div className="text-xs text-white/80">ยอดสุทธิ (Net)</div>
+            <div className="text-xs text-white/80">ยอดสุทธิ (Net) — จากใบส่งของชั่วคราว</div>
           </div>
           <div className="relative text-2xl font-semibold">{money(summary.net)} บาท</div>
         </div>
@@ -149,6 +151,42 @@ export default async function HomePage(
             <div className="text-xs text-white/80">จำนวนสินค้าที่ขาย</div>
           </div>
           <div className="relative text-2xl font-semibold">{summary.quantity.toLocaleString("th-TH")}</div>
+        </div>
+      </div>
+
+      {/* R11 — ข้อ 1: ยอดฝั่งใบกำกับภาษี (PRINTED 9×11 เท่านั้น) แยกมุมมองจากฝั่งใบส่งของ
+          เด็ดขาด ห้ามนำสองแถวมาบวกกัน (ใบกำกับโหมด AUTO ยอดซ้ำกับใบส่งของโดยธรรมชาติ) —
+          แทนที่กลไก countAsSales เดิมทั้งหมด */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="relative overflow-hidden bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-4 shadow-md shadow-purple-900/10 text-white">
+          <NavIcon name="receipt" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="receipt" className="w-[18px] h-[18px]" />
+            </span>
+            <div className="text-xs text-white/80">ยอดขาย (รวม VAT) — จากใบกำกับภาษี</div>
+          </div>
+          <div className="relative text-2xl font-semibold">{money(taxSummary.netAmount)} บาท</div>
+        </div>
+        <div className="relative overflow-hidden bg-gradient-to-br from-fuchsia-500 to-pink-600 rounded-2xl p-4 shadow-md shadow-pink-900/10 text-white">
+          <NavIcon name="receipt" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="receipt" className="w-[18px] h-[18px]" />
+            </span>
+            <div className="text-xs text-white/80">ยอดสุทธิ (ก่อน VAT) — จากใบกำกับภาษี</div>
+          </div>
+          <div className="relative text-2xl font-semibold">{money(taxSummary.valueAmount)} บาท</div>
+        </div>
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-500 to-slate-600 rounded-2xl p-4 shadow-md shadow-slate-900/10 text-white">
+          <NavIcon name="list" className="absolute -right-3 -bottom-3 w-20 h-20 text-white opacity-10 pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 shrink-0">
+              <NavIcon name="list" className="w-[18px] h-[18px]" />
+            </span>
+            <div className="text-xs text-white/80">จำนวนใบกำกับภาษี (VAT {money(taxSummary.vatAmount)} บาท)</div>
+          </div>
+          <div className="relative text-2xl font-semibold">{taxSummary.count.toLocaleString("th-TH")}</div>
         </div>
       </div>
 

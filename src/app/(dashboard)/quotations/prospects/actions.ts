@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
 import { adoptProductHeadsForCustomer } from "@/lib/product-company-access";
+import { findAdoptableHeadsForProspect } from "@/lib/prospect-products";
 
 // ==========================================================================
 // R10 — "ใบเสนอราคาลูกค้าที่ไม่มีในระบบ" (Quotation Prospects)
@@ -161,6 +162,26 @@ export async function createCustomerFromProspect(prospectId: string, formData: F
     return created;
   });
 
+  // R11 — ข้อ 4 (One-step): ติ๊ก "นำสินค้าที่เคยเสนอทั้งหมดเข้าด้วย" = ย้ายทุก Family Head
+  // ที่รายนี้เคยใช้และยังอยู่ใน "สินค้าเสนอราคา" เข้า Shared/Private ของลูกค้าที่เพิ่งสร้าง
+  // ทันที (Head เดียวพาทุกไซส์ไปครบตามกลไกเดิม — ไม่ Duplicate ไม่แตะ QT เดิม) — ต้องมี
+  // สิทธิ์ product.edit ด้วย ไม่มีก็ข้ามส่วนนี้เฉยๆ (ลูกค้าถูกสร้าง/เชื่อมแล้วตามปกติ)
+  let adoptNote = "";
+  if (formData.get("adoptAll") === "1" && can(user.role, "product.edit")) {
+    const heads = await findAdoptableHeadsForProspect(prospectId);
+    if (heads.products.length > 0 || heads.models.length > 0) {
+      const target = String(formData.get("adoptTarget") ?? "shared") === "private" ? ("private" as const) : ("shared" as const);
+      const result = await adoptProductHeadsForCustomer({
+        customerId: customer.id,
+        productIds: heads.products.map((h) => h.id),
+        modelIds: heads.models.map((h) => h.id),
+        target,
+        actorUserId: user.id,
+      });
+      if (result.ok) adoptNote = ` และ${result.summary}`;
+    }
+  }
+
   // R10.1 — ลูกค้าใหม่/ที่เพิ่งเชื่อม ต้องโผล่ในช่องเลือกลูกค้าของทุกหน้าสร้างเอกสารทันที
   revalidatePath("/orders/new");
   revalidatePath("/quotations/new");
@@ -170,7 +191,7 @@ export async function createCustomerFromProspect(prospectId: string, formData: F
   revalidatePath("/products");
   revalidatePath("/quotations/prospects");
   revalidatePath("/customers");
-  return { success: true, message: `สร้างลูกค้า "${customer.companyName}" และเชื่อมกับรายนี้แล้ว — เลือกได้ทันทีในทุกหน้าสร้างเอกสาร` };
+  return { success: true, message: `สร้างลูกค้า "${customer.companyName}" และเชื่อมกับรายนี้แล้ว — เลือกได้ทันทีในทุกหน้าสร้างเอกสาร${adoptNote}` };
 }
 
 /** นำสินค้า (Family Head จาก "สินค้าเสนอราคา") ไปใช้กับลูกค้าที่เชื่อมไว้ — ไม่ Duplicate

@@ -357,7 +357,8 @@ export async function markTaxInvoicePrinted(taxInvoiceId: string, formData: Form
   if (!can(user.role, "taxInvoice.print")) throw new Error("FORBIDDEN");
 
   const printProfile = String(formData.get("printProfile") || "");
-  const countAsSales = String(formData.get("countAsSales") || "") === "1";
+  // R11 — ถอดคำถาม "นับเป็นยอดขายไหม" (countAsSales) ออกทั้ง Flow: ใบกำกับภาษีมีการ์ด/
+  // รายงานแยกของตัวเองแล้ว ไม่ผสมเข้ายอดฝั่งใบส่งของอีก (คอลัมน์ DB คงไว้เฉยๆ ไม่เขียนทับ)
 
   const taxInvoice = await db.taxInvoice.findUniqueOrThrow({ where: { id: taxInvoiceId } });
   if (taxInvoice.status === "CANCELLED") throw new Error("ใบกำกับภาษีนี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
@@ -365,7 +366,7 @@ export async function markTaxInvoicePrinted(taxInvoiceId: string, formData: Form
     const printedAt = new Date();
     const cas = await db.taxInvoice.updateMany({
       where: { id: taxInvoiceId, status: "CONFIRMED" },
-      data: { status: "PRINTED", printedAt, printedById: user.id, countAsSales },
+      data: { status: "PRINTED", printedAt, printedById: user.id },
     });
     if (cas.count === 1)
       await db.auditLog.create({
@@ -375,7 +376,7 @@ export async function markTaxInvoicePrinted(taxInvoiceId: string, formData: Form
           module: "TaxInvoice",
           recordId: taxInvoiceId,
           oldValue: { status: "CONFIRMED" },
-          newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile, countAsSales },
+          newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile },
         },
       });
   }

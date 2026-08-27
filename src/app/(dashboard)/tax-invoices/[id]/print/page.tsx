@@ -126,7 +126,6 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
       markPrintedAction={taxInvoice.status === "CONFIRMED" ? markTaxInvoicePrinted.bind(null, taxInvoice.id) : undefined}
       isPrinted={taxInvoice.status === "PRINTED"}
       printedAtLabel={taxInvoice.printedAt ? taxInvoice.printedAt.toLocaleString("th-TH") : undefined}
-      salesQuestion="นับใบกำกับภาษีใบนี้เป็นยอดขาย (Dashboard/รายงาน) — ติ๊กเฉพาะใบที่ขายตรงโดยไม่ได้ออกใบส่งของชั่วคราว (กันนับยอดซ้ำ)"
     >
       {/* R8 — Document Pagination: Header ซ้ำทุกหน้า + Summary ต่อหน้า (VAT ถอดด้วย
           extractVat เดิม) — เอกสารหน้าเดียว Output เดิมทุกประการ (ดู print-pagination.ts) */}

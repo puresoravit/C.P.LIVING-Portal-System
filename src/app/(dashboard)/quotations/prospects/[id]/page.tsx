@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { displayQuotationNumber } from "@/lib/running-number";
-import { resolveAccessHead } from "@/lib/product-company-access";
+import { findAdoptableHeadsForProspect } from "@/lib/prospect-products";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { linkProspectToCustomer, createCustomerFromProspect, adoptProspectProducts } from "../actions";
@@ -59,34 +59,11 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
     orderBy: { companyName: "asc" },
   });
 
-  // สินค้าที่เคยใช้ในใบของรายนี้ ที่ "Head ยังอยู่ในสินค้าเสนอราคา" — เสนอย้ายไปใช้กับ
-  // ลูกค้าจริงหลังเชื่อมแล้ว (Head resolution เดียวกับระบบสิทธิ์ทุกจุด)
-  const usedProductIds = [...new Set(prospect.quotations.flatMap((q) => q.items.map((i) => i.productId)))];
-  const usedProducts = usedProductIds.length
-    ? await db.product.findMany({
-        where: { id: { in: usedProductIds } },
-        select: { id: true, sku: true, name: true, parentProductId: true, modelId: true },
-      })
-    : [];
-  const heads = usedProducts.map((pr) => resolveAccessHead(pr));
-  const headProductIds = [...new Set(heads.filter((h) => h.kind === "product").map((h) => h.id))];
-  const headModelIds = [...new Set(heads.filter((h) => h.kind === "model").map((h) => h.id))];
-  const [adoptableHeads, adoptableModels] = await Promise.all([
-    headProductIds.length
-      ? db.product.findMany({
-          where: { id: { in: headProductIds }, catalog: { isQuotationCatalog: true } },
-          select: { id: true, sku: true, name: true, _count: { select: { sizeVariants: true } } },
-          orderBy: { name: "asc" },
-        })
-      : Promise.resolve([]),
-    headModelIds.length
-      ? db.productModel.findMany({
-          where: { id: { in: headModelIds }, catalog: { isQuotationCatalog: true } },
-          select: { id: true, name: true, _count: { select: { products: true } } },
-          orderBy: { name: "asc" },
-        })
-      : Promise.resolve([]),
-  ]);
+  // R11 — สินค้าที่รายนี้เคยใช้และ Head ยังอยู่ใน "สินค้าเสนอราคา" — Logic เดียวกับ
+  // One-step Adopt ใน Action (findAdoptableHeadsForProspect จุดเดียวร่วมกัน)
+  const adoptable = await findAdoptableHeadsForProspect(prospect.id);
+  const adoptableHeads = adoptable.products;
+  const adoptableModels = adoptable.models;
 
   return (
     <div className="max-w-4xl">
@@ -160,6 +137,25 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
               <div className="sm:col-span-2">
                 <Field label="ที่อยู่" name="address" defaultValue={prospect.address ?? ""} />
               </div>
+              {(adoptableHeads.length > 0 || adoptableModels.length > 0) && (
+                <div className="sm:col-span-2 rounded-lg border bg-gray-50 px-3 py-2.5 space-y-2 text-sm">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="adoptAll" value="1" defaultChecked className="w-4 h-4" />
+                    นำสินค้าที่เคยเสนอทั้งหมด ({adoptableHeads.length + adoptableModels.length} รายการ — สินค้ามีไซส์พาทุกไซส์ไปครบ)
+                    เข้ารายการสินค้าของลูกค้าให้เลย
+                  </label>
+                  <div className="flex flex-wrap gap-2 pl-6">
+                    <label className="flex items-center gap-2 rounded-full border-2 border-emerald-500 bg-emerald-50 pl-3 pr-4 py-1.5 cursor-pointer text-emerald-900 text-xs">
+                      <input type="radio" name="adoptTarget" value="shared" defaultChecked className="accent-emerald-600" />
+                      <span className="font-semibold">Shared</span> — ทุกบริษัทในกลุ่มเห็นร่วมกัน
+                    </label>
+                    <label className="flex items-center gap-2 rounded-full border-2 border-amber-500 bg-amber-50 pl-3 pr-4 py-1.5 cursor-pointer text-amber-900 text-xs">
+                      <input type="radio" name="adoptTarget" value="private" className="accent-amber-600" />
+                      <span className="font-semibold">Private</span> — เฉพาะลูกค้ารายนี้
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <SubmitButton className="text-sm bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
                   ตรวจสอบแล้ว — สร้างลูกค้า
@@ -187,9 +183,9 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
                 <label key={h.id} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1.5 py-1 hover:bg-gray-50">
                   <input type="checkbox" name="productIds" value={h.id} className="w-4 h-4" />
                   <span className="font-mono text-xs text-gray-500">{h.sku}</span> {h.name}
-                  {h._count.sizeVariants > 0 && (
+                  {h.sizeVariantCount > 0 && (
                     <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-1.5">
-                      +{h._count.sizeVariants} ไซส์
+                      +{h.sizeVariantCount} ไซส์
                     </span>
                   )}
                 </label>
@@ -199,7 +195,7 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
                   <input type="checkbox" name="modelIds" value={m.id} className="w-4 h-4" />
                   {m.name}
                   <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-1.5">
-                    รุ่นสินค้า · {m._count.products} ไซส์
+                    รุ่นสินค้า · {m.productCount} ไซส์
                   </span>
                 </label>
               ))}

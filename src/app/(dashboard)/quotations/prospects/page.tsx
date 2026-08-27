@@ -76,6 +76,12 @@ export default async function QuotationProspectsPage() {
                     ยังไม่เชื่อม Customer Master
                   </span>
                 )}
+                <a
+                  href={`/quotations/prospects/${pr.id}`}
+                  className="text-xs bg-blue-600 text-white rounded px-3 py-1 hover:bg-blue-700 whitespace-nowrap"
+                >
+                  {pr.linkedCustomer ? "จัดการราย →" : "จัดการราย / สร้างลูกค้า →"}
+                </a>
                 {dupes.length > 0 && isFirstOfName && (
                   <CancelButton
                     action={mergeProspectsByIds.bind(null, pr.id, dupes.map((d) => d.id))}

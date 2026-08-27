@@ -103,48 +103,11 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
     productName: item.productNameSnapshot,
   }));
 
-  // Smoke Test R13 (2026-08-25) — Owner: ลูกค้า VAT เต็มบางรายออกใบกำกับภาษีตรงโดยไม่ผ่าน
-  // ใบส่งของชั่วคราว → รวมใบกำกับภาษีที่ (1) ผ่าน PRINTED Checkpoint 9×11 และ (2) Owner
-  // ยืนยันตอนพิมพ์ว่า "นับเป็นยอดขาย" (countAsSales) เข้ายอดขาย/ยอดสุทธิด้วย — ใบที่ซ้ำยอด
-  // กับ Invoice ที่นับไปแล้ว Owner ตอบไม่นับที่ Modal จึงไม่มีทางนับซ้ำ — Filter เฉพาะของ
-  // Invoice (sku/กลุ่มส่วนลด) ใช้กับใบกำกับไม่ได้ (Item เป็นข้อความอิสระ ไม่ผูก Product)
-  // ถ้าตั้ง Filter พวกนั้นมา ให้ข้ามฝั่งใบกำกับไปเลยตามความหมายของ Filter
-  if (!filters.sku && !filters.productTypeCode) {
-    const taxItems = await db.taxInvoiceItem.findMany({
-      where: {
-        taxInvoice: {
-          status: "PRINTED",
-          countAsSales: true,
-          taxInvoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
-          customerId: filters.customerId,
-          branchId: filters.branchId,
-        },
-      },
-      include: { taxInvoice: true },
-    });
-    for (const item of taxItems) {
-      const gross = Number(item.amount);
-      const discount = Number(item.discountAmount);
-      rows.push({
-        quantity: Number(item.quantity),
-        gross,
-        // Net ของใบกำกับ = ยอดหลังหักส่วนลดตามที่คีย์ในใบ (ช่องส่วนลดถูก Autofill ตาม
-        // % กลุ่มอยู่แล้วจากหน้าคีย์ — ไม่มี FK Product ให้บังคับส่วนลดกลุ่มย้อนหลังได้)
-        discount,
-        net: gross - discount,
-        vat: 0, // ยอดทุกฝั่งเป็น VAT-inclusive เหมือน Invoice Row — ไม่แยก VAT ต่อบรรทัด
-        total: gross - discount,
-        invoiceDate: item.taxInvoice.taxInvoiceDate,
-        customerId: item.taxInvoice.customerId,
-        customerName: item.taxInvoice.customerNameSnapshot,
-        branchId: item.taxInvoice.branchId,
-        branchName: item.taxInvoice.branchNameSnapshot,
-        productTypeCode: "TAX",
-        sku: "-",
-        productName: item.description,
-      });
-    }
-  }
+  // R11 (2026-08-27) — ถอดกลไก countAsSales ออกจากยอดขายฝั่งนี้ทั้งหมด (เดิม R13 ผสมใบ
+  // กำกับภาษีที่ Owner ยืนยันตอนพิมพ์เข้ามาเป็นกลุ่ม "TAX") — ตอนนี้ใบกำกับภาษีมี Dashboard
+  // Card + รายงานแยกของตัวเองแล้ว (fetchPrintedTaxInvoiceList/getTaxInvoiceSummary ด้านล่าง)
+  // ยอดฝั่งนี้จึงเป็น "ใบส่งของชั่วคราว PRINTED ล้วนๆ" เสมอ ไม่มีการผสม/คำถามตอนพิมพ์อีก
+  // (คอลัมน์ countAsSales ยังอยู่ใน Schema เฉยๆ ไม่ถูกอ่าน/เขียนอีกต่อไป — ไม่ Migrate)
 
   return rows;
 }
@@ -487,4 +450,105 @@ export async function getDashboard(filters: ReportFilters) {
   const topProducts = await getTopProductModels(filters, 10);
 
   return { summary, byType, customerCards, topCustomers, topProducts };
+}
+
+// ==========================================================================
+// R11 (2026-08-27) — รายงานแบบเรียงรายใบ (Flat List) + ยอดฝั่งใบกำกับภาษี
+// SOT เดียวกับระบบเสมอ: นับเฉพาะเอกสารที่ผ่าน PRINTED Checkpoint (พิมพ์กระดาษ 9×11
+// ยืนยันแล้ว) — Owner เคาะชัดว่าใบกำกับภาษีก็ใช้เกณฑ์เดียวกัน
+// ==========================================================================
+
+export type PrintedInvoiceRow = {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: Date;
+  customerName: string;
+  gross: number;
+  discount: number;
+  grandTotal: number;
+};
+
+/** 8.1 — รายการใบส่งของชั่วคราวที่พิมพ์แล้ว เรียงตามวันที่/เลขที่ (ไม่แยกบริษัท) */
+export async function fetchPrintedInvoiceList(filters: ReportFilters): Promise<PrintedInvoiceRow[]> {
+  const rows = await db.invoice.findMany({
+    where: {
+      status: "PRINTED",
+      invoiceDate: { gte: filters.dateFrom, lte: filters.dateTo },
+      customerId: filters.customerId,
+      branchId: filters.branchId,
+    },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      invoiceDate: true,
+      customerNameSnapshot: true,
+      grossAmount: true,
+      discountAmount: true,
+      grandTotal: true,
+    },
+    orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }],
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    invoiceNumber: r.invoiceNumber,
+    invoiceDate: r.invoiceDate,
+    customerName: r.customerNameSnapshot,
+    gross: Number(r.grossAmount),
+    discount: Number(r.discountAmount),
+    grandTotal: Number(r.grandTotal),
+  }));
+}
+
+export type PrintedTaxInvoiceRow = {
+  id: string;
+  taxInvoiceNumber: string;
+  taxInvoiceDate: Date;
+  customerName: string;
+  valueAmount: number; // มูลค่าก่อน VAT (ฐานภาษี)
+  vatAmount: number;
+  netAmount: number; // ยอดรวม (รวม VAT)
+};
+
+/** 8.2 — รายงานใบกำกับภาษี (ภาษีขาย): ใบที่พิมพ์แล้ว เรียงตามวันที่/เลขที่ (ไม่แยกบริษัท) */
+export async function fetchPrintedTaxInvoiceList(filters: { dateFrom?: Date; dateTo?: Date }): Promise<PrintedTaxInvoiceRow[]> {
+  const rows = await db.taxInvoice.findMany({
+    where: { status: "PRINTED", taxInvoiceDate: { gte: filters.dateFrom, lte: filters.dateTo } },
+    select: {
+      id: true,
+      taxInvoiceNumber: true,
+      taxInvoiceDate: true,
+      customerNameSnapshot: true,
+      valueAmount: true,
+      vatAmount: true,
+      netAmount: true,
+    },
+    orderBy: [{ taxInvoiceDate: "asc" }, { taxInvoiceNumber: "asc" }],
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    taxInvoiceNumber: r.taxInvoiceNumber,
+    taxInvoiceDate: r.taxInvoiceDate,
+    customerName: r.customerNameSnapshot,
+    valueAmount: Number(r.valueAmount),
+    vatAmount: Number(r.vatAmount),
+    netAmount: Number(r.netAmount),
+  }));
+}
+
+export type TaxInvoiceSummary = { count: number; valueAmount: number; vatAmount: number; netAmount: number };
+
+/** ยอดรวมฝั่งใบกำกับภาษี (PRINTED เท่านั้น) — Dashboard Card "จากใบกำกับภาษี":
+ * ยอดขาย = Σ ยอดรวม (รวม VAT) / ยอดสุทธิ = Σ มูลค่าก่อน VAT — คนละมุมมองกับฝั่งใบส่งของ
+ * โดยเจตนา ห้ามนำสองฝั่งมาบวกกัน (ใบกำกับโหมด AUTO ยอดซ้ำกับใบส่งของ) */
+export async function getTaxInvoiceSummary(filters: { dateFrom?: Date; dateTo?: Date }): Promise<TaxInvoiceSummary> {
+  const rows = await fetchPrintedTaxInvoiceList(filters);
+  return rows.reduce(
+    (acc, r) => ({
+      count: acc.count + 1,
+      valueAmount: acc.valueAmount + r.valueAmount,
+      vatAmount: acc.vatAmount + r.vatAmount,
+      netAmount: acc.netAmount + r.netAmount,
+    }),
+    { count: 0, valueAmount: 0, vatAmount: 0, netAmount: 0 }
+  );
 }
