@@ -85,7 +85,7 @@ export default async function BranchesPage(
                 <td className="px-4 py-2">{b.province ?? "-"}</td>
                 <td className="px-4 py-2">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
+                    className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
                       b.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                     }`}
                   >

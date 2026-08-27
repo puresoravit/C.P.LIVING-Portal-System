@@ -104,7 +104,7 @@ export default async function QuotationProspectsPage() {
                         </a>
                         <span className="text-gray-500">{q.quotationDate.toLocaleDateString("th-TH")}</span>
                         <span className="text-gray-700">{money(q.grandTotal)} บาท</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${st.className}`}>{st.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${st.className}`}>{st.label}</span>
                       </div>
                     );
                   })}

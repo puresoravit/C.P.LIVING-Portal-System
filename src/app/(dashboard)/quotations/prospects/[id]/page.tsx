@@ -245,7 +245,7 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
                     <td className="px-4 py-2">{q.quotationDate.toLocaleDateString("th-TH")}</td>
                     <td className="px-4 py-2 text-right">{money(q.grandTotal)}</td>
                     <td className="px-4 py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${st.className}`}>{st.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${st.className}`}>{st.label}</span>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <a href={`/quotations/${q.id}`} className="text-xs text-blue-600 hover:underline">

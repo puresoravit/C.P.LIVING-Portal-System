@@ -5,5 +5,5 @@ export type StatusBadgeConfig = Record<string, { label: string; className: strin
 
 export function StatusBadge({ status, config }: { status: string; config: StatusBadgeConfig }) {
   const entry = config[status] ?? { label: status, className: "bg-gray-100 text-gray-500" };
-  return <span className={`text-xs px-2 py-0.5 rounded-full ${entry.className}`}>{entry.label}</span>;
+  return <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${entry.className}`}>{entry.label}</span>;
 }
