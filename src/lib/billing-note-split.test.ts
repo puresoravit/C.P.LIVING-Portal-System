@@ -54,3 +54,22 @@ describe("partitionInvoicesForBilling — Auto-split ใบวางบิลต
     expect(partitionInvoicesForBilling([])).toEqual([]);
   });
 });
+
+// R11 — ข้อ 7: โหมดรวมใบเดียว (ไม่แยกกลุ่มส่วนลด)
+import { singleBillingGroup } from "./billing-note-split";
+
+describe("singleBillingGroup (R11 — รวมใบเดียว)", () => {
+  it("รวมทุกใบเป็นชุดเดียว เรียงตามวันที่ → เลขที่ (คละกลุ่มได้)", () => {
+    const groups = singleBillingGroup([
+      { id: "3", invoiceNumber: "INV-C-202608-0003", productTypeCode: "C", invoiceDate: new Date("2026-08-20") },
+      { id: "1", invoiceNumber: "INV-A-202608-0001", productTypeCode: "A", invoiceDate: new Date("2026-08-05") },
+      { id: "2", invoiceNumber: "INV-A-202608-0002", productTypeCode: "A", invoiceDate: new Date("2026-08-05") },
+    ]);
+    expect(groups.length).toBe(1);
+    expect(groups[0].map((i) => i.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("ไม่มีใบเลย = ไม่มีชุด (ไม่สร้างใบวางบิลว่าง)", () => {
+    expect(singleBillingGroup([])).toEqual([]);
+  });
+});

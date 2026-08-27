@@ -42,3 +42,15 @@ export function partitionInvoicesForBilling<T extends BillingSplitInvoice>(invoi
     );
   });
 }
+
+/** R11 — ข้อ 7 (Owner): โหมด "ไม่แยกใบตามกลุ่มส่วนลด" — รวมทุกใบเป็นชุดเดียว เรียงตาม
+ * วันที่ → เลขที่ Invoice (Comparator เดียวกับภายในกลุ่มของโหมดแยกทุกประการ) — คืน Shape
+ * เดียวกับ partitionInvoicesForBilling (Array ของชุด) ให้ Caller ใช้โค้ดเดิมได้ทั้งเส้น */
+export function singleBillingGroup<T extends BillingSplitInvoice>(invoices: T[]): T[][] {
+  if (invoices.length === 0) return [];
+  const sorted = [...invoices].sort(
+    (a, b) =>
+      a.invoiceDate.getTime() - b.invoiceDate.getTime() || a.invoiceNumber.localeCompare(b.invoiceNumber)
+  );
+  return [sorted];
+}

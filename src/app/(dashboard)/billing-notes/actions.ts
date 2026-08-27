@@ -7,7 +7,7 @@ import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { roundMoney } from "@/lib/pricing";
 import { resolveBillingNoteDiscounts, type BillingNoteDiscountLine } from "@/lib/billing-note-discount";
-import { partitionInvoicesForBilling } from "@/lib/billing-note-split";
+import { partitionInvoicesForBilling, singleBillingGroup } from "@/lib/billing-note-split";
 import { Decimal } from "@prisma/client/runtime/library";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -31,7 +31,16 @@ async function requireUser() {
 // เดียวกับที่ Invoice แยกใบตามกลุ่มตอน Confirm Order) ภายในกลุ่มเรียงตามวัน→เลขที่ แล้ว
 // พาไปหน้าพิมพ์ต่อเนื่องทีละใบทันที (Print Queue เดิม) — ลูกค้าที่มีกลุ่มเดียว/ไม่มีกลุ่ม
 // ได้ใบเดียวเหมือนเดิมทุกประการ
-export async function createBillingNote(customerId: string, invoiceIds: string[], billingNoteDate: string, applyDiscount = false, returnTo?: string) {
+export async function createBillingNote(
+  customerId: string,
+  invoiceIds: string[],
+  billingNoteDate: string,
+  applyDiscount = false,
+  returnTo?: string,
+  // R11 — ข้อ 7: true (Default) = แยกใบต่อกลุ่มส่วนลดแบบเดิม / false = รวมใบเดียว
+  // เรียงตามวันที่/เลขที่ Invoice (ตัวเลือกอื่นๆ ลูกค้า/ช่วงวันที่/ส่วนลด เหมือนเดิมทุกอย่าง)
+  splitByGroup = true
+) {
   const user = await requireUser();
   if (!can(user.role, "billingNote.create")) throw new Error("FORBIDDEN");
 
@@ -50,7 +59,7 @@ export async function createBillingNote(customerId: string, invoiceIds: string[]
 
   const date = new Date(billingNoteDate);
   const period = currentPeriod(date);
-  const groups = partitionInvoicesForBilling(invoices);
+  const groups = splitByGroup ? partitionInvoicesForBilling(invoices) : singleBillingGroup(invoices);
 
   // คำนวณส่วนลดต่อกลุ่มนอก Transaction (Read-only ทั้งหมด) — ผูกผลลัพธ์กับชุด Invoice
   // ของกลุ่มนั้นตรงๆ ก่อนเข้าเขียนจริง
@@ -150,6 +159,8 @@ export async function createBillingNoteAction(formData: FormData) {
   const billingNoteDate = String(formData.get("billingNoteDate"));
   const invoiceIds = formData.getAll("invoiceIds").map(String);
   const applyDiscount = formData.get("applyDiscount") === "on";
+  // R11 — ข้อ 7: Checkbox "รวมใบเดียว ไม่แยกตามกลุ่มส่วนลด" (ไม่ติ๊ก = แยกแบบเดิม)
+  const splitByGroup = formData.get("noSplit") !== "on";
   const returnTo = String(formData.get("returnTo") || "");
   // Owner UAT Bug Fix — Submit โดยไม่เลือกใบไหนเลย: เดิม throw ทะลุเป็น Error Boundary
   // เต็มหน้า → เด้งกลับหน้าเดิมพร้อมข้อความสุภาพแทน (ปกติปุ่มถูก disabled ฝั่ง Client
@@ -158,7 +169,7 @@ export async function createBillingNoteAction(formData: FormData) {
   if (invoiceIds.length === 0) {
     redirect(`/billing-notes/new?customerId=${encodeURIComponent(customerId)}&err=noneSelected`);
   }
-  await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount, returnTo);
+  await createBillingNote(customerId, invoiceIds, billingNoteDate, applyDiscount, returnTo, splitByGroup);
 }
 
 // Smoke Test R5 (2026-08-25) — PRINTED Checkpoint ของใบวางบิล (Pattern เดียวกับ

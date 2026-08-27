@@ -49,6 +49,8 @@ export function BillingNoteUnbilledSelector({
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [applyDiscount, setApplyDiscount] = useState(false);
+  // R11 — ข้อ 7: true = รวมใบเดียวไม่แยกกลุ่มส่วนลด (Default false = แยกแบบเดิม)
+  const [noSplit, setNoSplit] = useState(false);
 
   const selectable = invoices;
 
@@ -134,6 +136,7 @@ export function BillingNoteUnbilledSelector({
         <input key={inv.id} type="hidden" name="invoiceIds" value={inv.id} />
       ))}
       <input type="hidden" name="applyDiscount" value={applyDiscount ? "on" : ""} />
+      <input type="hidden" name="noSplit" value={noSplit ? "on" : ""} />
       <input type="hidden" name="returnTo" value={returnTo} />
 
       <div className="bg-white border rounded-lg overflow-hidden mb-4">
@@ -211,8 +214,20 @@ export function BillingNoteUnbilledSelector({
           <span>
             ใช้ส่วนลด (ตาม % กลุ่มส่วนลด / เงื่อนไขลูกค้า-สาขา ณ วันวางบิล)
             <span className="block text-xs text-gray-500">
-              ไม่ติ๊ก = แสดงจำนวนเงินเต็ม / ติ๊ก = แจงส่วนลดต่อใบและหักจากยอดเรียกเก็บจริง (ใบที่หักส่วนลดแล้วตอนออกใบ ไม่ถูกหักซ้ำ) —
-              ระบบแยกใบวางบิลคนละเลขที่ตามกลุ่มส่วนลดให้อัตโนมัติเสมอ
+              ไม่ติ๊ก = แสดงจำนวนเงินเต็ม / ติ๊ก = แจงส่วนลดต่อใบและหักจากยอดเรียกเก็บจริง (ใบที่หักส่วนลดแล้วตอนออกใบ ไม่ถูกหักซ้ำ)
+            </span>
+          </span>
+        </label>
+        {/* R11 — ข้อ 7 (Owner): เลือกได้ว่าจะแยกใบตามกลุ่มส่วนลด (Default เดิม) หรือรวมใบ
+            เดียวเรียงตามวันที่/เลขที่ Invoice — ตัวเลือกอื่นทั้งหมด (ลูกค้า/ช่วงวันที่/
+            ส่วนลด) เหมือนเดิมทุกประการ */}
+        <label className="flex items-center gap-2 text-sm bg-white border rounded-lg px-4 py-3">
+          <input type="checkbox" checked={noSplit} onChange={(e) => setNoSplit(e.target.checked)} />
+          <span>
+            รวมใบเดียว — ไม่แยกใบวางบิลตามกลุ่มส่วนลด
+            <span className="block text-xs text-gray-500">
+              ไม่ติ๊ก = แยกใบวางบิลคนละเลขที่ต่อกลุ่มส่วนลดอัตโนมัติ (แบบเดิม) / ติ๊ก = ทุกใบที่เลือกรวมเป็นใบวางบิลเดียว
+              เรียงตามวันที่ → เลขที่ Invoice
             </span>
           </span>
         </label>
