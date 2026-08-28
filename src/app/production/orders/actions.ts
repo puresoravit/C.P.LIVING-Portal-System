@@ -6,11 +6,12 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { customerPOSchema, customerPOLineInputSchema } from "@/lib/validation";
+import { customerPOSchema, customerPOLineInputSchema, customerPOLineUpdateInputSchema } from "@/lib/validation";
 import { getNextBranchOrderSeq } from "@/lib/branch-order-sequence";
 import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
+import type { RevisionChangeType } from "@prisma/client";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -121,4 +122,256 @@ export async function createCustomerPO(formData: FormData): Promise<ActionResult
 
   revalidatePath("/production/orders");
   redirect(`/production/orders/${po.id}`);
+}
+
+// ---------------------------------------------------------------------------
+// S2 Checkpoint 2 — แก้ไข CustomerPO พร้อม Revision History + Optimistic Concurrency
+// ---------------------------------------------------------------------------
+
+type ExistingLineLike = {
+  id: string;
+  lineKind: string;
+  productId: string | null;
+  rawProductText: string | null;
+  size: string | null;
+  qtyCurrent: number;
+  urgency: boolean;
+  requiredDate: Date | null;
+  note: string | null;
+};
+
+function lineSnapshot(line: ExistingLineLike) {
+  return {
+    lineKind: line.lineKind,
+    productId: line.productId,
+    rawProductText: line.rawProductText,
+    size: line.size,
+    qty: line.qtyCurrent,
+    urgency: line.urgency,
+    requiredDate: line.requiredDate?.toISOString() ?? null,
+    note: line.note,
+  };
+}
+
+function lineDiffers(existing: ExistingLineLike, next: Omit<ExistingLineLike, "id">): boolean {
+  return (
+    existing.lineKind !== next.lineKind ||
+    (existing.productId ?? null) !== (next.productId ?? null) ||
+    (existing.rawProductText ?? null) !== (next.rawProductText ?? null) ||
+    (existing.size ?? null) !== (next.size ?? null) ||
+    existing.qtyCurrent !== next.qtyCurrent ||
+    existing.urgency !== next.urgency ||
+    (existing.requiredDate?.toISOString() ?? null) !== (next.requiredDate?.toISOString() ?? null) ||
+    (existing.note ?? null) !== (next.note ?? null)
+  );
+}
+
+// สัญญาณ "มีคนแก้ไปก่อนแล้วระหว่างที่เปิดฟอร์มอยู่" — จับแยกจาก Error ที่ไม่คาดคิดจริงๆ
+// (ตาม Pattern ActionResult เดิม: Error ที่คาดไว้แล้ว return แทนการ throw)
+class ConcurrentEditError extends Error {}
+
+// ข้อ 3 (S2 Checkpoint 2 requirement) — Create ครั้งแรก = Rev.0 (ทำแล้วใน createCustomerPO)
+// การแก้แต่ละครั้งต้องมี Revision ชัดเจน ทุก Mutation (Header + Lines + Revision + Audit)
+// อยู่ในทรานแซกชันเดียว concurrent edit reject+ให้ reload ไม่ auto-merge (compare-and-swap
+// บน CustomerPO.version — Pattern เดียวกับ confirmOrder/cancelOrder ของ Billing ที่ใช้ CAS
+// บน status แต่ที่นี่ใช้ version number แทนตามที่ตัดสินใจไว้ใน
+// docs/production-module/02-P1-schema-decisions.md)
+export async function updateCustomerPO(id: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "customerPo.editDraft")) throw new Error("FORBIDDEN");
+
+  const raw = customerPOSchema.safeParse({
+    customerId: formData.get("customerId"),
+    branchId: formData.get("branchId") || undefined,
+    dateMode: formData.get("dateMode") || "UNSET",
+    requestedDate: formData.get("requestedDate") || undefined,
+    urgency: formData.get("urgency") === "1",
+  });
+  if (!raw.success) {
+    return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(raw.error) };
+  }
+  const header = raw.data;
+
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) {
+    return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง" };
+  }
+
+  const reason = String(formData.get("reason") || "").trim();
+  if (!reason) {
+    return { success: false, error: "กรุณากรอกเหตุผลที่แก้ไข", fieldErrors: { reason: "กรุณากรอกเหตุผลที่แก้ไข" } };
+  }
+
+  let lines: z.infer<typeof customerPOLineUpdateInputSchema>[];
+  try {
+    const linesRaw = JSON.parse(String(formData.get("linesJson") || "[]"));
+    lines = z.array(customerPOLineUpdateInputSchema).min(1, "ต้องมีอย่างน้อย 1 รายการ").parse(linesRaw);
+  } catch {
+    return {
+      success: false,
+      error: "กรุณาเพิ่มรายการอย่างน้อย 1 รายการ และเลือกสินค้าหรือกรอกชื่อสินค้าให้ครบทุกบรรทัด",
+    };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Compare-and-swap: ถ้า version ไม่ตรง (มีคนแก้ไปแล้วระหว่างเปิดฟอร์มอยู่) count = 0
+      const cas = await tx.customerPO.updateMany({
+        where: { id, version },
+        data: {
+          customerId: header.customerId,
+          branchId: header.branchId || null,
+          dateMode: header.dateMode,
+          requestedDate: header.requestedDate ? new Date(header.requestedDate) : null,
+          urgency: header.urgency,
+          version: { increment: 1 },
+          revCounter: { increment: 1 },
+        },
+      });
+      if (cas.count === 0) throw new ConcurrentEditError();
+
+      const existing = await tx.customerPO.findUniqueOrThrow({
+        where: { id },
+        include: { lines: { where: { active: true } } },
+      });
+      const revNo = existing.revCounter; // ค่าที่เพิ่งเพิ่มจาก updateMany ข้างบน (atomic แล้ว)
+
+      const submittedIds = new Set(lines.filter((l) => l.id).map((l) => l.id as string));
+      const changes: { orderLineId: string | null; changeType: RevisionChangeType; qtyDelta: number | null; before: object; after: object }[] = [];
+
+      // 1) บรรทัดเดิมที่หายไปจากที่ส่งมา = ถูกเอาออกระหว่างแก้ → CANCEL_LINE + Soft-delete
+      //    (active=false) เท่านั้น "ห้าม Hard Delete" — id ต้องคงอยู่ถาวรเพราะถูกอ้างอิงต่อ
+      //    2 ทาง: (1) CustomerPORevisionChange.orderLineId ในทุก Revision ที่เคยแตะบรรทัดนี้
+      //    — Hard Delete จะทำให้ FK (ON DELETE SET NULL) ล้าง orderLineId เป็น null พร้อมกัน
+      //    ทุกแถว ตัดเธรดประวัติของบรรทัดเดียวกันข้ามหลาย Revision ขาดจากกัน (2)
+      //    ProductionItem.customerPoLineId (P2 เตรียมไว้ใน schema แล้ว) ต้องอ้าง identity
+      //    บรรทัดต้นทางถาวรข้ามเวลา — Query/แสดงผลหน้าจอทุกจุดต้อง filter active:true เสมอ
+      const toDelete = existing.lines.filter((l) => !submittedIds.has(l.id));
+      for (const line of toDelete) {
+        changes.push({ orderLineId: line.id, changeType: "CANCEL_LINE", qtyDelta: -line.qtyCurrent, before: lineSnapshot(line), after: {} });
+      }
+      if (toDelete.length > 0) {
+        await tx.customerPOLine.updateMany({ where: { id: { in: toDelete.map((l) => l.id) } }, data: { active: false } });
+      }
+
+      // 2) บรรทัดเดิมที่ยังอยู่ — อัปเดตเฉพาะที่เนื้อหาเปลี่ยนจริง (กันประวัติเป็น Noise)
+      for (const l of lines) {
+        if (!l.id) continue;
+        const existingLine = existing.lines.find((e) => e.id === l.id);
+        if (!existingLine) continue;
+        const nextData = {
+          lineKind: l.lineKind,
+          productId: l.lineKind === "CATALOG" ? l.productId ?? null : null,
+          rawProductText: l.lineKind === "UNRESOLVED" ? l.rawProductText ?? null : null,
+          size: l.size || null,
+          qtyCurrent: l.qtyCurrent,
+          urgency: l.urgency,
+          requiredDate: l.requiredDate ? new Date(l.requiredDate) : null,
+          note: l.note || null,
+        };
+        if (!lineDiffers(existingLine, nextData)) continue;
+
+        const resolvedNow = existingLine.lineKind === "UNRESOLVED" && nextData.lineKind === "CATALOG" && !!nextData.productId;
+        changes.push({
+          orderLineId: existingLine.id,
+          changeType: resolvedNow ? "RESOLVE_PRODUCT" : "QTY_CHANGE",
+          qtyDelta: nextData.qtyCurrent - existingLine.qtyCurrent,
+          before: lineSnapshot(existingLine),
+          after: lineSnapshot({ ...existingLine, ...nextData }),
+        });
+        await tx.customerPOLine.update({ where: { id: existingLine.id }, data: nextData });
+      }
+
+      // 3) บรรทัดใหม่ที่เพิ่มระหว่างแก้ (ไม่มี id) → ADD_LINE
+      for (const l of lines) {
+        if (l.id) continue;
+        const created = await tx.customerPOLine.create({
+          data: {
+            customerPoId: id,
+            lineKind: l.lineKind,
+            productId: l.lineKind === "CATALOG" ? l.productId ?? null : null,
+            rawProductText: l.lineKind === "UNRESOLVED" ? l.rawProductText ?? null : null,
+            size: l.size || null,
+            qtyCurrent: l.qtyCurrent,
+            urgency: l.urgency,
+            requiredDate: l.requiredDate ? new Date(l.requiredDate) : null,
+            note: l.note || null,
+          },
+        });
+        changes.push({ orderLineId: created.id, changeType: "ADD_LINE", qtyDelta: created.qtyCurrent, before: {}, after: lineSnapshot(created) });
+      }
+
+      // 4) หัวเอกสารเปลี่ยน (ลูกค้า/สาขา/วันที่/ด่วน) → บันทึกเป็น ORDER_LEVEL แยกจากบรรทัด
+      const headerChanged =
+        existing.customerId !== header.customerId ||
+        (existing.branchId ?? null) !== (header.branchId || null) ||
+        existing.dateMode !== header.dateMode ||
+        existing.urgency !== header.urgency ||
+        (existing.requestedDate?.toISOString() ?? null) !== (header.requestedDate ? new Date(header.requestedDate).toISOString() : null);
+      if (headerChanged) {
+        changes.push({
+          orderLineId: null,
+          changeType: "ORDER_LEVEL",
+          qtyDelta: null,
+          before: {
+            customerId: existing.customerId,
+            branchId: existing.branchId,
+            dateMode: existing.dateMode,
+            requestedDate: existing.requestedDate?.toISOString() ?? null,
+            urgency: existing.urgency,
+          },
+          after: {
+            customerId: header.customerId,
+            branchId: header.branchId || null,
+            dateMode: header.dateMode,
+            requestedDate: header.requestedDate ? new Date(header.requestedDate).toISOString() : null,
+            urgency: header.urgency,
+          },
+        });
+      }
+
+      const revision = await tx.customerPORevision.create({
+        data: { customerPoId: id, revNo, actorId: user.id, reason },
+      });
+
+      if (changes.length > 0) {
+        await tx.customerPORevisionChange.createMany({
+          data: changes.map((c) => ({
+            revisionId: revision.id,
+            orderLineId: c.orderLineId,
+            changeType: c.changeType,
+            qtyDelta: c.qtyDelta,
+            before: c.before,
+            after: c.after,
+          })),
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "CustomerPO",
+          recordId: id,
+          customerId: header.customerId,
+          branchId: header.branchId || null,
+          customerPoId: id,
+          oldValue: { revNo: revNo - 1 },
+          newValue: { revNo, changeCount: changes.length, reason },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ConcurrentEditError) {
+      return {
+        success: false,
+        error: "ออเดอร์นี้ถูกแก้ไขโดยคนอื่นระหว่างที่คุณเปิดหน้าอยู่ — กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง (ไม่มีการรวมข้อมูลอัตโนมัติ)",
+      };
+    }
+    throw error;
+  }
+
+  revalidatePath("/production/orders");
+  revalidatePath(`/production/orders/${id}`);
+  redirect(`/production/orders/${id}`);
 }

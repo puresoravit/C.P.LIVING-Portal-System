@@ -25,6 +25,10 @@ type CustomerOption = {
 
 type LineDraft = {
   key: number;
+  // S2 Checkpoint 2 — id = CustomerPOLine.id จริงถ้าเป็นบรรทัดเดิม (โหมดแก้ไข), null =
+  // บรรทัดใหม่ (สร้างใหม่ หรือเพิ่มระหว่างแก้ไข) ต่างจาก key ที่เป็นแค่ React reconciliation
+  // ล้วนๆ — id นี้เองที่ทำให้ updateCustomerPO ตัดสินได้ว่าบรรทัดไหนแก้/เพิ่ม/ลบ
+  id: string | null;
   lineKind: "CATALOG" | "UNRESOLVED";
   productId: string | null;
   productLabel: string; // แสดงผลเท่านั้น
@@ -41,10 +45,11 @@ type LineDraft = {
 };
 
 let keySeq = 0;
-function emptyLine(): LineDraft {
+function emptyLine(overrides?: Partial<Omit<LineDraft, "key">>): LineDraft {
   keySeq += 1;
   return {
     key: keySeq,
+    id: null,
     lineKind: "CATALOG",
     productId: null,
     productLabel: "",
@@ -55,27 +60,76 @@ function emptyLine(): LineDraft {
     requiredDate: "",
     note: "",
     selectedModel: null,
+    ...overrides,
   };
 }
 
+// S2 Checkpoint 2 — ข้อมูลตั้งต้นตอนแก้ไข (Server Component ประกอบมาให้แล้ว รวม
+// productLabel ที่ resolve จาก productionLabel/name เรียบร้อย) id/version ใช้คู่กับ
+// Optimistic Lock (compare-and-swap บน CustomerPO.version)
+export type CustomerPOFormInitial = {
+  id: string;
+  version: number;
+  customerId: string;
+  branchId: string;
+  dateMode: "UNSET" | "ESTIMATE" | "EXACT";
+  requestedDate: string;
+  urgency: boolean;
+  lines: {
+    id: string;
+    lineKind: "CATALOG" | "UNRESOLVED";
+    productId: string | null;
+    productLabel: string;
+    rawProductText: string;
+    size: string;
+    qtyCurrent: number;
+    urgency: boolean;
+    requiredDate: string;
+    note: string;
+  }[];
+};
+
 export function CustomerPOForm({
   customers,
-  createAction,
+  action,
+  initial,
 }: {
   customers: CustomerOption[];
-  createAction: (formData: FormData) => Promise<ActionResult | void>;
+  action: (formData: FormData) => Promise<ActionResult | void>;
+  /** ให้มา = โหมดแก้ไข (มีช่องเหตุผล + ส่ง version ไปด้วยสำหรับ Optimistic Lock) —
+   * ไม่ให้มา = โหมดสร้างใหม่ */
+  initial?: CustomerPOFormInitial;
 }) {
-  const [customerId, setCustomerId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [dateMode, setDateMode] = useState<"UNSET" | "ESTIMATE" | "EXACT">("UNSET");
-  const [requestedDate, setRequestedDate] = useState("");
-  const [urgency, setUrgency] = useState(false);
+  const isEdit = !!initial;
+  const [customerId, setCustomerId] = useState(initial?.customerId ?? "");
+  const [branchId, setBranchId] = useState(initial?.branchId ?? "");
+  const [dateMode, setDateMode] = useState<"UNSET" | "ESTIMATE" | "EXACT">(initial?.dateMode ?? "UNSET");
+  const [requestedDate, setRequestedDate] = useState(initial?.requestedDate ?? "");
+  const [urgency, setUrgency] = useState(initial?.urgency ?? false);
+  const [reason, setReason] = useState("");
   // Bug fix — ต้องเป็น Lazy Initializer (function) ไม่ใช่ Eager ([emptyLine()]) เพราะ
   // React เรียก Argument ของ useState "ทุก Render" (แค่ใช้ผลแค่ครั้งแรก) — เดิม
   // emptyLine() เลยถูกเรียกซ้ำทุกครั้งที่ Component Re-render โดยไม่จำเป็น เพิ่ม
   // module-level keySeq เปล่าๆ ทิ้ง (ไม่ทำให้ key ชนกันเพราะ keySeq เพิ่มทางเดียว แต่เป็น
   // React Anti-pattern ที่ต้องแก้ให้ถูกต้อง ไม่ควรมี Side Effect ระหว่าง Render เลย)
-  const [lines, setLines] = useState<LineDraft[]>(() => [emptyLine()]);
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    initial
+      ? initial.lines.map((l) =>
+          emptyLine({
+            id: l.id,
+            lineKind: l.lineKind,
+            productId: l.productId,
+            productLabel: l.productLabel,
+            rawProductText: l.rawProductText,
+            size: l.size,
+            qtyCurrent: String(l.qtyCurrent),
+            urgency: l.urgency,
+            requiredDate: l.requiredDate,
+            note: l.note,
+          })
+        )
+      : [emptyLine()]
+  );
   const [err, setErr] = useState("");
   // เพิ่มเพื่อ Pinpoint ว่าบรรทัดไหนจริงๆ ที่ validation ไม่ผ่าน (ไฮไลต์กรอบแดงตรงบรรทัด
   // แทนข้อความรวมบนสุดอย่างเดียว) — เคลียร์ทันทีที่บรรทัดนั้นถูกแก้ไข
@@ -161,6 +215,7 @@ export function CustomerPOForm({
   // แล้วแต่ validation ยังฟ้อง" ไม่ได้ว่าเป็น State ไม่ Sync จริง หรือมีบรรทัดว่างที่ไม่ทันสังเกต
   function findInvalidLines(): { invalidKeys: Set<number>; message: string } | null {
     if (!customerId) return { invalidKeys: new Set(), message: "กรุณาเลือกลูกค้า" };
+    if (isEdit && !reason.trim()) return { invalidKeys: new Set(), message: "กรุณากรอกเหตุผลที่แก้ไข" };
     const invalidKeys = new Set<number>();
     for (const l of lines) {
       const qty = Number(l.qtyCurrent);
@@ -193,10 +248,15 @@ export function CustomerPOForm({
     formData.set("dateMode", dateMode);
     formData.set("requestedDate", requestedDate);
     formData.set("urgency", urgency ? "1" : "0");
+    if (isEdit) {
+      formData.set("version", String(initial!.version));
+      formData.set("reason", reason);
+    }
     formData.set(
       "linesJson",
       JSON.stringify(
         lines.map((l) => ({
+          id: l.id ?? undefined,
           lineKind: l.lineKind,
           productId: l.lineKind === "CATALOG" ? l.productId ?? undefined : undefined,
           rawProductText: l.lineKind === "UNRESOLVED" ? l.rawProductText.trim() : undefined,
@@ -211,9 +271,9 @@ export function CustomerPOForm({
 
     startTransition(async () => {
       try {
-        const result = await createAction(formData);
-        // createCustomerPO เรียก redirect() เมื่อสำเร็จ — ถ้ามาถึงตรงนี้พร้อม result
-        // แปลว่าเป็น validation error ที่ตั้งใจคืนกลับมา (ไม่ throw)
+        const result = await action(formData);
+        // createCustomerPO/updateCustomerPO เรียก redirect() เมื่อสำเร็จ — ถ้ามาถึงตรงนี้
+        // พร้อม result แปลว่าเป็น validation/concurrency error ที่ตั้งใจคืนกลับมา (ไม่ throw)
         if (result && !result.success) {
           showError(result.error);
         }
@@ -437,6 +497,19 @@ export function CustomerPOForm({
         + เพิ่มรายการ
       </button>
 
+      {isEdit && (
+        <div className="bg-white border rounded-lg p-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">เหตุผลที่แก้ไข *</label>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="เช่น ลูกค้าโทรมาเพิ่มจำนวน, แก้ไซส์ผิด"
+            className="w-full border rounded px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-1">บันทึกเป็นประวัติการแก้ไข (Rev.{initial!.version + 1}) — ดูย้อนหลังได้ในหน้ารายละเอียด</p>
+        </div>
+      )}
+
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <button
@@ -444,7 +517,7 @@ export function CustomerPOForm({
         disabled={isPending}
         className="w-full bg-cp-navy hover:bg-cp-navy-light disabled:opacity-50 text-white text-sm font-medium rounded-lg px-4 py-3"
       >
-        {isPending ? "กำลังบันทึก..." : "บันทึก P.O."}
+        {isPending ? "กำลังบันทึก..." : isEdit ? "บันทึกการแก้ไข" : "บันทึก P.O."}
       </button>
     </form>
   );

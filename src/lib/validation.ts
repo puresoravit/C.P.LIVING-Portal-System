@@ -84,6 +84,24 @@ export const customerPOLineInputSchema = z
     message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
   });
 
+// S2 Checkpoint 2 — เหมือน customerPOLineInputSchema ทุกประการ + id (ไม่ว่าง = บรรทัดเดิม
+// ที่มีอยู่แล้ว ใช้ตัดสินว่าเป็นการแก้ไข/ลบ ไม่ใช่เพิ่มใหม่ — ว่าง = บรรทัดใหม่ที่เพิ่มระหว่างแก้)
+export const customerPOLineUpdateInputSchema = z
+  .object({
+    id: z.string().optional(),
+    lineKind: z.enum(["CATALOG", "UNRESOLVED"]),
+    productId: z.string().optional(),
+    rawProductText: z.string().optional(),
+    size: z.string().optional(),
+    qtyCurrent: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+    urgency: z.coerce.boolean().default(false),
+    requiredDate: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((d) => (d.lineKind === "CATALOG" ? !!d.productId : !!d.rawProductText?.trim()), {
+    message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
+  });
+
 export const productAliasSchema = z.object({
   aliasText: z.string().min(1, "กรุณากรอกชื่อเรียก"),
   lang: z.string().optional(),

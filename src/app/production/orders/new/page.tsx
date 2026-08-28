@@ -23,7 +23,7 @@ export default async function NewCustomerPOPage() {
       <p className="text-sm text-gray-500 mb-4">
         คีย์รายการที่ลูกค้าสั่ง — ถ้าสินค้ายังไม่มีในระบบ ติ๊ก &quot;พิมพ์ชื่อเอง&quot; ได้ ค่อยผูกกับสินค้าจริงทีหลัง
       </p>
-      <CustomerPOForm customers={customers} createAction={createCustomerPO} />
+      <CustomerPOForm customers={customers} action={createCustomerPO} />
     </div>
   );
 }

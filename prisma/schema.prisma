@@ -1122,6 +1122,15 @@ model CustomerPOLine {
   customL         Decimal?      @db.Decimal(8, 2)
   customThickness String?
   note            String?
+  // S2 Checkpoint 2 (แก้หลัง Owner ถามก่อน commit) — Soft-delete แทน Hard Delete ตอนลบ
+  // รายการระหว่างแก้ไข P.O. เพราะ id ของแถวนี้ถูกอ้างต่อเนื่องจาก 2 ทาง: (1)
+  // CustomerPORevisionChange.orderLineId ในทุก Revision ที่เคยแตะบรรทัดนี้ — Hard Delete
+  // จะทำให้ FK (ON DELETE SET NULL) ล้าง orderLineId เป็น null พร้อมกันทุกแถวประวัติ ทำให้
+  // เธรดประวัติของบรรทัดเดียวกันข้ามหลาย Revision ขาดจากกัน (2) ProductionItem.customerPoLineId
+  // (P2 ยังไม่ implement แต่ schema เตรียมไว้แล้ว) ต้องการอ้าง identity ของบรรทัดต้นทางถาวร
+  // — ใช้ `active` ตาม Pattern เดิมที่ใช้ทั้งระบบ (User/Customer/Branch/ProductType/...)
+  // ไม่ใช่คิดรูปแบบใหม่
+  active          Boolean       @default(true)
 
   revisionChanges CustomerPORevisionChange[]
   productionItems ProductionItem[]

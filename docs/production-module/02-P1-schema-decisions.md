@@ -46,6 +46,7 @@ await tx.quotationItem.createMany({ data: calc.items.map(...) }); // สร้�
 - `ProductAlias` XOR (`productModelId`/`productId`) บังคับที่ Application layer เหมือน `resolveAccessHead()` เดิม ไม่ใช้ DB CHECK (ทั้งระบบไม่มี CHECK constraint เลย)
 - สูตรผ้า/ชั้นโครงสร้าง: เก็บข้อมูลจริงแบบ structured เต็ม (ใช้คำนวณ `spec_hash`) + field override สำหรับแสดงผล/พิมพ์แยกต่างหาก ไม่กระทบ hash — รูปแบบการพิมพ์จริงยังไม่ lock (ปรับได้ภายหลังโดยไม่ migrate schema ใหม่)
 - Mobile-first เฉพาะหน้าจอปฏิบัติงาน (สร้าง/แก้ออเดอร์, ยืนยันรายการ) — ฟอร์มพิมพ์ A4 แยกเทมเพลตต่างหาก ไม่ปนกับ UI จอมือถือ
+- **S2 Checkpoint 2**: ลบรายการ (`CustomerPOLine`) ระหว่างแก้ไข P.O. = **Soft-delete (`active: false`) เท่านั้น ห้าม Hard Delete** — ถอนแนวทางแรกที่เคย hard-delete แล้ว (Owner ถามก่อน commit ให้ inspect ซ้ำ): id ของบรรทัดถูกอ้างต่อเนื่องจาก 2 ทาง (1) `CustomerPORevisionChange.orderLineId` ในทุก Revision ที่เคยแตะบรรทัดนั้น — Hard Delete ทำให้ FK (`ON DELETE SET NULL`) ล้าง orderLineId เป็น null พร้อมกันทุกแถวประวัติ ตัดเธรดประวัติของบรรทัดเดียวกันข้ามหลาย Revision ขาดจากกัน (พิสูจน์แล้วด้วย smoke test จริง) (2) `ProductionItem.customerPoLineId` (เตรียมไว้ใน schema แล้วสำหรับ P2) ต้องอ้าง identity บรรทัดต้นทางถาวรข้ามเวลา — ใช้ field `active Boolean @default(true)` ตาม Pattern เดิมที่ใช้ทั้งระบบ (`User`/`Customer`/`Branch`/`ProductType`/ฯลฯ) ไม่ใช่คิดรูปแบบใหม่ — ทุก Query ที่แสดงรายการสดต้อง `where: { active: true }` เสมอ (list/detail/edit page + `_count`)
 
 ## 3. ยังไม่ตัดสินใจ (ไม่บล็อก P1 แต่ต้องรู้ก่อน sprint ที่เกี่ยวข้อง)
 

@@ -12,7 +12,7 @@ export default async function CustomerOrdersPage() {
     include: {
       customer: { select: { companyName: true, code: true } },
       branch: { select: { name: true } },
-      _count: { select: { lines: true } },
+      _count: { select: { lines: { where: { active: true } } } },
     },
     take: 100,
   });
