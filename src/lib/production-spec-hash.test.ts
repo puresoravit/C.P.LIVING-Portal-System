@@ -166,7 +166,7 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
     expect(inOrder).toBe(outOfOrder);
   });
 
-  it("displayOverride ไม่กระทบ hash", () => {
+  it("fabric displayOverride ไม่กระทบ hash", () => {
     const withoutOverride = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
     const withOverride = computeSpecHash({
       productFamilyKey: "model:p-vanessa",
@@ -176,6 +176,42 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
       layers: vanessaLayers,
     });
     expect(withoutOverride).toBe(withOverride);
+  });
+
+  // LayerSpecInput ไม่มี field displayOverride เลยในระดับ type (ต่างจาก FabricSpecInput ที่มี)
+  // — กัน "ลืมกรอง" ไม่ให้เกิดขึ้นได้เลยตั้งแต่ compile-time แต่ยัง test runtime ไว้ด้วยเผื่อมี
+  // การส่ง object ที่มี field เกินมาจากที่อื่น (เช่นตรงจาก DB row ที่มีคอลัมน์ displayOverride จริง)
+  it("layer displayOverride (ถ้ามีติดมาจาก object อื่น) ไม่กระทบ hash เพราะ computeSpecHash อ่านแค่ seq/material/spec", () => {
+    const withoutOverride = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: [], layers: vanessaLayers });
+    const layersWithExtraField = vanessaLayers.map((l) => ({ ...l, displayOverride: "ข้อความพิมพ์ทับชั้นโครงสร้าง" }));
+    const withOverride = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: [], layers: layersWithExtraField });
+    expect(withoutOverride).toBe(withOverride);
+  });
+
+  // ยืนยันแล้ว (ต่างจากผ้า): ลำดับ ProductionItemLayer คือโครงสร้างจริงบนลงล่าง มีผลต่อสเปก —
+  // สลับลำดับ 2 ชั้นที่มีเนื้อหาต่างกัน (ไม่ใช่แค่ตำแหน่งในอาเรย์) ต้องได้ specHash ต่างกัน
+  it("[ยืนยันแล้ว] สลับลำดับชั้นโครงสร้าง (บนลงล่าง) ให้ specHash ต่างกัน เพราะลำดับ = โครงสร้างจริง", () => {
+    const topToBottom = computeSpecHash({
+      productFamilyKey: "model:p-vanessa",
+      gussetCount: 1,
+      thickness: "8",
+      fabrics: [],
+      layers: [
+        { seq: 0, material: "Memory Foam", spec: "1\"" },
+        { seq: 1, material: "Pocket Spring", spec: "8\"" },
+      ],
+    });
+    const bottomToTop = computeSpecHash({
+      productFamilyKey: "model:p-vanessa",
+      gussetCount: 1,
+      thickness: "8",
+      fabrics: [],
+      layers: [
+        { seq: 0, material: "Pocket Spring", spec: "8\"" },
+        { seq: 1, material: "Memory Foam", spec: "1\"" },
+      ],
+    });
+    expect(topToBottom).not.toBe(bottomToTop);
   });
 
   it("productFamilyKey ต่างกัน (คนละรุ่น) แม้สเปกอื่นเหมือนกันเป๊ะ ต้องได้ specHash คนละค่า", () => {

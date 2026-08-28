@@ -1,34 +1,32 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { displayProdNo } from "@/lib/production-order-display";
+import { ProductionOrderRevisionView } from "@/components/production/production-order-revision-view";
 
-// S3 CP1 — หน้ารายละเอียดใบสั่งผลิต แสดงเฉพาะ Revision ปัจจุบัน (currentRevNo) — ยังไม่มี UI
-// ดู Rev เก่า/revise/print ในรอบนี้ (CP3/S4)
-
+// S3 CP2 — หน้ารายละเอียดใบสั่งผลิต แสดง Revision ปัจจุบัน (currentRevNo) แบบจัดกลุ่มตาม
+// specHash (Production Block) ผ่าน ProductionOrderRevisionView ที่ใช้ร่วมกับหน้าดู
+// Revision เก่า (CP3 — ดู [id]/rev/[revNo]/page.tsx)
 export default async function ProductionOrderDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const order = await db.productionOrder.findUnique({
     where: { id: params.id },
     include: {
       customerPo: { include: { customer: { select: { companyName: true, code: true } }, branch: { select: { name: true } } } },
-      revisions: {
-        orderBy: { revNo: "desc" },
-        take: 1,
-        include: {
-          items: {
-            include: {
-              fabrics: { orderBy: [{ placement: "asc" }, { seq: "asc" }] },
-              layers: { orderBy: { seq: "asc" } },
-              customerPoLine: { select: { id: true } },
-            },
-          },
-        },
-      },
     },
   });
   if (!order) notFound();
 
-  const currentRevision = order.revisions.find((r) => r.revNo === order.currentRevNo) ?? order.revisions[0];
+  const currentRevision = await db.productionOrderRevision.findUnique({
+    where: { productionOrderId_revNo: { productionOrderId: order.id, revNo: order.currentRevNo } },
+    include: {
+      items: {
+        include: {
+          fabrics: { orderBy: [{ placement: "asc" }, { seq: "asc" }] },
+          layers: { orderBy: { seq: "asc" } },
+        },
+      },
+    },
+  });
 
   return (
     <div className="max-w-2xl">
@@ -45,60 +43,7 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
       </p>
 
       <h2 className="text-sm font-medium text-gray-700 mb-2">รายการผลิต ({currentRevision?.items.length ?? 0})</h2>
-      <div className="space-y-3">
-        {currentRevision?.items.map((item) => (
-          <div key={item.id} className="bg-white border rounded-lg p-3 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-sm font-medium">
-                  {item.productionLabelSnapshot ?? item.nameSnapshot ?? "—"}
-                  {item.size && <span className="text-gray-500"> (ไซส์ {item.size})</span>}
-                </div>
-                {item.skuSnapshot && <div className="text-xs text-gray-400 font-mono">{item.skuSnapshot}</div>}
-                {item.customerPoLine && (
-                  <a href={`/production/orders/${order.customerPoId}`} className="text-xs text-blue-600 hover:underline">
-                    ย้อนไปดูรายการต้นทางใน P.O.
-                  </a>
-                )}
-              </div>
-              <div className="text-lg font-semibold shrink-0">{item.qty}</div>
-            </div>
-
-            <div className="text-xs text-gray-500 flex flex-wrap gap-x-3">
-              {item.gussetCount != null && <span>กุ๊น {item.gussetCount}</span>}
-              {item.thickness && <span>ความหนา {item.thickness}</span>}
-              <span className="font-mono text-gray-300" title="spec_hash">
-                {item.specHash.slice(0, 12)}
-              </span>
-            </div>
-
-            <div className="text-xs">
-              <div className="text-gray-500 mb-0.5">ผ้า</div>
-              <ul className="space-y-0.5">
-                {item.fabrics.map((f) => (
-                  <li key={f.id}>
-                    <span className="font-medium">{f.placement}</span>: {f.displayOverride ?? f.fabricName}
-                    {f.waddingWeight && ` + ใย ${f.waddingWeight}`}
-                    {f.foamThickness && ` + ฟ.${f.foamThickness}`}
-                    {f.colorNote && ` (${f.colorNote})`}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="text-xs">
-              <div className="text-gray-500 mb-0.5">โครงสร้าง (บนลงล่าง)</div>
-              <ol className="list-decimal list-inside space-y-0.5">
-                {item.layers.map((l) => (
-                  <li key={l.id}>{l.displayOverride ?? `${l.material} ${l.spec}`}</li>
-                ))}
-              </ol>
-            </div>
-
-            {item.note && <div className="text-xs text-gray-500">หมายเหตุ: {item.note}</div>}
-          </div>
-        ))}
-      </div>
+      {currentRevision && <ProductionOrderRevisionView items={currentRevision.items} customerPoId={order.customerPoId} />}
     </div>
   );
 }
