@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CPIcon } from "@/components/portal/cp-brand";
+
+// Owner UAT (2026-08-28) — ปัดนิ้วจากขอบซ้ายสุดของจอไปทางขวาให้เปิดเมนูได้เหมือนท่ามาตรฐาน
+// ของแอพมือถือ (iOS edge-swipe) — จับด้วย document-level touch listener (ทำงานได้จาก
+// ทุกหน้า ไม่ใช่แค่แถบหัว) ปัดต้องเริ่ม "จากขอบจริงๆ" (EDGE_ZONE_PX) กันชนกับการเลื่อน
+// แนวนอนของตารางที่มี overflow-x-auto อยู่กลางหน้า — Listener เป็น passive (ไม่เรียก
+// preventDefault) จึงไม่กระทบการ Scroll ปกติของหน้าเลยแม้แต่นิดเดียว แค่ "แอบดู" ทิศทาง
+// การปัดเพื่อ setOpen(true) — Animation ที่ตามมาใช้ transition เดิมของ <aside> ทั้งหมด
+const EDGE_ZONE_PX = 24;
+const SWIPE_THRESHOLD_PX = 60;
 
 // Phase Nav-1 — Sidebar เดิมเป็น <aside> กว้างคงที่ที่แสดงตลอดเวลา ไม่รองรับจอเล็ก
 // เพราะเมนูตอนนั้นสั้น (Flat List) แต่ตอนนี้เมนูมี Group/Submenu ลึกขึ้น จึงต้องมี
@@ -24,10 +33,59 @@ import { CPIcon } from "@/components/portal/cp-brand";
 // เสี่ยง (ไม่ต้องหา Logo/Icon สีขาวสำรองสำหรับพื้นที่ที่เห็นตลอดเวลาโดยไม่จำเป็น)
 export function SidebarShell({ brand, userInfo, children }: { brand: string; userInfo: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    function onTouchStart(e: TouchEvent) {
+      if (openRef.current) return; // เปิดอยู่แล้ว ไม่ต้องจับปัด
+      const t = e.touches[0];
+      touchStart.current = t.clientX <= EDGE_ZONE_PX ? { x: t.clientX, y: t.clientY } : null;
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!touchStart.current) return;
+      const t = e.touches[0];
+      const dx = t.clientX - touchStart.current.x;
+      const dy = t.clientY - touchStart.current.y;
+      // ต้องปัดแนวนอนชัดเจน (dx เยอะกว่า dy) กันชนกับ Scroll แนวตั้งของหน้า
+      if (dx > SWIPE_THRESHOLD_PX && dx > Math.abs(dy) * 1.5) {
+        setOpen(true);
+        touchStart.current = null;
+      }
+    }
+    function onTouchEnd() {
+      touchStart.current = null;
+    }
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    document.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+      document.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
 
   return (
     <>
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b print:hidden sticky top-0 z-30">
+      {/* Owner UAT (2026-08-28) — ย้ายปุ่มเปิดเมนู (สามขีด) จากขวาไปซ้ายสุด — เลิกใช้
+          justify-between (เดิมตรึงโลโก้ซ้าย/ปุ่มขวาคนละหัวท้าย) เปลี่ยนเป็นเรียงชิดซ้าย
+          ด้วยกันทั้งคู่ (ปุ่มก่อน โลโก้ตามหลัง) ตาม Pattern เมนูมือถือทั่วไป */}
+      <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b print:hidden sticky top-0 z-30">
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="เปิดเมนู"
+          className="p-2 -ml-2 text-gray-600 hover:text-gray-900"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
         {/* Owner UAT — Logo ขยายเป็น 24px (18→21→24 ตามลำดับ Feedback) แล้วขยับขึ้นเล็กน้อย
             (-mt-[1.5px]) ให้จุดกึ่งกลางแนวตั้งของ Logo สองบรรทัด (สัญลักษณ์+C.P.) ตรงกับ
             กึ่งกลางบรรทัดข้อความแบบ Optical (ไม่ใช่ Mathematical Center ของ items-center
@@ -36,17 +94,6 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
           <CPIcon height={24} className="-mt-[1.5px]" />
           <span className="font-semibold">{brand}</span>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="เปิดเมนู"
-          className="p-2 -mr-2 text-gray-600 hover:text-gray-900"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
       </div>
 
       {open && <div className="md:hidden fixed inset-0 bg-black/40 z-40 print:hidden" onClick={() => setOpen(false)} />}
