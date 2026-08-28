@@ -134,6 +134,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
             placeholder="เช่น INV-A-202608 หรือ บริษัท..."
             basePath="/invoices"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>

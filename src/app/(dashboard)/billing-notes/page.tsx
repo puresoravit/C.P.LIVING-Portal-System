@@ -103,6 +103,7 @@ export default async function BillingNotesPage(props: { searchParams: Promise<Se
             placeholder="เช่น BI-202608 หรือ บริษัท..."
             basePath="/billing-notes"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>

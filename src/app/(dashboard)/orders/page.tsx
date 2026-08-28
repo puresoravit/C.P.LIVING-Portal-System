@@ -171,6 +171,7 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
             placeholder="เช่น ORDER-202608, INV-A-202608 หรือ บริษัท..."
             basePath="/orders"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>

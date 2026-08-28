@@ -13,6 +13,7 @@ export function SearchInputWithClear({
   autoFocus,
   basePath,
   preserveParams,
+  formParams,
   className = "w-full border rounded px-3 py-1.5 text-sm",
 }: {
   name?: string;
@@ -21,6 +22,15 @@ export function SearchInputWithClear({
   autoFocus?: boolean;
   basePath: string;
   preserveParams: Record<string, string>;
+  /** Owner UAT (2026-08-28) — พารามิเตอร์ที่ต้อง "คงไว้ตอน submit จริง" (กด Enter/ปุ่ม
+   * ค้นหา) ผ่าน hidden input — ต่างจาก preserveParams ด้านบนซึ่งใช้แค่คำนวณ href ของปุ่ม
+   * × (ลิงก์ ไม่ใช่ field ของฟอร์ม) เดิมฟอร์มนี้ไม่มี field คุมค่าอื่นเลยนอกจาก q → submit
+   * แล้ว Query String อื่นที่กำลังดูอยู่ (เช่น company/view ของหน้าสินค้า, status ของหน้า
+   * รายการเอกสาร) หายหมด บางหน้าเด้งไปหน้าอื่นไปเลย (เช่น /products ไม่มี company ตกไปที่
+   * มุมมอง Landing) — ต้องส่งเฉพาะ Key ที่ "ไม่ได้" เป็น field จริงอยู่แล้วในฟอร์มเดียวกัน
+   * (เช่น dateFrom/dateTo ของหน้ารายการเอกสารมีช่องจริงอยู่แล้ว ห้ามส่งซ้ำ ไม่งั้นได้ Key
+   * ซ้ำ 2 ค่าในแบบ Query String เดียวกัน) — ไม่ส่ง = พฤติกรรมเดิมทุกประการ */
+  formParams?: Record<string, string>;
   className?: string;
 }) {
   const qs = new URLSearchParams(preserveParams).toString();
@@ -29,6 +39,8 @@ export function SearchInputWithClear({
 
   return (
     <div className="relative">
+      {formParams &&
+        Object.entries(formParams).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <input
         name={name}
         defaultValue={defaultValue}
