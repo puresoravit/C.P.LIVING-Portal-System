@@ -67,25 +67,25 @@ const charlotteLayers: LayerSpecInput[] = [
 
 describe("computeSpecHash — ตัวอย่างจริงจาก Owner", () => {
   it("Vanessa: HEAD_TAIL แยกจาก TOP/BOTTOM ได้ ไม่ทับกัน", () => {
-    const hash = computeSpecHash({ productId: "p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    const hash = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("Box Spring: WHOLE ต่างจากการไม่มี fabric เลย (placement ว่าง)", () => {
-    const withWhole = computeSpecHash({ productId: "p-boxspring", gussetCount: null, thickness: null, fabrics: boxSpringFabrics, layers: boxSpringLayers });
-    const withoutFabric = computeSpecHash({ productId: "p-boxspring", gussetCount: null, thickness: null, fabrics: [], layers: boxSpringLayers });
+    const withWhole = computeSpecHash({ productFamilyKey: "model:p-boxspring", gussetCount: null, thickness: null, fabrics: boxSpringFabrics, layers: boxSpringLayers });
+    const withoutFabric = computeSpecHash({ productFamilyKey: "model:p-boxspring", gussetCount: null, thickness: null, fabrics: [], layers: boxSpringLayers });
     expect(withWhole).not.toBe(withoutFabric);
   });
 
   it("Luxury 6\" กับ 8\": รุ่นเดียวกัน (productId เดียวกัน) แต่ thickness+layers ต่างกัน ต้องได้ specHash คนละค่า", () => {
-    const luxury8 = computeSpecHash({ productId: "p-luxury", gussetCount: 2, thickness: "8", fabrics: [], layers: luxury8Layers });
-    const luxury6 = computeSpecHash({ productId: "p-luxury", gussetCount: 2, thickness: "6", fabrics: [], layers: luxury6Layers });
+    const luxury8 = computeSpecHash({ productFamilyKey: "model:p-luxury", gussetCount: 2, thickness: "8", fabrics: [], layers: luxury8Layers });
+    const luxury6 = computeSpecHash({ productFamilyKey: "model:p-luxury", gussetCount: 2, thickness: "6", fabrics: [], layers: luxury6Layers });
     expect(luxury8).not.toBe(luxury6);
   });
 
   it("Charlotte: เปลี่ยน gussetCount เท่านั้น (spec อื่นเหมือนเดิม) ต้องได้ specHash คนละค่า", () => {
-    const gusset1 = computeSpecHash({ productId: "p-charlotte", gussetCount: 1, thickness: "8", fabrics: charlotteFabrics, layers: charlotteLayers });
-    const gusset2 = computeSpecHash({ productId: "p-charlotte", gussetCount: 2, thickness: "8", fabrics: charlotteFabrics, layers: charlotteLayers });
+    const gusset1 = computeSpecHash({ productFamilyKey: "model:p-charlotte", gussetCount: 1, thickness: "8", fabrics: charlotteFabrics, layers: charlotteLayers });
+    const gusset2 = computeSpecHash({ productFamilyKey: "model:p-charlotte", gussetCount: 2, thickness: "8", fabrics: charlotteFabrics, layers: charlotteLayers });
     expect(gusset1).not.toBe(gusset2);
   });
 
@@ -95,8 +95,8 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
       ...oneWing,
       { placement: "SIDE", seq: 1, fabricName: "JQ หนานุ่มสีขาว", waddingWeight: "150g", foamThickness: "10mm" },
     ];
-    const hashOne = computeSpecHash({ productId: "p-pocketspring", gussetCount: 1, thickness: null, fabrics: oneWing, layers: [] });
-    const hashTwo = computeSpecHash({ productId: "p-pocketspring", gussetCount: 1, thickness: null, fabrics: twoWings, layers: [] });
+    const hashOne = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: oneWing, layers: [] });
+    const hashTwo = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: twoWings, layers: [] });
     expect(hashOne).not.toBe(hashTwo);
   });
 
@@ -109,23 +109,23 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
       { placement: "SIDE", seq: 0, fabricName: "JQ หนานุ่มสีขาว" },
       { placement: "SIDE", seq: 1, fabricName: "JQ หนานุ่มสีเทา" },
     ];
-    const hashGrayFirst = computeSpecHash({ productId: "p-pocketspring", gussetCount: 1, thickness: null, fabrics: grayFirst, layers: [] });
-    const hashWhiteFirst = computeSpecHash({ productId: "p-pocketspring", gussetCount: 1, thickness: null, fabrics: whiteFirst, layers: [] });
+    const hashGrayFirst = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: grayFirst, layers: [] });
+    const hashWhiteFirst = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: whiteFirst, layers: [] });
     expect(hashGrayFirst).not.toBe(hashWhiteFirst);
   });
 
   it("deterministic: ลำดับ fabrics/layers ที่ต่างกันตอนกรอก (แต่ placement+seq เดิม) ให้ hash เท่ากัน", () => {
-    const inOrder = computeSpecHash({ productId: "p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    const inOrder = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
     const shuffledFabrics = [vanessaFabrics[2], vanessaFabrics[0], vanessaFabrics[1]];
     const shuffledLayers = [...vanessaLayers].reverse();
-    const outOfOrder = computeSpecHash({ productId: "p-vanessa", gussetCount: 1, thickness: "8", fabrics: shuffledFabrics, layers: shuffledLayers });
+    const outOfOrder = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: shuffledFabrics, layers: shuffledLayers });
     expect(inOrder).toBe(outOfOrder);
   });
 
   it("displayOverride ไม่กระทบ hash", () => {
-    const withoutOverride = computeSpecHash({ productId: "p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    const withoutOverride = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
     const withOverride = computeSpecHash({
-      productId: "p-vanessa",
+      productFamilyKey: "model:p-vanessa",
       gussetCount: 1,
       thickness: "8",
       fabrics: vanessaFabrics.map((f) => ({ ...f, displayOverride: "ข้อความพิมพ์ทับ" } as FabricSpecInput)),
@@ -134,9 +134,29 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
     expect(withoutOverride).toBe(withOverride);
   });
 
-  it("productId ต่างกัน (คนละรุ่น) แม้สเปกอื่นเหมือนกันเป๊ะ ต้องได้ specHash คนละค่า", () => {
-    const a = computeSpecHash({ productId: "p-a", gussetCount: 1, thickness: "8", fabrics: [], layers: [] });
-    const b = computeSpecHash({ productId: "p-b", gussetCount: 1, thickness: "8", fabrics: [], layers: [] });
+  it("productFamilyKey ต่างกัน (คนละรุ่น) แม้สเปกอื่นเหมือนกันเป๊ะ ต้องได้ specHash คนละค่า", () => {
+    const a = computeSpecHash({ productFamilyKey: "model:p-a", gussetCount: 1, thickness: "8", fabrics: [], layers: [] });
+    const b = computeSpecHash({ productFamilyKey: "model:p-b", gussetCount: 1, thickness: "8", fabrics: [], layers: [] });
     expect(a).not.toBe(b);
+  });
+
+  // Owner ถามก่อน commit (2026-08-28) — ต่างไซส์ของรุ่นเดียวกันเป็นคนละแถว Product (คนละ
+  // id) แต่ resolveAccessHead() (product-company-access.ts) resolve ทั้งคู่ไปที่ modelId
+  // เดียวกัน ผู้เรียก (createProductionOrder) ต้อง resolve ก่อนแล้วส่ง `${kind}:${id}` เข้ามา
+  // — พิสูจน์ตรงนี้ว่า "รุ่นเดียวกัน คนละไซส์ สเปกเดียวกันจริง" ต้องได้ specHash เท่ากัน
+  it("รุ่นเดียวกัน (resolve ผ่าน resolveAccessHead ได้ family key เดียวกัน) ต่างไซส์ แต่ gusset/thickness/fabric/layers เหมือนกัน → specHash เดียวกัน", () => {
+    // จำลอง Product 2 แถว (id ต่างกัน สื่อถึงคนละไซส์) แต่ resolveAccessHead ให้ผลเดียวกัน
+    // เพราะ modelId เดียวกัน (Vanessa 3ft กับ Vanessa 6ft ผูก ProductModel "Vanessa" เดียวกัน)
+    const sameFamilyKeyFromSize3ft = "model:vanessa-model-id";
+    const sameFamilyKeyFromSize6ft = "model:vanessa-model-id";
+    const hash3ft = computeSpecHash({ productFamilyKey: sameFamilyKeyFromSize3ft, gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    const hash6ft = computeSpecHash({ productFamilyKey: sameFamilyKeyFromSize6ft, gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    expect(hash3ft).toBe(hash6ft);
+  });
+
+  it("รุ่นเดียวกันแต่สเปกจริงต่างกัน (เช่น thickness ต่างไซส์คนละความหนา) ยัง specHash ต่างกันได้ตามจริง แม้ family key เดียวกัน", () => {
+    const thick8 = computeSpecHash({ productFamilyKey: "model:vanessa-model-id", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
+    const thick6 = computeSpecHash({ productFamilyKey: "model:vanessa-model-id", gussetCount: 1, thickness: "6", fabrics: vanessaFabrics, layers: vanessaLayers });
+    expect(thick8).not.toBe(thick6);
   });
 });

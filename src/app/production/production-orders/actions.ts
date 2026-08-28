@@ -10,6 +10,7 @@ import { productionOrderItemInputSchema } from "@/lib/validation";
 import { getMaxFabricsForPlacement, getProductionSettings } from "@/lib/production-settings";
 import { currentPeriod, formatDocNumber, getNextSeq } from "@/lib/running-number";
 import { assignFabricSeq, computeSpecHash } from "@/lib/production-spec-hash";
+import { resolveAccessHead } from "@/lib/product-company-access";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -60,7 +61,7 @@ export async function createProductionOrder(customerPoId: string, formData: Form
   const uniqueLineIds = [...new Set(items.map((i) => i.customerPoLineId))];
   const lines = await db.customerPOLine.findMany({
     where: { id: { in: uniqueLineIds }, customerPoId, active: true, lineKind: "CATALOG" },
-    include: { product: { select: { id: true, sku: true, name: true, productionLabel: true } } },
+    include: { product: { select: { id: true, sku: true, name: true, productionLabel: true, parentProductId: true, modelId: true } } },
   });
   const lineById = new Map(lines.map((l) => [l.id, l]));
   if (lineById.size !== uniqueLineIds.length) {
@@ -101,8 +102,13 @@ export async function createProductionOrder(customerPoId: string, formData: Form
       const line = lineById.get(item.customerPoLineId)!;
       const fabricsWithSeq = assignFabricSeq(item.fabrics);
       const layersWithSeq = item.layers.map((l, idx) => ({ ...l, seq: idx }));
+      // "รุ่น" ที่เข้า specHash ต้องเป็น Family Head ไม่ใช่ Product.id ตรงๆ (ต่างไซส์ของ
+      // รุ่นเดียวกันเป็นคนละแถว Product) — reuse resolveAccessHead() เดิม (Family Head XOR:
+      // parentProductId > modelId > ตัวเอง) ไม่ใช่คิด familyId ใหม่
+      const familyHead = line.product ? resolveAccessHead(line.product) : null;
+      const productFamilyKey = familyHead ? `${familyHead.kind}:${familyHead.id}` : null;
       const specHash = computeSpecHash({
-        productId: line.productId,
+        productFamilyKey,
         gussetCount: item.gussetCount ?? null,
         thickness: item.thickness || null,
         fabrics: fabricsWithSeq,
