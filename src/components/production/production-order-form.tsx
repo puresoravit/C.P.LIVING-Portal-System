@@ -13,7 +13,9 @@ import type { ActionResult } from "@/lib/action-result";
 // placement เป็นช่องพิมพ์อิสระ (มี <datalist> แนะนำ WHOLE/TOP/BOTTOM/SIDE/HEAD_TAIL ให้พิมพ์
 // ง่ายขึ้นเท่านั้น ไม่ใช่ตัวเลือกปิดตายตัว) — ตรงกับ decision ว่า placement ไม่ทำ enum
 
-const PLACEMENT_SUGGESTIONS = ["WHOLE", "TOP", "BOTTOM", "SIDE", "HEAD_TAIL"];
+// WING ยืนยันเป็นคนละ placement จาก SIDE จริง (ข้อมูล Cerina มีทั้งคู่พร้อมกัน 2026-08-28) —
+// รายการนี้เป็นแค่ตัวช่วยพิมพ์ ไม่ใช่ตัวเลือกปิดตายตัว (placement ยังพิมพ์อิสระได้เสมอ)
+const PLACEMENT_SUGGESTIONS = ["WHOLE", "TOP", "BOTTOM", "SIDE", "HEAD_TAIL", "WING"];
 
 export type EligibleLine = {
   id: string;

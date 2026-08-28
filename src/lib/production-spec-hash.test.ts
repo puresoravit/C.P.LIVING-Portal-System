@@ -65,6 +65,42 @@ const charlotteLayers: LayerSpecInput[] = [
   { seq: 3, material: "PE", spec: "30mm" },
 ];
 
+// Cerina (4 กุ๊น) — WING แยกจาก SIDE จริง (คนละ placement) และ SIDE มี 2 ผ้าจริง (SIDE #1/#2)
+// ยืนยันว่าไม่ได้มีแค่ "ผ้าปีก" (WING) เท่านั้นที่มีได้ 2 ผ้า — SIDE ก็มีได้เช่นกัน (2026-08-28)
+const cerinaFabricsRaw = [
+  { placement: "TOP", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D2-4147", waddingWeight: "280g", foamThickness: "10mm" },
+  { placement: "WING", fabricName: "JQ หนานุ่มสีดำ", waddingWeight: "80g" },
+  { placement: "SIDE", fabricName: "JQ หนานุ่มสีขาว", extra: "ไม่ควิลท์" },
+  { placement: "SIDE", fabricName: "JQ หนานุ่มสีดำ", waddingWeight: "80g", foamThickness: "3mm" },
+  { placement: "BOTTOM", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D2-4147", waddingWeight: "80g", foamThickness: "3mm" },
+];
+const cerinaFabrics: FabricSpecInput[] = assignFabricSeq(cerinaFabricsRaw);
+const cerinaLayers: LayerSpecInput[] = [
+  { seq: 0, material: "Pillow Top ฟองน้ำอัดขาว", spec: "1\"" },
+  { seq: 1, material: "PE", spec: "10mm" },
+  { seq: 2, material: "ใยเฟลว", spec: "550g" },
+  { seq: 3, material: "Spring", spec: "2.3mm 32 แถว" },
+  { seq: 4, material: "ใยเฟลว", spec: "550g" },
+];
+
+// Harry (3 กุ๊น) — WING/SIDE มีผ้าเดียว (ต่างจาก Cerina) พิสูจน์ว่า schema ไม่ได้ผูกจำนวนผ้า
+// ต่อ placement เข้ากับจำนวนกุ๊นหรือชื่อรุ่นตายตัว แต่ละรุ่นกำหนดเองอิสระตาม master data จริง
+const harryFabricsRaw = [
+  { placement: "TOP", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D1-9020", waddingWeight: "250g", foamThickness: "10mm" },
+  { placement: "WING", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D1-9020" },
+  { placement: "SIDE", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D1-9020", waddingWeight: "80g", foamThickness: "3mm" },
+  { placement: "BOTTOM", fabricName: "JQ หนานุ่ม 180g", fabricCode: "D1-9020", waddingWeight: "250g" },
+];
+const harryFabrics: FabricSpecInput[] = assignFabricSeq(harryFabricsRaw);
+const harryLayers: LayerSpecInput[] = [
+  { seq: 0, material: "Pillow Top ฟองน้ำอัดขาว", spec: "1\"" },
+  { seq: 1, material: "PE", spec: "15mm" },
+  { seq: 2, material: "ใยเฟลว", spec: "550g" },
+  { seq: 3, material: "Spring", spec: "2.3mm 32 แถว" },
+  { seq: 4, material: "ใยเฟลว", spec: "550g" },
+  { seq: 5, material: "PE", spec: "15mm" },
+];
+
 describe("computeSpecHash — ตัวอย่างจริงจาก Owner", () => {
   it("Vanessa: HEAD_TAIL แยกจาก TOP/BOTTOM ได้ ไม่ทับกัน", () => {
     const hash = computeSpecHash({ productFamilyKey: "model:p-vanessa", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
@@ -158,5 +194,68 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
     const thick8 = computeSpecHash({ productFamilyKey: "model:vanessa-model-id", gussetCount: 1, thickness: "8", fabrics: vanessaFabrics, layers: vanessaLayers });
     const thick6 = computeSpecHash({ productFamilyKey: "model:vanessa-model-id", gussetCount: 1, thickness: "6", fabrics: vanessaFabrics, layers: vanessaLayers });
     expect(thick8).not.toBe(thick6);
+  });
+});
+
+// Cerina/Harry (2026-08-28) — เพิ่มเป็น regression fixtures ตามที่ Owner ยืนยัน: WING แยก
+// จาก SIDE จริง, SIDE เองก็มีได้ 2 ผ้าเหมือนกัน (ไม่ใช่แค่ WING), จำนวนผ้าต่อ placement ไม่ผูก
+// กับจำนวนกุ๊นหรือชื่อรุ่นตายตัว (Cerina SIDE=2 แต่ WING=1, Harry ทุก placement=1 แม้เป็น
+// CBF Topper Spring เหมือนกัน)
+describe("computeSpecHash — Cerina/Harry (CBF Topper Spring, ยืนยัน WING แยกจาก SIDE)", () => {
+  it("Cerina: SIDE มี 2 ผ้าจริง (seq 0,1 แยกจาก WING ที่มี 1 ผ้า)", () => {
+    const sideFabrics = cerinaFabrics.filter((f) => f.placement === "SIDE");
+    const wingFabrics = cerinaFabrics.filter((f) => f.placement === "WING");
+    expect(sideFabrics.map((f) => f.seq)).toEqual([0, 1]);
+    expect(wingFabrics.map((f) => f.seq)).toEqual([0]);
+  });
+
+  it("Harry: ทุก placement มีผ้าเดียว (WING=1 ต่างจาก Cerina ที่ SIDE=2) — ไม่ได้ผูกจำนวนผ้ากับกุ๊น/ชื่อรุ่นตายตัว", () => {
+    for (const placement of ["TOP", "WING", "SIDE", "BOTTOM"]) {
+      expect(harryFabrics.filter((f) => f.placement === placement)).toHaveLength(1);
+    }
+  });
+
+  it("Cerina (4 กุ๊น) กับ Harry (3 กุ๊น) เป็นคนละสเปกจริง ต้องได้ specHash ต่างกัน แม้เป็น CBF Topper Spring เหมือนกัน", () => {
+    const cerinaHash = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    const harryHash = computeSpecHash({ productFamilyKey: "model:harry", gussetCount: 3, thickness: null, fabrics: harryFabrics, layers: harryLayers });
+    expect(cerinaHash).not.toBe(harryHash);
+  });
+
+  it("Cerina: สลับลำดับ SIDE #1/#2 กัน ต้องได้ specHash ต่างกัน (ลำดับผ้าใน placement เดียวกันมีความหมายจริง)", () => {
+    const swappedSideOrder = [
+      cerinaFabricsRaw[0], // TOP
+      cerinaFabricsRaw[1], // WING
+      cerinaFabricsRaw[3], // SIDE #2 ก่อน
+      cerinaFabricsRaw[2], // SIDE #1 ทีหลัง
+      cerinaFabricsRaw[4], // BOTTOM
+    ];
+    const originalHash = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    const swappedHash = computeSpecHash({
+      productFamilyKey: "model:cerina",
+      gussetCount: 4,
+      thickness: null,
+      fabrics: assignFabricSeq(swappedSideOrder),
+      layers: cerinaLayers,
+    });
+    expect(originalHash).not.toBe(swappedHash);
+  });
+
+  it("Cerina: จัดลำดับ placement ในอาเรย์ต้นฉบับใหม่ทั้งหมด (แต่ลำดับภายใน SIDE เดิม) ต้องได้ specHash เท่าเดิม — deterministic ไม่ขึ้นกับลำดับตอนกรอก", () => {
+    const reordered = [cerinaFabricsRaw[4], cerinaFabricsRaw[2], cerinaFabricsRaw[1], cerinaFabricsRaw[3], cerinaFabricsRaw[0]]; // BOTTOM, SIDE#1, WING, SIDE#2, TOP
+    const originalHash = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    const reorderedHash = computeSpecHash({
+      productFamilyKey: "model:cerina",
+      gussetCount: 4,
+      thickness: null,
+      fabrics: assignFabricSeq(reordered),
+      layers: cerinaLayers,
+    });
+    expect(originalHash).toBe(reorderedHash);
+  });
+
+  it("Cerina: รุ่นเดียวกัน ต่างไซส์ (family key เดียวกัน) สเปกเดียวกันทุกอย่าง → specHash เดียวกัน (grouping ข้ามไซส์ได้จริง)", () => {
+    const hashSize5 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    const hashSize6 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    expect(hashSize5).toBe(hashSize6);
   });
 });

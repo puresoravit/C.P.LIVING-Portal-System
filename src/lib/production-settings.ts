@@ -18,9 +18,11 @@ export type ProductionSettings = {
   // S3 CP1 — Business validation ปัจจุบัน (ไม่ใช่ DB constraint ตามที่ยืนยัน) จำนวนกุ๊น
   // สูงสุด (ปัจจุบัน 4) และจำนวนผ้าสูงสุด "ต่อ placement" (ไม่ใช่ global) เพราะ placement
   // ส่วนใหญ่มีได้ 1 ผ้า ยกเว้นบาง placement (เช่นที่ Owner เรียก "ผ้าปีก") ที่มีได้ถึง 2 —
-  // เก็บเป็น map เพราะยังไม่ยืนยันว่า "ผ้าปีก" ตรงกับชื่อ placement ไหนแน่ (SIDE หรือชื่ออื่น)
-  // ให้ Admin กำหนดเองจากหน้าตั้งค่าตอนรู้ชื่อ placement จริง ไม่ hardcode ชื่อ placement ในโค้ด
-  // placement ที่ไม่มีใน map นี้ = ค่าเริ่มต้น 1 ผ้า (ดู getMaxFabricsForPlacement)
+  // ยืนยันจากข้อมูลจริง (Cerina/Harry, 2026-08-28): WING กับ SIDE เป็นคนละ placement กัน
+  // จริง (ไม่ใช่ชื่อเดียวกันคนละคำเรียก) และ SIDE มีได้ถึง 2 ผ้าจริง (Cerina SIDE #1/#2) —
+  // WING ก็ยืนยันสูงสุด 2 จาก business rule ก่อนหน้า ("ผ้าปีก") placement อื่นที่ไม่อยู่ใน
+  // map นี้ = ค่าเริ่มต้น 1 ผ้า (ดู getMaxFabricsForPlacement) ยังเป็น configurable ต่อไป
+  // ไม่ hardcode DB constraint — Admin ปรับได้จากหน้าตั้งค่าถ้ากฎธุรกิจเปลี่ยน
   maxGussetCount: number;
   maxFabricsPerPlacement: Record<string, number>;
 };
@@ -36,7 +38,7 @@ const DEFAULTS: ProductionSettings = {
   customerPoStatuses: ["เปิดงาน"],
   productionOrderStatuses: ["รอผลิต"],
   maxGussetCount: 4,
-  maxFabricsPerPlacement: {},
+  maxFabricsPerPlacement: { WING: 2, SIDE: 2 },
 };
 
 const KEYS = {
