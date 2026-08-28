@@ -110,6 +110,7 @@ export default async function TaxInvoicesPage(props: { searchParams: Promise<Sea
             placeholder="เช่น TX-202608 หรือ บริษัท..."
             basePath="/tax-invoices"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>

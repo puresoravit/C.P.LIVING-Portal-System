@@ -104,6 +104,7 @@ export default async function QuotationsPage(props: { searchParams: Promise<Sear
             placeholder="เช่น QT-202608 หรือ บริษัท..."
             basePath="/quotations"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>

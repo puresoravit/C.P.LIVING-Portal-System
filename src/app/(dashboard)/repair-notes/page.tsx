@@ -93,6 +93,7 @@ export default async function RepairNotesPage(props: { searchParams: Promise<Sea
             placeholder="เช่น DEP-202608 หรือ บริษัท..."
             basePath="/repair-notes"
             preserveParams={preserveParamsNoQ}
+            formParams={status ? { status } : {}}
           />
         </div>
         <div>
