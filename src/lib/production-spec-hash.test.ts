@@ -125,25 +125,33 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
     expect(gusset1).not.toBe(gusset2);
   });
 
-  it("ผ้าปีก 2 ผืนใน placement เดียวกัน (ต่าง seq) ให้ hash ต่างจากมีผืนเดียว", () => {
-    const oneWing: FabricSpecInput[] = [{ placement: "SIDE", seq: 0, fabricName: "JQ หนานุ่มสีเทา", waddingWeight: "150g", foamThickness: "10mm" }];
-    const twoWings: FabricSpecInput[] = [
-      ...oneWing,
-      { placement: "SIDE", seq: 1, fabricName: "JQ หนานุ่มสีขาว", waddingWeight: "150g", foamThickness: "10mm" },
+  // ชื่อผ้าในเคสนี้เป็นข้อมูลสมมติ (Pocket Spring จริงที่ Owner ให้มามีผ้า SIDE เดียว) — สร้าง
+  // เพิ่มเพื่อทดสอบกลไก "หลายผ้าใน placement เดียวกัน" ก่อนมีตัวอย่างจริง (ตอนนี้มี Cerina
+  // ยืนยันเคสจริงแล้ว — ดู describe ถัดไป) ไม่ใช่ Master Spec จริงของ Pocket Spring
+  it("[กลไกเท่านั้น] เพิ่มผ้าที่ 2 ใน placement เดียวกัน (ต่าง seq) ให้ hash ต่างจากมีผืนเดียว", () => {
+    const oneFabric: FabricSpecInput[] = [{ placement: "SIDE", seq: 0, fabricName: "ผ้าสมมติ A", waddingWeight: "150g", foamThickness: "10mm" }];
+    const twoFabrics: FabricSpecInput[] = [
+      ...oneFabric,
+      { placement: "SIDE", seq: 1, fabricName: "ผ้าสมมติ B", waddingWeight: "150g", foamThickness: "10mm" },
     ];
-    const hashOne = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: oneWing, layers: [] });
-    const hashTwo = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: twoWings, layers: [] });
+    const hashOne = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: oneFabric, layers: [] });
+    const hashTwo = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: twoFabrics, layers: [] });
     expect(hashOne).not.toBe(hashTwo);
   });
 
-  it("ผ้าปีก 2 ผืนที่สลับลำดับกัน (seq 0/1 สลับกัน) ให้ hash ต่างกัน — ลำดับผ้าปีกมีความหมายจริง ไม่ใช่ arbitrary", () => {
+  // หมายเหตุ (Owner ยืนยัน 2026-08-28): ชื่อผ้าในเคสนี้เป็นข้อมูลสมมติที่ผมสร้างเองเพื่อ
+  // ทดสอบกลไก "หลายผ้าใน placement เดียวกัน" ก่อนมีตัวอย่างจริง (Cerina) — ทดสอบแค่ว่า
+  // "โค้ดถือว่าลำดับที่กรอกมามีผล (แต่ละ seq คือคนละแถว คนละข้อมูล)" เท่านั้น ไม่ได้แปลว่า
+  // ลำดับผ้าจริงทางธุรกิจ (เช่นผ้าปีก/SIDE ตัวไหนควรมาก่อน) ได้รับการยืนยันแล้ว — Owner จะ
+  // ตรวจ/กรอก Master Spec จริงทีหลัง อย่า derive ความหมายทางธุรกิจจากเคสนี้
+  it("[กลไกเท่านั้น ไม่ใช่ข้อมูลยืนยันจริง] สลับลำดับผ้า 2 ผืนใน placement เดียวกัน (seq 0/1 สลับกัน) ให้ hash ต่างกัน", () => {
     const grayFirst: FabricSpecInput[] = [
-      { placement: "SIDE", seq: 0, fabricName: "JQ หนานุ่มสีเทา" },
-      { placement: "SIDE", seq: 1, fabricName: "JQ หนานุ่มสีขาว" },
+      { placement: "SIDE", seq: 0, fabricName: "ผ้าสมมติ A" },
+      { placement: "SIDE", seq: 1, fabricName: "ผ้าสมมติ B" },
     ];
     const whiteFirst: FabricSpecInput[] = [
-      { placement: "SIDE", seq: 0, fabricName: "JQ หนานุ่มสีขาว" },
-      { placement: "SIDE", seq: 1, fabricName: "JQ หนานุ่มสีเทา" },
+      { placement: "SIDE", seq: 0, fabricName: "ผ้าสมมติ B" },
+      { placement: "SIDE", seq: 1, fabricName: "ผ้าสมมติ A" },
     ];
     const hashGrayFirst = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: grayFirst, layers: [] });
     const hashWhiteFirst = computeSpecHash({ productFamilyKey: "model:p-pocketspring", gussetCount: 1, thickness: null, fabrics: whiteFirst, layers: [] });
@@ -201,12 +209,21 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
 // จาก SIDE จริง, SIDE เองก็มีได้ 2 ผ้าเหมือนกัน (ไม่ใช่แค่ WING), จำนวนผ้าต่อ placement ไม่ผูก
 // กับจำนวนกุ๊นหรือชื่อรุ่นตายตัว (Cerina SIDE=2 แต่ WING=1, Harry ทุก placement=1 แม้เป็น
 // CBF Topper Spring เหมือนกัน)
-describe("computeSpecHash — Cerina/Harry (CBF Topper Spring, ยืนยัน WING แยกจาก SIDE)", () => {
-  it("Cerina: SIDE มี 2 ผ้าจริง (seq 0,1 แยกจาก WING ที่มี 1 ผ้า)", () => {
+//
+// สำคัญ (Owner ชี้แจงเพิ่ม 2026-08-28): ลำดับ bullet ที่ Owner พิมพ์มาให้ (เช่น SIDE #1 ก่อน
+// SIDE #2) เป็นแค่วิธีเรียงข้อความในแชท "ยังไม่ยืนยัน" ว่าเป็นลำดับจริงทางการผลิต (Physical
+// Order) ที่มีนัยสำคัญ — Owner จะตรวจ/กรอก Master Spec ที่ยืนยันแล้วทีหลัง ต่างจาก
+// ProductionItemLayer ที่ยืนยันแล้วว่าลำดับ = โครงสร้างจริงบนลงล่างมีผลต่อ spec/hash จริง
+//
+// จึงแยก 2 describe: (1) เนื้อหา/placement/material/layers ที่ยืนยันแล้วจากตัวอย่างจริง
+// (2) กลไก fabric-order เท่านั้น (โค้ดถือว่าลำดับที่กรอกมามีผลต่อ hash เสมอ เพื่อไม่เขียนทับ/
+// รวมข้อมูลที่อาจต่างกันจริงโดยไม่ตั้งใจ — แต่ "ลำดับไหนถูกจริง" ยังไม่ถูกยืนยันจาก Owner)
+describe("computeSpecHash — Cerina/Harry: เนื้อหาที่ยืนยันแล้ว (placement/material/layers)", () => {
+  it("Cerina: SIDE มี 2 ผ้าจริง (แยกจาก WING ที่มี 1 ผ้า) — จำนวนผ้ายืนยันแล้ว ไม่ใช่ลำดับ", () => {
     const sideFabrics = cerinaFabrics.filter((f) => f.placement === "SIDE");
     const wingFabrics = cerinaFabrics.filter((f) => f.placement === "WING");
-    expect(sideFabrics.map((f) => f.seq)).toEqual([0, 1]);
-    expect(wingFabrics.map((f) => f.seq)).toEqual([0]);
+    expect(sideFabrics).toHaveLength(2);
+    expect(wingFabrics).toHaveLength(1);
   });
 
   it("Harry: ทุก placement มีผ้าเดียว (WING=1 ต่างจาก Cerina ที่ SIDE=2) — ไม่ได้ผูกจำนวนผ้ากับกุ๊น/ชื่อรุ่นตายตัว", () => {
@@ -221,7 +238,15 @@ describe("computeSpecHash — Cerina/Harry (CBF Topper Spring, ยืนยั�
     expect(cerinaHash).not.toBe(harryHash);
   });
 
-  it("Cerina: สลับลำดับ SIDE #1/#2 กัน ต้องได้ specHash ต่างกัน (ลำดับผ้าใน placement เดียวกันมีความหมายจริง)", () => {
+  it("Cerina: รุ่นเดียวกัน ต่างไซส์ (family key เดียวกัน) สเปกเดียวกันทุกอย่าง → specHash เดียวกัน (grouping ข้ามไซส์ได้จริง)", () => {
+    const hashSize5 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    const hashSize6 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
+    expect(hashSize5).toBe(hashSize6);
+  });
+});
+
+describe("computeSpecHash — Cerina: fabric-order เป็นกลไกโค้ดเท่านั้น (ลำดับจริงยังไม่ยืนยันจาก Owner)", () => {
+  it("สลับลำดับ SIDE #1/#2 ตามที่ Owner พิมพ์มา ให้ hash ต่างกัน — ทดสอบว่าโค้ดถือว่าลำดับกรอกมีผล ไม่ใช่ข้อยืนยันว่าลำดับนี้ถูกต้องทางการผลิต", () => {
     const swappedSideOrder = [
       cerinaFabricsRaw[0], // TOP
       cerinaFabricsRaw[1], // WING
@@ -240,7 +265,7 @@ describe("computeSpecHash — Cerina/Harry (CBF Topper Spring, ยืนยั�
     expect(originalHash).not.toBe(swappedHash);
   });
 
-  it("Cerina: จัดลำดับ placement ในอาเรย์ต้นฉบับใหม่ทั้งหมด (แต่ลำดับภายใน SIDE เดิม) ต้องได้ specHash เท่าเดิม — deterministic ไม่ขึ้นกับลำดับตอนกรอก", () => {
+  it("จัดลำดับ placement ในอาเรย์ต้นฉบับใหม่ทั้งหมด (แต่ลำดับภายใน SIDE เดิม) ต้องได้ specHash เท่าเดิม — deterministic ไม่ขึ้นกับลำดับตอนกรอกทั้งอาเรย์ (mechanism, ไม่เกี่ยวกับว่าลำดับภายใน SIDE ถูกต้องทางธุรกิจหรือไม่)", () => {
     const reordered = [cerinaFabricsRaw[4], cerinaFabricsRaw[2], cerinaFabricsRaw[1], cerinaFabricsRaw[3], cerinaFabricsRaw[0]]; // BOTTOM, SIDE#1, WING, SIDE#2, TOP
     const originalHash = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
     const reorderedHash = computeSpecHash({
@@ -251,11 +276,5 @@ describe("computeSpecHash — Cerina/Harry (CBF Topper Spring, ยืนยั�
       layers: cerinaLayers,
     });
     expect(originalHash).toBe(reorderedHash);
-  });
-
-  it("Cerina: รุ่นเดียวกัน ต่างไซส์ (family key เดียวกัน) สเปกเดียวกันทุกอย่าง → specHash เดียวกัน (grouping ข้ามไซส์ได้จริง)", () => {
-    const hashSize5 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
-    const hashSize6 = computeSpecHash({ productFamilyKey: "model:cerina", gussetCount: 4, thickness: null, fabrics: cerinaFabrics, layers: cerinaLayers });
-    expect(hashSize5).toBe(hashSize6);
   });
 });

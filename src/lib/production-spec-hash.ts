@@ -44,7 +44,16 @@ export type ProductionSpecInput = {
 
 /** จัด seq ให้ผ้าแต่ละแถว "ภายในกลุ่ม placement เดียวกัน" (0,1,2,... แยกนับต่อ placement) —
  * ตรงกับความหมายของ @@unique([itemId, placement, seq]) จริงๆ (ไม่ใช่ index ของทั้งอาเรย์
- * ซึ่งจะทำให้ unique constraint ไม่มีความหมายเพราะ seq ไม่ซ้ำกันเองอยู่แล้วในระดับ item) */
+ * ซึ่งจะทำให้ unique constraint ไม่มีความหมายเพราะ seq ไม่ซ้ำกันเองอยู่แล้วในระดับ item)
+ *
+ * ข้อควรระวัง (2026-08-28): seq = ลำดับที่ fabrics ถูกส่งเข้ามาเท่านั้น (เช่นลำดับที่กรอกใน
+ * ฟอร์ม) ต่างจาก ProductionItemLayer.seq ที่ยืนยันแล้วว่าคือลำดับโครงสร้างจริงบนลงล่างมีผล
+ * ต่อสเปก — สำหรับผ้า "ลำดับไหนถูกต้องจริงทางการผลิต" (physical order) ยังไม่ได้รับการยืนยัน
+ * เป็นค่าเริ่มต้นสำหรับทุกกรณีจาก Owner ยืนยันเฉพาะบางกรณีที่มี Master Spec จริงเท่านั้น
+ * ห้าม derive/สันนิษฐานว่าลำดับที่เคยกรอกไว้ (เช่นลำดับ bullet ในตัวอย่างที่ส่งมาทางแชท) คือ
+ * ลำดับจริงเสมอ — ฟังก์ชันนี้แค่รับประกัน "แต่ละแถวมี seq ไม่ซ้ำกันภายใน placement เดียวกัน
+ * เพื่อเก็บลงฐานข้อมูลได้และ hash ยัง deterministic" เท่านั้น ไม่ได้ยืนยันความถูกต้องเชิงธุรกิจ
+ * ของลำดับนั้น */
 export function assignFabricSeq<T extends { placement: string }>(fabrics: T[]): (T & { seq: number })[] {
   const seqByPlacement = new Map<string, number>();
   return fabrics.map((f) => {
