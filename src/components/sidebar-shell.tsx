@@ -10,7 +10,9 @@ import { CPIcon } from "@/components/portal/cp-brand";
 // preventDefault) จึงไม่กระทบการ Scroll ปกติของหน้าเลยแม้แต่นิดเดียว แค่ "แอบดู" ทิศทาง
 // การปัดเพื่อ setOpen(true) — Animation ที่ตามมาใช้ transition เดิมของ <aside> ทั้งหมด
 const EDGE_ZONE_PX = 24;
-const SWIPE_THRESHOLD_PX = 60;
+// Owner UAT (2026-08-28) — เพิ่มจาก 60 เป็น 90px กันเปิดง่ายเกินไปจากการแตะ/ปัดสั้นๆ
+// โดยไม่ตั้งใจ (Feedback: "แอบไวไปนิดนึง")
+const SWIPE_THRESHOLD_PX = 90;
 
 // Phase Nav-1 — Sidebar เดิมเป็น <aside> กว้างคงที่ที่แสดงตลอดเวลา ไม่รองรับจอเล็ก
 // เพราะเมนูตอนนั้นสั้น (Flat List) แต่ตอนนี้เมนูมี Group/Submenu ลึกขึ้น จึงต้องมี
@@ -49,7 +51,14 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
       const dx = t.clientX - touchStart.current.x;
       const dy = t.clientY - touchStart.current.y;
       // ต้องปัดแนวนอนชัดเจน (dx เยอะกว่า dy) กันชนกับ Scroll แนวตั้งของหน้า
-      if (dx > SWIPE_THRESHOLD_PX && dx > Math.abs(dy) * 1.5) {
+      const isHorizontalIntent = dx > 10 && dx > Math.abs(dy) * 1.5;
+      // Owner UAT (2026-08-28) — preventDefault() เฉพาะตอนตัดสินแล้วว่าเป็นการลากขวา
+      // แนวนอนชัดเจนเท่านั้น (ไม่ใช่ทุก touchmove) เพื่อ "ยึด" Gesture นี้ไว้เป็นของ Drawer
+      // ก่อนที่เบราว์เซอร์จะตีความ Gesture เดียวกันเป็นท่า Back-Swipe ไปพร้อมกัน (ปัดจาก
+      // ขอบซ้ายชนกับท่ามาตรฐานของเบราว์เซอร์เองพอดี) — ต้องเปลี่ยน Listener เป็น
+      // passive:false ด้านล่างด้วย ไม่งั้นเรียก preventDefault ไม่ได้ผล
+      if (isHorizontalIntent) e.preventDefault();
+      if (dx > SWIPE_THRESHOLD_PX && isHorizontalIntent) {
         setOpen(true);
         touchStart.current = null;
       }
@@ -58,7 +67,7 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
       touchStart.current = null;
     }
     document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
     document.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
@@ -106,7 +115,7 @@ export function SidebarShell({ brand, userInfo, children }: { brand: string; use
           กะพริบแทนการไหล — Sidebar อยู่ต้น Body ดีเลย์ที่เพิ่มจึงแทบเป็นศูนย์ */}
       <aside
         id="cp-sidebar"
-        className={`w-64 md:w-56 bg-gradient-to-b from-cp-navy to-cp-navy-deep flex flex-col print:hidden fixed md:static inset-y-0 left-0 z-50 shadow-2xl md:shadow-none transform transition-transform duration-200 md:translate-x-0 ${
+        className={`w-64 md:w-56 bg-gradient-to-b from-cp-navy to-cp-navy-deep flex flex-col print:hidden fixed md:static inset-y-0 left-0 z-50 shadow-2xl md:shadow-none transform transition-transform duration-300 ease-out md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >

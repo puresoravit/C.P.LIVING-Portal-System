@@ -58,12 +58,12 @@ export const APP_REGISTRY: AppDefinition[] = [
   },
   {
     id: "production",
-    name: "Production",
-    nameEn: "Production",
-    description: "วางแผนและติดตามการผลิต",
+    name: "Production & Delivery",
+    nameEn: "Production & Delivery",
+    description: "ติดตามออเดอร์ตั้งแต่รับ P.O. จนของขึ้นรถครบ — P1: โครงกระดูก (คีย์มือล้วน)",
     icon: "factory",
-    route: null,
-    status: "coming_soon",
+    route: "/production",
+    status: "enabled",
   },
   {
     id: "future",

@@ -9,7 +9,7 @@ Portal Application ของบริษัท C.P. Living ประกอบด
 
 **Business logic แยกกันโดยสิ้นเชิง** — Product Master (`Product`/`ProductModel`/`ProductType`/`ProductCategory`) ใช้ร่วมกัน ห้ามทำสำเนา/ซิงก์
 
-เอกสารสเปกอยู่ที่ `docs/production-module/` — อ่านตามลำดับ: `00-ส่งงาน.md` → `01-สรุปรวม.md` → **`02-P1-schema-decisions.md` (source of truth ล่าสุด แก้ทับจุดที่ 2 ไฟล์แรกยังไม่เห็นโค้ดจริงตอนร่าง)**
+เอกสารสเปกอยู่ที่ `docs/production-module/` — อ่านตามลำดับ: `00-ส่งงาน.md` → `01-สรุปรวม.md` → **`02-P1-schema-decisions.md` (source of truth ล่าสุด แก้ทับจุดที่ 2 ไฟล์แรกยังไม่เห็นโค้ดจริงตอนร่าง)** → `03-future-direction-billing-integration.md` (context ระยะยาวเรื่องเชื่อม Billing — **ห้าม implement** จนกว่าจะอนุมัติแยก)
 
 ---
 

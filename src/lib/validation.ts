@@ -53,6 +53,20 @@ export const productCategorySchema = z.object({
   sortOrder: z.coerce.number().default(0),
 });
 
+// Production Module (P1) — ตระกูลสินค้า/ชื่อเรียก (ProductAlias) ผูกกับ ProductModel
+// หรือ Product เดี่ยว (XOR — resolveAliasFamilyHead ใน product-alias.ts เป็นผู้ตรวจจริง
+// เพราะ zod .refine() บอก field ที่ผิดชัดเจนน้อยกว่า) validateAliasScope ตรวจ
+// scope/customerId/branchId ให้สอดคล้องกันแยกอีกชั้นในตัว action
+export const productAliasSchema = z.object({
+  aliasText: z.string().min(1, "กรุณากรอกชื่อเรียก"),
+  lang: z.string().optional(),
+  scope: z.enum(["GLOBAL", "CUSTOMER", "BRANCH"]).default("GLOBAL"),
+  productModelId: z.string().optional(),
+  productId: z.string().optional(),
+  customerId: z.string().optional(),
+  branchId: z.string().optional(),
+});
+
 // R4 — sku ว่างได้แล้ว (Auto-generate ที่ Server Action ถ้าไม่กรอก) และ productTypeId
 // ว่างได้เช่นกัน (null = ไม่ระบุกลุ่มส่วนลด ตามที่อนุมัติ) — ทั้งคู่เปลี่ยนจาก required เดิม
 // R6 — เพิ่ม categoryId (ประเภทสินค้าเชิงคุณลักษณะ ใหม่) แยกจาก productTypeId โดยสิ้นเชิง
