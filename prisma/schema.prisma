@@ -19,16 +19,16 @@ datasource db {
 // ---------- Phase 1: AUTH / USER / ROLE ----------
 
 enum Role {
-  OWNER_ADMIN   // ข้อ 3.1 — ทำได้ทุกอย่าง
+  OWNER_ADMIN // ข้อ 3.1 — ทำได้ทุกอย่าง
   BILLING_STAFF // ข้อ 3.2 — สร้าง/แก้ Order, Print, ค้นหา — แก้ Price/Discount Master ไม่ได้
-  VIEWER        // ข้อ 3.3 — ดู Dashboard/Report/Export เท่านั้น
+  VIEWER // ข้อ 3.3 — ดู Dashboard/Report/Export เท่านั้น
 }
 
 model User {
   id            String   @id @default(cuid())
   username      String   @unique
   email         String?  @unique
-  passwordHash  String   // bcrypt — ห้ามเก็บ plain text (ข้อ 51)
+  passwordHash  String // bcrypt — ห้ามเก็บ plain text (ข้อ 51)
   displayName   String
   role          Role
   active        Boolean  @default(true)
@@ -50,9 +50,9 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  auditLogs     AuditLog[]
-  appAccess     UserAppAccess[]
-  passkeys      WebAuthnCredential[]
+  auditLogs AuditLog[]
+  appAccess UserAppAccess[]
+  passkeys  WebAuthnCredential[]
 
   @@map("users")
 }
@@ -64,17 +64,17 @@ model User {
 // (ลายนิ้วมือ/ใบหน้า) ไม่เคยถูกส่งมาที่ Server ตาม Spec จึงไม่มีคอลัมน์ให้เก็บได้เลย —
 // User หนึ่งคนมีได้หลาย Credential (iPhone/Samsung/Mac แยกแถวกัน Revoke ทีละตัวได้)
 model WebAuthnCredential {
-  id           String   @id                 // credentialID (base64url) — Authenticator กำหนด, Unique ระดับโลก
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
-  publicKey    Bytes                         // COSE Public Key (ฝั่ง Public เท่านั้น)
-  counter      BigInt   @default(0)          // signCount กัน Cloned Authenticator (Passkey แบบ Sync มักเป็น 0 เสมอ)
-  transports   String[] @default([])         // ["internal","hybrid",...] ช่วย Browser เลือก Authenticator ให้ถูก
-  deviceType   String                        // "singleDevice" | "multiDevice" (Synced Passkey)
-  backedUp     Boolean  @default(false)
-  label        String                        // ชื่อที่ User ตั้ง เช่น "iPhone ของฉัน"
-  createdAt    DateTime @default(now())
-  lastUsedAt   DateTime?
+  id         String    @id // credentialID (base64url) — Authenticator กำหนด, Unique ระดับโลก
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  publicKey  Bytes // COSE Public Key (ฝั่ง Public เท่านั้น)
+  counter    BigInt    @default(0) // signCount กัน Cloned Authenticator (Passkey แบบ Sync มักเป็น 0 เสมอ)
+  transports String[]  @default([]) // ["internal","hybrid",...] ช่วย Browser เลือก Authenticator ให้ถูก
+  deviceType String // "singleDevice" | "multiDevice" (Synced Passkey)
+  backedUp   Boolean   @default(false)
+  label      String // ชื่อที่ User ตั้ง เช่น "iPhone ของฉัน"
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 
   @@index([userId])
   @@map("webauthn_credentials")
@@ -87,8 +87,8 @@ model WebAuthnCredential {
 // ที่ตอบกลับมาอีกชั้นตอน Verify — แถวหมดอายุถูกกวาดทิ้งทุกครั้งที่ออก Challenge ใหม่
 model WebAuthnChallenge {
   id        String   @id @default(cuid())
-  challenge String                           // base64url random 32 bytes (จาก Library)
-  type      String                           // "registration" | "authentication"
+  challenge String // base64url random 32 bytes (จาก Library)
+  type      String // "registration" | "authentication"
   userId    String?
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -107,7 +107,7 @@ model UserAppAccess {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   appId       String
-  grantedById String?  // User id ของ Owner ที่กดให้สิทธิ์ (Audit ฉบับเต็มอยู่ใน AuditLog)
+  grantedById String? // User id ของ Owner ที่กดให้สิทธิ์ (Audit ฉบับเต็มอยู่ใน AuditLog)
   createdAt   DateTime @default(now())
 
   @@unique([userId, appId])
@@ -117,72 +117,79 @@ model UserAppAccess {
 // ---------- Phase 1: CUSTOMER / BRANCH ----------
 
 enum CreditTerm {
-  CASH     // เงินสด (ปัจจุบันลูกค้าทุกรายใช้แบบนี้ — ตาม clarification ข้อ 8)
+  CASH // เงินสด (ปัจจุบันลูกค้าทุกรายใช้แบบนี้ — ตาม clarification ข้อ 8)
   NET30
   NET60
   NET90
 }
 
 model Customer {
-  id           String     @id @default(cuid())
-  code         String     @unique // Customer Code เช่น PN02 (ข้อ 4)
-  companyName  String
-  taxId        String?
-  phone        String?
-  email        String?
-  creditTerm   CreditTerm @default(CASH)
+  id          String     @id @default(cuid())
+  code        String     @unique // Customer Code เช่น PN02 (ข้อ 4)
+  companyName String
+  taxId       String?
+  phone       String?
+  email       String?
+  creditTerm  CreditTerm @default(CASH)
   // Owner UAT (2026-08-23) — สถานที่ส่งสินค้า/ที่อยู่ของลูกค้าเอง: ลูกค้าบางรายไม่มีสาขา
   // (Branch) เลย การดึงที่อยู่ได้จากสาขาอย่างเดียวจึงไม่พอ — ใช้เป็น Fallback ทุกจุดที่เคย
   // อ่าน branch.address (Auto-fill ตอนสร้างเอกสาร + addressSnapshot ตอน Confirm):
   // เลือกสาขา → ใช้ที่อยู่สาขา, ไม่เลือกสาขา → ใช้ที่อยู่นี้
-  address      String?
-  note         String?
-  active       Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  address     String?
+  note        String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  branches       Branch[]
-  priceRules     PriceRule[]
-  discountRules  DiscountRule[]
-  orders         Order[]
-  invoices       Invoice[]
-  taxInvoices    TaxInvoice[]
-  billingNotes   BillingNote[]
+  branches          Branch[]
+  priceRules        PriceRule[]
+  discountRules     DiscountRule[]
+  orders            Order[]
+  invoices          Invoice[]
+  taxInvoices       TaxInvoice[]
+  billingNotes      BillingNote[]
   repairReturnNotes RepairReturnNote[]
-  quotations     Quotation[]
-  productAccess  ProductCompanyAccess[]
+  quotations        Quotation[]
+  productAccess     ProductCompanyAccess[]
   catalogMembership ProductCatalogCompany?
-  privateProducts Product[]      @relation("CustomerPrivateProducts")
-  privateModels   ProductModel[] @relation("CustomerPrivateModels")
-  linkedProspects QuotationProspect[]
+  privateProducts   Product[]              @relation("CustomerPrivateProducts")
+  privateModels     ProductModel[]         @relation("CustomerPrivateModels")
+  linkedProspects   QuotationProspect[]
+  // Production Module (P1)
+  customerPos       CustomerPO[]
+  productAliases    ProductAlias[]
 
   @@map("customers")
 }
 
 model Branch {
-  id             String   @id @default(cuid())
-  customerId     String
-  customer       Customer @relation(fields: [customerId], references: [id])
-  code           String   // Branch Code
-  name           String   // Branch Name
-  taxBranchCode  String?  // เช่น 00000 / 00001 (ข้อ 5)
-  address        String?
-  province       String?
-  postalCode     String?
-  phone          String?
-  contactPerson  String?
-  note           String?
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  code          String // Branch Code
+  name          String // Branch Name
+  taxBranchCode String? // เช่น 00000 / 00001 (ข้อ 5)
+  address       String?
+  province      String?
+  postalCode    String?
+  phone         String?
+  contactPerson String?
+  note          String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  priceRules     PriceRule[]
-  discountRules  DiscountRule[]
-  orders         Order[]
-  invoices       Invoice[]
-  taxInvoices    TaxInvoice[]
+  priceRules        PriceRule[]
+  discountRules     DiscountRule[]
+  orders            Order[]
+  invoices          Invoice[]
+  taxInvoices       TaxInvoice[]
   repairReturnNotes RepairReturnNote[]
-  quotations     Quotation[]
+  quotations        Quotation[]
+  // Production Module (P1)
+  customerPos       CustomerPO[]
+  productAliases    ProductAlias[]
+  orderSequence     BranchOrderSequence?
 
   @@unique([customerId, code]) // ข้อ 61: Branch Code ซ้ำภายใต้ Customer เดียวกันห้าม
   @@map("branches")
@@ -191,23 +198,23 @@ model Branch {
 // ---------- Phase 1: PRODUCT TYPE / PRODUCT ----------
 
 model ProductType {
-  id          String   @id @default(cuid())
-  code        String   @unique // ข้อ 6: TYPE A / TYPE B / TYPE C ... (ขยายได้ไม่ hardcode)
-  name        String
-  description String?
+  id                 String   @id @default(cuid())
+  code               String   @unique // ข้อ 6: TYPE A / TYPE B / TYPE C ... (ขยายได้ไม่ hardcode)
+  name               String
+  description        String?
   // Production Smoke Test (2026-08-25) — Owner: กำหนด % ส่วนลดตรงที่กลุ่มได้เลย ไม่ต้อง
   // สร้าง DiscountRule รายลูกค้าทีละใบ — เป็น Fallback Tier ใหม่ใน getEffectiveDiscountPct
   // (Branch Rule → Customer Rule → "ค่านี้" → 0%) — null = กลุ่มนี้ไม่มีส่วนลดตั้งต้น
   // (พฤติกรรมเดิมทุกประการ) — DiscountRule เดิมยังทำงานเหมือนเดิมและ Override ค่านี้เสมอ
   defaultDiscountPct Decimal? @db.Decimal(5, 2)
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active             Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  products       Product[]
-  productModels  ProductModel[]
-  discountRules  DiscountRule[]
+  products      Product[]
+  productModels ProductModel[]
+  discountRules DiscountRule[]
 
   @@map("product_types")
 }
@@ -239,32 +246,34 @@ model ProductCategory {
 // พิมพ์ชื่อ Model ไม่ตรงกันระหว่าง SKU ที่ควรเป็นรุ่นเดียวกัน (เช่น "GT-David" vs
 // "gt david") ตามที่ตัดสินใจไว้ (ทางเลือก B)
 model ProductModel {
-  id            String      @id @default(cuid())
+  id            String           @id @default(cuid())
   productTypeId String
-  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  productType   ProductType      @relation(fields: [productTypeId], references: [id])
   // R6 — nullable: จัดหมวดได้ทีหลัง ไม่บังคับตอน Migrate (ข้อมูลเดิมทั้งหมด categoryId = null)
   categoryId    String?
   category      ProductCategory? @relation(fields: [categoryId], references: [id])
-  name          String      // เช่น "GT-David"
+  name          String // เช่น "GT-David"
   // R6 Phase B — ราคาต่อฟุต สำหรับ Category ที่ usesSize=true (เช่นฟูกที่นอน) ใช้คำนวณ
   // Standard Price ของ Standard Variant (3/3.5/4/5/6 ฟุต) อัตโนมัติ = pricePerFoot × size
   // ค่าตัวเลข Size มาจากตารางค่าคงที่ในโค้ด (product-variant-size.ts) เท่านั้น ไม่เคย
   // Parse จาก String — nullable เพราะ Category ที่ไม่ใช้ Size ไม่ต้องมีค่านี้เลย
-  pricePerFoot  Decimal?    @db.Decimal(12, 2)
-  active        Boolean     @default(true)
-  sortOrder     Int         @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  pricePerFoot  Decimal?         @db.Decimal(12, 2)
+  active        Boolean          @default(true)
+  sortOrder     Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   // R9 — Company Catalog (เหมือน Product.catalogId ทุกประการ)
-  catalogId String?
-  catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
+  catalogId       String?
+  catalog         ProductCatalog? @relation(fields: [catalogId], references: [id])
   // R10 — Private (เหมือน Product.ownerCustomerId ทุกประการ)
   ownerCustomerId String?
-  ownerCustomer   Customer? @relation("CustomerPrivateModels", fields: [ownerCustomerId], references: [id])
+  ownerCustomer   Customer?       @relation("CustomerPrivateModels", fields: [ownerCustomerId], references: [id])
 
-  products Product[]
+  products      Product[]
   companyAccess ProductCompanyAccess[]
+  // Production Module (P1) — ProductModel เป็น "ตระกูลสินค้า" ให้ Production reuse ตรงๆ
+  aliases       ProductAlias[]
 
   @@unique([productTypeId, name]) // กัน Model ชื่อซ้ำเป๊ะภายใน Type เดียวกัน
   @@map("product_models")
@@ -314,17 +323,17 @@ model ProductCompanyAccess {
 // การลบบริษัทออกจาก Catalog เปลี่ยนแค่การมองเห็นตอนสร้างเอกสารใหม่ — ไม่แตะ Product จริง
 // ไม่แตะเอกสารเก่า/Snapshot ใดๆ (หลักการเดียวกับ ProductCompanyAccess เดิมทุกประการ)
 model ProductCatalog {
-  id        String   @id @default(cuid())
-  name      String
+  id                 String   @id @default(cuid())
+  name               String
   // R10 — "สินค้าเสนอราคา": Catalog พิเศษหนึ่งเดียวสำหรับใบเสนอราคาแบบกรอกข้อมูลเอง
   // (Guest QT) — ไม่มีบริษัทสมาชิกเลยโดยเจตนา จึงไม่มีทางโผล่ให้ Customer Master เห็น
   // ผ่านกฎสมาชิกกลุ่มปกติ (Default ตาม Requirement) — เห็นได้เฉพาะ Scope "guest" ของ
   // Product Search (ดู quotationGuestWhere ใน product-company-access.ts) — สร้าง/ค้นหา
   // ผ่าน ensureQuotationCatalog() เท่านั้น (Singleton โดยการใช้งาน ไม่ใช่ Constraint)
-  isQuotationCatalog Boolean @default(false)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isQuotationCatalog Boolean  @default(false)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   companies     ProductCatalogCompany[]
   products      Product[]
@@ -347,30 +356,30 @@ model ProductCatalogCompany {
 }
 
 model Product {
-  id             String        @id @default(cuid())
-  sku            String        @unique // ข้อ 7
-  name           String
+  id              String           @id @default(cuid())
+  sku             String           @unique // ข้อ 7
+  name            String
   // R4 — nullable: สินค้าที่ไม่มีประเภทจริงๆ (เช่นอุปกรณ์เบ็ดเตล็ด) ขายได้ปกติ ใช้
   // Standard/Customer-specific Price ตามเดิม แต่ไม่มี Type-specific Discount (0% เสมอ
   // เพราะ DiscountRule.productTypeId ยัง required) — จัดกลุ่มเป็น "GEN" (Internal Code)
   // / "ไม่ระบุประเภท" (User-facing) ตอน Auto-Split Invoice — ไม่แตะ ProductModel/
   // DiscountRule.productTypeId เพราะทั้งคู่ยังต้องผูก Type เสมอตาม Design เดิม
-  productTypeId  String?
-  productType    ProductType?  @relation(fields: [productTypeId], references: [id])
+  productTypeId   String?
+  productType     ProductType?     @relation(fields: [productTypeId], references: [id])
   // R6 — Product Category เชิงคุณลักษณะ (ฟูกที่นอน/หมอน/อื่นๆ) แยกจาก productTypeId
   // (กลุ่มส่วนลด) โดยสิ้นเชิง — nullable เพราะสินค้าเดิมทั้งหมดยังไม่ได้จัดหมวด
-  categoryId     String?
-  category       ProductCategory? @relation(fields: [categoryId], references: [id])
-  modelId        String?       // Phase B — nullable ถาวร: Product ที่ยังไม่ได้ assign
-                                // Model (หรือไม่มี Model ที่มีความหมาย เช่นสินค้าตัวเดียว
-                                // ไม่มี Size variant) ยังใช้งาน/ขายได้ปกติทุกอย่าง — ห้าม
-                                // auto-derive จากชื่อ ต้องให้คนกำหนดเอง (Human-reviewed)
-  model          ProductModel? @relation(fields: [modelId], references: [id])
-  size           String?
-  unit           String        // เช่น หลัง, ใบ
-  standardPrice  Decimal       @db.Decimal(12, 2) // ราคารวม VAT แล้ว (VAT-inclusive) — ยืนยันแล้ว
-  description    String?
-  active         Boolean       @default(true)
+  categoryId      String?
+  category        ProductCategory? @relation(fields: [categoryId], references: [id])
+  modelId         String? // Phase B — nullable ถาวร: Product ที่ยังไม่ได้ assign
+  // Model (หรือไม่มี Model ที่มีความหมาย เช่นสินค้าตัวเดียว
+  // ไม่มี Size variant) ยังใช้งาน/ขายได้ปกติทุกอย่าง — ห้าม
+  // auto-derive จากชื่อ ต้องให้คนกำหนดเอง (Human-reviewed)
+  model           ProductModel?    @relation(fields: [modelId], references: [id])
+  size            String?
+  unit            String // เช่น หลัง, ใบ
+  standardPrice   Decimal          @db.Decimal(12, 2) // ราคารวม VAT แล้ว (VAT-inclusive) — ยืนยันแล้ว
+  description     String?
+  active          Boolean          @default(true)
   // Owner UAT — ข้อ 1: Product เป็น "Family Anchor" ของ Size/Pricing ได้เอง โดยไม่ต้องพึ่ง
   // ProductModel แยกต่างหาก — ตั้ง pricePerFoot ที่ Product ตรงๆ (เมื่อ category.usesSize
   // =true) แล้ว Product แถวนี้จะกลายเป็น "Anchor" ของ Size Family ตัวเอง — parentProductId
@@ -378,31 +387,52 @@ model Product {
   // syncStandardVariants เดิม แค่ขยายให้ทำงานกับ Product Parent ได้ ไม่ใช่แค่ ProductModel
   // Parent) — Additive ล้วนๆ ไม่แตะ modelId/ProductModel เดิมแม้แต่นิดเดียว (Backward
   // Compatible เต็มรูปแบบ — Product ที่ผูก modelId เดิมยังทำงานเหมือนเดิมทุกประการ)
-  pricePerFoot    Decimal?  @db.Decimal(12, 2)
+  pricePerFoot    Decimal?         @db.Decimal(12, 2)
   parentProductId String?
-  parentProduct   Product?  @relation("ProductSizeFamily", fields: [parentProductId], references: [id])
-  sizeVariants    Product[] @relation("ProductSizeFamily")
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  parentProduct   Product?         @relation("ProductSizeFamily", fields: [parentProductId], references: [id])
+  sizeVariants    Product[]        @relation("ProductSizeFamily")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   // R9 — Company Catalog ของ Family Head (null = สินค้าส่วนกลาง) — Variant ตามหัวเสมอ
   // ไม่มีค่าของตัวเอง (Resolution ผ่าน resolveAccessHead ใน product-company-access.ts)
-  catalogId String?
-  catalog   ProductCatalog? @relation(fields: [catalogId], references: [id])
+  catalogId       String?
+  catalog         ProductCatalog? @relation(fields: [catalogId], references: [id])
   // R10 — Private Product: สินค้าเฉพาะบริษัทเดียว (สมาชิกอื่นในกลุ่มไม่เห็น) — ตั้งได้
   // เฉพาะ Family Head และ Mutually Exclusive กับ catalogId (Application Layer บังคับ:
   // Private → catalogId null เสมอ) — ลำดับตัดสินการมองเห็น: Private → Shared (Catalog)
   // → ส่วนกลาง/Allowlist เดิม (ดู companyAccessWhere)
   ownerCustomerId String?
-  ownerCustomer   Customer? @relation("CustomerPrivateProducts", fields: [ownerCustomerId], references: [id])
+  ownerCustomer   Customer?       @relation("CustomerPrivateProducts", fields: [ownerCustomerId], references: [id])
 
-  priceRules   PriceRule[]
-  orderItems   OrderItem[]
-  invoiceItems InvoiceItem[]
+  priceRules     PriceRule[]
+  orderItems     OrderItem[]
+  invoiceItems   InvoiceItem[]
   quotationItems QuotationItem[]
-  companyAccess ProductCompanyAccess[]
+  companyAccess  ProductCompanyAccess[]
+
+  // ---------- Production Module (P1) — เพิ่มแบบ Additive, nullable ทั้งหมด ----------
+  // ห้ามทำสำเนา Product Master — เพิ่มแค่ field ที่ Production ต้องใช้ ไม่แตะของเดิมเลย
+  // "ตระกูลสินค้า" ของ Production reuse modelId/parentProductId เดิม ไม่มี familyId ใหม่
+  // (ดู docs/production-module/02-P1-schema-decisions.md)
+  form             String? // "นอน" | "Box" | ... (ค่าตั้งค่าใน AppSetting ไม่ hardcode)
+  material         String?
+  color            String?
+  thickness        String?
+  productionStatus ProductionStatus? // แยกจาก `active` (Billing) โดยเจตนา — คนละความหมาย
+  // ชื่อที่แสดงบนใบสั่งผลิต/ใบขึ้นของ อาจต่างจาก `name` ที่ใช้ในเอกสารบิล — null = ใช้ name เดิม
+  productionLabel  String?
+  aliases          ProductAlias[]
+  customerPoLines  CustomerPOLine[]
+  productionItems  ProductionItem[]
 
   @@map("products")
+}
+
+enum ProductionStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
 }
 
 // ---------- Phase 2 (โครงไว้ก่อน): PRICE / DISCOUNT / VAT ----------
@@ -412,18 +442,18 @@ model Product {
 // ถ้า customerId!=null,branchId=null = Customer Special Price (ข้อ 10)
 // ถ้า customerId!=null,branchId!=null = Branch Special Price (ข้อ 11, priority สูงสุด — ข้อ 12)
 model PriceRule {
-  id             String    @id @default(cuid())
-  productId      String
-  product        Product   @relation(fields: [productId], references: [id])
-  customerId     String?
-  customer       Customer? @relation(fields: [customerId], references: [id])
-  branchId       String?
-  branch         Branch?   @relation(fields: [branchId], references: [id])
-  price          Decimal   @db.Decimal(12, 2) // ราคาตั้งต้นก่อนหักส่วนลด, รวม VAT แล้ว
-  effectiveFrom  DateTime
-  effectiveTo    DateTime? // null = ไม่มีวันหมดอายุ
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  productId     String
+  product       Product   @relation(fields: [productId], references: [id])
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  price         Decimal   @db.Decimal(12, 2) // ราคาตั้งต้นก่อนหักส่วนลด, รวม VAT แล้ว
+  effectiveFrom DateTime
+  effectiveTo   DateTime? // null = ไม่มีวันหมดอายุ
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([productId, customerId, branchId])
   @@map("price_rules")
@@ -431,29 +461,29 @@ model PriceRule {
 
 // ส่วนลด % ตาม Customer/Branch × Product Type (ข้อ 14-15)
 model DiscountRule {
-  id             String       @id @default(cuid())
-  customerId     String
-  customer       Customer     @relation(fields: [customerId], references: [id])
-  branchId       String?      // null = apply ทุกสาขาของ Customer นี้ (ข้อ 14)
-  branch         Branch?      @relation(fields: [branchId], references: [id])
-  productTypeId  String
-  productType    ProductType  @relation(fields: [productTypeId], references: [id])
-  discountPct    Decimal      @db.Decimal(5, 2) // เช่น 10.00 = 10%
-  effectiveFrom  DateTime
-  effectiveTo    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id            String      @id @default(cuid())
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  branchId      String? // null = apply ทุกสาขาของ Customer นี้ (ข้อ 14)
+  branch        Branch?     @relation(fields: [branchId], references: [id])
+  productTypeId String
+  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  discountPct   Decimal     @db.Decimal(5, 2) // เช่น 10.00 = 10%
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([customerId, branchId, productTypeId])
   @@map("discount_rules")
 }
 
 model VatRate {
-  id             String    @id @default(cuid())
-  ratePct        Decimal   @db.Decimal(5, 2) @default(7.00)
-  effectiveFrom  DateTime
-  effectiveTo    DateTime?
-  createdAt      DateTime  @default(now())
+  id            String    @id @default(cuid())
+  ratePct       Decimal   @default(7.00) @db.Decimal(5, 2)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
 
   @@map("vat_rates")
 }
@@ -467,41 +497,41 @@ enum OrderStatus {
 }
 
 model Order {
-  id           String      @id @default(cuid())
-  orderNumber  String      @unique // ORDER-YYYYMM-##### (ข้อ 22, 30)
-  customerId   String
-  customer     Customer    @relation(fields: [customerId], references: [id])
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique // ORDER-YYYYMM-##### (ข้อ 22, 30)
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
   // Owner UAT Fix Batch 1 — ข้อ 3: บริษัทที่ไม่มีสาขาต้องสร้างเอกสารได้ด้วย Customer
   // อย่างเดียว — Branch เป็น Optional (Additive, ไม่ลบ Architecture) แถวเดิมที่มี
   // branchId อยู่แล้วไม่กระทบ
-  branchId     String?
-  branch       Branch?     @relation(fields: [branchId], references: [id])
-  orderDate    DateTime
-  reference    String?
-  note         String?
+  branchId        String?
+  branch          Branch?     @relation(fields: [branchId], references: [id])
+  orderDate       DateTime
+  reference       String?
+  note            String?
   placeToDelivery String? // สถานที่ส่งสินค้า — แยกจาก Branch Address ได้ (ตามฟอร์มจริง, แก้ไขได้อิสระ)
-  status       OrderStatus @default(DRAFT)
+  status          OrderStatus @default(DRAFT)
   // R3 — Calculation Toggle จริง (ไม่ใช่ Presentation): false = ข้าม DiscountRule
   // lookup ไปเลย บังคับ discountPct/discountAmount = 0 ที่ต้นทางใน computeOrderPreview()
   // default true = พฤติกรรมเดิมของระบบทุกประการ (Backward Compatible กับเอกสารเก่า)
-  applyDiscount Boolean    @default(true)
-  createdById  String
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  applyDiscount   Boolean     @default(true)
+  createdById     String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  items     OrderItem[]
-  invoices  Invoice[]
+  items    OrderItem[]
+  invoices Invoice[]
 
   @@map("orders")
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
-  orderId    String
-  order      Order    @relation(fields: [orderId], references: [id])
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id])
-  quantity   Decimal  @db.Decimal(12, 2)
+  id                  String   @id @default(cuid())
+  orderId             String
+  order               Order    @relation(fields: [orderId], references: [id])
+  productId           String
+  product             Product  @relation(fields: [productId], references: [id])
+  quantity            Decimal  @db.Decimal(12, 2)
   // รายละเอียดที่แสดงบนเอกสาร: default ดึงจาก Product.name แต่ override ได้ (ข้อ "หมายเหตุก่อนข้อ11" — ไซส์พิเศษ)
   descriptionOverride String?
   // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": User พิมพ์ Size/ราคาเองตอนคีย์เอกสาร ไม่ผ่าน
@@ -523,18 +553,18 @@ enum InvoiceStatus {
 
 // Invoice ที่แตกจาก Order ตาม Product Type (ข้อ 19, 22-27)
 model Invoice {
-  id              String        @id @default(cuid())
-  invoiceNumber   String        @unique // INV-{Type}-YYYYMM-#### (ข้อ 22, 30)
-  parentOrderId   String        // ข้อ 23: Parent Order Relation
-  order           Order         @relation(fields: [parentOrderId], references: [id])
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique // INV-{Type}-YYYYMM-#### (ข้อ 22, 30)
+  parentOrderId   String // ข้อ 23: Parent Order Relation
+  order           Order    @relation(fields: [parentOrderId], references: [id])
   invoiceDate     DateTime
   customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
+  customer        Customer @relation(fields: [customerId], references: [id])
   // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order.branchId ทุกประการ (สร้างมาจาก
   // Order.branchId ตอน Confirm — ถ้า Order ไม่มีสาขา Invoice ก็ไม่มีสาขาเช่นกัน)
   branchId        String?
-  branch          Branch?       @relation(fields: [branchId], references: [id])
-  productTypeCode String        // snapshot ชื่อ Type ตอนแตกบิล (ไม่ join ทีหลัง)
+  branch          Branch?  @relation(fields: [branchId], references: [id])
+  productTypeCode String // snapshot ชื่อ Type ตอนแตกบิล (ไม่ join ทีหลัง)
 
   // --- Snapshot fields (ข้อ 27) — ห้ามอ้างอิง Master Data สด ---
   customerNameSnapshot String
@@ -544,17 +574,17 @@ model Invoice {
   addressSnapshot      String?
   placeToDelivery      String? // จุดสีเหลือง #4 — เพิ่มตาม form จริง
 
-  grossAmount     Decimal @db.Decimal(14, 2)
-  discountPct     Decimal @db.Decimal(5, 2)
-  discountAmount  Decimal @db.Decimal(14, 2)
+  grossAmount    Decimal @db.Decimal(14, 2)
+  discountPct    Decimal @db.Decimal(5, 2)
+  discountAmount Decimal @db.Decimal(14, 2)
   // R3 — Snapshot ของ Order.applyDiscount ณ ตอน Confirm/E3-Reissue เพื่อแยกความหมาย
   // "ไม่มี Discount Rule จริง (discountPct=0 ตามกฎ)" ออกจาก "มี Rule แต่ผู้ใช้ตั้งใจ
   // เลือกไม่ใช้ส่วนลด (applyDiscount=false)" ให้ตรวจสอบย้อนหลังได้ชัดเจน
-  applyDiscount   Boolean @default(true)
-  netBeforeVat    Decimal @db.Decimal(14, 2)
-  vatPct          Decimal @db.Decimal(5, 2)
-  vatAmount       Decimal @db.Decimal(14, 2)
-  grandTotal      Decimal @db.Decimal(14, 2)
+  applyDiscount  Boolean @default(true)
+  netBeforeVat   Decimal @db.Decimal(14, 2)
+  vatPct         Decimal @db.Decimal(5, 2)
+  vatAmount      Decimal @db.Decimal(14, 2)
+  grandTotal     Decimal @db.Decimal(14, 2)
 
   status      InvoiceStatus @default(DRAFT)
   createdById String
@@ -569,41 +599,41 @@ model Invoice {
   printedAt   DateTime?
   printedById String?
 
-  items InvoiceItem[]
-  taxInvoices TaxInvoice[]
-  billingNoteId String?      // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล
-  billingNote   BillingNote? @relation(fields: [billingNoteId], references: [id])
+  items         InvoiceItem[]
+  taxInvoices   TaxInvoice[]
+  billingNoteId String? // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล
+  billingNote   BillingNote?  @relation(fields: [billingNoteId], references: [id])
 
   @@map("invoices")
 }
 
 model InvoiceItem {
-  id                  String   @id @default(cuid())
+  id                  String  @id @default(cuid())
   invoiceId           String
-  invoice             Invoice  @relation(fields: [invoiceId], references: [id])
+  invoice             Invoice @relation(fields: [invoiceId], references: [id])
   productId           String
-  product              Product @relation(fields: [productId], references: [id])
+  product             Product @relation(fields: [productId], references: [id])
   skuSnapshot         String
-  productNameSnapshot String   // override ได้ตอนคีย์ (ไซส์พิเศษ)
+  productNameSnapshot String // override ได้ตอนคีย์ (ไซส์พิเศษ)
   productTypeSnapshot String
-  sizeSnapshot        String?  // Phase C — nullable ถาวร: รายการเก่าก่อน migration นี้
-                                // ไม่มีค่า ห้ามเอา Product.size ปัจจุบันย้อนไปเติมให้
-                                // (ผิดหลัก Document Snapshot) ตอน Print ให้แสดงว่างถ้า null
-  quantity            Decimal  @db.Decimal(12, 2)
+  sizeSnapshot        String? // Phase C — nullable ถาวร: รายการเก่าก่อน migration นี้
+  // ไม่มีค่า ห้ามเอา Product.size ปัจจุบันย้อนไปเติมให้
+  // (ผิดหลัก Document Snapshot) ตอน Print ให้แสดงว่างถ้า null
+  quantity            Decimal @db.Decimal(12, 2)
   unitSnapshot        String
-  unitPriceSnapshot   Decimal  @db.Decimal(12, 2)
-  grossAmount         Decimal  @db.Decimal(14, 2)
-  discountAmount      Decimal  @db.Decimal(14, 2)
-  netAmount           Decimal  @db.Decimal(14, 2)
-  vatAmount           Decimal  @db.Decimal(14, 2)
-  totalAmount         Decimal  @db.Decimal(14, 2)
+  unitPriceSnapshot   Decimal @db.Decimal(12, 2)
+  grossAmount         Decimal @db.Decimal(14, 2)
+  discountAmount      Decimal @db.Decimal(14, 2)
+  netAmount           Decimal @db.Decimal(14, 2)
+  vatAmount           Decimal @db.Decimal(14, 2)
+  totalAmount         Decimal @db.Decimal(14, 2)
   // Smoke Test R12 (2026-08-25) — Owner: "ยอดสุทธิ (Net)" ของ Dashboard/รายงานยอดขาย ต้องหัก
   // ส่วนลดกลุ่มเสมอตามกลุ่มของสินค้า ไม่ขึ้นกับว่าใบส่งของใบนี้เลือกใช้/แสดงส่วนลดหรือไม่
   // (การแสดงบนกระดาษเป็นการตัดสินใจของ Owner แยกจากตัวเลขวิเคราะห์โดยสิ้นเชิง) — Snapshot
   // ณ ตอน Confirm ด้วย Resolver เดียวกับส่วนลดจริง (Branch Rule → Customer Rule → % กลุ่ม
   // → 0) จัดสรรต่อบรรทัดแบบเดียวกับ discountAmount ทุกประการ — ถ้าใบนี้ใช้ส่วนลดจริงอยู่แล้ว
   // ค่านี้ = discountAmount เป๊ะ / รายงานคำนวณ Net = grossAmount − statDiscountAmount
-  statDiscountAmount  Decimal  @default(0) @db.Decimal(14, 2)
+  statDiscountAmount  Decimal @default(0) @db.Decimal(14, 2)
 
   @@map("invoice_items")
 }
@@ -630,16 +660,16 @@ enum TaxInvoiceStatus {
 }
 
 model TaxInvoice {
-  id                  String            @id @default(cuid())
-  taxInvoiceNumber    String            @unique // TX-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
-  taxInvoiceDate      DateTime
-  customerId          String
-  customer            Customer          @relation(fields: [customerId], references: [id])
+  id                 String   @id @default(cuid())
+  taxInvoiceNumber   String   @unique // TX-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  taxInvoiceDate     DateTime
+  customerId         String
+  customer           Customer @relation(fields: [customerId], references: [id])
   // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order.branchId ทุกประการ
-  branchId            String?
-  branch              Branch?           @relation(fields: [branchId], references: [id])
-  referenceInvoiceId  String?           // ถ้าสร้างแบบ Auto จาก Invoice ใบเดียว — Manual mode ปล่อยว่างได้
-  referenceInvoice    Invoice?          @relation(fields: [referenceInvoiceId], references: [id])
+  branchId           String?
+  branch             Branch?  @relation(fields: [branchId], references: [id])
+  referenceInvoiceId String? // ถ้าสร้างแบบ Auto จาก Invoice ใบเดียว — Manual mode ปล่อยว่างได้
+  referenceInvoice   Invoice? @relation(fields: [referenceInvoiceId], references: [id])
 
   customerNameSnapshot String
   taxIdSnapshot        String?
@@ -655,26 +685,26 @@ model TaxInvoice {
   // ข้อมูลย้อนหลังตามหลัก Document Snapshot)
   grossAmount    Decimal? @db.Decimal(14, 2)
   discountAmount Decimal  @default(0) @db.Decimal(14, 2)
-  valueAmount Decimal @db.Decimal(14, 2) // มูลค่าสินค้าก่อน VAT (ฐานภาษีหลังหักส่วนลด)
-  vatPct      Decimal @db.Decimal(5, 2)
-  vatAmount   Decimal @db.Decimal(14, 2)
-  netAmount   Decimal @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive หลังหักส่วนลด)
+  valueAmount    Decimal  @db.Decimal(14, 2) // มูลค่าสินค้าก่อน VAT (ฐานภาษีหลังหักส่วนลด)
+  vatPct         Decimal  @db.Decimal(5, 2)
+  vatAmount      Decimal  @db.Decimal(14, 2)
+  netAmount      Decimal  @db.Decimal(14, 2) // สุทธิ = valueAmount + vatAmount (ยอดรวม VAT-inclusive หลังหักส่วนลด)
 
   // R11 (2026-08-27) — วิธีคิด VAT ของใบนี้ (Snapshot ตรวจย้อนหลังได้):
   //   EXTRACT (Default — พฤติกรรมเดิมทุกใบ) = ราคาที่กรอกรวม VAT แล้ว ถอดออกมาแสดง
   //   ADD_ON = ราคาที่กรอกยังไม่รวม VAT บวกเพิ่มตามอัตรา (ฐาน = ยอดหลังหักส่วนลด)
   // โหมด AUTO (ดึงจากใบส่งของ) เป็น EXTRACT เสมอ — ส่วนลดหักก่อน VAT เสมอทั้งสองโหมด
-  vatCalcMode TaxVatCalcMode @default(EXTRACT)
-  status      TaxInvoiceStatus @default(CONFIRMED)
+  vatCalcMode  TaxVatCalcMode   @default(EXTRACT)
+  status       TaxInvoiceStatus @default(CONFIRMED)
   // R13 — PRINTED Checkpoint (Pattern เดียวกับ Invoice.printedAt/printedById ทุกประการ)
-  printedAt   DateTime?
-  printedById String?
+  printedAt    DateTime?
+  printedById  String?
   // R13 — true = Owner ยืนยันตอนพิมพ์ว่าให้นับใบนี้เข้ายอดขาย/ยอดสุทธิ (Dashboard/รายงาน)
   // — ใช้กับเคสออกใบกำกับตรงแทนใบส่งของ ใบที่ซ้ำยอดกับ Invoice ให้ตอบไม่นับ กันนับซ้ำ
-  countAsSales Boolean @default(false)
-  createdById String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  countAsSales Boolean          @default(false)
+  createdById  String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   items TaxInvoiceItem[]
 
@@ -682,20 +712,20 @@ model TaxInvoice {
 }
 
 model TaxInvoiceItem {
-  id           String     @id @default(cuid())
-  taxInvoiceId String
-  taxInvoice   TaxInvoice @relation(fields: [taxInvoiceId], references: [id])
-  description  String     // ข้อความอิสระ — ไม่ผูกกับ Product Master เสมอไป (Manual mode พิมพ์เองได้)
-  size         String?    // Phase C — ช่องกรอกเองแยกจาก description เพราะ TaxInvoiceItem
-                           // ไม่ผูก Product Master เลย จึง derive จาก Master ไม่ได้
-  quantity     Decimal    @db.Decimal(12, 2)
-  unit         String
-  unitPrice    Decimal    @db.Decimal(12, 2) // ราคารวม VAT ต่อหน่วย
-  amount       Decimal    @db.Decimal(14, 2) // quantity × unitPrice (ก่อนหักส่วนลดบรรทัด)
+  id             String     @id @default(cuid())
+  taxInvoiceId   String
+  taxInvoice     TaxInvoice @relation(fields: [taxInvoiceId], references: [id])
+  description    String // ข้อความอิสระ — ไม่ผูกกับ Product Master เสมอไป (Manual mode พิมพ์เองได้)
+  size           String? // Phase C — ช่องกรอกเองแยกจาก description เพราะ TaxInvoiceItem
+  // ไม่ผูก Product Master เลย จึง derive จาก Master ไม่ได้
+  quantity       Decimal    @db.Decimal(12, 2)
+  unit           String
+  unitPrice      Decimal    @db.Decimal(12, 2) // ราคารวม VAT ต่อหน่วย
+  amount         Decimal    @db.Decimal(14, 2) // quantity × unitPrice (ก่อนหักส่วนลดบรรทัด)
   // Phase H — ส่วนลดต่อบรรทัด (Additive, Default 0): ใช้ทั้งโหมด AUTO (สืบทอดจาก
   // InvoiceItem.discountAmount) และ MANUAL (กรอกเอง/ตาม Discount Group) — ผลรวมทุก
   // บรรทัดต้องเท่ากับ TaxInvoice.discountAmount เสมอ
-  discountAmount Decimal  @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal    @default(0) @db.Decimal(14, 2)
 
   @@map("tax_invoice_items")
 }
@@ -782,7 +812,7 @@ model RepairReturnNoteItem {
   id                 String           @id @default(cuid())
   repairReturnNoteId String
   repairReturnNote   RepairReturnNote @relation(fields: [repairReturnNoteId], references: [id])
-  description        String           // ข้อความอิสระ ไม่ผูก Product Master
+  description        String // ข้อความอิสระ ไม่ผูก Product Master
   // Owner UAT Fix Batch 1 — ข้อ 5: เชื่อม Product Search Picker เป็น Autofill Helper
   // (Client-side ล้วนๆ) — ยังไม่ผูก FK กับ Product Master ตามเจตนาเดิมของเอกสารนี้
   // ทุกประการ (mirror TaxInvoiceItem.size เป๊ะ)
@@ -839,11 +869,11 @@ model QuotationProspect {
 }
 
 model Quotation {
-  id              String   @id @default(cuid())
+  id              String             @id @default(cuid())
   // R10 — ราย (Prospect) ของ Guest QT — ตั้งเฉพาะใบที่กรอกข้อมูลเอง (customerId null)
-  prospectId String?
-  prospect   QuotationProspect? @relation(fields: [prospectId], references: [id])
-  quotationNumber String   @unique // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
+  prospectId      String?
+  prospect        QuotationProspect? @relation(fields: [prospectId], references: [id])
+  quotationNumber String             @unique // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
   quotationDate   DateTime
   // Fresh UAT Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: customerId เป็น null ได้
   // (ลูกค้าที่กรอกเองโดยไม่สร้าง Customer Master) — ข้อมูลลูกค้าทั้งหมดของ Guest อยู่ใน
@@ -853,17 +883,17 @@ model Quotation {
   customerId      String?
   // onDelete: Restrict ระบุชัด — Optional Relation ใน Prisma จะ Default เป็น SET NULL
   // ซึ่งเปลี่ยนพฤติกรรมเดิม (เดิม Required = RESTRICT ลบลูกค้าที่มีใบเสนอราคาไม่ได้)
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer        Customer?          @relation(fields: [customerId], references: [id], onDelete: Restrict)
   // Owner UAT Fix Batch 1 — ข้อ 3: เหมือน Order.branchId ทุกประการ
   branchId        String?
-  branch          Branch?  @relation(fields: [branchId], references: [id])
+  branch          Branch?            @relation(fields: [branchId], references: [id])
   reference       String?
   note            String?
   placeToDelivery String?
-  vatMode         QuotationVatMode @default(NONE)
+  vatMode         QuotationVatMode   @default(NONE)
   // R3 — Calculation Toggle จริง (เหมือน Order.applyDiscount ทุกประการ) — เปลี่ยนได้ทั้ง
   // ตอน DRAFT และตอน Revision (mirror ของ vatMode ที่เปลี่ยนได้ตอน Revision อยู่แล้ว)
-  applyDiscount   Boolean          @default(true)
+  applyDiscount   Boolean            @default(true)
 
   // --- Snapshot fields — null ตอน DRAFT, เติมค่าตอน Confirm/Revision เท่านั้น
   // ห้าม Print อ่าน Master สดหลัง Confirm แล้วเด็ดขาด ---
@@ -877,10 +907,10 @@ model Quotation {
   phoneSnapshot         String?
   grossAmount           Decimal? @db.Decimal(14, 2)
   discountAmount        Decimal? @db.Decimal(14, 2)
-  vatRateSnapshot        Decimal? @db.Decimal(5, 2) // อัตรา VAT จริงที่ใช้ ณ ตอน Confirm/Revision
-  netBeforeVat            Decimal? @db.Decimal(14, 2)
-  vatAmount               Decimal? @db.Decimal(14, 2)
-  grandTotal              Decimal? @db.Decimal(14, 2)
+  vatRateSnapshot       Decimal? @db.Decimal(5, 2) // อัตรา VAT จริงที่ใช้ ณ ตอน Confirm/Revision
+  netBeforeVat          Decimal? @db.Decimal(14, 2)
+  vatAmount             Decimal? @db.Decimal(14, 2)
+  grandTotal            Decimal? @db.Decimal(14, 2)
 
   // Revision — Confirm แรก = 0, แก้ตอน CONFIRMED แต่ละครั้ง +1 (แก้ตอน DRAFT ไม่นับ)
   // ป้องกันลูกค้า/บริษัทถือ Quotation เลขเดียวกันแต่คนละเวอร์ชันโดยไม่รู้ตัว
@@ -901,12 +931,12 @@ model QuotationItem {
   quotationId         String
   quotation           Quotation @relation(fields: [quotationId], references: [id])
   productId           String
-  product              Product  @relation(fields: [productId], references: [id])
-  quantity             Decimal  @db.Decimal(12, 2)
-  descriptionOverride  String?
+  product             Product   @relation(fields: [productId], references: [id])
+  quantity            Decimal   @db.Decimal(12, 2)
+  descriptionOverride String?
   // R6 Phase B — "ขนาดพิเศษ/ระบุเอง" เหมือน OrderItem ทุกประการ
-  sizeOverride         String?
-  unitPriceOverride    Decimal? @db.Decimal(12, 2)
+  sizeOverride        String?
+  unitPriceOverride   Decimal?  @db.Decimal(12, 2)
 
   // --- Snapshot fields — null ตอน DRAFT, เติมค่าตอน Confirm/Revision เท่านั้น ---
   skuSnapshot         String?
@@ -926,10 +956,10 @@ model QuotationItem {
 
 // Running Number แบบ concurrency-safe (ข้อ 30, 52) — ใช้ atomic increment ผ่าน DB transaction
 model DocumentSequence {
-  id       String @id @default(cuid())
-  docType  String // เช่น "ORDER", "INV-A", "INV-B", "INV-C", "DEP", "TX", "BI"
-  period   String // เช่น "202608" — รีเซ็ตทุกเดือน (ยืนยันแล้ว)
-  lastSeq  Int    @default(0)
+  id      String @id @default(cuid())
+  docType String // เช่น "ORDER", "INV-A", "INV-B", "INV-C", "DEP", "TX", "BI"
+  period  String // เช่น "202608" — รีเซ็ตทุกเดือน (ยืนยันแล้ว)
+  lastSeq Int    @default(0)
 
   @@unique([docType, period])
   @@map("document_sequences")
@@ -947,17 +977,31 @@ model ProductSkuSequence {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  action     String   // CREATE / UPDATE / DELETE / CANCEL / LOGIN ...
-  module     String   // Price / Discount / Product / Customer / Order / Invoice / Permission
-  recordId   String
-  oldValue   Json?
-  newValue   Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String // CREATE / UPDATE / DELETE / CANCEL / LOGIN ...
+  module    String // Price / Discount / Product / Customer / Order / Invoice / Permission
+  recordId  String
+  oldValue  Json?
+  newValue  Json?
+  createdAt DateTime @default(now())
+
+  // ---------- Production Module (P1) — เพิ่มแบบ Additive, nullable ทั้งหมด ----------
+  // Reuse AuditLog เป็น Timeline กลางของ Production แทนการสร้างตาราง event ใหม่คู่ขนาน
+  // (ดู docs/production-module/02-P1-schema-decisions.md) — แถวของ Billing เดิมทุกแถว
+  // ปล่อยเป็น null หมด ไม่กระทบพฤติกรรมเดิม
+  customerId    String? // เก็บซ้ำเพื่อความเร็วของหน้าประวัติบริษัท (เปิดบ่อยที่สุด)
+  branchId      String?
+  customerPoId  String? // ชี้ไปยัง CustomerPO (โมดูล Production เท่านั้น ไม่ใช่ FK บังคับ)
+  correlationId String? // กลุ่ม AuditLog ที่เกิดจาก action เดียวกัน (เช่น กระทบยอดครั้งเดียวกระทบหลาย entity)
+  reason        String?
 
   @@index([module, recordId])
+  @@index([customerId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([customerPoId, createdAt])
+  @@index([correlationId])
   @@map("audit_logs")
 }
 
@@ -966,4 +1010,267 @@ model AppSetting {
   value String
 
   @@map("app_settings")
+}
+
+// ==========================================================================
+// ---------- Production & Delivery Module (P1) ----------
+// business logic แยกจาก Billing โดยสิ้นเชิง — Product Master ใช้ร่วมกัน (เพิ่ม field
+// บน Product/ProductModel เท่านั้น ไม่ทำสำเนา) ดู docs/production-module/ สำหรับสเปกเต็ม
+// และ docs/production-module/02-P1-schema-decisions.md สำหรับเหตุผลการตัดสินใจ schema นี้
+//
+// ชื่อโมเดลใช้ prefix "CustomerPO"/"Production" ตั้งใจไม่ใช้ "Order" เฉยๆ เพราะ Order/
+// OrderItem มีอยู่แล้วสำหรับ Billing (คนละความหมาย — ใบสั่งขายก่อนออกใบแจ้งหนี้)
+// และไม่ใช้ "PurchaseOrder" เฉยๆ ด้วย เพราะคำนี้ในความหมายมาตรฐาน ERP/บัญชีคือฝั่งที่
+// "เราสั่งซื้อจาก Supplier" (Procurement ขาออก) ตรงข้ามกับที่นี่ซึ่งคือ "รับ P.O. จากลูกค้า"
+// เข้ามา — ถ้าวันหน้าทำระบบจัดซื้อจริงจะชนความหมายทันที จึงใช้ "CustomerPO" ให้ชัดว่าเป็น
+// P.O. ฝั่งลูกค้าโดยเฉพาะ
+// ==========================================================================
+
+enum AliasScope {
+  GLOBAL
+  CUSTOMER
+  BRANCH
+}
+
+// ชื่อเรียกอื่นๆ ของตระกูลสินค้า — ตระกูลสินค้า reuse ProductModel เดิม (หรือ Product เดี่ยว
+// สำหรับสินค้าที่เป็น Anchor ของตัวเองแบบไม่มี ProductModel แยก — Family Head Pattern
+// เดียวกับ ProductCompanyAccess.productId/productModelId) productModelId/productId เป็น
+// XOR บังคับที่ Application Layer เหมือน resolveAccessHead() ใน product-company-access.ts
+// (ทั้งระบบไม่มี DB CHECK constraint เลยสักที่ — ยึด convention เดิม)
+model ProductAlias {
+  id              String        @id @default(cuid())
+  productModelId  String?
+  productModel    ProductModel? @relation(fields: [productModelId], references: [id])
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id])
+  aliasText       String // ตามที่มีคนพิมพ์/เขียนจริง เช่น "เดวิท"
+  aliasNormalized String // lowercase + ตัด whitespace ซ้ำ — ใช้ค้นหา/กันซ้ำในแต่ละ scope
+  lang            String?
+  scope           AliasScope    @default(GLOBAL)
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  source          String        @default("manual")
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  @@index([aliasNormalized])
+  @@map("product_aliases")
+}
+
+// Lifetime counter ต่อสาขา ("สั่งครั้งที่ N") ไม่รีเซ็ต — เลียนแบบ ProductSkuSequence/
+// getNextSkuSeq เป๊ะ (atomic upsert กัน race condition จริง ไม่ query MAX+1)
+model BranchOrderSequence {
+  branchId String @id
+  branch   Branch @relation(fields: [branchId], references: [id])
+  lastSeq  Int    @default(0)
+
+  @@map("branch_order_sequences")
+}
+
+enum DateMode {
+  UNSET
+  ESTIMATE
+  EXACT
+}
+
+model CustomerPO {
+  id            String    @id @default(cuid())
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  dateMode      DateMode  @default(UNSET)
+  requestedDate DateTime?
+  orderSeqNo    Int? // จาก BranchOrderSequence ตอนสร้าง (นับ per branch — ยืนยันแล้ว)
+  urgency       Boolean   @default(false)
+  status        String // ค่าตั้งค่าใน AppSetting ไม่ hardcode
+  poImagePaths  String[] // P1 shortcut — เตรียม migrate เป็น Attachment model ภายหลัง
+  version       Int       @default(0) // optimistic lock กัน lost update (reject + reload, ไม่ auto-merge)
+  revCounter    Int       @default(0) // ที่มาของ revNo แบบ atomic ให้ CustomerPORevision
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  lines            CustomerPOLine[]
+  revisions        CustomerPORevision[]
+  productionOrders ProductionOrder[]
+
+  @@map("customer_pos")
+}
+
+enum OrderLineKind {
+  CATALOG
+  UNRESOLVED
+}
+
+model CustomerPOLine {
+  id              String        @id @default(cuid())
+  customerPoId    String
+  customerPo      CustomerPO    @relation(fields: [customerPoId], references: [id])
+  lineKind        OrderLineKind @default(CATALOG)
+  productId       String? // null เมื่อ lineKind = UNRESOLVED (สินค้ายังไม่มีใน Product Master)
+  product         Product?      @relation(fields: [productId], references: [id])
+  rawProductText  String? // ชื่อที่พนักงานคีย์ตรงๆ เมื่อ productId เป็น null
+  size            String?
+  qtyCurrent      Int
+  urgency         Boolean       @default(false)
+  requiredDate    DateTime?
+  isCustomSize    Boolean       @default(false)
+  customW         Decimal?      @db.Decimal(8, 2)
+  customL         Decimal?      @db.Decimal(8, 2)
+  customThickness String?
+  note            String?
+
+  revisionChanges CustomerPORevisionChange[]
+  productionItems ProductionItem[]
+
+  @@map("customer_po_lines")
+}
+
+// Revision = header + รายการ changes ภายใน (1 การบันทึก อาจแก้ได้หลายบรรทัดพร้อมกัน)
+model CustomerPORevision {
+  id           String     @id @default(cuid())
+  customerPoId String
+  customerPo   CustomerPO @relation(fields: [customerPoId], references: [id])
+  revNo        Int // จาก CustomerPO.revCounter แบบ atomic (compare-and-swap)
+  reason       String?
+  actorId      String
+  createdAt    DateTime   @default(now())
+
+  changes CustomerPORevisionChange[]
+
+  @@unique([customerPoId, revNo])
+  @@map("customer_po_revisions")
+}
+
+enum RevisionChangeType {
+  ADD_LINE
+  QTY_CHANGE
+  CANCEL_LINE
+  RESOLVE_PRODUCT // ผูก UNRESOLVED line เข้ากับ SKU จริงทีหลัง
+  ORDER_LEVEL // เปลี่ยนแปลงระดับทั้งออเดอร์ ไม่ผูกกับบรรทัดเดียว (ยกเลิกทั้งใบ/เปลี่ยนวันที่)
+}
+
+model CustomerPORevisionChange {
+  id          String             @id @default(cuid())
+  revisionId  String
+  revision    CustomerPORevision @relation(fields: [revisionId], references: [id])
+  orderLineId String? // null = ORDER_LEVEL change
+  orderLine   CustomerPOLine?    @relation(fields: [orderLineId], references: [id])
+  changeType  RevisionChangeType
+  qtyDelta    Int?
+  before      Json
+  after       Json
+
+  @@map("customer_po_revision_changes")
+}
+
+// ใบสั่งผลิต — เลขที่เอกสารใช้ DocumentSequence/getNextSeq/formatDocNumber เดิม
+// (docType="PROD", period=YYYYMM) → PROD-202608-00012 ไม่ต้องมี sequence แยก
+//
+// แก้ไขหลัง Verify จริง (ดู docs/production-module/02-P1-schema-decisions.md ส่วน "ถอน
+// ข้อสรุป Quotation pattern"): ProductionOrder เป็น "identity" คงที่ (เลขที่เอกสาร +
+// สถานะปัจจุบัน) — เนื้อหาจริงแต่ละ Rev (รายการ/ผ้า/ชั้นโครงสร้าง) อยู่ใน
+// ProductionOrderRevision + ProductionItem + ProductionItemLayer เป็น "แถวใหม่ทุก Rev
+// ไม่เคย UPDATE/DELETE ของเดิม" — เพราะ Quotation pattern เดิม (deleteMany + createMany
+// items, เก็บแค่สรุปย่อใน AuditLog) ไม่พอให้ reconstruct/reprint ใบเก่าแบบเป๊ะๆ ได้จริง
+// ซึ่งจำเป็นสำหรับใบสั่งผลิต (ตรวจสอบย้อนตอนผลิตผิดต้องเห็นสเปกผ้า/ชั้นเป๊ะตามวันที่ออกจริง)
+model ProductionOrder {
+  id           String     @id @default(cuid())
+  prodNo       String     @unique
+  customerPoId String
+  customerPo   CustomerPO @relation(fields: [customerPoId], references: [id])
+  currentRevNo Int        @default(0) // ชี้ revision ล่าสุด (ใช้แสดงผล/พิมพ์เป็นค่าเริ่มต้น)
+  revCounter   Int        @default(0) // ที่มาของ revNo แบบ atomic (เหมือน CustomerPO.revCounter)
+  status       String // ค่าตั้งค่าใน AppSetting
+  createdById  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  revisions ProductionOrderRevision[]
+
+  @@map("production_orders")
+}
+
+// 1 แถว = 1 Rev ที่เคยออก/พิมพ์จริง — Immutable ทันทีที่สร้าง (ห้าม update เนื้อหาแถวเดิม)
+//
+// P1 decision: แถวนี้ (รวม revNo=0 ฉบับแรก) ถูกสร้างเฉพาะตอนกด Confirm/Issue เท่านั้น —
+// ไม่มี "draft" ที่ persist ลง DB มาก่อนเลย ProductionOrder + ProductionOrderRevision
+// (revNo=0) แรกสุดถูกสร้างพร้อมกันในทรานแซกชันเดียวตอนนั้น การร่าง/แก้ก่อนกดยืนยันเป็น
+// client-side form state ล้วนๆ (ตรงกับ P1 ที่คีย์ครั้งเดียวจบ ไม่มี save-draft-กลับมาแก้
+// ทีหลัง) — ด้วยเหตุนี้ confirmedAt จึงตั้งค่าเสมอ (ไม่ nullable) ต่างจาก printedAt ที่เป็น
+// action แยกทีหลัง (พิมพ์ซ้ำได้หลายครั้งหลัง confirm)
+//
+// revNo=0 คือฉบับแรก, revNo>0 แสดงผล/พิมพ์เป็น "-N" ต่อท้าย prodNo (เหมือน
+// Quotation.revisionNo/displayQuotationNumber — ส่วนนี้ยัง reuse pattern เดิมได้ เพราะเป็น
+// แค่การคำนวณ suffix ตอนแสดงผล ไม่เกี่ยวกับการเก็บเนื้อหา)
+model ProductionOrderRevision {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id])
+  revNo             Int
+  confirmedAt       DateTime        @default(now()) // เสมอ — แถวนี้เกิดขึ้นตอน Confirm/Issue เท่านั้น ไม่มี draft state
+  printedAt         DateTime?
+  reason            String? // เหตุผลที่ออก Rev ใหม่ (ว่างได้เฉพาะ revNo=0)
+  actorId           String
+  snapshotJson      Json? // snapshot ระดับหัวเอกสาร ณ เวลาที่ล็อก
+  createdAt         DateTime        @default(now())
+
+  items ProductionItem[]
+
+  @@unique([productionOrderId, revNo])
+  @@map("production_order_revisions")
+}
+
+// ผูกกับ Revision โดยตรง (ไม่ใช่ ProductionOrder header) — Rev ใหม่ = สร้างแถวใหม่ทั้งชุด
+// เสมอ ไม่แตะแถวของ Rev เก่าเลย ทำให้เปิดพิมพ์ Rev ไหนก็ได้ครบทุกช่องเป๊ะตามวันที่ออกจริง
+model ProductionItem {
+  id                String                  @id @default(cuid())
+  revisionId        String
+  revision          ProductionOrderRevision @relation(fields: [revisionId], references: [id])
+  customerPoLineId  String?
+  customerPoLine    CustomerPOLine?         @relation(fields: [customerPoLineId], references: [id])
+  productId         String?
+  product           Product?                @relation(fields: [productId], references: [id])
+  size              String?
+  isCustomSize      Boolean                 @default(false)
+  customW           Decimal?                @db.Decimal(8, 2)
+  customL           Decimal?                @db.Decimal(8, 2)
+  customThickness   String?
+  qty               Int
+  gussetCount       Int? // กุ๊น
+  thickness         String?
+  fabricTop         Json // ข้อมูลจริง ใช้คำนวณ spec_hash เท่านั้น
+  fabricSide        Json
+  fabricBottom      Json
+  fabricTopLabel    String? // override การแสดงผล/พิมพ์ — ไม่กระทบ spec_hash
+  fabricSideLabel   String?
+  fabricBottomLabel String?
+  specHash          String
+  note              String?
+
+  // Snapshot ล็อกตอน Confirm/Issue ของ Revision แม่ — Product Master เปลี่ยนชื่อทีหลัง
+  // ไม่กระทบใบที่ออกไปแล้ว (แถวนี้เองก็ immutable อยู่แล้วตาม Revision ที่มันสังกัด)
+  skuSnapshot             String?
+  nameSnapshot            String?
+  productionLabelSnapshot String?
+
+  layers ProductionItemLayer[]
+
+  @@index([specHash])
+  @@map("production_items")
+}
+
+model ProductionItemLayer {
+  id              String         @id @default(cuid())
+  itemId          String
+  item            ProductionItem @relation(fields: [itemId], references: [id])
+  seq             Int
+  material        String
+  spec            String
+  displayOverride String? // override การแสดงผล/พิมพ์ — ไม่กระทบ spec_hash
+
+  @@map("production_item_layers")
 }
