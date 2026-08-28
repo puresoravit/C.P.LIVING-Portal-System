@@ -1,0 +1,71 @@
+import { createHash } from "crypto";
+
+// S3 CP1 — spec_hash ต้องสะท้อนสูตรการผลิตจริง: รุ่น(productId)+กุ๊น+ความหนา+ผ้าตามตำแหน่ง
+// จริง(ไม่ตายตัว 3 ตำแหน่ง)+ทุกชั้นโครงสร้าง เรียงลำดับ deterministic (placement แล้วตาม seq
+// สำหรับผ้า, seq สำหรับชั้น) ไม่ขึ้นกับลำดับที่ผู้ใช้กรอก/ลำดับแถวใน DB — ไซส์/qty/
+// displayOverride ไม่เข้า hash (ดู CLAUDE.md ข้อ 1) เพราะสูตรเดียวกันใช้ข้ามไซส์ได้ และ
+// override เป็นแค่การแสดงผล ไม่ใช่สเปกจริง
+//
+// ใช้ tuple array (ไม่ใช่ object key/value) ในการ serialize เพื่อเลี่ยงปัญหาลำดับ key ของ
+// JSON.stringify บน object ที่ไม่รับประกัน
+
+export type FabricSpecInput = {
+  placement: string;
+  seq: number;
+  fabricName: string;
+  fabricCode?: string | null;
+  waddingWeight?: string | null;
+  foamThickness?: string | null;
+  colorNote?: string | null;
+  extra?: unknown;
+};
+
+export type LayerSpecInput = {
+  seq: number;
+  material: string;
+  spec: string;
+};
+
+export type ProductionSpecInput = {
+  productId: string | null;
+  gussetCount: number | null;
+  thickness: string | null;
+  fabrics: FabricSpecInput[];
+  layers: LayerSpecInput[];
+};
+
+/** จัด seq ให้ผ้าแต่ละแถว "ภายในกลุ่ม placement เดียวกัน" (0,1,2,... แยกนับต่อ placement) —
+ * ตรงกับความหมายของ @@unique([itemId, placement, seq]) จริงๆ (ไม่ใช่ index ของทั้งอาเรย์
+ * ซึ่งจะทำให้ unique constraint ไม่มีความหมายเพราะ seq ไม่ซ้ำกันเองอยู่แล้วในระดับ item) */
+export function assignFabricSeq<T extends { placement: string }>(fabrics: T[]): (T & { seq: number })[] {
+  const seqByPlacement = new Map<string, number>();
+  return fabrics.map((f) => {
+    const seq = seqByPlacement.get(f.placement) ?? 0;
+    seqByPlacement.set(f.placement, seq + 1);
+    return { ...f, seq };
+  });
+}
+
+export function computeSpecHash(input: ProductionSpecInput): string {
+  const sortedFabrics = [...input.fabrics].sort((a, b) => (a.placement === b.placement ? a.seq - b.seq : a.placement.localeCompare(b.placement)));
+  const sortedLayers = [...input.layers].sort((a, b) => a.seq - b.seq);
+
+  const canonical = JSON.stringify([
+    input.productId ?? null,
+    input.gussetCount ?? null,
+    input.thickness ?? null,
+    sortedFabrics.map((f) => [
+      f.placement,
+      f.seq,
+      f.fabricName,
+      f.fabricCode ?? null,
+      f.waddingWeight ?? null,
+      f.foamThickness ?? null,
+      f.colorNote ?? null,
+      f.extra ?? null,
+    ]),
+    sortedLayers.map((l) => [l.seq, l.material, l.spec]),
+  ]);
+
+  return createHash("sha256").update(canonical).digest("hex");
+}

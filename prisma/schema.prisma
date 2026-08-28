@@ -1251,12 +1251,6 @@ model ProductionItem {
   qty               Int
   gussetCount       Int? // กุ๊น
   thickness         String?
-  fabricTop         Json // ข้อมูลจริง ใช้คำนวณ spec_hash เท่านั้น
-  fabricSide        Json
-  fabricBottom      Json
-  fabricTopLabel    String? // override การแสดงผล/พิมพ์ — ไม่กระทบ spec_hash
-  fabricSideLabel   String?
-  fabricBottomLabel String?
   specHash          String
   note              String?
 
@@ -1266,10 +1260,36 @@ model ProductionItem {
   nameSnapshot            String?
   productionLabelSnapshot String?
 
-  layers ProductionItemLayer[]
+  fabrics ProductionItemFabric[]
+  layers  ProductionItemLayer[]
 
   @@index([specHash])
   @@map("production_items")
+}
+
+// S3 CP1 (แก้หลัง Owner ส่ง Production Spec ตัวอย่างจริง 2026-08-28) — ถอนแบบเดิมที่เก็บ
+// fabricTop/fabricSide/fabricBottom เป็น 3 คอลัมน์ JSON ตายตัวบน ProductionItem: ข้อมูลจริง
+// มีตำแหน่งผ้าไม่ตายตัว (WHOLE/TOP/BOTTOM/SIDE/HEAD_TAIL/...) จึงย้ายมาเป็นตารางลูกแบบ
+// เดียวกับ ProductionItemLayer — `placement` เป็น String ไม่ทำ enum เพราะยังไม่ใช่ชุดปิดตายตัว
+// `seq` รองรับหลายผ้าใน placement เดียวกัน (เช่น "ผ้าปีก" สูงสุด 2 ผ้าตาม current business
+// validation ใน production-settings.ts) โดยไม่ต้องคิดชื่อ placement แยกสำหรับแต่ละผ้า —
+// WHOLE คือแถวที่มีอยู่จริง แยกความหมายจาก "ไม่มีแถวของ placement นี้" (ไม่ใช้ตำแหน่งนี้) ชัดเจน
+model ProductionItemFabric {
+  id              String         @id @default(cuid())
+  itemId          String
+  item            ProductionItem @relation(fields: [itemId], references: [id])
+  placement       String // "WHOLE" | "TOP" | "BOTTOM" | "SIDE" | "HEAD_TAIL" | ... ไม่ตายตัว
+  seq             Int    @default(0) // ลำดับภายใน placement เดียวกัน (0 ถ้ามีผ้าเดียว)
+  fabricName      String
+  fabricCode      String?
+  waddingWeight   String? // ใย เช่น "280g"
+  foamThickness   String? // ฟ. เช่น "10mm"
+  colorNote       String? // ข้อมูลสเปกจริง (เช่น "ตามสีที่เลือก") ไม่ใช่ override การแสดงผล จึงเข้า specHash
+  displayOverride String? // override การแสดงผล/พิมพ์เท่านั้น — ไม่กระทบ specHash
+  extra           Json? // attribute อื่นที่ยังไม่เจอในตัวอย่างปัจจุบัน กันต้อง migrate ซ้ำ
+
+  @@unique([itemId, placement, seq])
+  @@map("production_item_fabrics")
 }
 
 model ProductionItemLayer {

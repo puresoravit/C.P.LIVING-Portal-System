@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { displayProdNo } from "@/lib/production-order-display";
 
 const DATE_MODE_LABEL: Record<string, string> = {
   UNSET: "ยังไม่กำหนด",
@@ -32,9 +33,15 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
         include: { changes: true },
         orderBy: { revNo: "desc" },
       },
+      productionOrders: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, prodNo: true, currentRevNo: true, status: true, createdAt: true },
+      },
     },
   });
   if (!po) notFound();
+
+  const hasEligibleLineForProduction = po.lines.some((l) => l.lineKind === "CATALOG");
 
   // actorId ยังไม่ผูก @relation กับ User (ดู schema.prisma) — ดึงชื่อแยกเพื่อไม่ต้อง
   // แก้ schema/migration ใน Checkpoint นี้
@@ -101,6 +108,15 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
         </div>
       </div>
 
+      {hasEligibleLineForProduction && (
+        <a
+          href={`/production/production-orders/new?customerPoId=${po.id}`}
+          className="block text-center bg-cp-navy hover:bg-cp-navy-light text-white text-sm font-medium rounded-lg px-4 py-2.5 mb-4"
+        >
+          + สร้างใบสั่งผลิต
+        </a>
+      )}
+
       <div className="bg-white border rounded-lg p-4 mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <div>
           <div className="text-xs text-gray-500">สาขา</div>
@@ -157,6 +173,24 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
           </div>
         ))}
       </div>
+
+      {po.productionOrders.length > 0 && (
+        <>
+          <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ใบสั่งผลิตที่ออกจาก P.O. นี้ ({po.productionOrders.length})</h2>
+          <div className="space-y-2">
+            {po.productionOrders.map((order) => (
+              <a
+                key={order.id}
+                href={`/production/production-orders/${order.id}`}
+                className="flex items-center justify-between bg-white border rounded-lg p-3 hover:border-cp-navy text-sm"
+              >
+                <span className="font-medium">{displayProdNo(order.prodNo, order.currentRevNo)}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{order.status}</span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ประวัติการแก้ไข (Revision History)</h2>
       <div className="space-y-3">

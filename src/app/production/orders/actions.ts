@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { customerPOSchema, customerPOLineInputSchema, customerPOLineUpdateInputSchema } from "@/lib/validation";
 import { getNextBranchOrderSeq } from "@/lib/branch-order-sequence";
+import { getProductionSettings } from "@/lib/production-settings";
 import { revalidatePath } from "next/cache";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import type { ActionResult } from "@/lib/action-result";
@@ -54,6 +55,11 @@ export async function createCustomerPO(formData: FormData): Promise<ActionResult
     };
   }
 
+  // S3 CP1 — ก่อนหน้านี้ hardcode "OPEN" ตรงๆ ขัดกับ comment ของ schema เอง ("ค่าตั้งค่าใน
+  // AppSetting ไม่ hardcode") แก้ให้ดึงจาก production-settings.ts (รายการแรก = default)
+  const { customerPoStatuses } = await getProductionSettings();
+  const defaultStatus = customerPoStatuses[0] ?? "เปิดงาน";
+
   const po = await db.$transaction(async (tx) => {
     const orderSeqNo = header.branchId ? await getNextBranchOrderSeq(header.branchId, tx) : null;
 
@@ -65,7 +71,7 @@ export async function createCustomerPO(formData: FormData): Promise<ActionResult
         requestedDate: header.requestedDate ? new Date(header.requestedDate) : null,
         orderSeqNo,
         urgency: header.urgency,
-        status: "OPEN",
+        status: defaultStatus,
         createdById: user.id,
         lines: {
           create: lines.map((l) => ({

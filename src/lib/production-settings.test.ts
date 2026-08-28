@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatDepartmentsText, formatSizesText, parseDepartmentsText, parseSizesText } from "./production-settings";
+import {
+  formatDepartmentsText,
+  formatMaxFabricsPerPlacementText,
+  formatSizesText,
+  getMaxFabricsForPlacement,
+  parseDepartmentsText,
+  parseMaxFabricsPerPlacementText,
+  parseSizesText,
+} from "./production-settings";
 
 describe("parseSizesText / formatSizesText", () => {
   it("parses a comma-separated list, trimming whitespace", () => {
@@ -41,5 +49,34 @@ describe("parseDepartmentsText / formatDepartmentsText", () => {
   it("round-trips through format", () => {
     const departments = [{ name: "ผ้า", copies: 3 }, { name: "Box", copies: 2 }];
     expect(formatDepartmentsText(departments)).toBe("ผ้า, 3\nBox, 2");
+  });
+});
+
+describe("parseMaxFabricsPerPlacementText / formatMaxFabricsPerPlacementText", () => {
+  it("parses placement,count lines into a map", () => {
+    expect(parseMaxFabricsPerPlacementText("SIDE, 2\nWING, 3")).toEqual({ SIDE: 2, WING: 3 });
+  });
+
+  it("skips invalid or non-positive counts", () => {
+    expect(parseMaxFabricsPerPlacementText("SIDE, 0\nTOP, abc\nWING, 2")).toEqual({ WING: 2 });
+  });
+
+  it("skips blank lines", () => {
+    expect(parseMaxFabricsPerPlacementText("SIDE, 2\n\n\nWING, 3")).toEqual({ SIDE: 2, WING: 3 });
+  });
+
+  it("round-trips through format", () => {
+    expect(formatMaxFabricsPerPlacementText({ SIDE: 2 })).toBe("SIDE, 2");
+  });
+});
+
+describe("getMaxFabricsForPlacement", () => {
+  it("returns the configured max for a listed placement", () => {
+    expect(getMaxFabricsForPlacement({ maxFabricsPerPlacement: { SIDE: 2 } }, "SIDE")).toBe(2);
+  });
+
+  it("defaults to 1 for an unlisted placement", () => {
+    expect(getMaxFabricsForPlacement({ maxFabricsPerPlacement: { SIDE: 2 } }, "TOP")).toBe(1);
+    expect(getMaxFabricsForPlacement({ maxFabricsPerPlacement: {} }, "WHOLE")).toBe(1);
   });
 });

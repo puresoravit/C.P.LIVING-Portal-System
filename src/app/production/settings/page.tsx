@@ -2,10 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
-import { formatDepartmentsText, formatSizesText, getProductionSettings } from "@/lib/production-settings";
+import { formatDepartmentsText, formatMaxFabricsPerPlacementText, formatSizesText, getProductionSettings } from "@/lib/production-settings";
 import { updateProductionSettings } from "./actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
-import { TextareaField } from "@/components/form/fields";
+import { Field, TextareaField } from "@/components/form/fields";
 
 export default async function ProductionSettingsPage() {
   const session = await getServerSession(authOptions);
@@ -17,8 +17,8 @@ export default async function ProductionSettingsPage() {
     <div className="max-w-xl">
       <h1 className="text-lg font-semibold mb-1">ตั้งค่าการผลิต</h1>
       <p className="text-sm text-gray-500 mb-4">
-        ค่าที่ใช้ในโมดูล Production &amp; Delivery — ไซส์ที่ผลิตได้จริง และแผนก/จำนวนชุดที่พิมพ์ใบสั่งผลิต
-        (แก้ได้ตลอด ไม่ต้องแก้โค้ด)
+        ค่าที่ใช้ในโมดูล Production &amp; Delivery — ไซส์ที่ผลิตได้จริง แผนก/จำนวนชุดที่พิมพ์ใบสั่งผลิต
+        และสถานะ P.O. ลูกค้า (แก้ได้ตลอด ไม่ต้องแก้โค้ด)
       </p>
 
       <ActionForm action={updateProductionSettings} successMessage="บันทึกค่าตั้งค่าสำเร็จ" className="bg-white border rounded-lg p-4 space-y-4">
@@ -37,6 +37,31 @@ export default async function ProductionSettingsPage() {
         <p className="text-xs text-gray-500">
           รวมจำนวนชุดปัจจุบัน: {settings.departments.reduce((sum, d) => sum + d.copies, 0)} ชุด
         </p>
+        <TextareaField
+          label='สถานะ P.O. ลูกค้า (คั่นด้วย , รายการแรก = สถานะเริ่มต้นตอนรับ P.O. ใหม่)'
+          name="customerPoStatuses"
+          defaultValue={formatSizesText(settings.customerPoStatuses)}
+          rows={2}
+        />
+        <TextareaField
+          label='สถานะใบสั่งผลิต (คั่นด้วย , รายการแรก = สถานะเริ่มต้นตอน Confirm/Issue)'
+          name="productionOrderStatuses"
+          defaultValue={formatSizesText(settings.productionOrderStatuses)}
+          rows={2}
+        />
+        <Field
+          label="จำนวนกุ๊นสูงสุด (current business validation — เปลี่ยนได้ถ้ากฎธุรกิจเปลี่ยน)"
+          name="maxGussetCount"
+          type="number"
+          min={1}
+          defaultValue={String(settings.maxGussetCount)}
+        />
+        <TextareaField
+          label='จำนวนผ้าสูงสุดต่อ placement เฉพาะที่ยกเว้นจากค่าเริ่มต้น 1 ผ้า (บรรทัดละ 1 รายการ รูปแบบ "ชื่อ placement, จำนวน" เช่น "SIDE, 2" — placement ที่ไม่ระบุใช้ค่าเริ่มต้น 1 ผ้าเสมอ)'
+          name="maxFabricsPerPlacement"
+          defaultValue={formatMaxFabricsPerPlacementText(settings.maxFabricsPerPlacement)}
+          rows={2}
+        />
         <SubmitButton>บันทึก</SubmitButton>
       </ActionForm>
     </div>

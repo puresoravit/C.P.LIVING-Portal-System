@@ -102,6 +102,36 @@ export const customerPOLineUpdateInputSchema = z
     message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
   });
 
+// S3 CP1 — สเปกการผลิตขั้นต่ำต่อ ProductionItem (1 รายการ = 1 CustomerPOLine ที่เลือกเข้า
+// ใบสั่งผลิต) placement เป็น string อิสระ (ไม่ enum เพราะยังไม่ตายตัว — ดู schema.prisma)
+// การ validate จำนวนกุ๊นสูงสุด/จำนวนผ้าสูงสุดต่อ placement (current business validation จาก
+// production-settings.ts) ทำที่ actions.ts เพราะต้องอ่านค่าจาก DB ก่อน ไม่ใช่ zod ล้วน
+export const productionItemFabricInputSchema = z.object({
+  placement: z.string().min(1, "กรุณาระบุตำแหน่งผ้า"),
+  fabricName: z.string().min(1, "กรุณากรอกชื่อผ้า"),
+  fabricCode: z.string().optional(),
+  waddingWeight: z.string().optional(),
+  foamThickness: z.string().optional(),
+  colorNote: z.string().optional(),
+  displayOverride: z.string().optional(),
+});
+
+export const productionItemLayerInputSchema = z.object({
+  material: z.string().min(1, "กรุณากรอกวัสดุ"),
+  spec: z.string().min(1, "กรุณากรอกรายละเอียด"),
+  displayOverride: z.string().optional(),
+});
+
+export const productionOrderItemInputSchema = z.object({
+  customerPoLineId: z.string().min(1),
+  qty: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+  gussetCount: z.coerce.number().int().positive().optional(),
+  thickness: z.string().optional(),
+  note: z.string().optional(),
+  fabrics: z.array(productionItemFabricInputSchema).min(1, "กรุณาระบุผ้าอย่างน้อย 1 ตำแหน่ง"),
+  layers: z.array(productionItemLayerInputSchema).min(1, "กรุณาระบุโครงสร้างอย่างน้อย 1 ชั้น"),
+});
+
 export const productAliasSchema = z.object({
   aliasText: z.string().min(1, "กรุณากรอกชื่อเรียก"),
   lang: z.string().optional(),

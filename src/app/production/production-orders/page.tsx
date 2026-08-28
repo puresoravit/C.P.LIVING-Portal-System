@@ -1,11 +1,46 @@
-export default function ProductionOrdersStubPage() {
+import { db } from "@/lib/db";
+import { displayProdNo } from "@/lib/production-order-display";
+
+// S3 CP1 — แทนที่ stub เดิม รายการใบสั่งผลิตทั้งหมด (ทุกลูกค้า) — สร้างได้จากปุ่มบนหน้า
+// CustomerPO detail เท่านั้น หน้านี้จึงไม่มีปุ่ม "+ สร้างใหม่" ของตัวเอง
+export default async function ProductionOrdersPage() {
+  const orders = await db.productionOrder.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      customerPo: { include: { customer: { select: { companyName: true, code: true } }, branch: { select: { name: true } } } },
+      _count: { select: { revisions: true } },
+    },
+    take: 100,
+  });
+
   return (
-    <div className="max-w-xl">
+    <div className="max-w-3xl">
       <h1 className="text-lg font-semibold mb-1">ใบสั่งผลิต</h1>
-      <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500">
-        ยังไม่เปิดใช้งาน — จะพัฒนาใน Sprint S3–S4 ของ P1 (คีย์สูตรผ้า/โครงสร้าง ·
-        คำนวณ spec_hash · พิมพ์ใบสั่งผลิต 8 ชุด)
-      </div>
+      <p className="text-sm text-gray-500 mb-4">สร้างได้จากหน้ารายละเอียด P.O. ลูกค้าแต่ละใบ</p>
+
+      {orders.length === 0 ? (
+        <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500">ยังไม่มีใบสั่งผลิต</div>
+      ) : (
+        <div className="space-y-2">
+          {orders.map((order) => (
+            <a
+              key={order.id}
+              href={`/production/production-orders/${order.id}`}
+              className="block bg-white border rounded-lg p-3 hover:border-cp-navy sm:flex sm:items-center sm:justify-between sm:gap-3"
+            >
+              <div>
+                <span className="text-sm font-medium text-gray-900">{displayProdNo(order.prodNo, order.currentRevNo)}</span>
+                <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{order.status}</span>
+              </div>
+              <div className="text-sm text-gray-600 mt-1 sm:mt-0">
+                {order.customerPo.customer.companyName}
+                {order.customerPo.branch && ` — ${order.customerPo.branch.name}`}
+              </div>
+              <div className="text-xs text-gray-400 mt-1 sm:mt-0">{order.createdAt.toLocaleDateString("th-TH")}</div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

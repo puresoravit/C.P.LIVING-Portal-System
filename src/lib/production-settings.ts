@@ -9,6 +9,20 @@ export type ProductionDepartment = { name: string; copies: number };
 export type ProductionSettings = {
   sizes: string[];
   departments: ProductionDepartment[];
+  // S3 CP1 — แก้ CustomerPO.status ที่เคย hardcode "OPEN" ตรงๆ (ขัดกับ comment ในตัว
+  // schema เอง "ค่าตั้งค่าใน AppSetting ไม่ hardcode") ตัวแรกในลิสต์ = สถานะเริ่มต้นตอนสร้าง
+  customerPoStatuses: string[];
+  // S3 CP1 — ProductionOrder.status ก็มี comment เดียวกัน "ค่าตั้งค่าใน AppSetting" — คนละ
+  // ลิสต์จาก customerPoStatuses เพราะ lifecycle คนละความหมาย (ใบสั่งผลิต vs รับ P.O. ลูกค้า)
+  productionOrderStatuses: string[];
+  // S3 CP1 — Business validation ปัจจุบัน (ไม่ใช่ DB constraint ตามที่ยืนยัน) จำนวนกุ๊น
+  // สูงสุด (ปัจจุบัน 4) และจำนวนผ้าสูงสุด "ต่อ placement" (ไม่ใช่ global) เพราะ placement
+  // ส่วนใหญ่มีได้ 1 ผ้า ยกเว้นบาง placement (เช่นที่ Owner เรียก "ผ้าปีก") ที่มีได้ถึง 2 —
+  // เก็บเป็น map เพราะยังไม่ยืนยันว่า "ผ้าปีก" ตรงกับชื่อ placement ไหนแน่ (SIDE หรือชื่ออื่น)
+  // ให้ Admin กำหนดเองจากหน้าตั้งค่าตอนรู้ชื่อ placement จริง ไม่ hardcode ชื่อ placement ในโค้ด
+  // placement ที่ไม่มีใน map นี้ = ค่าเริ่มต้น 1 ผ้า (ดู getMaxFabricsForPlacement)
+  maxGussetCount: number;
+  maxFabricsPerPlacement: Record<string, number>;
 };
 
 const DEFAULTS: ProductionSettings = {
@@ -19,11 +33,19 @@ const DEFAULTS: ProductionSettings = {
     { name: "โครงสร้าง", copies: 3 },
     { name: "Box/ฐานเตียง", copies: 2 },
   ],
+  customerPoStatuses: ["เปิดงาน"],
+  productionOrderStatuses: ["รอผลิต"],
+  maxGussetCount: 4,
+  maxFabricsPerPlacement: {},
 };
 
 const KEYS = {
   sizes: "production.sizes", // JSON string[]
   departments: "production.departments", // JSON ProductionDepartment[]
+  customerPoStatuses: "production.customerPoStatuses", // JSON string[] — ตัวแรก = default ตอนสร้าง
+  productionOrderStatuses: "production.productionOrderStatuses", // JSON string[] — ตัวแรก = default ตอน Confirm/Issue
+  maxGussetCount: "production.maxGussetCount", // plain number (as string)
+  maxFabricsPerPlacement: "production.maxFabricsPerPlacement", // JSON Record<string, number>
 } as const;
 
 export async function getProductionSettings(): Promise<ProductionSettings> {
@@ -32,11 +54,28 @@ export async function getProductionSettings(): Promise<ProductionSettings> {
 
   const sizesRaw = map[KEYS.sizes];
   const departmentsRaw = map[KEYS.departments];
+  const customerPoStatusesRaw = map[KEYS.customerPoStatuses];
+  const productionOrderStatusesRaw = map[KEYS.productionOrderStatuses];
+  const maxGussetCountRaw = map[KEYS.maxGussetCount];
+  const maxFabricsPerPlacementRaw = map[KEYS.maxFabricsPerPlacement];
+
+  const maxGussetCountParsed = maxGussetCountRaw ? Number(maxGussetCountRaw) : NaN;
 
   return {
     sizes: sizesRaw ? safeParseJson<string[]>(sizesRaw, DEFAULTS.sizes) : DEFAULTS.sizes,
     departments: departmentsRaw ? safeParseJson<ProductionDepartment[]>(departmentsRaw, DEFAULTS.departments) : DEFAULTS.departments,
+    customerPoStatuses: customerPoStatusesRaw ? safeParseJson<string[]>(customerPoStatusesRaw, DEFAULTS.customerPoStatuses) : DEFAULTS.customerPoStatuses,
+    productionOrderStatuses: productionOrderStatusesRaw ? safeParseJson<string[]>(productionOrderStatusesRaw, DEFAULTS.productionOrderStatuses) : DEFAULTS.productionOrderStatuses,
+    maxGussetCount: Number.isFinite(maxGussetCountParsed) && maxGussetCountParsed > 0 ? maxGussetCountParsed : DEFAULTS.maxGussetCount,
+    maxFabricsPerPlacement: maxFabricsPerPlacementRaw
+      ? safeParseJson<Record<string, number>>(maxFabricsPerPlacementRaw, DEFAULTS.maxFabricsPerPlacement)
+      : DEFAULTS.maxFabricsPerPlacement,
   };
+}
+
+/** placement ที่ไม่ได้ระบุไว้ใน map = ค่าเริ่มต้น 1 ผ้า (ตรงกับทุกตัวอย่าง Production Spec ปัจจุบัน ยกเว้น placement ที่ระบุไว้ชัดเจน) */
+export function getMaxFabricsForPlacement(settings: Pick<ProductionSettings, "maxFabricsPerPlacement">, placement: string): number {
+  return settings.maxFabricsPerPlacement[placement] ?? 1;
 }
 
 function safeParseJson<T>(raw: string, fallback: T): T {
@@ -83,4 +122,22 @@ export function parseDepartmentsText(raw: string): ProductionDepartment[] {
 
 export function formatDepartmentsText(departments: ProductionDepartment[]): string {
   return departments.map((d) => `${d.name}, ${d.copies}`).join("\n");
+}
+
+/** หนึ่งบรรทัดต่อ placement รูปแบบ "ชื่อ placement, จำนวนผ้าสูงสุด" เช่น "SIDE, 2" — placement ที่ไม่อยู่ในรายการ = ค่าเริ่มต้น 1 */
+export function parseMaxFabricsPerPlacementText(raw: string): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const line of raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0)) {
+    const [placementPart, countPart] = line.split(",");
+    const placement = (placementPart ?? "").trim();
+    const count = Number((countPart ?? "").trim());
+    if (placement && Number.isFinite(count) && count > 0) result[placement] = Math.floor(count);
+  }
+  return result;
+}
+
+export function formatMaxFabricsPerPlacementText(map: Record<string, number>): string {
+  return Object.entries(map)
+    .map(([placement, count]) => `${placement}, ${count}`)
+    .join("\n");
 }
