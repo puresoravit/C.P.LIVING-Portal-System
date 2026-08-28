@@ -57,6 +57,33 @@ export const productCategorySchema = z.object({
 // หรือ Product เดี่ยว (XOR — resolveAliasFamilyHead ใน product-alias.ts เป็นผู้ตรวจจริง
 // เพราะ zod .refine() บอก field ที่ผิดชัดเจนน้อยกว่า) validateAliasScope ตรวจ
 // scope/customerId/branchId ให้สอดคล้องกันแยกอีกชั้นในตัว action
+// Production Module (P1/S2) — CustomerPO (รับ P.O. ลูกค้า) — คนละตารางจาก Order/OrderItem
+// ของ Billing โดยสิ้นเชิง (ดู docs/production-module/02-P1-schema-decisions.md)
+export const customerPOSchema = z.object({
+  customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
+  branchId: z.string().optional(),
+  dateMode: z.enum(["UNSET", "ESTIMATE", "EXACT"]).default("UNSET"),
+  requestedDate: z.string().optional(),
+  urgency: z.coerce.boolean().default(false),
+});
+
+// lineKind=UNRESOLVED เมื่อสินค้ายังไม่มีใน Product Master (rawProductText แทน productId) —
+// ตรงกับ OrderLineKind enum ใน schema.prisma
+export const customerPOLineInputSchema = z
+  .object({
+    lineKind: z.enum(["CATALOG", "UNRESOLVED"]),
+    productId: z.string().optional(),
+    rawProductText: z.string().optional(),
+    size: z.string().optional(),
+    qtyCurrent: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+    urgency: z.coerce.boolean().default(false),
+    requiredDate: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((d) => (d.lineKind === "CATALOG" ? !!d.productId : !!d.rawProductText?.trim()), {
+    message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
+  });
+
 export const productAliasSchema = z.object({
   aliasText: z.string().min(1, "กรุณากรอกชื่อเรียก"),
   lang: z.string().optional(),
