@@ -53,25 +53,71 @@ function emptyLayer(): LayerDraft {
   return { key: nextKey(), material: "", spec: "" };
 }
 
+// S3 CP3 — ข้อมูลตั้งต้นตอนออก Revision ใหม่ (Server Component ประกอบมาจาก Revision ปัจจุบัน
+// แล้ว) baseRevNo ใช้คู่กับ Optimistic Lock (compare-and-swap บน ProductionOrder.currentRevNo
+// — Pattern เดียวกับ CustomerPO.version) ไม่ให้มา = โหมดสร้างใหม่ (CP1 เดิม)
+export type ProductionOrderFormInitial = {
+  baseRevNo: number;
+  items: {
+    customerPoLineId: string;
+    qty: number;
+    gussetCount: number | null;
+    thickness: string | null;
+    note: string | null;
+    fabrics: { placement: string; fabricName: string; fabricCode: string | null; waddingWeight: string | null; foamThickness: string | null; colorNote: string | null }[];
+    layers: { material: string; spec: string }[];
+  }[];
+};
+
+function initialItemDraft(lineId: string, qtyCurrent: number, initial?: ProductionOrderFormInitial["items"][number]): ItemDraft {
+  if (!initial) {
+    return { lineId, selected: false, qty: String(qtyCurrent), gussetCount: "", thickness: "", note: "", fabrics: [], layers: [] };
+  }
+  return {
+    lineId,
+    selected: true,
+    qty: String(initial.qty),
+    gussetCount: initial.gussetCount != null ? String(initial.gussetCount) : "",
+    thickness: initial.thickness ?? "",
+    note: initial.note ?? "",
+    fabrics: initial.fabrics.map((f) => ({
+      key: nextKey(),
+      placement: f.placement,
+      fabricName: f.fabricName,
+      fabricCode: f.fabricCode ?? "",
+      waddingWeight: f.waddingWeight ?? "",
+      foamThickness: f.foamThickness ?? "",
+      colorNote: f.colorNote ?? "",
+    })),
+    layers: initial.layers.map((l) => ({ key: nextKey(), material: l.material, spec: l.spec })),
+  };
+}
+
 export function ProductionOrderForm({
   eligibleLines,
   maxGussetCount,
   maxFabricsPerPlacement,
   action,
+  initial,
 }: {
   eligibleLines: EligibleLine[];
   maxGussetCount: number;
   maxFabricsPerPlacement: Record<string, number>;
   action: (formData: FormData) => Promise<ActionResult | void>;
+  /** ให้มา = โหมดออก Revision ใหม่ (มีช่องเหตุผล + ส่ง baseRevNo ไปด้วยสำหรับ Optimistic
+   * Lock) — ไม่ให้มา = โหมดสร้างใหม่ (CP1) */
+  initial?: ProductionOrderFormInitial;
 }) {
+  const isRevise = !!initial;
   const [items, setItems] = useState<Record<string, ItemDraft>>(() =>
     Object.fromEntries(
-      eligibleLines.map((l) => [
-        l.id,
-        { lineId: l.id, selected: false, qty: String(l.qtyCurrent), gussetCount: "", thickness: "", note: "", fabrics: [], layers: [] } as ItemDraft,
-      ])
+      eligibleLines.map((l) => {
+        const initialItem = initial?.items.find((i) => i.customerPoLineId === l.id);
+        return [l.id, initialItemDraft(l.id, l.qtyCurrent, initialItem)];
+      })
     )
   );
+  const [reason, setReason] = useState("");
   const [err, setErr] = useState("");
   const [invalidLineIds, setInvalidLineIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -117,6 +163,7 @@ export function ProductionOrderForm({
   function findInvalid(): { invalidIds: Set<string>; message: string } | null {
     const selected = Object.values(items).filter((i) => i.selected);
     if (selected.length === 0) return { invalidIds: new Set(), message: "กรุณาเลือกอย่างน้อย 1 รายการ" };
+    if (isRevise && !reason.trim()) return { invalidIds: new Set(), message: "กรุณากรอกเหตุผลที่ออก Revision ใหม่" };
 
     const invalidIds = new Set<string>();
     for (const item of selected) {
@@ -174,6 +221,10 @@ export function ProductionOrderForm({
         }))
       )
     );
+    if (isRevise) {
+      formData.set("baseRevNo", String(initial!.baseRevNo));
+      formData.set("reason", reason);
+    }
 
     startTransition(async () => {
       try {
@@ -300,6 +351,21 @@ export function ProductionOrderForm({
         );
       })}
 
+      {isRevise && (
+        <div className="bg-white border rounded-lg p-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">เหตุผลที่ออก Revision ใหม่ *</label>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="เช่น ลูกค้าเปลี่ยนผ้า, แก้จำนวนกุ๊น"
+            className="w-full border rounded px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Revision เดิม (Rev.{initial!.baseRevNo}) จะยังอยู่ครบ ดูย้อนหลังได้เสมอ — บันทึกนี้จะกลายเป็น Rev.{initial!.baseRevNo + 1}
+          </p>
+        </div>
+      )}
+
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <button
@@ -307,7 +373,7 @@ export function ProductionOrderForm({
         disabled={isPending}
         className="w-full bg-cp-navy hover:bg-cp-navy-light disabled:opacity-50 text-white text-sm font-medium rounded-lg px-4 py-3"
       >
-        {isPending ? "กำลังสร้าง..." : "ยืนยัน/ออกใบสั่งผลิต (Confirm/Issue)"}
+        {isPending ? "กำลังบันทึก..." : isRevise ? "ออก Revision ใหม่" : "ยืนยัน/ออกใบสั่งผลิต (Confirm/Issue)"}
       </button>
     </form>
   );
