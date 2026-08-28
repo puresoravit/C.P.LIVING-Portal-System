@@ -296,7 +296,7 @@ export function ManualTaxInvoiceItemEntry({
               resetToken={pickerResetToken}
             />
           </div>
-          <div className="col-span-1 sm:col-span-2">
+          <div className="col-span-1">
             <label className="block text-xs font-medium text-gray-600 mb-1">รายการ</label>
             <input
               value={draft.description}
@@ -337,7 +337,9 @@ export function ManualTaxInvoiceItemEntry({
               className="w-full border rounded px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="col-span-1">
+          {/* R11 UAT (2026-08-28) — Owner: ช่องราคาแคบเกินไป ตัวเลขหลักพัน/หมื่นแสดงไม่ครบ —
+              ขยายจาก 1 เป็น 2 คอลัมน์ (หัก "รายการ" ลง 1 คอลัมน์ให้ รวมยังเป็น 12 เท่าเดิม) */}
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">ราคา/หน่วย</label>
             <input
               type="number"
