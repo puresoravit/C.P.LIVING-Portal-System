@@ -114,12 +114,16 @@ export const productionItemFabricInputSchema = z.object({
   foamThickness: z.string().optional(),
   colorNote: z.string().optional(),
   displayOverride: z.string().optional(),
+  // Master Spec flow — carry ผ่านจากสูตร Master/snapshot เดิม (แก้ค่าได้ที่ Master UI เท่านั้น
+  // ในรอบนี้) ไม่เข้า specHash (computeSpecHash ไม่อ่าน field นี้ — มี test ยืนยัน)
+  printVisible: z.coerce.boolean().default(true),
 });
 
 export const productionItemLayerInputSchema = z.object({
   material: z.string().min(1, "กรุณากรอกวัสดุ"),
   spec: z.string().min(1, "กรุณากรอกรายละเอียด"),
   displayOverride: z.string().optional(),
+  printVisible: z.coerce.boolean().default(true),
 });
 
 export const productionOrderItemInputSchema = z.object({

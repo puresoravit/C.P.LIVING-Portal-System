@@ -52,7 +52,7 @@ export default async function FabricMasterSpecPage() {
           {specs.map((spec) => {
             const headName = spec.headKind && spec.headId ? headNameByKey.get(`${spec.headKind}:${spec.headId}`) : null;
             return (
-              <div key={spec.id} className="bg-white border rounded-lg p-3 sm:flex sm:items-center sm:justify-between sm:gap-3">
+              <a key={spec.id} href={`/production/fabric/${spec.id}`} className="block bg-white border rounded-lg p-3 hover:border-cp-navy sm:flex sm:items-center sm:justify-between sm:gap-3">
                 <div>
                   <span className="text-sm font-medium text-gray-900">
                     {displayMasterSpecName({ specName: spec.specName, variant: spec.variant, thickness: spec.thickness, gussetCount: spec.gussetCount })}
@@ -67,7 +67,7 @@ export default async function FabricMasterSpecPage() {
                   ผ้า {spec._count.fabrics} · โครงสร้าง {spec._count.layers} ชั้น
                   {spec.approxThickness && ` · หนา ~${spec.approxThickness}"`}
                 </div>
-              </div>
+              </a>
             );
           })}
         </div>

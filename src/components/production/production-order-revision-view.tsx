@@ -13,6 +13,7 @@ export type RevisionViewFabric = {
   foamThickness: string | null;
   colorNote: string | null;
   displayOverride: string | null;
+  printVisible: boolean;
 };
 
 export type RevisionViewLayer = {
@@ -21,6 +22,7 @@ export type RevisionViewLayer = {
   material: string;
   spec: string;
   displayOverride: string | null;
+  printVisible: boolean;
 };
 
 export type RevisionViewItem = {
@@ -96,6 +98,7 @@ export function ProductionOrderRevisionView({ items, customerPoId }: { items: Re
                   {f.waddingWeight && ` + ใย ${f.waddingWeight}`}
                   {f.foamThickness && ` + ฟ.${f.foamThickness}`}
                   {f.colorNote && ` (${f.colorNote})`}
+                  {!f.printVisible && <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">ไม่พิมพ์</span>}
                 </li>
               ))}
             </ul>
@@ -105,7 +108,10 @@ export function ProductionOrderRevisionView({ items, customerPoId }: { items: Re
             <div className="text-gray-500 mb-0.5">โครงสร้าง (บนลงล่าง)</div>
             <ol className="list-decimal list-inside space-y-0.5">
               {group.representative.layers.map((l) => (
-                <li key={l.id}>{l.displayOverride ?? `${l.material} ${l.spec}`}</li>
+                <li key={l.id}>
+                  {l.displayOverride ?? `${l.material} ${l.spec}`}
+                  {!l.printVisible && <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">ไม่พิมพ์</span>}
+                </li>
               ))}
             </ol>
           </div>

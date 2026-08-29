@@ -178,6 +178,26 @@ describe("computeSpecHash — ตัวอย่างจริงจาก Owne
     expect(withoutOverride).toBe(withOverride);
   });
 
+  // Master Spec flow (2026-08-29) — printVisible ซ่อนแถวจากใบพิมพ์เท่านั้น ห้ามกระทบ hash:
+  // แถวที่ถูกซ่อนยังอยู่ครบใน canonical และเนื้อหาจริงยังเข้า hash เสมอ (Owner ยืนยัน)
+  it("printVisible (ติดมากับ object จาก DB/ฟอร์ม) ไม่กระทบ hash — แถวที่ซ่อนจากใบพิมพ์ยังเข้า hash ตามเนื้อหาจริง", () => {
+    const visible = computeSpecHash({
+      productFamilyKey: "model:p-vanessa",
+      gussetCount: 1,
+      thickness: "8",
+      fabrics: vanessaFabrics.map((f) => ({ ...f, printVisible: true } as FabricSpecInput)),
+      layers: vanessaLayers.map((l) => ({ ...l, printVisible: true })),
+    });
+    const hidden = computeSpecHash({
+      productFamilyKey: "model:p-vanessa",
+      gussetCount: 1,
+      thickness: "8",
+      fabrics: vanessaFabrics.map((f) => ({ ...f, printVisible: false } as FabricSpecInput)),
+      layers: vanessaLayers.map((l) => ({ ...l, printVisible: false })),
+    });
+    expect(visible).toBe(hidden);
+  });
+
   // LayerSpecInput ไม่มี field displayOverride เลยในระดับ type (ต่างจาก FabricSpecInput ที่มี)
   // — กัน "ลืมกรอง" ไม่ให้เกิดขึ้นได้เลยตั้งแต่ compile-time แต่ยัง test runtime ไว้ด้วยเผื่อมี
   // การส่ง object ที่มี field เกินมาจากที่อื่น (เช่นตรงจาก DB row ที่มีคอลัมน์ displayOverride จริง)

@@ -105,6 +105,7 @@ async function createItemsForRevision(
         foamThickness: f.foamThickness || null,
         colorNote: f.colorNote || null,
         displayOverride: f.displayOverride || null,
+        printVisible: f.printVisible,
       })),
     });
 
@@ -115,6 +116,7 @@ async function createItemsForRevision(
         material: l.material,
         spec: l.spec,
         displayOverride: l.displayOverride || null,
+        printVisible: l.printVisible,
       })),
     });
   }

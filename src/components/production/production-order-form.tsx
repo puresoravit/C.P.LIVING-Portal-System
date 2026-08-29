@@ -25,8 +25,20 @@ export type EligibleLine = {
   qtyCurrent: number;
 };
 
-type FabricDraft = { key: number; placement: string; fabricName: string; fabricCode: string; waddingWeight: string; foamThickness: string; colorNote: string };
-type LayerDraft = { key: number; material: string; spec: string };
+type FabricDraft = {
+  key: number;
+  placement: string;
+  fabricName: string;
+  fabricCode: string;
+  waddingWeight: string;
+  foamThickness: string;
+  colorNote: string;
+  // carry ผ่านจากสูตร Master/snapshot — แก้ค่าได้ที่ Master UI (ไม่มี control ในฟอร์มนี้
+  // แต่แสดง tag "ไม่แสดงบนใบพิมพ์" ให้เห็นเมื่อ false) — printVisible ไม่เข้า specHash
+  displayOverride: string;
+  printVisible: boolean;
+};
+type LayerDraft = { key: number; material: string; spec: string; displayOverride: string; printVisible: boolean };
 
 type ItemDraft = {
   lineId: string;
@@ -37,6 +49,20 @@ type ItemDraft = {
   note: string;
   fabrics: FabricDraft[];
   layers: LayerDraft[];
+  // ชื่อสูตร Master ที่ถูกดึงมา (แสดงสถานะเท่านั้น — ผู้ใช้แก้ต่อได้อิสระ ไม่ผูกกับสูตรอีก)
+  appliedMasterName: string | null;
+};
+
+// สูตร Master ที่ resolve แล้วต่อบรรทัด (Server Component หาให้ตาม family head ของสินค้า) —
+// exact 1 รายการ = prefill อัตโนมัติตอนเลือกบรรทัด (โหมดสร้าง), หลายรายการ = ให้ผู้ใช้เลือกเอง
+// ห้ามระบบเดา, 0 = แสดงสถานะ "ไม่มีสูตร" กรอกเอง — โหมด revise ไม่ auto เสมอ ต้องกดปุ่มเอง
+export type MasterSpecPrefillOption = {
+  id: string;
+  displayName: string;
+  gussetCount: number;
+  thickness: string;
+  fabrics: { placement: string; fabricName: string; fabricCode: string; waddingWeight: string; foamThickness: string; colorNote: string; displayOverride: string; printVisible: boolean }[];
+  layers: { material: string; spec: string; displayOverride: string; printVisible: boolean }[];
 };
 
 let keySeq = 0;
@@ -46,11 +72,11 @@ function nextKey() {
 }
 
 function emptyFabric(): FabricDraft {
-  return { key: nextKey(), placement: "", fabricName: "", fabricCode: "", waddingWeight: "", foamThickness: "", colorNote: "" };
+  return { key: nextKey(), placement: "", fabricName: "", fabricCode: "", waddingWeight: "", foamThickness: "", colorNote: "", displayOverride: "", printVisible: true };
 }
 
 function emptyLayer(): LayerDraft {
-  return { key: nextKey(), material: "", spec: "" };
+  return { key: nextKey(), material: "", spec: "", displayOverride: "", printVisible: true };
 }
 
 // S3 CP3 — ข้อมูลตั้งต้นตอนออก Revision ใหม่ (Server Component ประกอบมาจาก Revision ปัจจุบัน
@@ -64,14 +90,14 @@ export type ProductionOrderFormInitial = {
     gussetCount: number | null;
     thickness: string | null;
     note: string | null;
-    fabrics: { placement: string; fabricName: string; fabricCode: string | null; waddingWeight: string | null; foamThickness: string | null; colorNote: string | null }[];
-    layers: { material: string; spec: string }[];
+    fabrics: { placement: string; fabricName: string; fabricCode: string | null; waddingWeight: string | null; foamThickness: string | null; colorNote: string | null; displayOverride: string | null; printVisible: boolean }[];
+    layers: { material: string; spec: string; displayOverride: string | null; printVisible: boolean }[];
   }[];
 };
 
 function initialItemDraft(lineId: string, qtyCurrent: number, initial?: ProductionOrderFormInitial["items"][number]): ItemDraft {
   if (!initial) {
-    return { lineId, selected: false, qty: String(qtyCurrent), gussetCount: "", thickness: "", note: "", fabrics: [], layers: [] };
+    return { lineId, selected: false, qty: String(qtyCurrent), gussetCount: "", thickness: "", note: "", fabrics: [], layers: [], appliedMasterName: null };
   }
   return {
     lineId,
@@ -88,8 +114,21 @@ function initialItemDraft(lineId: string, qtyCurrent: number, initial?: Producti
       waddingWeight: f.waddingWeight ?? "",
       foamThickness: f.foamThickness ?? "",
       colorNote: f.colorNote ?? "",
+      displayOverride: f.displayOverride ?? "",
+      printVisible: f.printVisible,
     })),
-    layers: initial.layers.map((l) => ({ key: nextKey(), material: l.material, spec: l.spec })),
+    layers: initial.layers.map((l) => ({ key: nextKey(), material: l.material, spec: l.spec, displayOverride: l.displayOverride ?? "", printVisible: l.printVisible })),
+    appliedMasterName: null,
+  };
+}
+
+function draftsFromMaster(option: MasterSpecPrefillOption): Pick<ItemDraft, "gussetCount" | "thickness" | "fabrics" | "layers" | "appliedMasterName"> {
+  return {
+    gussetCount: option.gussetCount > 0 ? String(option.gussetCount) : "",
+    thickness: option.thickness,
+    fabrics: option.fabrics.map((f) => ({ key: nextKey(), ...f })),
+    layers: option.layers.map((l) => ({ key: nextKey(), ...l })),
+    appliedMasterName: option.displayName,
   };
 }
 
@@ -99,6 +138,7 @@ export function ProductionOrderForm({
   maxFabricsPerPlacement,
   action,
   initial,
+  masterSpecOptions = {},
 }: {
   eligibleLines: EligibleLine[];
   maxGussetCount: number;
@@ -107,6 +147,8 @@ export function ProductionOrderForm({
   /** ให้มา = โหมดออก Revision ใหม่ (มีช่องเหตุผล + ส่ง baseRevNo ไปด้วยสำหรับ Optimistic
    * Lock) — ไม่ให้มา = โหมดสร้างใหม่ (CP1) */
   initial?: ProductionOrderFormInitial;
+  /** สูตร Master ที่ match กับ family head ของแต่ละบรรทัด (keyed ด้วย lineId) */
+  masterSpecOptions?: Record<string, MasterSpecPrefillOption[]>;
 }) {
   const isRevise = !!initial;
   const [items, setItems] = useState<Record<string, ItemDraft>>(() =>
@@ -118,6 +160,8 @@ export function ProductionOrderForm({
     )
   );
   const [reason, setReason] = useState("");
+  // ตัวเลือกใน dropdown สูตร Master ต่อบรรทัด (โหมด revise ใช้คู่กับปุ่ม explicit)
+  const [masterChoice, setMasterChoice] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [invalidLineIds, setInvalidLineIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -136,8 +180,29 @@ export function ProductionOrderForm({
     });
   }
 
+  function applyMaster(lineId: string, option: MasterSpecPrefillOption) {
+    patchItem(lineId, draftsFromMaster(option));
+  }
+
   function toggleSelected(lineId: string, selected: boolean) {
-    patchItem(lineId, selected ? { selected, fabrics: items[lineId].fabrics.length ? items[lineId].fabrics : [emptyFabric()], layers: items[lineId].layers.length ? items[lineId].layers : [emptyLayer()] } : { selected });
+    if (!selected) {
+      patchItem(lineId, { selected });
+      return;
+    }
+    const item = items[lineId];
+    const options = masterSpecOptions[lineId] ?? [];
+    // โหมดสร้าง + ยังไม่เคยกรอกอะไร + มีสูตร Master ตรงตัวเดียว (exact) → prefill ให้ตรวจ/แก้
+    // ก่อน Confirm — หลายสูตรหรือไม่มี = ห้ามเดา ให้ผู้ใช้เลือก/กรอกเอง (แสดงสถานะใน UI)
+    // โหมด revise ไม่เข้าเงื่อนไขนี้เลย (initial มาจาก snapshot เสมอ ดึง Master = ปุ่ม explicit)
+    if (!isRevise && item.fabrics.length === 0 && item.layers.length === 0 && options.length === 1) {
+      patchItem(lineId, { selected, ...draftsFromMaster(options[0]) });
+      return;
+    }
+    patchItem(lineId, {
+      selected,
+      fabrics: item.fabrics.length ? item.fabrics : [emptyFabric()],
+      layers: item.layers.length ? item.layers : [emptyLayer()],
+    });
   }
 
   function addFabric(lineId: string) {
@@ -216,8 +281,15 @@ export function ProductionOrderForm({
             waddingWeight: f.waddingWeight || undefined,
             foamThickness: f.foamThickness || undefined,
             colorNote: f.colorNote || undefined,
+            displayOverride: f.displayOverride || undefined,
+            printVisible: f.printVisible,
           })),
-          layers: item.layers.map((l) => ({ material: l.material.trim(), spec: l.spec.trim() })),
+          layers: item.layers.map((l) => ({
+            material: l.material.trim(),
+            spec: l.spec.trim(),
+            displayOverride: l.displayOverride || undefined,
+            printVisible: l.printVisible,
+          })),
         }))
       )
     );
@@ -264,6 +336,71 @@ export function ProductionOrderForm({
 
             {item.selected && (
               <div className="pl-6 space-y-3 border-l-2 border-gray-100">
+                {(() => {
+                  const options = masterSpecOptions[line.id] ?? [];
+                  if (item.appliedMasterName) {
+                    return (
+                      <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1.5">
+                        ดึงจากสูตร Master: {item.appliedMasterName} — ตรวจ/แก้ไขด้านล่างได้ก่อนยืนยัน
+                      </p>
+                    );
+                  }
+                  if (options.length === 0) {
+                    return <p className="text-xs text-gray-500 bg-gray-50 border rounded px-2 py-1.5">ไม่มีสูตร Master สำหรับรุ่นนี้ — กรอกสเปกเอง</p>;
+                  }
+                  if (isRevise) {
+                    // Revise: prefill มาจาก snapshot ของ Revision ปัจจุบันเสมอ — ดึงสูตร Master
+                    // ล่าสุดเป็น explicit action เท่านั้น ห้ามทับอัตโนมัติ (Owner กำหนด)
+                    const chosen = masterChoice[line.id] ?? options[0].id;
+                    return (
+                      <div className="flex items-center gap-2 text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1.5">
+                        <span className="text-blue-700 shrink-0">สเปกปัจจุบันมาจาก Revision เดิม</span>
+                        {options.length > 1 && (
+                          <select value={chosen} onChange={(e) => setMasterChoice((prev) => ({ ...prev, [line.id]: e.target.value }))} className="border rounded px-1.5 py-1 text-xs">
+                            {options.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.displayName}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const option = options.find((o) => o.id === chosen) ?? options[0];
+                            applyMaster(line.id, option);
+                          }}
+                          className="text-blue-700 border border-blue-300 rounded px-2 py-0.5 hover:bg-blue-100 shrink-0"
+                        >
+                          ดึงสูตร Master ล่าสุด{options.length === 1 ? ` (${options[0].displayName})` : ""} — แทนที่ค่าที่กรอกอยู่
+                        </button>
+                      </div>
+                    );
+                  }
+                  // โหมดสร้าง + หลายสูตร: ให้ผู้ใช้เลือกเอง ระบบไม่เดา
+                  return (
+                    <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                      <span className="text-amber-700 shrink-0">มีสูตร Master {options.length} รายการสำหรับรุ่นนี้ — เลือกเพื่อดึงข้อมูล หรือกรอกเอง</span>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const option = options.find((o) => o.id === e.target.value);
+                          if (option) applyMaster(line.id, option);
+                        }}
+                        className="border rounded px-1.5 py-1 text-xs"
+                      >
+                        <option value="" disabled>
+                          — เลือกสูตร —
+                        </option>
+                        {options.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">จำนวนที่ผลิต *</label>
@@ -300,6 +437,11 @@ export function ProductionOrderForm({
                             placeholder="ชื่อผ้า *"
                             className="flex-1 border rounded px-2 py-1.5 text-sm"
                           />
+                          {!f.printVisible && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0" title="ตั้งค่าได้ที่หน้าสูตร Master">
+                              ไม่พิมพ์
+                            </span>
+                          )}
                           {item.fabrics.length > 1 && (
                             <button type="button" onClick={() => removeFabric(line.id, f.key)} className="text-gray-400 hover:text-red-600 text-sm px-1">
                               ×
@@ -328,6 +470,11 @@ export function ProductionOrderForm({
                         <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}.</span>
                         <input value={l.material} onChange={(e) => updateLayer(line.id, l.key, { material: e.target.value })} placeholder="วัสดุ *" className="flex-1 border rounded px-2 py-1.5 text-sm" />
                         <input value={l.spec} onChange={(e) => updateLayer(line.id, l.key, { spec: e.target.value })} placeholder="รายละเอียด *" className="flex-1 border rounded px-2 py-1.5 text-sm" />
+                        {!l.printVisible && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0" title="ตั้งค่าได้ที่หน้าสูตร Master">
+                            ไม่พิมพ์
+                          </span>
+                        )}
                         {item.layers.length > 1 && (
                           <button type="button" onClick={() => removeLayer(line.id, l.key)} className="text-gray-400 hover:text-red-600 text-sm px-1">
                             ×

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getProductionSettings } from "@/lib/production-settings";
+import { loadMasterSpecOptionsForLines } from "@/lib/master-spec-prefill";
 import { reviseProductionOrder } from "../../actions";
 import { ProductionOrderForm, type EligibleLine, type ProductionOrderFormInitial } from "@/components/production/production-order-form";
 import { displayProdNo } from "@/lib/production-order-display";
@@ -19,7 +20,7 @@ export default async function ReviseProductionOrderPage(props: { params: Promise
           include: {
             lines: {
               where: { active: true, lineKind: "CATALOG" },
-              include: { product: { select: { sku: true, name: true, productionLabel: true } } },
+              include: { product: { select: { id: true, sku: true, name: true, productionLabel: true, parentProductId: true, modelId: true } } },
               orderBy: { id: "asc" },
             },
           },
@@ -60,11 +61,14 @@ export default async function ReviseProductionOrderPage(props: { params: Promise
           waddingWeight: f.waddingWeight,
           foamThickness: f.foamThickness,
           colorNote: f.colorNote,
+          displayOverride: f.displayOverride,
+          printVisible: f.printVisible,
         })),
-        layers: item.layers.map((l) => ({ material: l.material, spec: l.spec })),
+        layers: item.layers.map((l) => ({ material: l.material, spec: l.spec, displayOverride: l.displayOverride, printVisible: l.printVisible })),
       })),
   };
 
+  const masterSpecOptions = await loadMasterSpecOptionsForLines(order.customerPo.lines);
   const reviseAction = reviseProductionOrder.bind(null, order.id);
 
   return (
@@ -89,6 +93,7 @@ export default async function ReviseProductionOrderPage(props: { params: Promise
           maxFabricsPerPlacement={settings.maxFabricsPerPlacement}
           action={reviseAction}
           initial={initial}
+          masterSpecOptions={masterSpecOptions}
         />
       )}
     </div>

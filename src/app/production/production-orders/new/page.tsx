@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getProductionSettings } from "@/lib/production-settings";
+import { loadMasterSpecOptionsForLines } from "@/lib/master-spec-prefill";
 import { createProductionOrder } from "../actions";
 import { ProductionOrderForm, type EligibleLine } from "@/components/production/production-order-form";
 
@@ -19,7 +20,7 @@ export default async function NewProductionOrderPage(props: { searchParams: Prom
         customer: { select: { companyName: true, code: true } },
         lines: {
           where: { active: true, lineKind: "CATALOG" },
-          include: { product: { select: { sku: true, name: true, productionLabel: true } } },
+          include: { product: { select: { id: true, sku: true, name: true, productionLabel: true, parentProductId: true, modelId: true } } },
           orderBy: { id: "asc" },
         },
       },
@@ -36,6 +37,7 @@ export default async function NewProductionOrderPage(props: { searchParams: Prom
     qtyCurrent: line.qtyCurrent,
   }));
 
+  const masterSpecOptions = await loadMasterSpecOptionsForLines(po.lines);
   const createAction = createProductionOrder.bind(null, po.id);
 
   return (
@@ -60,6 +62,7 @@ export default async function NewProductionOrderPage(props: { searchParams: Prom
           maxGussetCount={settings.maxGussetCount}
           maxFabricsPerPlacement={settings.maxFabricsPerPlacement}
           action={createAction}
+          masterSpecOptions={masterSpecOptions}
         />
       )}
     </div>
