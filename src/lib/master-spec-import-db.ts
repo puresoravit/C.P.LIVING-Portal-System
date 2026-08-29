@@ -55,6 +55,73 @@ export async function loadMasterSpecImportContext() {
   };
 }
 
+/** Commit ทั้งชุดใน transaction เดียว all-or-nothing — แยกออกมาจาก server action เพื่อให้
+ * action (ปุ่มยืนยันบนหน้า import) และ import script ใช้ code path เดียวกันเป๊ะ ผู้เรียกต้อง
+ * ตรวจ preview.ok ก่อนเสมอ (function นี้ไม่ validate ซ้ำ — เป็นหน้าที่ของผู้เรียกผ่าน
+ * runMasterSpecValidation ตาม flow ที่อนุมัติ) */
+export async function commitValidatedMasterSpecs(
+  actorUserId: string,
+  validatedSpecs: ValidatedMasterSpec[],
+  preview: MasterSpecImportPreview
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    for (const spec of validatedSpecs) {
+      const created = await tx.productionMasterSpec.create({
+        data: {
+          specName: spec.specName,
+          variant: spec.variant,
+          thickness: spec.thickness,
+          gussetCount: spec.gussetCount,
+          headKind: spec.headKind,
+          headId: spec.headId,
+          approxThickness: spec.approxThickness,
+          titleRaw: spec.titleRaw,
+          note: spec.note,
+        },
+      });
+      await tx.productionMasterFabric.createMany({
+        data: spec.fabrics.map((f) => ({
+          specId: created.id,
+          placement: f.placement,
+          seq: f.seq,
+          fabricName: f.fabricName,
+          fabricCode: f.fabricCode,
+          waddingWeight: f.waddingWeight,
+          foamThickness: f.foamThickness,
+          colorNote: f.colorNote,
+          printVisible: f.printVisible,
+          extra: f.extra == null ? undefined : (f.extra as object),
+        })),
+      });
+      await tx.productionMasterLayer.createMany({
+        data: spec.layers.map((l) => ({
+          specId: created.id,
+          seq: l.seq,
+          material: l.material,
+          layerSpec: l.layerSpec,
+          printVisible: l.printVisible,
+        })),
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: actorUserId,
+        action: "CREATE",
+        module: "ProductionMasterSpec",
+        recordId: "bulk-import",
+        newValue: {
+          specCount: preview.specCount,
+          fabricCount: preview.fabricCount,
+          layerCount: preview.layerCount,
+          linkedCount: preview.linkedCount,
+          unlinkedCount: preview.unlinkedCount,
+        },
+      },
+    });
+  });
+}
+
 export async function runMasterSpecValidation(sheets: MasterSpecImportSheets): Promise<{
   preview: MasterSpecImportPreview;
   validatedSpecs: ValidatedMasterSpec[];

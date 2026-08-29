@@ -2,11 +2,11 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import {
   runMasterSpecValidation,
+  commitValidatedMasterSpecs,
   type MasterSpecImportSheets,
   type MasterSpecImportPreview,
 } from "@/lib/master-spec-import-db";
@@ -43,62 +43,7 @@ export async function commitMasterSpecImport(sheets: MasterSpecImportSheets): Pr
     return { success: false, errors: preview.errors };
   }
 
-  await db.$transaction(async (tx) => {
-    for (const spec of validatedSpecs) {
-      const created = await tx.productionMasterSpec.create({
-        data: {
-          specName: spec.specName,
-          variant: spec.variant,
-          thickness: spec.thickness,
-          gussetCount: spec.gussetCount,
-          headKind: spec.headKind,
-          headId: spec.headId,
-          approxThickness: spec.approxThickness,
-          titleRaw: spec.titleRaw,
-          note: spec.note,
-        },
-      });
-      await tx.productionMasterFabric.createMany({
-        data: spec.fabrics.map((f) => ({
-          specId: created.id,
-          placement: f.placement,
-          seq: f.seq,
-          fabricName: f.fabricName,
-          fabricCode: f.fabricCode,
-          waddingWeight: f.waddingWeight,
-          foamThickness: f.foamThickness,
-          colorNote: f.colorNote,
-          printVisible: f.printVisible,
-          extra: f.extra == null ? undefined : (f.extra as object),
-        })),
-      });
-      await tx.productionMasterLayer.createMany({
-        data: spec.layers.map((l) => ({
-          specId: created.id,
-          seq: l.seq,
-          material: l.material,
-          layerSpec: l.layerSpec,
-          printVisible: l.printVisible,
-        })),
-      });
-    }
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "CREATE",
-        module: "ProductionMasterSpec",
-        recordId: "bulk-import",
-        newValue: {
-          specCount: preview.specCount,
-          fabricCount: preview.fabricCount,
-          layerCount: preview.layerCount,
-          linkedCount: preview.linkedCount,
-          unlinkedCount: preview.unlinkedCount,
-        },
-      },
-    });
-  });
+  await commitValidatedMasterSpecs(user.id, validatedSpecs, preview);
 
   revalidatePath("/production/fabric");
   return { success: true, imported: { specs: preview.specCount, fabrics: preview.fabricCount, layers: preview.layerCount } };
