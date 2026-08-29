@@ -52,11 +52,18 @@ type FabricRow = {
   displayOverride: string | null;
 };
 
+// S4 UAT round 5 — กันหน่วยตกบรรทัดกลางคำบนใบพิมพ์ (เช่น "ฟ.5 mm" แตกเป็น "ฟ.5" กับ
+// "mm" คนละบรรทัด): แทนช่องว่างภายในแต่ละหน่วยด้วย non-breaking space — ข้อความยาวยัง
+// wrap ได้ตามปกติที่รอยต่อระหว่างหน่วย (" + ") ไม่มีการตัดข้อมูลทิ้ง
+function nowrapUnit(s: string): string {
+  return s.replace(/ /g, "\u00A0");
+}
+
 function fabricText(f: FabricRow): string {
   if (f.displayOverride) return f.displayOverride;
   let text = f.fabricName;
-  if (f.waddingWeight) text += ` + ใย ${f.waddingWeight}`;
-  if (f.foamThickness) text += ` + ฟ.${f.foamThickness}`;
+  if (f.waddingWeight) text += ` + ใย ${nowrapUnit(f.waddingWeight)}`;
+  if (f.foamThickness) text += ` + ฟ.${nowrapUnit(f.foamThickness)}`;
   if (f.colorNote) text += ` (${f.colorNote})`;
   return text;
 }
@@ -146,7 +153,9 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
       label: "วันที่ต้องการ",
       value: `${DATE_MODE_LABEL[po.dateMode] ?? po.dateMode}${po.requestedDate ? ` ${po.requestedDate.toLocaleDateString("th-TH")}` : ""}`,
     },
-    { label: "สถานะ", value: order.status },
+    // สถานะ derive จาก productionStartedAt (แหล่งเดียวกับ badge ทุกหน้า — ดู
+    // production-status-badges.ts) ไม่อ่าน order.status ดิบ กันข้อความเก่าค้างใน DB
+    { label: "สถานะ", value: order.productionStartedAt ? settings.inProgressStatus : settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต" },
   ];
 
   const copyBody = (copyNo: number) => (
@@ -179,6 +188,20 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
           const visibleLayers = group.representative.layers.filter((l) => l.printVisible);
           const fabricRows = mergeIdenticalFabrics(visibleFabrics);
           const notes = group.items.filter((item) => item.note);
+          // S4 UAT round 3 — ผ้าหลายตำแหน่ง/หลายชื่อไหลเป็นคอลัมน์แทนเรียงบรรทัดเดียวยาวๆ
+          // (ยิ่งเยอะยิ่งใช้คอลัมน์มากขึ้น) ประหยัดแนวตั้ง โดยข้อความยังไม่ถูกตัดทิ้งเลย —
+          // แค่ wrap ในคอลัมน์ตัวเอง
+          // S4 UAT round 6 — ยกเกณฑ์ ≤1→2 คอลัมน์ เป็น ≤3→1 คอลัมน์ หลังวัดจริงจากข้อมูล
+          // 39 Master Spec: 90% ของสูตร (35/39) มีผ้าไม่เกิน 3 รายการต่อกลุ่ม — ให้กลุ่มส่วน
+          // ใหญ่ได้พื้นที่เต็มบรรทัด (560px) แทนถูกบีบเหลือ ~272px โดยไม่จำเป็น เพราะกลุ่มที่มี
+          // ≤3 รายการ วัดจริงแล้วยังพอมีที่ว่างเหลือเผื่อขยายฟอนต์ (ดูข้างล่าง) กลุ่มที่ผ้าเยอะ
+          // จริง (4-6 → 2 คอลัมน์, 7+ → 3 คอลัมน์) ยังบีบเหมือนเดิม
+          const fabricColumnCount = fabricRows.length <= 3 ? 1 : fabricRows.length <= 6 ? 2 : 3;
+          // วัดจริงกับสเปกผ้าที่ยาวที่สุดใน master-spec-final.json (39 สูตร): กลุ่ม 1 คอลัมน์
+          // ยังเหลือที่ว่าง 250px+ ที่ 14px จึงขยับเป็น text-sm ได้ปลอดภัย ส่วนกลุ่มที่ยังต้อง
+          // 2-3 คอลัมน์ (ผ้าเยอะจริง) คงไว้ที่ text-xs เพราะวัดแล้วขยับใหญ่กว่านี้จะดันให้
+          // ตัวยาวที่สุดตกบรรทัดจริง — ห้ามขยับเป็น text-sm ทุกกรณีโดยไม่เช็คความกว้างจริง
+          const fabricTextSizeClass = fabricColumnCount === 1 ? "text-sm" : "text-xs";
           return (
             <div key={group.specHash} className="print-keep-together border border-gray-700 rounded">
               {/* หัว block: ชื่อ · กุ๊น · ความหนา | รวม */}
@@ -191,8 +214,8 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
                 <span className="text-xs font-medium">รวม {group.totalQty} ชิ้น</span>
               </div>
 
-              <div className="grid grid-cols-[7rem_1fr] gap-x-3 p-2">
-                {/* ซ้าย: ไซส์/จำนวน compact */}
+              <div className="grid grid-cols-[5rem_1fr] gap-x-3 p-2">
+                {/* ซ้าย: ไซส์/จำนวน compact — บีบให้แคบสุดเท่าที่อ่านออก เปิดพื้นที่ขวาให้ผ้า/โครงสร้าง */}
                 <table className="text-xs self-start w-full">
                   <thead>
                     <tr className="border-b">
@@ -216,9 +239,9 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
 
                 {/* ขวา: ผ้า + โครงสร้าง */}
                 <div className="text-xs min-w-0">
-                  <div className="mb-1">
+                  <div className={`mb-1 ${fabricTextSizeClass}`} style={{ columnCount: fabricColumnCount, columnGap: "1rem" }}>
                     {fabricRows.map((row, i) => (
-                      <div key={i}>
+                      <div key={i} style={{ breakInside: "avoid" }}>
                         <span className="text-gray-600">ผ้า {row.label}:</span> <span className="font-medium">{row.text}</span>
                       </div>
                     ))}
@@ -228,7 +251,7 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
                   <div style={{ columnCount: 2, columnGap: "1rem" }}>
                     {visibleLayers.map((l, i) => (
                       <div key={l.id} style={{ breakInside: "avoid" }}>
-                        {i + 1}. {l.displayOverride ?? `${l.material} ${l.spec}`}
+                        {i + 1}. {l.displayOverride ?? `${l.material} ${nowrapUnit(l.spec)}`}
                       </div>
                     ))}
                   </div>
@@ -281,7 +304,14 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
 
       <div className="bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm">
         {copies.map((copyNo) => (
-          <section key={copyNo} style={copyNo > 1 ? { breakBefore: "page" } : undefined}>
+          <section
+            key={copyNo}
+            // S4 UAT round 4 — Owner สั่งชัด: สำเนาไหลต่อกันในหน้าเดียวกันเพื่อประหยัดกระดาษ
+            // (ห้าม force ขึ้นหน้าใหม่ทุกสำเนา — แต่ละ block มี break-inside:avoid อยู่แล้ว
+            // ผ่าน .print-keep-together ถ้า block ทั้งก้อนไม่พอค่อยไหลไปหน้าถัดไปเอง)
+            // เว้นช่องว่างก่อนหัวสำเนาถัดไปพอให้ใช้กรรไกร/คัตเตอร์ตัดแยกชุดได้
+            style={copyNo > 1 ? { marginTop: "10mm" } : undefined}
+          >
             {copyBody(copyNo)}
           </section>
         ))}

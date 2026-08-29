@@ -5,6 +5,7 @@ import { loadMasterSpecOptionsForLines } from "@/lib/master-spec-prefill";
 import { reviseProductionOrder } from "../../actions";
 import { ProductionOrderForm, type EligibleLine, type ProductionOrderFormInitial } from "@/components/production/production-order-form";
 import { displayProdNo } from "@/lib/production-order-display";
+import { BackLink } from "@/components/production/back-link";
 
 // S3 CP3 — ออก Revision ใหม่: eligibleLines ดึงจาก CustomerPO สดๆ ตอนนี้ (ไม่ใช่แค่ที่เคย
 // อยู่ใน Revision เดิม) เพื่อให้รวมบรรทัดที่เพิ่งผูกสินค้า/เพิ่มใหม่ใน P.O. ได้ด้วย — บรรทัดที่
@@ -73,18 +74,16 @@ export default async function ReviseProductionOrderPage(props: { params: Promise
 
   return (
     <div className="max-w-2xl">
-      <a href={`/production/production-orders/${order.id}`} className="text-sm text-blue-600 hover:underline">
-        ← กลับไปดูใบสั่งผลิต
-      </a>
-      <h1 className="text-lg font-semibold mt-2 mb-1">ออก Revision ใหม่ — {displayProdNo(order.prodNo, order.currentRevNo)}</h1>
+      <BackLink fallbackHref={`/production/production-orders/${order.id}`} />
+      <h1 className="text-lg font-semibold mt-2 mb-1">แก้ไขใบสั่งผลิต — {displayProdNo(order.prodNo, order.currentRevNo)}</h1>
       <p className="text-sm text-gray-500 mb-4">
-        Revision เดิม (Rev.{order.currentRevNo}) จะยังอยู่ครบ เปิดดูย้อนหลังได้เสมอ — แก้ไขด้านล่างแล้วกด
-        &quot;ออก Revision ใหม่&quot; จะสร้าง Rev.{order.currentRevNo + 1} แทนการเขียนทับของเดิม
+        ข้อมูลเดิมจะถูกเก็บเป็นประวัติ (Rev.{order.currentRevNo}) เปิดดูย้อนหลังได้เสมอ — แก้ไขด้านล่างแล้วกด
+        &quot;บันทึกการแก้ไข&quot; ระบบจะบันทึกเป็นเวอร์ชันใหม่ (Rev.{order.currentRevNo + 1}) แทนการเขียนทับของเดิม
       </p>
 
       {eligibleLines.length === 0 ? (
         <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500">
-          P.O. ต้นทางไม่มีรายการที่ผูกกับสินค้าในระบบแล้ว (ต้องไปแก้ไข P.O. เพื่อผูกสินค้าก่อน)
+          ออเดอร์ต้นทางไม่มีรายการที่ผูกกับสินค้าในระบบแล้ว (ต้องไปแก้ไขออเดอร์เพื่อผูกสินค้าก่อน)
         </div>
       ) : (
         <ProductionOrderForm

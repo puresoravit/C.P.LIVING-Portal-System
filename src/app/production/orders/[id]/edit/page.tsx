@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { updateCustomerPO } from "../../actions";
 import { CustomerPOForm, type CustomerPOFormInitial } from "@/components/production/customer-po-form";
+import { BackLink } from "@/components/production/back-link";
 
 // S2 Checkpoint 2 — แก้ไข CustomerPO พร้อม Revision History + Optimistic Concurrency
 export default async function EditCustomerPOPage(props: { params: Promise<{ id: string }> }) {
@@ -56,10 +57,8 @@ export default async function EditCustomerPOPage(props: { params: Promise<{ id: 
 
   return (
     <div className="max-w-2xl">
-      <a href={`/production/orders/${po.id}`} className="text-sm text-blue-600 hover:underline">
-        ← กลับไปดูรายละเอียด
-      </a>
-      <h1 className="text-lg font-semibold mt-2 mb-1">แก้ไข P.O.</h1>
+      <BackLink fallbackHref={`/production/orders/${po.id}`} />
+      <h1 className="text-lg font-semibold mt-2 mb-1">แก้ไขออเดอร์</h1>
       <p className="text-sm text-gray-500 mb-4">
         การแก้ไขทุกครั้งจะถูกบันทึกเป็นประวัติ (Revision) — ไม่เขียนทับข้อมูลเดิม
       </p>

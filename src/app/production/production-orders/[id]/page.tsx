@@ -2,6 +2,10 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { displayProdNo } from "@/lib/production-order-display";
 import { ProductionOrderRevisionView } from "@/components/production/production-order-revision-view";
+import { StatusBadge } from "@/components/status-badge";
+import { productionOrderStatusBadge } from "@/lib/production-status-badges";
+import { getProductionSettings } from "@/lib/production-settings";
+import { BackLink } from "@/components/production/back-link";
 
 // S3 CP2/CP3 — หน้ารายละเอียดใบสั่งผลิต แสดง Revision ปัจจุบัน (currentRevNo) แบบจัดกลุ่มตาม
 // specHash (Production Block) ผ่าน ProductionOrderRevisionView ที่ใช้ร่วมกับหน้าดู
@@ -19,6 +23,9 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
     },
   });
   if (!order) notFound();
+
+  const settings = await getProductionSettings();
+  const statusBadge = productionOrderStatusBadge(!!order.productionStartedAt, settings);
 
   const currentRevision = await db.productionOrderRevision.findUnique({
     where: { productionOrderId_revNo: { productionOrderId: order.id, revNo: order.currentRevNo } },
@@ -38,21 +45,39 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
     : [];
   const actorNameById = new Map(actors.map((a) => [a.id, a.displayName || a.username]));
 
+  // S4 UAT round 4 — Owner ยืนยันกฎล่าสุด: ลูกค้าแก้/สั่งเพิ่มหลังออกใบสั่งผลิตแล้ว "ไม่บังคับ
+  // พิมพ์ใหม่" (หน้างานจริงใช้โทรบอก + แก้กระดาษเดิมด้วยปากกา) — สิ่งที่ระบบต้องทำคือเตือน
+  // ให้เห็นว่า P.O. ต้นทางถูกแก้หลัง Rev ปัจจุบันถูกออก ตรวจจาก CustomerPORevision ล่าสุด
+  // (แม่นกว่า updatedAt เพราะ CustomerPORevision เกิดเฉพาะตอนแก้เนื้อหา P.O. จริงเท่านั้น)
+  const latestPoRevision = await db.customerPORevision.findFirst({
+    where: { customerPoId: order.customerPoId },
+    orderBy: { revNo: "desc" },
+    select: { revNo: true, createdAt: true },
+  });
+  const poEditedAfterCurrentRev =
+    !!currentRevision && !!latestPoRevision && latestPoRevision.createdAt > currentRevision.confirmedAt;
+
   return (
     <div className="max-w-2xl">
-      <a href={`/production/orders/${order.customerPoId}`} className="text-sm text-blue-600 hover:underline">
-        ← กลับไปดู P.O. ต้นทาง
-      </a>
+      <BackLink fallbackHref={`/production/orders/${order.customerPoId}`} />
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold">{displayProdNo(order.prodNo, order.currentRevNo)}</h1>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{order.status}</span>
+        <StatusBadge {...statusBadge} />
       </div>
       <p className="text-sm text-gray-500 mb-1">
         {order.customerPo.customer.companyName} ({order.customerPo.customer.code})
         {order.customerPo.branch && ` — ${order.customerPo.branch.name}`}
+        {" · "}
+        <a href={`/production/orders/${order.customerPoId}`} className="text-blue-600 hover:underline">
+          ดูออเดอร์ต้นทาง
+        </a>
       </p>
 
-      <div className="flex items-center gap-2 mb-4">
+      {/* S4 UAT round 4 — ปุ่ม action ใช้ภาษาหน้างาน ไม่ใช่ศัพท์เทคนิค: "แก้ไขใบสั่งผลิต"
+          คือกลไก Production Revision เดิมเป๊ะ (แค่เปลี่ยน label) ส่วน "+ ลูกค้าสั่งเพิ่ม /
+          แก้ P.O." พาเข้าหน้าแก้ CustomerPO ต้นทางตรงๆ ไม่ต้องย้อนไปหาเองในหน้ารายการ —
+          คำว่า Revision เหลือไว้เฉพาะ section ประวัติด้านล่าง */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <a
           href={`/production/production-orders/${order.id}/print`}
           className="inline-block text-xs px-2 py-0.5 rounded-full bg-cp-navy text-white hover:bg-cp-navy-light"
@@ -63,9 +88,27 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
           href={`/production/production-orders/${order.id}/revise`}
           className="inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
         >
-          ออก Revision ใหม่
+          แก้ไขใบสั่งผลิต
+        </a>
+        <a
+          href={`/production/orders/${order.customerPoId}/edit`}
+          className="inline-block text-xs px-2 py-0.5 rounded-full border border-green-300 text-green-700 hover:bg-green-50"
+        >
+          + ลูกค้าสั่งเพิ่ม / แก้ออเดอร์
         </a>
       </div>
+
+      {poEditedAfterCurrentRev && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2 mb-4">
+          ⚠ ออเดอร์ต้นทางมีการแก้ไขหลังออกใบสั่งผลิตนี้ (แก้ล่าสุด{" "}
+          {latestPoRevision!.createdAt.toLocaleString("th-TH")}) — กรุณาตรวจสอบว่ารายการผลิตยังตรงกับที่ลูกค้าสั่งจริง
+          ถ้าต้องแก้ใบสั่งผลิต กด &quot;แก้ไขใบสั่งผลิต&quot; ได้ (ไม่บังคับต้องพิมพ์ใหม่ —{" "}
+          <a href={`/production/orders/${order.customerPoId}`} className="underline">
+            ดูออเดอร์ต้นทาง
+          </a>
+          )
+        </div>
+      )}
 
       <h2 className="text-sm font-medium text-gray-700 mb-2">รายการผลิต ({currentRevision?.items.length ?? 0})</h2>
       {currentRevision && <ProductionOrderRevisionView items={currentRevision.items} customerPoId={order.customerPoId} />}

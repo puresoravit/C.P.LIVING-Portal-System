@@ -1,0 +1,39 @@
+import type { StatusBadgeConfig } from "@/components/status-badge";
+
+// S4 UAT round 3 (2026-08-29) — Owner: อย่า hardcode สี/ข้อความสถานะกระจายไปทั่วแต่ละหน้า
+// ให้รวมจุดเดียว (StatusBadge เดิมที่ Billing ใช้ทั้ง 5 หน้ารายการ) + ห้ามสร้าง state
+// ซ้ำซ้อนใหม่ — ทั้งสองสถานะข้างล่างนี้ derive จากข้อมูลที่มีอยู่แล้วตรงๆ ไม่มี field ใหม่:
+//
+//   - CustomerPO.status (ค่าคงที่จาก settings, ไม่เคยถูกแก้หลังสร้างเลยทั้งระบบ) — สิ่งที่
+//     Owner อยากเห็นจริงๆ คือ "ออกใบสั่งผลิตหรือยัง" ซึ่ง derive ได้จากจำนวน ProductionOrder
+//     ที่ผูกกับ P.O. นี้โดยตรง
+//   - ProductionOrder.status ใช้ settings.productionOrderStatuses[0] ("รอเริ่มผลิต") จนกว่า
+//     จะเข้า settings.inProgressStatus ("กำลังผลิต") ตอน confirmPrintRevision ครั้งแรก — สอง
+//     state นี้ derive ได้จาก order.productionStartedAt ตรงๆ (ไม่ต้องพึ่ง raw status text
+//     ในการตัดสินสี กัน drift ถ้า admin เผลอพิมพ์ status ไม่ตรง settings)
+//
+// สียึดชุดเดียวกันทั้งโมดูล Production (Owner กำหนดตรงๆ รอบ UAT 4): amber = รอออกเอกสาร/
+// ต้องดำเนินการต่อ, blue = ออกเอกสารแล้วแต่ยังไม่เริ่มลงมือ, green = กำลังดำเนินการอยู่จริง
+
+export function customerPoStatusBadge(hasProductionOrder: boolean): { status: string; config: StatusBadgeConfig } {
+  return {
+    status: hasProductionOrder ? "HAS_PRODUCTION_ORDER" : "NO_PRODUCTION_ORDER",
+    config: {
+      NO_PRODUCTION_ORDER: { label: "รอออกใบสั่งผลิต", className: "bg-amber-100 text-amber-700" },
+      HAS_PRODUCTION_ORDER: { label: "ออกใบสั่งผลิตแล้ว", className: "bg-blue-100 text-blue-700" },
+    },
+  };
+}
+
+export function productionOrderStatusBadge(
+  started: boolean,
+  settings: { productionOrderStatuses: string[]; inProgressStatus: string }
+): { status: string; config: StatusBadgeConfig } {
+  return {
+    status: started ? "IN_PROGRESS" : "PENDING",
+    config: {
+      PENDING: { label: settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต", className: "bg-blue-100 text-blue-700" },
+      IN_PROGRESS: { label: settings.inProgressStatus, className: "bg-green-100 text-green-700" },
+    },
+  };
+}

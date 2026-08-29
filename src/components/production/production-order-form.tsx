@@ -164,6 +164,10 @@ export function ProductionOrderForm({
   const [masterChoice, setMasterChoice] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [invalidLineIds, setInvalidLineIds] = useState<Set<string>>(new Set());
+  // S4 UAT round 3 — Owner: ติ๊กเลือกแล้วไม่ต้องกางสเปกเต็มทันที (การ์ดยังกระชับ) ต้องกด
+  // "ดูสเปค/แก้สเปค" เองถึงจะเห็น/แก้รายละเอียด — expanded เป็น UI state ล้วนๆ แยกจาก
+  // ข้อมูลที่จะ submit (selected) เพื่อไม่ต้องรื้อ data shape เดิม
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
   const [thrownError, setThrownError] = useState<unknown>(null);
   const { showError } = useToast();
@@ -184,25 +188,51 @@ export function ProductionOrderForm({
     patchItem(lineId, draftsFromMaster(option));
   }
 
+  // โหมดสร้าง + ยังไม่เคยกรอกอะไร + มีสูตร Master ตรงตัวเดียว (exact) → prefill ให้ตรวจ/แก้
+  // ก่อน Confirm — หลายสูตรหรือไม่มี = ห้ามเดา ให้ผู้ใช้เลือก/กรอกเอง (แสดงสถานะใน UI) โหมด
+  // revise ไม่เข้าเงื่อนไขนี้เลย (initial มาจาก snapshot เสมอ ดึง Master = ปุ่ม explicit) — การ
+  // prefill นี้แค่เติมข้อมูลเงียบๆ ไม่กางฟอร์มให้เห็น (ดู expanded แยกต่างหาก)
+  function computeSelectPatch(item: ItemDraft, lineId: string): Partial<ItemDraft> {
+    const options = masterSpecOptions[lineId] ?? [];
+    if (!isRevise && item.fabrics.length === 0 && item.layers.length === 0 && options.length === 1) {
+      return { selected: true, ...draftsFromMaster(options[0]) };
+    }
+    return {
+      selected: true,
+      fabrics: item.fabrics.length ? item.fabrics : [emptyFabric()],
+      layers: item.layers.length ? item.layers : [emptyLayer()],
+    };
+  }
+
   function toggleSelected(lineId: string, selected: boolean) {
     if (!selected) {
       patchItem(lineId, { selected });
       return;
     }
-    const item = items[lineId];
-    const options = masterSpecOptions[lineId] ?? [];
-    // โหมดสร้าง + ยังไม่เคยกรอกอะไร + มีสูตร Master ตรงตัวเดียว (exact) → prefill ให้ตรวจ/แก้
-    // ก่อน Confirm — หลายสูตรหรือไม่มี = ห้ามเดา ให้ผู้ใช้เลือก/กรอกเอง (แสดงสถานะใน UI)
-    // โหมด revise ไม่เข้าเงื่อนไขนี้เลย (initial มาจาก snapshot เสมอ ดึง Master = ปุ่ม explicit)
-    if (!isRevise && item.fabrics.length === 0 && item.layers.length === 0 && options.length === 1) {
-      patchItem(lineId, { selected, ...draftsFromMaster(options[0]) });
-      return;
-    }
-    patchItem(lineId, {
-      selected,
-      fabrics: item.fabrics.length ? item.fabrics : [emptyFabric()],
-      layers: item.layers.length ? item.layers : [emptyLayer()],
+    patchItem(lineId, computeSelectPatch(items[lineId], lineId));
+  }
+
+  function selectAll() {
+    setItems((prev) => {
+      const next = { ...prev };
+      for (const line of eligibleLines) {
+        if (!next[line.id].selected) next[line.id] = { ...next[line.id], ...computeSelectPatch(next[line.id], line.id) };
+      }
+      return next;
     });
+  }
+
+  function deselectAll() {
+    setItems((prev) => {
+      const next = { ...prev };
+      for (const line of eligibleLines) next[line.id] = { ...next[line.id], selected: false };
+      return next;
+    });
+    setInvalidLineIds(new Set());
+  }
+
+  function toggleExpanded(lineId: string) {
+    setExpanded((prev) => ({ ...prev, [lineId]: !prev[lineId] }));
   }
 
   function addFabric(lineId: string) {
@@ -258,6 +288,13 @@ export function ProductionOrderForm({
     if (invalid) {
       setErr(invalid.message);
       setInvalidLineIds(invalid.invalidIds);
+      // การ์ดที่ error ต้องกางให้เห็นเสมอ แม้ผู้ใช้จะไม่เคยกด "ดูสเปค" มาก่อน — ไม่งั้นจะไม่
+      // เห็นกรอบแดงที่ไฮไลต์ไว้เลย
+      setExpanded((prev) => {
+        const next = { ...prev };
+        for (const id of invalid.invalidIds) next[id] = true;
+        return next;
+      });
       return;
     }
     setErr("");
@@ -317,9 +354,29 @@ export function ProductionOrderForm({
         ))}
       </datalist>
 
+      {eligibleLines.length > 1 && (() => {
+        // S4 UAT round 5 — Owner: เปลี่ยนจากลิงก์ข้อความขวาเป็น checkbox ฝั่งซ้าย ให้ดูง่าย
+        const selectedCount = Object.values(items).filter((i) => i.selected).length;
+        const allSelected = selectedCount === eligibleLines.length;
+        return (
+          <label className="flex items-center gap-2 text-sm px-1 w-fit cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(e) => (e.target.checked ? selectAll() : deselectAll())}
+              className="rounded"
+            />
+            <span className="font-medium">เลือกทั้งหมด</span>
+            <span className="text-xs text-gray-500">({selectedCount} / {eligibleLines.length} รายการ)</span>
+          </label>
+        );
+      })()}
+
       {eligibleLines.map((line) => {
         const item = items[line.id];
         const isInvalid = invalidLineIds.has(line.id);
+        const isExpanded = !!expanded[line.id];
+        const options = masterSpecOptions[line.id] ?? [];
         return (
           <div key={line.id} className={`bg-white border rounded-lg p-3 space-y-3 ${isInvalid ? "border-red-400 bg-red-50/40" : ""}`}>
             <label className="flex items-start gap-2">
@@ -334,10 +391,34 @@ export function ProductionOrderForm({
               </div>
             </label>
 
-            {item.selected && (
+            {item.selected && !isExpanded && (
+              <div className="pl-6 flex items-center justify-between gap-2 text-xs">
+                <span className={item.appliedMasterName ? "text-green-700" : options.length ? "text-amber-700" : "text-gray-500"}>
+                  {item.appliedMasterName
+                    ? `สูตร Master: ${item.appliedMasterName}`
+                    : options.length
+                      ? `มีสูตร Master ${options.length} รายการ — ยังไม่เลือก`
+                      : "ไม่มีสูตร Master"}
+                  {" · "}จำนวนที่ผลิต {item.qty || "-"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(line.id)}
+                  className="text-cp-navy border border-cp-navy/40 rounded px-2 py-1 hover:bg-cp-navy/5 shrink-0 whitespace-nowrap"
+                >
+                  ดูสเปค / แก้สเปค
+                </button>
+              </div>
+            )}
+
+            {item.selected && isExpanded && (
               <div className="pl-6 space-y-3 border-l-2 border-gray-100">
+                <div className="flex justify-end -mb-1">
+                  <button type="button" onClick={() => toggleExpanded(line.id)} className="text-xs text-gray-500 hover:underline">
+                    ย่อ
+                  </button>
+                </div>
                 {(() => {
-                  const options = masterSpecOptions[line.id] ?? [];
                   if (item.appliedMasterName) {
                     return (
                       <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1.5">
@@ -500,7 +581,7 @@ export function ProductionOrderForm({
 
       {isRevise && (
         <div className="bg-white border rounded-lg p-4">
-          <label className="block text-xs font-medium text-gray-600 mb-1">เหตุผลที่ออก Revision ใหม่ *</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">เหตุผลที่แก้ไข *</label>
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -508,7 +589,7 @@ export function ProductionOrderForm({
             className="w-full border rounded px-3 py-2 text-sm"
           />
           <p className="text-xs text-gray-400 mt-1">
-            Revision เดิม (Rev.{initial!.baseRevNo}) จะยังอยู่ครบ ดูย้อนหลังได้เสมอ — บันทึกนี้จะกลายเป็น Rev.{initial!.baseRevNo + 1}
+            ข้อมูลเดิม (Rev.{initial!.baseRevNo}) จะยังอยู่ครบ ดูย้อนหลังได้ในประวัติเสมอ — บันทึกนี้จะกลายเป็น Rev.{initial!.baseRevNo + 1}
           </p>
         </div>
       )}
@@ -520,7 +601,7 @@ export function ProductionOrderForm({
         disabled={isPending}
         className="w-full bg-cp-navy hover:bg-cp-navy-light disabled:opacity-50 text-white text-sm font-medium rounded-lg px-4 py-3"
       >
-        {isPending ? "กำลังบันทึก..." : isRevise ? "ออก Revision ใหม่" : "ยืนยัน/ออกใบสั่งผลิต (Confirm/Issue)"}
+        {isPending ? "กำลังบันทึก..." : isRevise ? "บันทึกการแก้ไข" : "ยืนยัน/ออกใบสั่งผลิต (Confirm/Issue)"}
       </button>
     </form>
   );

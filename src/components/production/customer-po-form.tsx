@@ -632,7 +632,13 @@ export function CustomerPOForm({
         })()}
       </div>
 
-      <button type="button" onClick={addLine} className="w-full border border-dashed rounded-lg py-2.5 text-sm text-gray-500 hover:border-cp-navy hover:text-cp-navy">
+      {/* S4 UAT round 6 — Owner: ปุ่มนี้หาไม่ค่อยเจอ (เดิมแค่กรอบเส้นประจาง) ทำให้เด่นชัดขึ้น
+          เป็นปุ่มโทนน้ำเงินเข้ากับธีม แทนที่กรอบเส้นประสีเทา */}
+      <button
+        type="button"
+        onClick={addLine}
+        className="w-full border-2 border-blue-400 bg-blue-50 hover:bg-blue-100 hover:border-blue-500 rounded-lg py-3 text-sm font-semibold text-blue-700"
+      >
         + เพิ่มรายการ
       </button>
 
@@ -656,7 +662,7 @@ export function CustomerPOForm({
         disabled={isPending}
         className="w-full bg-cp-navy hover:bg-cp-navy-light disabled:opacity-50 text-white text-sm font-medium rounded-lg px-4 py-3"
       >
-        {isPending ? "กำลังบันทึก..." : isEdit ? "บันทึกการแก้ไข" : "บันทึก P.O."}
+        {isPending ? "กำลังบันทึก..." : isEdit ? "บันทึกการแก้ไข" : "บันทึกออเดอร์"}
       </button>
     </form>
   );

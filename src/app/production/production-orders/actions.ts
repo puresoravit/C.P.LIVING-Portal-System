@@ -166,7 +166,7 @@ export async function createProductionOrder(customerPoId: string, formData: Form
   }
 
   const settings = await getProductionSettings();
-  const defaultStatus = settings.productionOrderStatuses[0] ?? "รอผลิต";
+  const defaultStatus = settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต";
 
   const productionOrder = await db.$transaction(async (tx) => {
     const period = currentPeriod(new Date());

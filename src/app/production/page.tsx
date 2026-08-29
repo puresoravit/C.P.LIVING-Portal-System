@@ -1,78 +1,180 @@
-// Dashboard Shell (S1) — วางโครง IA ระยะยาวไว้ก่อน ไม่ผูก business logic จริง
-// การ์ดสถานะทั้งหมดเป็นค่าคงที่ (placeholder) โดยเจตนา ไม่ query DB — เพราะ workflow
-// ที่จะสร้างข้อมูลจริง (CustomerPO/ProductionOrder/Loading) ยังไม่มีจนกว่าจะถึง
-// Sprint S2 เป็นต้นไป ห้ามดึง scope ของ sprint ถัดไปมาทำก่อนเวลา
+// Dashboard Shell (S1, redesign S4 UAT round 5 ตาม mockup ของ Owner) — ยังเป็นโครง
+// ไม่ผูก business logic จริง ไม่ query DB (ตัวเลข/ข้อความแจ้งเตือนจะเริ่มมีความหมายเมื่อ
+// Sprint ที่เกี่ยวข้องเสร็จ) — การ์ดโทนสีอ่อนตามประเภทการแจ้งเตือน + ไอคอนประกอบ
+// mobile-first: 2 คอลัมน์บนจอแคบ → 5 คอลัมน์บนจอกว้าง กรอบขนาดพอดี เผื่อพื้นที่
+// ข้อความแจ้งเตือนในอนาคต
 
 type StatusCard = {
   label: string;
   hint: string;
-  dotColor: string; // จุดสีบอกประเภทสถานะให้พนักงานกวาดตาแยกได้เร็ว
-  future?: boolean; // true = ยังไม่มีแม้แต่ sprint รองรับตอนนี้ (รอ P2)
+  tone: string; // พื้น/ขอบการ์ด
+  chipTone: string; // ป้ายไอคอนมุมบน
+  icon: React.ReactNode;
+  future?: boolean; // ยังไม่มี sprint รองรับ (รอ P2)
 };
 
+function Icon({ path, className }: { path: React.ReactNode; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className ?? "w-4 h-4"} aria-hidden>
+      {path}
+    </svg>
+  );
+}
+
+const ICONS = {
+  alarm: (
+    <>
+      <circle cx="12" cy="13" r="7" />
+      <path d="M12 10v3l2 2M5 3 2.5 5.5M19 3l2.5 2.5" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18M12 14v3l2 1" />
+    </>
+  ),
+  gear: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
+    </>
+  ),
+  docRefresh: (
+    <>
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v4h4M10 13h5M10 17h5" />
+    </>
+  ),
+  truck: (
+    <>
+      <path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z" />
+      <circle cx="6" cy="18" r="1.6" />
+      <circle cx="16.5" cy="18" r="1.6" />
+    </>
+  ),
+  clipboard: (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V2h6v2M9 11l2 2 4-4" />
+    </>
+  ),
+  printer: (
+    <>
+      <path d="M7 8V3h10v5M5 8h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2z" />
+      <path d="M7 16h10" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 16V5M7.5 9.5 12 5l4.5 4.5" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </>
+  ),
+} as const;
+
+// S4 UAT round 6 — Owner: ป้ายไอคอนมุมบนให้เติมพื้นหลังเป็นสีของตัวเองเลย (ไม่ใช่พื้นขาว
+// ขอบสี) ให้ดูมีมิติมากขึ้น เข้ากับโทนของการ์ด
 const STATUS_CARDS: StatusCard[] = [
-  { label: "ต้องดำเนินการวันนี้", hint: "จะเริ่มนับหลัง Sprint S2 (ออเดอร์ลูกค้า)", dotColor: "bg-red-500" },
-  { label: "ใกล้ถึงกำหนดส่ง", hint: "จะเริ่มนับหลัง Sprint S2", dotColor: "bg-yellow-400" },
-  { label: "กำลังผลิต", hint: "จะเริ่มนับหลัง Sprint S3–S4 (ใบสั่งผลิต)", dotColor: "bg-green-500" },
-  { label: "มีการอัปเดตล่าสุด", hint: "จะเริ่มนับหลัง Sprint S5 (ประวัติ)", dotColor: "bg-sky-500" },
-  { label: "ของค้างส่ง", hint: "เป็นงานของ Phase P2", dotColor: "bg-gray-900", future: true },
+  {
+    label: "ด่วนวันนี้",
+    hint: "งานที่ต้องเร่งหรือปิดภายในวันนี้",
+    tone: "bg-red-50/70 border-red-200",
+    chipTone: "bg-red-600 text-white border-red-600",
+    icon: ICONS.alarm,
+  },
+  {
+    label: "ใกล้ครบกำหนด",
+    hint: "งานที่ควรเร่งติดตามใน 1–3 วัน",
+    tone: "bg-amber-50/70 border-amber-200",
+    chipTone: "bg-amber-500 text-white border-amber-500",
+    icon: ICONS.calendar,
+  },
+  {
+    label: "กำลังผลิต",
+    hint: "รายการที่อยู่ระหว่างการผลิต",
+    tone: "bg-green-50/70 border-green-200",
+    chipTone: "bg-green-600 text-white border-green-600",
+    icon: ICONS.gear,
+  },
+  {
+    label: "มีการอัปเดตล่าสุด",
+    hint: "รายการที่เพิ่งมีการแก้ไขหรือยืนยัน",
+    tone: "bg-blue-50/70 border-blue-200",
+    chipTone: "bg-blue-600 text-white border-blue-600",
+    icon: ICONS.docRefresh,
+  },
+  {
+    label: "ของค้างส่ง",
+    hint: "งานที่รอจัดส่งหรือยังปิดไม่ครบ",
+    tone: "bg-gray-50 border-gray-200",
+    chipTone: "bg-gray-400 text-white border-gray-400",
+    icon: ICONS.truck,
+    future: true,
+  },
 ];
 
 type QuickAction = {
   label: string;
   hint: string;
   href: string;
+  iconTone: string;
+  icon: React.ReactNode;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: "รับ P.O. ลูกค้า", hint: "Sprint S2", href: "/production/orders" },
-  { label: "ออก/พิมพ์ใบสั่งผลิต", hint: "Sprint S3–S4", href: "/production/production-orders" },
-  { label: "ทำใบขึ้นของ", hint: "Phase P2", href: "/production/loading" },
+  { label: "เพิ่มออเดอร์ลูกค้า", hint: "สร้างและบันทึกออเดอร์จากลูกค้า", href: "/production/orders/new", iconTone: "bg-blue-600", icon: ICONS.clipboard },
+  { label: "ออก/พิมพ์ใบสั่งผลิต", hint: "สร้างหรือพิมพ์ใบสั่งผลิต", href: "/production/production-orders", iconTone: "bg-green-600", icon: ICONS.printer },
+  { label: "ทำใบขึ้นของ", hint: "บันทึกรายการขึ้นของ (Phase P2)", href: "/production/loading", iconTone: "bg-violet-600", icon: ICONS.upload },
 ];
 
 export default function ProductionHomePage() {
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-5xl">
       <h1 className="text-lg font-semibold mb-1">ภาพรวม</h1>
       <p className="text-sm text-gray-500 mb-6">
         Production &amp; Delivery — ระยะ P1 โครงกระดูก (คีย์มือล้วน ยังไม่มี AI) หน้านี้เป็นโครง Dashboard
         เตรียมไว้ก่อน ตัวเลขจะเริ่มมีความหมายจริงเมื่อ Sprint ที่เกี่ยวข้องเสร็จแล้ว
       </p>
 
-      {/* การ์ดสี่เหลี่ยมจัตุรัส (aspect-square) + จุดสีมุมขวาบนบอกประเภทสถานะ — มือถือ:
-          กระชับ (padding เล็ก, ซ่อนคำอธิบายรอง) เพราะจอแคบเห็นสถานะคร่าวๆ ก็พอ — จาก sm
-          ขึ้นไปแสดงเต็มเหมือนเดิม ไม่กระทบเดสก์ท็อป */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-8">
         {STATUS_CARDS.map((card) => (
           <div
             key={card.label}
-            className={`relative aspect-square bg-white border rounded-xl shadow-sm p-2.5 sm:p-4 flex flex-col items-center justify-center text-center ${
-              card.future ? "border-dashed" : ""
-            }`}
+            className={`border rounded-2xl p-3 sm:p-4 flex flex-col min-h-[10rem] sm:min-h-[13rem] ${card.tone} ${card.future ? "border-dashed" : ""}`}
           >
-            <span
-              className={`absolute top-2.5 right-2.5 sm:top-3 sm:right-3 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${card.dotColor}`}
-              aria-hidden
-            />
-            <div className="text-lg sm:text-2xl font-semibold text-gray-300">—</div>
-            <div className="text-[11px] sm:text-xs font-medium text-gray-700 mt-0.5 sm:mt-1">{card.label}</div>
-            <div className="hidden sm:block text-[11px] text-gray-400 mt-1">{card.hint}</div>
+            <span className={`inline-flex items-center gap-1.5 self-start border rounded-full px-2 py-1 text-[11px] font-medium ${card.chipTone}`}>
+              <Icon path={card.icon} className="w-3.5 h-3.5" />
+              {card.label}
+            </span>
+            <div className="mt-3 sm:mt-4">
+              <div className="text-sm sm:text-base font-semibold text-gray-800">{card.label}</div>
+              {/* พื้นที่นี้เผื่อไว้แสดงจำนวน/ข้อความแจ้งเตือนจริงในอนาคต */}
+              <div className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-snug">{card.hint}</div>
+            </div>
+            <div className="flex-1 flex items-end justify-center pb-1 text-current opacity-25">
+              <Icon path={card.icon} className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
           </div>
         ))}
       </div>
 
-      <h2 className="text-sm font-medium text-gray-700 mb-3">ทางลัด</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <h2 className="text-sm font-medium text-gray-700 mb-2">ทางลัด</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {QUICK_ACTIONS.map((action) => (
           <a
-            key={action.href}
+            key={action.label}
             href={action.href}
-            className="block bg-white border rounded-lg p-4 hover:border-cp-navy transition-colors"
+            className="flex items-center gap-3 bg-white border rounded-xl p-3.5 hover:border-cp-navy"
           >
-            <div className="text-sm font-medium mb-1">{action.label}</div>
-            <span className="inline-flex items-center gap-1.5 text-[11px] tracking-wide text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-              ยังไม่เปิดใช้งาน · {action.hint}
+            <span className={`shrink-0 w-10 h-10 rounded-lg text-white flex items-center justify-center ${action.iconTone}`}>
+              <Icon path={action.icon} className="w-5 h-5" />
             </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium text-gray-900">{action.label}</span>
+              <span className="block text-xs text-gray-500 truncate">{action.hint}</span>
+            </span>
+            <span className="text-gray-300" aria-hidden>›</span>
           </a>
         ))}
       </div>

@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { displayProdNo } from "@/lib/production-order-display";
+import { StatusBadge } from "@/components/status-badge";
+import { customerPoStatusBadge, productionOrderStatusBadge } from "@/lib/production-status-badges";
+import { getProductionSettings } from "@/lib/production-settings";
+import { BackLink } from "@/components/production/back-link";
 
 const DATE_MODE_LABEL: Record<string, string> = {
   UNSET: "ยังไม่กำหนด",
@@ -13,7 +17,7 @@ const CHANGE_TYPE_LABEL: Record<string, string> = {
   QTY_CHANGE: "แก้จำนวน",
   CANCEL_LINE: "ยกเลิกรายการ",
   RESOLVE_PRODUCT: "ผูกสินค้าจากระบบ",
-  ORDER_LEVEL: "แก้ข้อมูลหัว P.O.",
+  ORDER_LEVEL: "แก้ข้อมูลหัวออเดอร์",
 };
 
 // S2 Checkpoint 2 — เพิ่มลิงก์แก้ไข + แสดงประวัติการแก้ไข (Revision History)
@@ -35,11 +39,13 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
       },
       productionOrders: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, prodNo: true, currentRevNo: true, status: true, createdAt: true },
+        select: { id: true, prodNo: true, currentRevNo: true, status: true, createdAt: true, productionStartedAt: true },
       },
     },
   });
   if (!po) notFound();
+
+  const productionSettings = await getProductionSettings();
 
   const hasEligibleLineForProduction = po.lines.some((l) => l.lineKind === "CATALOG");
 
@@ -81,7 +87,7 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
       case "QTY_CHANGE":
         return `"${labelOf(before)}" จำนวน ${before.qty} → ${after.qty}`;
       case "ORDER_LEVEL":
-        return "แก้ข้อมูลหัว P.O. (ลูกค้า/สาขา/วันที่/ด่วน)";
+        return "แก้ข้อมูลหัวออเดอร์ (ลูกค้า/สาขา/วันที่/ด่วน)";
       default:
         return CHANGE_TYPE_LABEL[c.changeType] ?? c.changeType;
     }
@@ -89,16 +95,14 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
 
   return (
     <div className="max-w-2xl">
-      <a href="/production/orders" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการออเดอร์ลูกค้า
-      </a>
+      <BackLink fallbackHref="/production/orders" />
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold">
           {po.customer.companyName}
           {po.urgency && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 align-middle">ด่วน</span>}
         </h1>
         <div className="flex items-center gap-2">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{po.status}</span>
+          <StatusBadge {...customerPoStatusBadge(po.productionOrders.length > 0)} />
           <a
             href={`/production/orders/${po.id}/edit`}
             className="text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
@@ -176,7 +180,7 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
 
       {po.productionOrders.length > 0 && (
         <>
-          <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ใบสั่งผลิตที่ออกจาก P.O. นี้ ({po.productionOrders.length})</h2>
+          <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ใบสั่งผลิตที่ออกจากออเดอร์นี้ ({po.productionOrders.length})</h2>
           <div className="space-y-2">
             {po.productionOrders.map((order) => (
               <a
@@ -185,7 +189,7 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
                 className="flex items-center justify-between bg-white border rounded-lg p-3 hover:border-cp-navy text-sm"
               >
                 <span className="font-medium">{displayProdNo(order.prodNo, order.currentRevNo)}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{order.status}</span>
+                <StatusBadge {...productionOrderStatusBadge(!!order.productionStartedAt, productionSettings)} />
               </a>
             ))}
           </div>

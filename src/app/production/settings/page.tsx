@@ -18,7 +18,7 @@ export default async function ProductionSettingsPage() {
       <h1 className="text-lg font-semibold mb-1">ตั้งค่าการผลิต</h1>
       <p className="text-sm text-gray-500 mb-4">
         ค่าที่ใช้ในโมดูล Production &amp; Delivery — ไซส์ที่ผลิตได้จริง แผนก/จำนวนชุดที่พิมพ์ใบสั่งผลิต
-        และสถานะ P.O. ลูกค้า (แก้ได้ตลอด ไม่ต้องแก้โค้ด)
+        และสถานะออเดอร์ลูกค้า (แก้ได้ตลอด ไม่ต้องแก้โค้ด)
       </p>
 
       <ActionForm action={updateProductionSettings} successMessage="บันทึกค่าตั้งค่าสำเร็จ" className="bg-white border rounded-lg p-4 space-y-4">
@@ -38,7 +38,7 @@ export default async function ProductionSettingsPage() {
           รวมจำนวนชุดปัจจุบัน: {settings.departments.reduce((sum, d) => sum + d.copies, 0)} ชุด
         </p>
         <TextareaField
-          label='สถานะ P.O. ลูกค้า (คั่นด้วย , รายการแรก = สถานะเริ่มต้นตอนรับ P.O. ใหม่)'
+          label='สถานะออเดอร์ลูกค้า (คั่นด้วย , รายการแรก = สถานะเริ่มต้นตอนรับออเดอร์ใหม่)'
           name="customerPoStatuses"
           defaultValue={formatSizesText(settings.customerPoStatuses)}
           rows={2}

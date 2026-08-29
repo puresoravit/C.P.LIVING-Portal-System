@@ -43,7 +43,10 @@ const DEFAULTS: ProductionSettings = {
     { name: "Box/ฐานเตียง", copies: 2 },
   ],
   customerPoStatuses: ["เปิดงาน"],
-  productionOrderStatuses: ["รอผลิต"],
+  // S4 UAT round 3 (2026-08-29) — เดิม "รอผลิต" กำกวม (ทำให้เหมือนใบสั่งผลิตยังไม่ถูกออก
+  // ทั้งที่การมี ProductionOrder แถวนี้เองคือหลักฐานว่าออกแล้ว) เปลี่ยนเป็น "รอเริ่มผลิต" ให้
+  // ตรงความหมายจริง: ออกใบสั่งผลิตแล้ว แค่ยังไม่ถึงขั้นตอนเริ่มลงมือผลิต
+  productionOrderStatuses: ["รอเริ่มผลิต"],
   maxGussetCount: 4,
   maxFabricsPerPlacement: { WING: 2, SIDE: 2 },
   printCopies: 8,

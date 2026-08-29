@@ -39,8 +39,8 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
   if (customerPoStatuses.length === 0) {
     return {
       success: false,
-      error: "กรุณากรอกสถานะ P.O. อย่างน้อย 1 รายการ",
-      fieldErrors: { customerPoStatuses: "กรุณากรอกสถานะ P.O. อย่างน้อย 1 รายการ" },
+      error: "กรุณากรอกสถานะออเดอร์ลูกค้าอย่างน้อย 1 รายการ",
+      fieldErrors: { customerPoStatuses: "กรุณากรอกสถานะออเดอร์ลูกค้าอย่างน้อย 1 รายการ" },
     };
   }
 

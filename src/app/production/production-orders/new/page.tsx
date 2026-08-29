@@ -4,6 +4,7 @@ import { getProductionSettings } from "@/lib/production-settings";
 import { loadMasterSpecOptionsForLines } from "@/lib/master-spec-prefill";
 import { createProductionOrder } from "../actions";
 import { ProductionOrderForm, type EligibleLine } from "@/components/production/production-order-form";
+import { BackLink } from "@/components/production/back-link";
 
 // S3 CP1 — Entry point เดียวคือมาจากปุ่ม "สร้างใบสั่งผลิต" บนหน้า detail ของ CustomerPO
 // (ดู src/app/production/orders/[id]/page.tsx) — เฉพาะบรรทัดที่ active + lineKind=CATALOG
@@ -42,18 +43,16 @@ export default async function NewProductionOrderPage(props: { searchParams: Prom
 
   return (
     <div className="max-w-2xl">
-      <a href={`/production/orders/${po.id}`} className="text-sm text-blue-600 hover:underline">
-        ← กลับไปดู P.O.
-      </a>
+      <BackLink fallbackHref={`/production/orders/${po.id}`} />
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างใบสั่งผลิต</h1>
       <p className="text-sm text-gray-500 mb-4">
-        จาก P.O. {po.customer.companyName} ({po.customer.code}) — เลือกรายการที่จะผลิต แล้วกรอกสเปกให้ครบ
-        กด &quot;ยืนยัน/ออกใบสั่งผลิต&quot; แล้วแก้ไขไม่ได้ (ต้องออก Rev ใหม่ถ้าจะแก้)
+        จากออเดอร์ {po.customer.companyName} ({po.customer.code}) — เลือกรายการที่จะผลิต แล้วกรอกสเปกให้ครบ
+        กด &quot;ยืนยัน/ออกใบสั่งผลิต&quot; แล้วแก้ไขไม่ได้ (ต้องกดแก้ไขใบสั่งผลิตถ้าจะแก้)
       </p>
 
       {eligibleLines.length === 0 ? (
         <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500">
-          P.O. นี้ยังไม่มีรายการที่ผูกกับสินค้าในระบบแล้ว (ต้องไปแก้ไข P.O. เพื่อผูกสินค้าให้รายการที่ยังเป็น
+          ออเดอร์นี้ยังไม่มีรายการที่ผูกกับสินค้าในระบบแล้ว (ต้องไปแก้ไขออเดอร์เพื่อผูกสินค้าให้รายการที่ยังเป็น
           &quot;ยังไม่มีในระบบ&quot; ก่อน)
         </div>
       ) : (
