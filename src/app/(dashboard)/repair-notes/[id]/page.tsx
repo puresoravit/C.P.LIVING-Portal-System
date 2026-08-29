@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { BackLink } from "@/components/back-link";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   CONFIRMED: { label: "ยืนยันแล้ว", className: "bg-green-100 text-green-700" },
@@ -25,9 +26,7 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
 
   return (
     <div className="max-w-3xl">
-      <a href="/repair-notes" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการ
-      </a>
+      <BackLink href="/repair-notes">← กลับไปรายการ</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

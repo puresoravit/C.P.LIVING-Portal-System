@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateProductCategory } from "../actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
+import { BackLink } from "@/components/back-link";
 
 export default async function EditProductCategoryPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -13,9 +14,7 @@ export default async function EditProductCategoryPage(props: { params: Promise<{
 
   return (
     <div className="max-w-xl">
-      <a href="/product-categories" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการประเภทสินค้า
-      </a>
+      <BackLink href="/product-categories">← กลับไปรายการประเภทสินค้า</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขประเภทสินค้า: {category.name}</h1>
 
       <ActionForm

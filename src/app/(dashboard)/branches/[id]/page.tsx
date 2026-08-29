@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateBranch } from "../actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
+import { BackLink } from "@/components/back-link";
 
 export default async function EditBranchPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -16,9 +17,7 @@ export default async function EditBranchPage(props: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-2xl">
-      <a href="/branches" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการสาขา
-      </a>
+      <BackLink href="/branches">← กลับไปรายการสาขา</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขสาขา: {branch.name}</h1>
 
       <ActionForm

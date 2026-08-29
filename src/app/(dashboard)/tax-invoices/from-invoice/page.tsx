@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createTaxInvoiceFromInvoice } from "../actions";
 import { displayProductTypeCode } from "@/lib/order-preview";
 import { SearchInputWithClear } from "@/components/search-input-with-clear";
+import { BackLink } from "@/components/back-link";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -121,9 +122,7 @@ export default async function TaxInvoiceFromInvoicePage(props: { searchParams: P
 
   return (
     <div className="max-w-3xl">
-      <a href="/tax-invoices" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบกำกับภาษี
-      </a>
+      <BackLink href="/tax-invoices">← กลับไปรายการใบกำกับภาษี</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">ดึงยอดจากใบส่งของชั่วคราว</h1>
       <p className="text-sm text-gray-500 mb-4">
         ค้นหา Invoice (ใบส่งของชั่วคราว) ที่ต้องการอ้างอิง แล้วสร้างใบกำกับภาษี VAT เต็ม 100% ของยอด Invoice ใบนั้นทันที

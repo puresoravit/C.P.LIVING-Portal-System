@@ -6,6 +6,7 @@ import { liveTypeNamesByCode, resolveBillingNoteDiscounts } from "@/lib/billing-
 import { autoReleaseUnprintedBillingNotes } from "@/lib/billing-note-release";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { BackLink } from "@/components/back-link";
 
 // Owner UAT Fix Batch — ข้อ 2: เพิ่มช่วงวันที่ (วันที่เริ่มต้น → วันที่สิ้นสุด) ก่อนแสดง
 // Invoice ที่เข้าเงื่อนไข — Flow เดิม "เลือก Customer → แสดง Invoice → ติ๊ก → สร้าง" ยังคง
@@ -144,9 +145,7 @@ export default async function NewBillingNotePage(props: {
           `,
         }}
       />
-      <a href="/billing-notes" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบวางบิล
-      </a>
+      <BackLink href="/billing-notes">← กลับไปรายการใบวางบิล</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างใบวางบิล</h1>
       <p className="text-sm text-gray-500 mb-4">
         เลือกลูกค้าและช่วงวันที่เพื่อดู Invoice ที่พิมพ์แล้ว (9×11) และยังไม่เคยถูกวางบิล แล้วติ๊กใบที่ต้องการรวมเป็นใบวางบิลเดียว

@@ -8,6 +8,7 @@ import { findAdoptableHeadsForProspect } from "@/lib/prospect-products";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { linkProspectToCustomer, createCustomerFromProspect, adoptProspectProducts } from "../actions";
+import { BackLink } from "@/components/back-link";
 
 // ==========================================================================
 // R10 — รายละเอียด "ราย" ของใบเสนอราคาลูกค้าที่ไม่มีในระบบ: ข้อมูลที่เคยกรอก + ประวัติ QT
@@ -67,9 +68,7 @@ export default async function QuotationProspectDetailPage(props: { params: Promi
 
   return (
     <div className="max-w-4xl">
-      <a href="/quotations/prospects" className="text-sm text-blue-600 hover:underline">
-        ← กลับรายชื่อใบเสนอราคาลูกค้าที่ไม่มีในระบบ
-      </a>
+      <BackLink href="/quotations/prospects">← กลับรายชื่อใบเสนอราคาลูกค้าที่ไม่มีในระบบ</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">{prospect.name}</h1>
       <p className="text-sm text-gray-500 mb-4">{prospect.quotations.length} ใบเสนอราคาในรายนี้</p>
 

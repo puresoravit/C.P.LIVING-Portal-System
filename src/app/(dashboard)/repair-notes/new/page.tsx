@@ -3,6 +3,7 @@ import { todayInputValue } from "@/lib/date-utils";
 import { createRepairReturnNote } from "../actions";
 import { RepairNoteItemEntry } from "@/components/repair-note-item-entry";
 import { safeJsonForScript } from "@/lib/safe-json-script";
+import { BackLink } from "@/components/back-link";
 
 export default async function NewRepairNotePage() {
   const customers = await db.customer.findMany({
@@ -15,9 +16,7 @@ export default async function NewRepairNotePage() {
 
   return (
     <div className="max-w-4xl">
-      <a href="/repair-notes" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบส่งคืนสินค้าฝากซ่อม
-      </a>
+      <BackLink href="/repair-notes">← กลับไปรายการใบส่งคืนสินค้าฝากซ่อม</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างใบส่งคืนสินค้าฝากซ่อม</h1>
       <p className="text-sm text-gray-500 mb-4">เอกสารนี้ไม่มีราคา — ใช้บันทึกการส่งคืนสินค้าที่ซ่อมเสร็จแล้วให้ลูกค้า</p>
 

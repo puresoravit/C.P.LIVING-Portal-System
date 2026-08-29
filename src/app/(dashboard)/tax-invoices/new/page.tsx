@@ -4,6 +4,7 @@ import { createManualTaxInvoice } from "../actions";
 import { ManualTaxInvoiceItemEntry } from "@/components/manual-tax-invoice-item-entry";
 import { safeJsonForScript } from "@/lib/safe-json-script";
 import { getEffectiveVatRate } from "@/lib/pricing";
+import { BackLink } from "@/components/back-link";
 
 export default async function NewTaxInvoicePage() {
   const [customers, vatPctToday] = await Promise.all([
@@ -21,9 +22,7 @@ export default async function NewTaxInvoicePage() {
 
   return (
     <div className="max-w-4xl">
-      <a href="/tax-invoices" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบกำกับภาษี
-      </a>
+      <BackLink href="/tax-invoices">← กลับไปรายการใบกำกับภาษี</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างใบกำกับภาษี (เลือกรายการเอง)</h1>
       <p className="text-sm text-gray-500 mb-4">
         ใช้เมื่อลูกค้าแจ้งรายการ/ยอดที่ต้องการออกใบกำกับภาษีมาเอง (ไม่จำเป็นต้องตรงกับใบส่งของทั้งหมด)

@@ -6,6 +6,7 @@ import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField } from "@/components/form/fields";
 import { BatchSizeForm } from "@/components/batch-size-form";
 import { ProductCompanyAccessForm } from "@/components/product-company-access-form";
+import { BackLink } from "@/components/back-link";
 
 function money(n: unknown) {
   return Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -44,9 +45,7 @@ export default async function EditProductModelPage(props: { params: Promise<{ id
 
   return (
     <div className="max-w-xl">
-      <a href="/product-models" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการรุ่นสินค้า
-      </a>
+      <BackLink href="/product-models">← กลับไปรายการรุ่นสินค้า</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขรุ่นสินค้า: {model.name}</h1>
 
       <ActionForm

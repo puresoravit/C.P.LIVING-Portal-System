@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateCustomer } from "../actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
+import { BackLink } from "@/components/back-link";
 
 export default async function EditCustomerPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -13,9 +14,7 @@ export default async function EditCustomerPage(props: { params: Promise<{ id: st
 
   return (
     <div className="max-w-2xl">
-      <a href="/customers" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการลูกค้า
-      </a>
+      <BackLink href="/customers">← กลับไปรายการลูกค้า</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขลูกค้า: {customer.companyName}</h1>
 
       <ActionForm
