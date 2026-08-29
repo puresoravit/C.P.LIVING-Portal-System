@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
+import { BackLink } from "@/components/back-link";
 
 // R13 — Label ตรงกับหน้า List (ดูเหตุผลที่ tax-invoices/page.tsx)
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -35,9 +36,7 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
 
   return (
     <div className="max-w-3xl">
-      <a href="/tax-invoices" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบกำกับภาษี
-      </a>
+      <BackLink href="/tax-invoices">← กลับไปรายการใบกำกับภาษี</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

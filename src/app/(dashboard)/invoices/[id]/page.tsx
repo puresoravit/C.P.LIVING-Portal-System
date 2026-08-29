@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { displayProductTypeCode } from "@/lib/order-preview";
+import { BackLink } from "@/components/back-link";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -44,9 +45,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
 
   return (
     <div className="max-w-3xl">
-      <a href="/invoices" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการ Invoice
-      </a>
+      <BackLink href="/invoices">← กลับไปรายการ Invoice</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

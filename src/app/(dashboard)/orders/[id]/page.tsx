@@ -26,6 +26,7 @@ import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { RememberDraft } from "@/components/draft-return";
 import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
+import { BackLink } from "@/components/back-link";
 
 const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -116,9 +117,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </a>
         </div>
       )}
-      <a href="/orders" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการออเดอร์
-      </a>
+      <BackLink href="/orders">← กลับไปรายการออเดอร์</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

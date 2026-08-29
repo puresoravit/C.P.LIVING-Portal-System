@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getProductModelSizeBreakdown } from "@/lib/reports";
 import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
+import { BackLink } from "@/components/back-link";
 
 function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -62,9 +63,7 @@ export default async function ProductModelDrillDownPage(
 
   return (
     <div className="max-w-2xl">
-      <a href="/dashboard" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปแดชบอร์ด
-      </a>
+      <BackLink href="/dashboard">← กลับไปแดชบอร์ด</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">{entity.name}</h1>
       <p className="text-sm text-gray-500 mb-4">
         {entity.productType?.name ?? "ไม่ระบุกลุ่มส่วนลด"} · ช่วงวันที่ {toDisplayDate(dateFrom)} – {toDisplayDate(dateTo)}

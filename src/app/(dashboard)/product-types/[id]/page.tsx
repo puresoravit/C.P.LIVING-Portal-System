@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateProductType } from "../actions";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field } from "@/components/form/fields";
+import { BackLink } from "@/components/back-link";
 
 export default async function EditProductTypePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -13,9 +14,7 @@ export default async function EditProductTypePage(props: { params: Promise<{ id:
 
   return (
     <div className="max-w-xl">
-      <a href="/product-types" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการกลุ่มส่วนลด
-      </a>
+      <BackLink href="/product-types">← กลับไปรายการกลุ่มส่วนลด</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">แก้ไขกลุ่มส่วนลด: {productType.name}</h1>
 
       <ActionForm

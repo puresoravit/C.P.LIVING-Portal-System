@@ -23,6 +23,7 @@ import { SelectField } from "@/components/form/fields";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { RememberDraft } from "@/components/draft-return";
 import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
+import { BackLink } from "@/components/back-link";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -128,9 +129,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
           </a>
         </div>
       )}
-      <a href="/quotations" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบเสนอราคา
-      </a>
+      <BackLink href="/quotations">← กลับไปรายการใบเสนอราคา</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

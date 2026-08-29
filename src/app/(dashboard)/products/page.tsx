@@ -8,6 +8,7 @@ import { Field, SelectField } from "@/components/form/fields";
 import { CancelButton } from "@/components/cancel-button";
 import { StatusTabs } from "@/components/status-tabs";
 import { SearchInputWithClear } from "@/components/search-input-with-clear";
+import { BackLink } from "@/components/back-link";
 
 // Owner UAT Fix Batch — ข้อ 1: Product Status เป็น Active/Inactive ชัดเจนแบบเดียวกับ
 // Document Status Tabs (StatusTabs Component เดิม)
@@ -193,7 +194,7 @@ export default async function ProductsPage(props: {
 
     return (
       <div className="max-w-5xl">
-        <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายการสินค้า</a>
+        <BackLink href="/products">← กลับรายการสินค้า</BackLink>
         <h1 className="text-lg font-semibold mt-2 mb-1">สินค้าของลูกค้าที่อยู่ในระบบ — กลุ่มบริษัท</h1>
         <p className="text-sm text-gray-500 mb-4">
           กดชื่อบริษัทเพื่อดู/เพิ่มสินค้า (Shared ของกลุ่ม + Private ของบริษัท) — ลากบริษัทเพื่อจัดกลุ่ม
@@ -243,7 +244,7 @@ export default async function ProductsPage(props: {
   if (ctx.kind === "company" && !company) {
     return (
       <div className="max-w-5xl">
-        <a href="/products" className="text-sm text-blue-600 hover:underline">← กลับรายชื่อบริษัท</a>
+        <BackLink href="/products">← กลับรายชื่อบริษัท</BackLink>
         <p className="mt-4 text-sm text-gray-500">ไม่พบบริษัทนี้</p>
       </div>
     );
@@ -374,9 +375,9 @@ export default async function ProductsPage(props: {
 
   return (
     <div className="max-w-5xl">
-      <a href={ctx.kind === "company" ? "/products?view=groups" : "/products"} className="text-sm text-blue-600 hover:underline">
+      <BackLink href={ctx.kind === "company" ? "/products?view=groups" : "/products"}>
         {ctx.kind === "company" ? "← กลับกลุ่มบริษัท" : "← กลับรายการสินค้า"}
-      </a>
+      </BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">{heading}</h1>
       {ctx.kind === "company" && (
         <p className="text-sm text-gray-500 mb-3">

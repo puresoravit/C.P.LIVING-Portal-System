@@ -5,6 +5,7 @@ import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
 import { DraftResumeBanner } from "@/components/draft-return";
+import { BackLink } from "@/components/back-link";
 
 export default async function NewQuotationPage() {
   const customers = await db.customer.findMany({
@@ -18,9 +19,7 @@ export default async function NewQuotationPage() {
   return (
     <div className="max-w-xl">
       <DraftResumeBanner docKey="quotation" label="ใบเสนอราคา" />
-      <a href="/quotations" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบเสนอราคา
-      </a>
+      <BackLink href="/quotations">← กลับไปรายการใบเสนอราคา</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างใบเสนอราคาใหม่</h1>
 
       <ActionForm id="createQuotationForm" action={createDraftQuotation} className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">

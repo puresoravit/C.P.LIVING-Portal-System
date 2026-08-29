@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel } from "@/lib/billing-note-discount";
+import { BackLink } from "@/components/back-link";
 
 // R5 — Label ตรงกับหน้า List (CONFIRMED = สร้างแล้วแต่ยังไม่ยืนยันพิมพ์จริง — ดูเหตุผลเต็ม
 // ที่ billing-notes/page.tsx)
@@ -59,9 +60,7 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
 
   return (
     <div className="max-w-3xl">
-      <a href="/billing-notes" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการใบวางบิล
-      </a>
+      <BackLink href="/billing-notes">← กลับไปรายการใบวางบิล</BackLink>
 
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold font-mono flex items-center gap-1.5">

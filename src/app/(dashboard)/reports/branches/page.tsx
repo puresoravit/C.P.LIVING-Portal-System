@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { redirect } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 
 function money(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -24,9 +25,7 @@ export default async function BranchReportPage(
 
   return (
     <div className="max-w-5xl">
-      <a href="/reports" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายงานยอดขาย
-      </a>
+      <BackLink href="/reports">← กลับไปรายงานยอดขาย</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">รายงานแยกตามสาขา (Product Mix)</h1>
       <p className="text-sm text-gray-500 mb-4">ดูสัดส่วนสินค้าแต่ละกลุ่มส่วนลดที่แต่ละสาขาซื้อ</p>
 

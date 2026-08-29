@@ -8,6 +8,7 @@ import { UNSPECIFIED_TYPE_CODE, displayProductTypeCode } from "@/lib/order-previ
 import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 import { deriveOrderPrintState } from "@/lib/order-doc-center";
 import { StatusBadge } from "@/components/status-badge";
+import { BackLink } from "@/components/back-link";
 
 const ORDER_STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -106,9 +107,7 @@ export default async function CustomerSalesDrillDownPage(
 
   return (
     <div className="max-w-2xl">
-      <a href="/dashboard" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปแดชบอร์ด
-      </a>
+      <BackLink href="/dashboard">← กลับไปแดชบอร์ด</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-1">{customer.companyName}</h1>
       <p className="text-sm text-gray-500 mb-4">
         แยกตามกลุ่มส่วนลด · ช่วงวันที่ {toDisplayDate(dateFrom)} – {toDisplayDate(dateTo)}

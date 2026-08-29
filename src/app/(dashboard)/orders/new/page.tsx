@@ -5,6 +5,7 @@ import { safeJsonForScript } from "@/lib/safe-json-script";
 import { ActionForm, SubmitButton } from "@/components/form/action-form";
 import { Field, SelectField, TextareaField } from "@/components/form/fields";
 import { DraftResumeBanner, PrintResumeBanner } from "@/components/draft-return";
+import { BackLink } from "@/components/back-link";
 
 export default async function NewOrderPage() {
   const customers = await db.customer.findMany({
@@ -20,9 +21,7 @@ export default async function NewOrderPage() {
       {/* R14 — กลับไปหน้าพิมพ์ที่ค้างอยู่ (คิวพิมพ์ใบส่งของ) — แถบเสนอ ไม่บังคับเด้ง */}
       <PrintResumeBanner docKey="invoice" label="ใบส่งของชั่วคราว" />
       <DraftResumeBanner docKey="order" label="ใบส่งของชั่วคราว" />
-      <a href="/orders" className="text-sm text-blue-600 hover:underline">
-        ← กลับไปรายการออเดอร์
-      </a>
+      <BackLink href="/orders">← กลับไปรายการออเดอร์</BackLink>
       <h1 className="text-lg font-semibold mt-2 mb-4">สร้างออเดอร์ใหม่</h1>
 
       <ActionForm id="createOrderForm" action={createDraftOrder} className="bg-white border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
