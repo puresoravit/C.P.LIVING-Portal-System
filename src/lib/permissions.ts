@@ -29,7 +29,8 @@ export type Permission =
   | "customerPo.create" | "customerPo.editDraft" | "customerPo.confirm" | "customerPo.cancel"
   | "productionOrder.create" | "productionOrder.confirm" | "productionOrder.revise" | "productionOrder.print"
   | "productAlias.manage"
-  | "productionSetting.manage";
+  | "productionSetting.manage"
+  | "productionMasterSpec.manage";
 
 const MATRIX: Record<Role, Permission[]> = {
   OWNER_ADMIN: [
@@ -53,6 +54,9 @@ const MATRIX: Record<Role, Permission[]> = {
     "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
     "productAlias.manage",
     "productionSetting.manage",
+    // Master Spec (สูตรผ้า/โครงสร้างต้นแบบ) — master data นำเข้า/แก้ได้เฉพาะ Admin เช่นเดียว
+    // กับ productAlias.manage/productionSetting.manage (BILLING_STAFF ดูอย่างเดียว ไม่มีสิทธิ์นี้)
+    "productionMasterSpec.manage",
   ],
   BILLING_STAFF: [
     "customer.view",

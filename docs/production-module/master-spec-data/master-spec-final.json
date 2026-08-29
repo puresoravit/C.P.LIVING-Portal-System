@@ -1,0 +1,2366 @@
+{
+  "meta": {
+    "source": "Owner chat message 2026-08-29 (--- START MASTER SPEC DATA --- block)",
+    "parsedAt": "2026-08-29",
+    "conventions": {
+      "placement": "ผ้าบน=TOP, ผ้าล่าง=BOTTOM, ผ้าข้าง/ผ้าผนังข้าง=SIDE, ผ้าปีก=WING, ผ้าหัว ท้าย/ผ้าผนังข้างหัว ท้าย=HEAD_TAIL, ผ้าทั้งหลัง/ไม่ระบุตำแหน่ง=WHOLE, ผ้าบน-ล่าง=ขยายเป็น TOP+BOTTOM (ระบุชัดในข้อความ)",
+      "gussetCount": "0 = ไม่มีกุ๊น/ไม่ระบุ (ติดซิป/Topper/Box/แผ่นเดียว) — sentinel ไม่ใช่ null",
+      "thicknessKey": "ใส่เฉพาะรุ่นที่มีโครงสร้างแยกตามความหนาชัดเจน (เช่น Falcon 6/8) — รุ่นโครงสร้างเดียวใช้ \"\" และเก็บความหนาประมาณใน approxThickness",
+      "variant": "\"\" = ไม่มี variant — ใส่เมื่อรุ่นเดียวกันมีชุดผ้า/โครงสร้างแยกตามชนิดผ้า (JQ vs PVC vs ผ้าริ้วเทา)",
+      "fabricSeqNote": "seq ในไฟล์นี้ = ลำดับการเก็บ (storage) ตามที่ปรากฏในข้อความเท่านั้น ไม่ยืนยันว่าเป็น physical order ยกเว้นแถวที่มี extra.position (Windsor บน/ล่าง = Owner ระบุ label ชัด)",
+      "layerSeqNote": "ลำดับ layer = ลำดับโครงสร้างจริงบนลงล่าง ตามที่ Owner ยืนยัน — รักษาตามข้อความเป๊ะ"
+    },
+    "correctionsApplied": "Owner corrections 8 ข้อ (2026-08-29) — ไฟล์นี้คือ source of truth ล่าสุด override master-spec-parsed.json"
+  },
+  "specs": [
+    {
+      "model": "Box Spring",
+      "titleRaw": "Box Spring ( ผ้าริ้วเทาไม่เดินลาย , PVC )",
+      "gussetCount": 0,
+      "variant": "ผ้าริ้วเทา",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "(ไม่ระบุตำแหน่ง)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "ผ้าริ้วเทาไม่เดินลาย 118g",
+          "fabricCode": "CD 16#",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่ควิลท์"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ไม้ MDF",
+          "spec": "6mm (1 แผ่น)"
+        },
+        {
+          "seq": 4,
+          "material": "โครงไม้จ๊อย",
+          "spec": "1*2 สูง 2\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): ผ้าริ้วเทาไม่เดินลาย 118g / ไม่ควิลท์"
+      ]
+    },
+    {
+      "model": "Box Spring",
+      "titleRaw": "Box Spring ( ผ้าริ้วเทาไม่เดินลาย , PVC )",
+      "gussetCount": 0,
+      "variant": "PVC",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "(ไม่ระบุตำแหน่ง)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "สีโอวัลติน, สีครีม, สีเทา, สีน้ำตาลเข้ม"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ไม้ MDF",
+          "spec": "6mm (1 แผ่น)"
+        },
+        {
+          "seq": 4,
+          "material": "โครงไม้จ๊อย",
+          "spec": "1*2 สูง 2\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): 2 Master Specs คนละชนิดผ้า โครงสร้างเดียวกัน"
+      ]
+    },
+    {
+      "model": "Windsor",
+      "titleRaw": "Windsor ( สามกุ๊น Latex Topper + Pocket Spring )",
+      "gussetCount": 3,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "12.5",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 240g",
+          "fabricCode": "S-34254-2",
+          "waddingWeight": "350g",
+          "foamThickness": "15mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง (บน)",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 240g",
+          "fabricCode": "T3292-7 (S-34166)",
+          "waddingWeight": "80g",
+          "foamThickness": "5mm",
+          "colorNote": null,
+          "extra": {
+            "position": "บน"
+          }
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง (ล่าง)",
+          "placement": "SIDE",
+          "seq": 1,
+          "fabricName": "JQ หนานุ่ม 480g",
+          "fabricCode": "YES-SA2099",
+          "waddingWeight": "80g",
+          "foamThickness": "10mm",
+          "colorNote": null,
+          "extra": {
+            "position": "ล่าง"
+          }
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 240g",
+          "fabricCode": "S-34254-2",
+          "waddingWeight": "100g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g 1 แผ่น"
+        },
+        {
+          "seq": 3,
+          "material": "Pocket Spring",
+          "spec": "8\""
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g 1 แผ่น"
+        },
+        {
+          "seq": 5,
+          "material": "PE",
+          "spec": "10mm"
+        }
+      ],
+      "flags": [
+        "SIDE บน/ล่าง: Owner ระบุ label บน/ล่าง ชัดเจน — เก็บใน extra.position, seq ตาม label",
+        "ต้นฉบับผ้าล่างพิมพ์ 'JQ หนานุ่ม หนานุ่มสีเทา' (คำซ้ำ) — บันทึกเป็น 'JQ หนานุ่มสีเทา 240g' รอยืนยัน",
+        "Owner ยืนยัน (2026-08-29): 'รหัส ....' เป็นข้อความเกิน — รหัสจริงคือ YES-SA2099"
+      ]
+    },
+    {
+      "model": "Falcon",
+      "titleRaw": "Falcon ( กุ๊นเดียว ฟองน้ำ 6\" , 8\" )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "80g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "5\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Falcon",
+      "titleRaw": "Falcon ( กุ๊นเดียว ฟองน้ำ 6\" , 8\" )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "80g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "7\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Falcon",
+      "titleRaw": "Falcon ( สองกุ๊น PVC 4\", 6\", 8\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "4",
+      "approxThickness": "4",
+      "fabrics": [
+        {
+          "placementRaw": "(ไม่ระบุตำแหน่ง)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "น้ำตาลเข้มกับโอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11 (TA)",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "3\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-11 (TA)",
+          "spec": "0.5\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Falcon",
+      "titleRaw": "Falcon ( สองกุ๊น PVC 4\", 6\", 8\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "(ไม่ระบุตำแหน่ง)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "น้ำตาลเข้มกับโอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11 (TA)",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "5\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-11 (TA)",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Falcon",
+      "titleRaw": "Falcon ( สองกุ๊น PVC 4\", 6\", 8\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "(ไม่ระบุตำแหน่ง)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "น้ำตาลเข้มกับโอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11 (TA)",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "7\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-11 (TA)",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Vanessa",
+      "titleRaw": "Vanessa ( กุ๊นเดียว Pocket Spring 11 )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "11",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "280g",
+          "foamThickness": "10mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้างหัว ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "280g",
+          "foamThickness": "10mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "200g",
+          "foamThickness": "3mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g (5.5mm)"
+        },
+        {
+          "seq": 3,
+          "material": "Pocket Spring",
+          "spec": "8\""
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g (5.5mm)"
+        },
+        {
+          "seq": 5,
+          "material": "PE",
+          "spec": "10mm"
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): ความหนา 11\""
+      ]
+    },
+    {
+      "model": "Mary",
+      "titleRaw": "Mary ( สองกุ๊น Spring 9\")",
+      "gussetCount": 2,
+      "variant": "ผ้าริ้วเทา",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "ผ้าริ้วเทาไม่เดินลาย 130g",
+          "fabricCode": "CD 17# Strip Hotel",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TTA",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g (5.5 mm)"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 5,
+          "material": "ฟองน้ำ TTA",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): 'CD 17# Strip Hotel' คือรหัสเต็ม"
+      ]
+    },
+    {
+      "model": "Mary",
+      "titleRaw": "Mary ( สองกุ๊น Spring 9\")",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TTA",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g (5.5 mm)"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 5,
+          "material": "ฟองน้ำ TTA",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): 2 Master Specs คนละชนิดผ้า โครงสร้างเดียวกัน"
+      ]
+    },
+    {
+      "model": "David",
+      "titleRaw": "David ( สองกุ๊น Spring )",
+      "gussetCount": 2,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "350g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 220g",
+          "fabricCode": "T2-8130D",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "150g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "PE",
+          "spec": "20 mm"
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "10 mm"
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): ความหนา 9\""
+      ]
+    },
+    {
+      "model": "Pocket Spring",
+      "titleRaw": "Pocket Spring ( กุ๊นเดียว )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "11",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D2-2257",
+          "waddingWeight": "280g",
+          "foamThickness": "13 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 220g",
+          "fabricCode": "D2-2255",
+          "waddingWeight": "150g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D2-2257",
+          "waddingWeight": "150g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 3,
+          "material": "Pocket Spring",
+          "spec": "หนา 8\""
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 5,
+          "material": "PE",
+          "spec": "10 mm"
+        }
+      ],
+      "flags": [
+        "ชื่อรุ่น 'Pocket Spring' ซ้ำกับชื่อวัสดุ/ประเภทสปริง — ตอน map เข้าสินค้าจริงต้องระวังจับผิดตัว"
+      ]
+    },
+    {
+      "model": "Harry",
+      "titleRaw": "Harry ( สามกุ๊น CBF Topper Spring)",
+      "gussetCount": 3,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "11",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าปีก",
+          "placement": "WING",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "Pillow Top ฟองน้ำอัดธรรมดา",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 3,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 5,
+          "material": "PE",
+          "spec": "15mm"
+        }
+      ],
+      "flags": [
+        "หมายเหตุ: เอกสารก่อนหน้าเคยเขียน 'ฟองน้ำอัดขาว' แต่ชุดนี้เขียน 'ฟองน้ำอัดธรรมดา' — ใช้ตามชุดนี้ (Owner กำหนดให้เป็น source จริง)",
+        "Owner ยืนยัน (2026-08-29): ความหนา 11\""
+      ]
+    },
+    {
+      "model": "Hilton",
+      "titleRaw": "Hilton ( สามกุ๊น CBF Topper Spring )",
+      "gussetCount": 3,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "10",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D3-0127",
+          "waddingWeight": "280g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าปีก",
+          "placement": "WING",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D3-0127",
+          "waddingWeight": "80g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D3-0127",
+          "waddingWeight": "80g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D3-0127",
+          "waddingWeight": "280g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "Pillow Top ฟองน้ำอัดขาว",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 3,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 5,
+          "material": "PE",
+          "spec": "15mm"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Cerina",
+      "titleRaw": "Cerina ( สี่กุ๊น CBF Topper Spring )",
+      "gussetCount": 4,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "11",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าปีก",
+          "placement": "WING",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม สีดำ 240g",
+          "fabricCode": "T3292-7 (S-34166)",
+          "waddingWeight": "80g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง (1)",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม สีขาว 480g",
+          "fabricCode": "E100033",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าข้าง (2)",
+          "placement": "SIDE",
+          "seq": 1,
+          "fabricName": "JQ หนานุ่ม สีดำ 240g",
+          "fabricCode": "T3292-7 (S-34166)",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "Pillow Top ฟองน้ำอัดขาว",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "10 mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 3,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        }
+      ],
+      "flags": [
+        "SIDE 2 ผ้า: ลำดับ seq ตามที่ปรากฏในข้อความ ยังไม่ยืนยัน physical order",
+        "ต้นฉบับผ้าข้าง (2) พิมพ์ 'รหัส 240g รหัส T3292-7' (คำซ้อน) — บันทึกเป็น 240g + T3292-7 (S-34166)"
+      ]
+    },
+    {
+      "model": "Longlive",
+      "titleRaw": "Longlive ( สามกุ๊น Spring )",
+      "gussetCount": 3,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "8.5",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "ผ้าจีนขาว 70g",
+          "fabricCode": "MJ9603-10",
+          "waddingWeight": "200g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าปีก",
+          "placement": "WING",
+          "seq": 0,
+          "fabricName": "ผ้าจีนขาว 70g",
+          "fabricCode": "MJ9603-10",
+          "waddingWeight": "80g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "ผ้าจีนขาว 70g",
+          "fabricCode": "MJ9603-10",
+          "waddingWeight": "100g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "ผ้าจีนขาว 70g",
+          "fabricCode": "MJ9603-10",
+          "waddingWeight": "100g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "PE",
+          "spec": "25 mm"
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "5 mm"
+        },
+        {
+          "seq": 2,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 3,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 4,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Luxury",
+      "titleRaw": "Luxury ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 2,
+          "material": "PE",
+          "spec": "75 mm"
+        },
+        {
+          "seq": 3,
+          "material": "CBF",
+          "spec": "0.75\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Luxury",
+      "titleRaw": "Luxury ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "ผ้าJQ หนานุ่มขาว 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "95 mm"
+        },
+        {
+          "seq": 2,
+          "material": "CBF",
+          "spec": "1.5\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Aston",
+      "titleRaw": "Aston ( ติดซิป 6\" , 8\" )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "S-41043",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 2,
+          "material": "PE",
+          "spec": "75 mm"
+        },
+        {
+          "seq": 3,
+          "material": "CBF",
+          "spec": "0.75\""
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "20 mm"
+        }
+      ],
+      "flags": [
+        "ติดซิป — ไม่ระบุกุ๊น ใช้ 0 = ไม่มีกุ๊น",
+        "Owner ยืนยัน (2026-08-29): ผ้าบนข้าง = TOP+HEAD_TAIL+SIDE ผ้าเดียวกัน"
+      ]
+    },
+    {
+      "model": "Aston",
+      "titleRaw": "Aston ( ติดซิป 6\" , 8\" )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าบนข้าง (Owner ยืนยัน: บน+หัวท้าย+ผนังข้าง ผ้าเดียวกัน)",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีเทา 450g",
+          "fabricCode": "A45097",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "S-41043",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 1,
+          "material": "PE",
+          "spec": "95 mm"
+        },
+        {
+          "seq": 2,
+          "material": "CBF",
+          "spec": "1.5\""
+        },
+        {
+          "seq": 3,
+          "material": "PE",
+          "spec": "20 mm"
+        }
+      ],
+      "flags": [
+        "ติดซิป — ไม่ระบุกุ๊น ใช้ 0 = ไม่มีกุ๊น",
+        "Owner ยืนยัน (2026-08-29): ผ้าบนข้าง = TOP+HEAD_TAIL+SIDE ผ้าเดียวกัน"
+      ]
+    },
+    {
+      "model": "Extra Special",
+      "titleRaw": "Extra Special ( กุ๊นเดียว 9\" )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "350g",
+          "foamThickness": "15 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาล",
+          "fabricCode": null,
+          "waddingWeight": "150g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "150g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "5\""
+        },
+        {
+          "seq": 2,
+          "material": "PE",
+          "spec": "20 mm"
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): ความหนา 9\""
+      ]
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 4\" )",
+      "gussetCount": 2,
+      "variant": "JQ",
+      "thicknessKey": "4",
+      "approxThickness": "4",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีขาว 200g",
+          "fabricCode": "TU300-3A-DT-2E",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีขาว 200g",
+          "fabricCode": "TU300-3A-DT-2E",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีขาว 200g",
+          "fabricCode": "TU300-3A-DT-2E",
+          "waddingWeight": "280g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "ฟองน้ำอัด (CBF)",
+          "spec": "3.5\""
+        },
+        {
+          "seq": 2,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): 2 Master Specs คนละชนิดผ้า โครงสร้างเดียวกัน"
+      ]
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 4\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "4",
+      "approxThickness": "4",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "โอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "ฟองน้ำอัด (CBF)",
+          "spec": "3.5\""
+        },
+        {
+          "seq": 2,
+          "material": "ฟองน้ำ TS-11",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "JQ",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-176",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "4.75\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "JQ",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D2-4147",
+          "waddingWeight": "280g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-176",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "6.5\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "6",
+      "approxThickness": "6",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง (Owner ยืนยัน 2026-08-29)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "สีโอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-176",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "4.75\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-176",
+          "spec": "0.5\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): PVC สีโอวัลตินทั้งหลัง = WHOLE"
+      ]
+    },
+    {
+      "model": "Special",
+      "titleRaw": "Special ( สองกุ๊น 6\" , 8\" )",
+      "gussetCount": 2,
+      "variant": "PVC",
+      "thicknessKey": "8",
+      "approxThickness": "8",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง (Owner ยืนยัน 2026-08-29)",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "สีโอวัลติน"
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11 (TA)",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "TS-176",
+          "spec": "0.5\""
+        },
+        {
+          "seq": 2,
+          "material": "CBF",
+          "spec": "6.5\""
+        },
+        {
+          "seq": 3,
+          "material": "TS-176",
+          "spec": "0.5\""
+        }
+      ],
+      "flags": [
+        "Owner ยืนยัน (2026-08-29): PVC สีโอวัลตินทั้งหลัง = WHOLE"
+      ]
+    },
+    {
+      "model": "Unique",
+      "titleRaw": "Unique ( สองกุ๊น 4\" )",
+      "gussetCount": 2,
+      "variant": "",
+      "thicknessKey": "4",
+      "approxThickness": "4",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาลเข้ม",
+          "fabricCode": null,
+          "waddingWeight": "280g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาลเข้ม",
+          "fabricCode": null,
+          "waddingWeight": "150g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาลเข้ม",
+          "fabricCode": null,
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ฟองน้ำอัด (CBF)",
+          "spec": "3.5\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Daisy",
+      "titleRaw": "Daisy ( กุ๊นเดียว Spring 9\")",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว - ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "D1-9020",
+          "waddingWeight": "250g",
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm"
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "5 mm"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Charlotte",
+      "titleRaw": "Charlotte ( กุ๊นเดียว 11\" )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "11",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "300g",
+          "foamThickness": "13 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว - ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "300g",
+          "foamThickness": "13 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "300g",
+          "foamThickness": "13 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ยางพารา",
+          "spec": "1 cm"
+        },
+        {
+          "seq": 1,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 2,
+          "material": "CBF",
+          "spec": "5\""
+        },
+        {
+          "seq": 3,
+          "material": "PE",
+          "spec": "30 mm"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Denniston",
+      "titleRaw": "Denniston ( กุ๊นเดียว 10\" )",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "10",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาล",
+          "fabricCode": null,
+          "waddingWeight": "350g",
+          "foamThickness": "15 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว - ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาล",
+          "fabricCode": null,
+          "waddingWeight": "300g",
+          "foamThickness": "10 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีน้ำตาล",
+          "fabricCode": null,
+          "waddingWeight": "350g",
+          "foamThickness": "15 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ยางพารา",
+          "spec": "2\""
+        },
+        {
+          "seq": 1,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 2,
+          "material": "CBF",
+          "spec": "3\""
+        },
+        {
+          "seq": 3,
+          "material": "CMHR-1",
+          "spec": "1\""
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Paratex",
+      "titleRaw": "Paratex ( Topper 3\" )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "3",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 220g",
+          "fabricCode": "D2-4147B",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 450g",
+          "fabricCode": "E86531",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": "ไม่คิ้วติ้ง"
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ 220g",
+          "fabricCode": "D2-4147B",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "ยางพารา",
+          "spec": "2\""
+        }
+      ],
+      "flags": [
+        "Topper — ไม่ระบุกุ๊น ใช้ 0 = ไม่มีกุ๊น"
+      ]
+    },
+    {
+      "model": "Sofia",
+      "titleRaw": "Sofia ( กุ๊นเดียว 9\")",
+      "gussetCount": 1,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าหัว - ท้าย",
+          "placement": "HEAD_TAIL",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "กำมะหยี่สีเทา",
+          "fabricCode": null,
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "PE",
+          "spec": "20 mm"
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm, 32 แถว"
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "10 mm"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "model": "Elsa",
+      "titleRaw": "Elsa ( ที่นอนซิบ ความหนา 9\" )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มผ้าเย็น 450g",
+          "fabricCode": "ZFZF-197/BS-0110",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่มสีดำ 260g",
+          "fabricCode": "D2-6092",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "S-41043",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "2\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "4.75\""
+        },
+        {
+          "seq": 2,
+          "material": "PE",
+          "spec": "60 mm"
+        }
+      ],
+      "flags": [
+        "ที่นอนซิบ — ไม่ระบุกุ๊น ใช้ 0 = ไม่มีกุ๊น"
+      ]
+    },
+    {
+      "model": "Special Plus",
+      "titleRaw": "Special Plus ( ที่นอนซิบ ความหนา 9\")",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 450g",
+          "fabricCode": "S0076B",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง (1)",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "ผ้าจีนหนานุ่มน้ำตาลอ่อน 230g",
+          "fabricCode": "CD-YM-01B",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง (2)",
+          "placement": "SIDE",
+          "seq": 1,
+          "fabricName": "ผ้าจีนหนานุ่มน้ำตาลอ่อน 230g",
+          "fabricCode": "CD-YM-2375",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าล่าง",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ หนานุ่ม 180g",
+          "fabricCode": "S-41043",
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "CMHR-1",
+          "spec": "1\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "5.5\""
+        },
+        {
+          "seq": 2,
+          "material": "PE",
+          "spec": "60 mm"
+        }
+      ],
+      "flags": [
+        "ที่นอนซิบ — ไม่ระบุกุ๊น ใช้ 0",
+        "SIDE 2 ผ้า: ลำดับ seq ตามข้อความ ยังไม่ยืนยัน physical order"
+      ]
+    },
+    {
+      "model": "Picnic Monica",
+      "titleRaw": "Picnic Monica ( แผ่นเดียว PVC 2\", 3\" ติดซิป )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "2",
+      "approxThickness": "2",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "1.5\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-11",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": [
+        "แผ่นเดียว/ติดซิป — ไม่ระบุกุ๊น ใช้ 0"
+      ]
+    },
+    {
+      "model": "Picnic Monica",
+      "titleRaw": "Picnic Monica ( แผ่นเดียว PVC 2\", 3\" ติดซิป )",
+      "gussetCount": 0,
+      "variant": "",
+      "thicknessKey": "3",
+      "approxThickness": "3",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าทั้งหลัง",
+          "placement": "WHOLE",
+          "seq": 0,
+          "fabricName": "PVC",
+          "fabricCode": null,
+          "waddingWeight": null,
+          "foamThickness": null,
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "TS-11",
+          "spec": "0.25\""
+        },
+        {
+          "seq": 1,
+          "material": "CBF",
+          "spec": "2.5\""
+        },
+        {
+          "seq": 2,
+          "material": "TS-11",
+          "spec": "0.25\""
+        }
+      ],
+      "flags": [
+        "แผ่นเดียว/ติดซิป — ไม่ระบุกุ๊น ใช้ 0"
+      ]
+    },
+    {
+      "model": "Diana",
+      "titleRaw": "Diana ( 2 กุ๊น ความหนา 9\")",
+      "gussetCount": 2,
+      "variant": "",
+      "thicknessKey": "",
+      "approxThickness": "9",
+      "fabrics": [
+        {
+          "placementRaw": "ผ้าบน-ล่าง (บน)",
+          "placement": "TOP",
+          "seq": 0,
+          "fabricName": "JQ แข็งสีน้ำตาล 118g",
+          "fabricCode": "NW-04",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าบน-ล่าง (ล่าง)",
+          "placement": "BOTTOM",
+          "seq": 0,
+          "fabricName": "JQ แข็งสีน้ำตาล 118g",
+          "fabricCode": "NW-04",
+          "waddingWeight": "250g",
+          "foamThickness": "5 mm",
+          "colorNote": null
+        },
+        {
+          "placementRaw": "ผ้าผนังข้าง",
+          "placement": "SIDE",
+          "seq": 0,
+          "fabricName": "JQ แข็งสีน้ำตาล 118g",
+          "fabricCode": "NW-04",
+          "waddingWeight": "80g",
+          "foamThickness": "3 mm",
+          "colorNote": null
+        }
+      ],
+      "layers": [
+        {
+          "seq": 0,
+          "material": "PE",
+          "spec": "15 mm"
+        },
+        {
+          "seq": 1,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 2,
+          "material": "Spring",
+          "spec": "2.3 mm 7\""
+        },
+        {
+          "seq": 3,
+          "material": "ใยเฟลว",
+          "spec": "550g"
+        },
+        {
+          "seq": 4,
+          "material": "PE",
+          "spec": "15 mm"
+        }
+      ],
+      "flags": [
+        "'ผ้าบน-ล่าง' ระบุชัดว่าใช้ผ้าเดียวกันทั้งบนและล่าง — ขยายเป็น 2 แถว (TOP+BOTTOM) ตามข้อความ ไม่ใช่การเดา"
+      ]
+    }
+  ]
+}

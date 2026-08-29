@@ -1286,6 +1286,10 @@ model ProductionItemFabric {
   foamThickness   String? // ฟ. เช่น "10mm"
   colorNote       String? // ข้อมูลสเปกจริง (เช่น "ตามสีที่เลือก") ไม่ใช่ override การแสดงผล จึงเข้า specHash
   displayOverride String? // override การแสดงผล/พิมพ์เท่านั้น — ไม่กระทบ specHash
+  // Master Spec batch (2026-08-29) — แสดงแถวนี้บนใบสั่งผลิตหรือไม่ (คนละแกนกับ displayOverride
+  // ที่เปลี่ยนข้อความแต่ยังโชว์แถว) — ไม่เข้า specHash เพราะเป็นเรื่องการแสดงผล แต่ canonical
+  // data ของแถวที่ซ่อนยังอยู่ครบและยังเข้า hash ตามเนื้อหาจริงเสมอ (Owner ยืนยัน)
+  printVisible    Boolean @default(true)
   extra           Json? // attribute อื่นที่ยังไม่เจอในตัวอย่างปัจจุบัน กันต้อง migrate ซ้ำ
 
   @@unique([itemId, placement, seq])
@@ -1300,6 +1304,82 @@ model ProductionItemLayer {
   material        String
   spec            String
   displayOverride String? // override การแสดงผล/พิมพ์ — ไม่กระทบ spec_hash
+  printVisible    Boolean @default(true) // ดูคอมเมนต์ที่ ProductionItemFabric.printVisible
 
   @@map("production_item_layers")
+}
+
+// ==========================================================================
+// Production Master Spec (2026-08-29) — สูตรผ้า/โครงสร้างต้นแบบต่อรุ่น นำเข้าแบบ bulk จาก
+// เอกสาร Owner แล้วแก้รายรุ่นผ่าน UI ภายหลัง — เป็น "ต้นแบบ" สำหรับ prefill ตอนสร้าง/แก้
+// ProductionOrder เท่านั้น: ProductionItem ที่ Confirm แล้วเป็น snapshot อิสระ ไม่มี reference
+// กลับมาที่นี่ (แก้ master ทีหลังไม่กระทบใบที่ออกไปแล้ว — ตรงกับหลัก immutable revision)
+//
+// Identity: (specName, variant, thickness, gussetCount) ทั้ง 4 ไม่มี null ใน unique key
+// (Postgres ถือ NULL แต่ละตัวไม่เท่ากันใน unique index กัน duplicate ไม่ได้) — sentinel:
+// variant/thickness "" = ไม่มี, gussetCount 0 = ไม่มีกุ๊น (ติดซิป/Topper/Box — กุ๊นจริงเริ่มที่ 1
+// UI แสดงเป็นภาษาคน ไม่แสดง "0 กุ๊น")
+//
+// specName เป็นแค่ text reference จากเอกสารต้นฉบับ ไม่ใช่ Product Master ชุดที่สอง (ไม่มี
+// ตารางอื่นชี้เข้า ไม่ใช้ค้นหา/ขาย) — headKind/headId คือ canonical link ไป Product/
+// ProductModel (ความหมายเดียวกับผลลัพธ์ resolveAccessHead: "product"|"model") ผูกภายหลัง
+// ผ่าน UI ได้ null ทั้งคู่ = สถานะ unlinked (UI ติด badge "ยังไม่ผูกสินค้า") — Owner ยืนยัน
+// ห้ามสร้าง/แก้ Product Master เพื่อให้ mapping ผ่าน
+//
+// Role visibility (isRestricted + permission ตาม Option 1) = documented future security work
+// ยังไม่ implement — เมื่อทำจริงต้อง enforce ฝั่ง server (กรอง/redact ก่อนส่งออก) ไม่ใช่แค่ซ่อน UI
+// (ดู docs/production-module/02-P1-schema-decisions.md)
+// ==========================================================================
+model ProductionMasterSpec {
+  id          String   @id @default(cuid())
+  specName    String
+  variant     String   @default("") // "PVC" | "JQ" | "ผ้าริ้วเทา" | "" — ชุดผ้า/โครงสร้างแยกตามชนิดผ้าในรุ่นเดียวกัน
+  thickness   String   @default("") // "6" | "8" | "" (รุ่นโครงสร้างเดียว)
+  gussetCount Int      @default(0)
+  headKind    String? // "product" | "model" — XOR ตรวจที่ application layer (ตาม convention เดิม ไม่มี DB CHECK)
+  headId      String?
+  approxThickness String? // "ความหนาประมาณ" จากเอกสาร — ข้อมูลอ้างอิง ไม่ใช่ key
+  titleRaw    String? // หัวข้อต้นฉบับจากเอกสาร Owner เก็บไว้สอบย้อน
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fabrics ProductionMasterFabric[]
+  layers  ProductionMasterLayer[]
+
+  @@unique([specName, variant, thickness, gussetCount])
+  @@map("production_master_specs")
+}
+
+model ProductionMasterFabric {
+  id              String               @id @default(cuid())
+  specId          String
+  spec            ProductionMasterSpec @relation(fields: [specId], references: [id])
+  placement       String
+  seq             Int                  @default(0)
+  fabricName      String
+  fabricCode      String?
+  waddingWeight   String?
+  foamThickness   String?
+  colorNote       String?
+  displayOverride String?
+  printVisible    Boolean              @default(true)
+  extra           Json?
+
+  @@unique([specId, placement, seq])
+  @@map("production_master_fabrics")
+}
+
+model ProductionMasterLayer {
+  id              String               @id @default(cuid())
+  specId          String
+  spec            ProductionMasterSpec @relation(fields: [specId], references: [id])
+  seq             Int
+  material        String
+  layerSpec       String               @map("spec")
+  displayOverride String?
+  printVisible    Boolean              @default(true)
+
+  @@unique([specId, seq])
+  @@map("production_master_layers")
 }
