@@ -25,6 +25,13 @@ export type ProductionSettings = {
   // ไม่ hardcode DB constraint — Admin ปรับได้จากหน้าตั้งค่าถ้ากฎธุรกิจเปลี่ยน
   maxGussetCount: number;
   maxFabricsPerPlacement: Record<string, number>;
+  // S4 UAT (2026-08-29) — แยก concept "จำนวนสำเนา" ออกจาก "ชื่อแผนก" ตามที่ Owner สั่ง:
+  // ใบสั่งผลิตพิมพ์ printCopies ชุดเนื้อหาเหมือนกันหมด (label แค่ "สำเนา i/N") ไม่มี
+  // department banner แล้ว — departments เดิมคงไว้เป็นข้อมูลแผนก (ยังไม่ถูกใช้พิมพ์)
+  printCopies: number;
+  // สถานะที่ตั้งเมื่อกด "ยืนยันเริ่มผลิตและพิมพ์" ครั้งแรก — เป็นค่าตั้งค่า ไม่ hardcode
+  // ในโค้ด (ตามกฎ CLAUDE.md เรื่องสถานะเอกสาร)
+  inProgressStatus: string;
 };
 
 const DEFAULTS: ProductionSettings = {
@@ -39,6 +46,8 @@ const DEFAULTS: ProductionSettings = {
   productionOrderStatuses: ["รอผลิต"],
   maxGussetCount: 4,
   maxFabricsPerPlacement: { WING: 2, SIDE: 2 },
+  printCopies: 8,
+  inProgressStatus: "กำลังผลิต",
 };
 
 const KEYS = {
@@ -48,6 +57,8 @@ const KEYS = {
   productionOrderStatuses: "production.productionOrderStatuses", // JSON string[] — ตัวแรก = default ตอน Confirm/Issue
   maxGussetCount: "production.maxGussetCount", // plain number (as string)
   maxFabricsPerPlacement: "production.maxFabricsPerPlacement", // JSON Record<string, number>
+  printCopies: "production.printCopies", // plain number (as string)
+  inProgressStatus: "production.inProgressStatus", // plain string
 } as const;
 
 export async function getProductionSettings(): Promise<ProductionSettings> {
@@ -60,8 +71,11 @@ export async function getProductionSettings(): Promise<ProductionSettings> {
   const productionOrderStatusesRaw = map[KEYS.productionOrderStatuses];
   const maxGussetCountRaw = map[KEYS.maxGussetCount];
   const maxFabricsPerPlacementRaw = map[KEYS.maxFabricsPerPlacement];
+  const printCopiesRaw = map[KEYS.printCopies];
+  const inProgressStatusRaw = map[KEYS.inProgressStatus];
 
   const maxGussetCountParsed = maxGussetCountRaw ? Number(maxGussetCountRaw) : NaN;
+  const printCopiesParsed = printCopiesRaw ? Number(printCopiesRaw) : NaN;
 
   return {
     sizes: sizesRaw ? safeParseJson<string[]>(sizesRaw, DEFAULTS.sizes) : DEFAULTS.sizes,
@@ -72,6 +86,8 @@ export async function getProductionSettings(): Promise<ProductionSettings> {
     maxFabricsPerPlacement: maxFabricsPerPlacementRaw
       ? safeParseJson<Record<string, number>>(maxFabricsPerPlacementRaw, DEFAULTS.maxFabricsPerPlacement)
       : DEFAULTS.maxFabricsPerPlacement,
+    printCopies: Number.isInteger(printCopiesParsed) && printCopiesParsed > 0 ? printCopiesParsed : DEFAULTS.printCopies,
+    inProgressStatus: (inProgressStatusRaw ?? "").trim() || DEFAULTS.inProgressStatus,
   };
 }
 

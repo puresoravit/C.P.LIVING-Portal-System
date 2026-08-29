@@ -42,6 +42,10 @@ type LineDraft = {
   // เป็นตระกูล/รุ่นที่มีมากกว่า 1 ไซส์ (Bug ที่แก้: เดิมไม่มี field นี้เลย ทำให้สินค้าแบบนี้
   // เลือกไม่ได้ทุกตัว ไม่ใช่แค่ David)
   selectedModel: ModelResult | null;
+  // S4 UAT (2026-08-29) — UI grouping เท่านั้น: บรรทัดที่ groupKey เดียวกันแสดงเป็น card
+  // เดียว (เลือกสินค้า/รุ่นครั้งเดียว เพิ่มได้หลายไซส์+จำนวนใน card) — canonical ยังเป็น
+  // 1 LineDraft = 1 CustomerPOLine ต่อ SKU/ไซส์เหมือนเดิมเป๊ะ submit/validation ไม่เปลี่ยน
+  groupKey: number;
 };
 
 let keySeq = 0;
@@ -60,6 +64,7 @@ function emptyLine(overrides?: Partial<Omit<LineDraft, "key">>): LineDraft {
     requiredDate: "",
     note: "",
     selectedModel: null,
+    groupKey: keySeq,
     ...overrides,
   };
 }
@@ -158,6 +163,22 @@ export function CustomerPOForm({
     setLines((prev) => [...prev, emptyLine()]);
   }
 
+  // S4 UAT — เพิ่ม "ไซส์+จำนวน" อีกแถวใน card เดียวกัน (สินค้า/รุ่นเดียวกัน ไม่ต้องค้นหาซ้ำ):
+  // แถวใหม่ copy บริบทของ card (selectedModel สำหรับตระกูล / rawProductText สำหรับพิมพ์เอง)
+  // แล้วแทรกต่อท้ายสมาชิกเดิมของกลุ่ม — canonical ยัง 1 แถว = 1 CustomerPOLine เหมือนเดิม
+  function addSizeRow(leader: LineDraft) {
+    setLines((prev) => {
+      const lastIdx = prev.map((l) => l.groupKey).lastIndexOf(leader.groupKey);
+      const newRow = emptyLine({
+        groupKey: leader.groupKey,
+        lineKind: leader.lineKind,
+        selectedModel: leader.selectedModel,
+        rawProductText: leader.lineKind === "UNRESOLVED" ? leader.rawProductText : "",
+      });
+      return [...prev.slice(0, lastIdx + 1), newRow, ...prev.slice(lastIdx + 1)];
+    });
+  }
+
   function removeLine(key: number) {
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
   }
@@ -196,8 +217,34 @@ export function CustomerPOForm({
 
   function handleSizeResolve(key: number, result: ModelSizeResolution) {
     if (!result) return;
-    if ("picked" in result) handlePick(key, result.picked);
-    else handleUnresolvedSize(key, result.unresolved);
+    if ("picked" in result) {
+      const p = result.picked;
+      // ต่างจาก handlePick (direct pick): คง selectedModel ไว้ — card ตระกูลนี้ยังต้องใช้
+      // model เดิมสำหรับ "+ เพิ่มไซส์" แถวถัดไป และปุ่ม × ของแถวที่ resolve แล้วจะพากลับไป
+      // เลือกไซส์ใหม่ได้โดยไม่ต้องค้นหารุ่นซ้ำ
+      updateLine(key, {
+        lineKind: "CATALOG",
+        productId: p.id,
+        productLabel: p.size ? `${p.name} (${p.size})` : p.name,
+        size: p.size ?? "",
+        rawProductText: "",
+      });
+    } else {
+      handleUnresolvedSize(key, result.unresolved);
+    }
+  }
+
+  // แก้ชื่อสินค้า (พิมพ์เอง) ของ card UNRESOLVED — sync ไปทุกแถวไซส์ในกลุ่มเดียวกัน
+  // (ชื่อเดียวกันทั้ง card ตาม UX grouping — แต่ละแถวยังเป็นคนละ CustomerPOLine ตอน submit)
+  function updateGroupRawText(groupKey: number, text: string) {
+    setLines((prev) => prev.map((l) => (l.groupKey === groupKey && l.lineKind === "UNRESOLVED" ? { ...l, rawProductText: text } : l)));
+    setInvalidLineKeys((prev) => {
+      const memberKeys = lines.filter((l) => l.groupKey === groupKey).map((l) => l.key);
+      if (!memberKeys.some((k) => prev.has(k))) return prev;
+      const next = new Set(prev);
+      for (const k of memberKeys) next.delete(k);
+      return next;
+    });
   }
 
   function toggleUnresolved(key: number, unresolved: boolean) {
@@ -352,145 +399,237 @@ export function CustomerPOForm({
         </div>
       </div>
 
-      {/* รายการ — การ์ดต่อบรรทัด (มือถือ) ไม่ใช่ตารางแน่น */}
+      {/* รายการ — จัดกลุ่มเป็น card ต่อสินค้า/รุ่น (S4 UAT): บรรทัดที่ groupKey เดียวกันอยู่
+          card เดียว เลือกสินค้าครั้งเดียวแล้วเพิ่มได้หลายไซส์+จำนวน — canonical ยังเป็น
+          1 แถว = 1 CustomerPOLine ต่อ SKU/ไซส์เหมือนเดิม (submit/validation ไม่เปลี่ยนเลย) */}
       <div className="space-y-3">
-        {lines.map((line, idx) => {
-          const isInvalid = invalidLineKeys.has(line.key);
-          return (
-          <div key={line.key} className={`bg-white border rounded-lg p-3 space-y-2 ${isInvalid ? "border-red-400 bg-red-50/40" : ""}`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-xs font-medium ${isInvalid ? "text-red-600" : "text-gray-500"}`}>
-                รายการที่ {idx + 1}
-                {isInvalid && " — กรุณาแก้ไขบรรทัดนี้"}
-              </span>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={line.lineKind === "UNRESOLVED"}
-                    onChange={(e) => toggleUnresolved(line.key, e.target.checked)}
-                    className="rounded"
-                  />
-                  พิมพ์ชื่อเอง (ยังไม่มีในระบบ)
-                </label>
-                {lines.length > 1 && (
-                  <button type="button" onClick={() => removeLine(line.key)} className="text-xs text-gray-400 hover:text-red-600">
-                    ลบ
+        {(() => {
+          const cards: LineDraft[][] = [];
+          const byGroup = new Map<number, LineDraft[]>();
+          for (const l of lines) {
+            if (!byGroup.has(l.groupKey)) {
+              const arr: LineDraft[] = [];
+              byGroup.set(l.groupKey, arr);
+              cards.push(arr);
+            }
+            byGroup.get(l.groupKey)!.push(l);
+          }
+          return cards.map((card, cardIdx) => {
+            const leader = card[0];
+            const cardInvalid = card.some((l) => invalidLineKeys.has(l.key));
+            const canAddSize =
+              (leader.lineKind === "CATALOG" && !!leader.selectedModel) ||
+              (leader.lineKind === "UNRESOLVED" && !!leader.rawProductText.trim());
+            return (
+              <div key={leader.groupKey} className={`bg-white border rounded-lg p-3 space-y-2 ${cardInvalid ? "border-red-400 bg-red-50/40" : ""}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-medium ${cardInvalid ? "text-red-600" : "text-gray-500"}`}>
+                    รายการที่ {cardIdx + 1}
+                    {card.length > 1 && ` (${card.length} ไซส์)`}
+                    {cardInvalid && " — กรุณาแก้ไขแถวที่ไฮไลต์"}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {card.length === 1 && (
+                      <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={leader.lineKind === "UNRESOLVED"}
+                          onChange={(e) => toggleUnresolved(leader.key, e.target.checked)}
+                          className="rounded"
+                        />
+                        พิมพ์ชื่อเอง (ยังไม่มีในระบบ)
+                      </label>
+                    )}
+                    {card.length === 1 && lines.length > 1 && (
+                      <button type="button" onClick={() => removeLine(leader.key)} className="text-xs text-gray-400 hover:text-red-600">
+                        ลบ
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {leader.lineKind === "CATALOG" ? (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า *</label>
+                    {leader.productId && card.length === 1 ? (
+                      <div className="flex items-center justify-between border rounded px-3 py-2 text-sm bg-gray-50">
+                        <span>{leader.productLabel}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateLine(leader.key, { productId: null, productLabel: "", size: "" })}
+                          className="text-gray-400 hover:text-gray-700"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : leader.selectedModel ? (
+                      // ตระกูล/รุ่นถูกเลือกแล้ว — ค้างไว้เป็นบริบทของทั้ง card (เพิ่มไซส์ได้
+                      // เรื่อยๆ ด้านล่าง โดยไม่ต้องค้นหาซ้ำ) × = เปลี่ยนสินค้าทั้ง card
+                      <div className="flex items-center justify-between border rounded px-3 py-2 text-sm bg-gray-50">
+                        <span>
+                          {leader.selectedModel.modelName}
+                          <span className="text-xs text-gray-400 ml-1.5">— เลือกไซส์และจำนวนด้านล่าง</span>
+                        </span>
+                        {card.length === 1 && (
+                          <button
+                            type="button"
+                            onClick={() => updateLine(leader.key, { selectedModel: null, productId: null, productLabel: "", size: "" })}
+                            className="text-gray-400 hover:text-gray-700"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ) : leader.productId ? (
+                      <div className="border rounded px-3 py-2 text-sm bg-gray-50">{leader.productLabel}</div>
+                    ) : (
+                      <ProductSearchPicker
+                        customerId={customerId || undefined}
+                        onPick={(p) => handlePick(leader.key, p)}
+                        onModelSelected={(m) => handleModelSelected(leader.key, m)}
+                        onUnresolvedSize={(info) => handleUnresolvedSize(leader.key, info)}
+                        onClear={() => updateLine(leader.key, { selectedModel: null, size: "" })}
+                        placeholder="ค้นหาสินค้า/รุ่น..."
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อสินค้าที่ลูกค้าสั่ง (ยังไม่มีในระบบ) *</label>
+                    <input
+                      value={leader.rawProductText}
+                      onChange={(e) => updateGroupRawText(leader.groupKey, e.target.value)}
+                      placeholder="พิมพ์ตามที่ลูกค้าเขียน/บอกมา"
+                      className="w-full border rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {card.map((line, rowIdx) => {
+                    const rowInvalid = invalidLineKeys.has(line.key);
+                    return (
+                      <div
+                        key={line.key}
+                        className={`space-y-2 ${card.length > 1 ? `border rounded-lg p-2 ${rowInvalid ? "border-red-400 bg-red-50/60" : "border-gray-200"}` : ""}`}
+                      >
+                        {card.length > 1 && (
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs ${rowInvalid ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                              ไซส์ที่ {rowIdx + 1}
+                              {line.lineKind === "CATALOG" && line.productId && ` — ${line.productLabel}`}
+                              {line.lineKind === "CATALOG" && !line.productId && " — ยังไม่เลือกไซส์"}
+                              {rowInvalid && " (แก้ไขแถวนี้)"}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {line.lineKind === "CATALOG" && line.productId && line.selectedModel && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateLine(line.key, { productId: null, productLabel: "", size: "" })}
+                                  className="text-xs text-gray-400 hover:text-gray-700"
+                                  title="เลือกไซส์ใหม่"
+                                >
+                                  เปลี่ยนไซส์
+                                </button>
+                              )}
+                              {lines.length > 1 && (
+                                <button type="button" onClick={() => removeLine(line.key)} className="text-xs text-gray-400 hover:text-red-600">
+                                  ลบไซส์นี้
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className={`grid grid-cols-2 gap-2 ${line.urgency ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">ไซส์</label>
+                            {/* เลือก "รุ่น" ที่มีมากกว่า 1 ไซส์ (เช่น David) → ต้องเลือกไซส์จาก
+                                ตัวเลือกจริงของรุ่นนั้น — selectedModel คงอยู่หลัง resolve แล้ว
+                                (S4 UAT: card ใช้ต่อสำหรับเพิ่มไซส์) จึงเช็ค !productId ด้วย */}
+                            {!line.productId && line.selectedModel ? (
+                              <ModelSizeSelect model={line.selectedModel} onResolve={(r) => handleSizeResolve(line.key, r)} />
+                            ) : (
+                              <input
+                                value={line.size}
+                                onChange={(e) => updateLine(line.key, { size: e.target.value })}
+                                placeholder="เช่น 5 ฟุต"
+                                className="w-full border rounded px-3 py-2 text-sm"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน *</label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={line.qtyCurrent}
+                              onChange={(e) => updateLine(line.key, { qtyCurrent: e.target.value })}
+                              className="w-full border rounded px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="flex items-end pb-2">
+                            <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={line.urgency}
+                                onChange={(e) => {
+                                  const urgent = e.target.checked;
+                                  // ปิดด่วน = กลับไป inherit วันที่ของ P.O. เสมอ ห้ามเก็บ override ค้าง
+                                  updateLine(line.key, urgent ? { urgency: true } : { urgency: false, requiredDate: "" });
+                                }}
+                                className="rounded"
+                              />
+                              ด่วนรายการนี้
+                            </label>
+                          </div>
+                          {/* ปกติ = inherit วันที่จาก P.O. อัตโนมัติ ไม่บังคับเลือกซ้ำทุกบรรทัด — เปิดช่อง
+                              วันที่เฉพาะบรรทัดเมื่อติ๊ก "ด่วนรายการนี้" เท่านั้น ค่านี้ override เฉพาะ
+                              บรรทัดนี้บรรทัดเดียว (ยืนยันตามที่ตกลง) */}
+                          {line.urgency ? (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">วันที่ต้องการ (เฉพาะรายการนี้)</label>
+                              <input
+                                type="date"
+                                value={line.requiredDate}
+                                onChange={(e) => updateLine(line.key, { requiredDate: e.target.value })}
+                                className="w-full border rounded px-3 py-2 text-sm"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-end pb-2">
+                              <span className="text-xs text-gray-400">ตามวันที่ของออเดอร์</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
+                          <input
+                            value={line.note}
+                            onChange={(e) => updateLine(line.key, { note: e.target.value })}
+                            className="w-full border rounded px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {canAddSize && (
+                  <button
+                    type="button"
+                    onClick={() => addSizeRow(leader)}
+                    className="w-full border border-dashed rounded py-1.5 text-xs text-gray-500 hover:border-cp-navy hover:text-cp-navy"
+                  >
+                    + เพิ่มไซส์ของสินค้านี้
                   </button>
                 )}
               </div>
-            </div>
-
-            {line.lineKind === "CATALOG" ? (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">สินค้า *</label>
-                {line.productId ? (
-                  <div className="flex items-center justify-between border rounded px-3 py-2 text-sm bg-gray-50">
-                    <span>{line.productLabel}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateLine(line.key, { productId: null, productLabel: "", size: "", selectedModel: null })}
-                      className="text-gray-400 hover:text-gray-700"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : (
-                  <ProductSearchPicker
-                    customerId={customerId || undefined}
-                    onPick={(p) => handlePick(line.key, p)}
-                    onModelSelected={(m) => handleModelSelected(line.key, m)}
-                    onUnresolvedSize={(info) => handleUnresolvedSize(line.key, info)}
-                    onClear={() => updateLine(line.key, { selectedModel: null, size: "" })}
-                    placeholder="ค้นหาสินค้า/รุ่น..."
-                  />
-                )}
-              </div>
-            ) : (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อสินค้าที่ลูกค้าสั่ง (ยังไม่มีในระบบ) *</label>
-                <input
-                  value={line.rawProductText}
-                  onChange={(e) => updateLine(line.key, { rawProductText: e.target.value })}
-                  placeholder="พิมพ์ตามที่ลูกค้าเขียน/บอกมา"
-                  className="w-full border rounded px-3 py-2 text-sm"
-                />
-              </div>
-            )}
-
-            <div className={`grid grid-cols-2 gap-2 ${line.urgency ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">ไซส์</label>
-                {/* เลือก "รุ่น" ที่มีมากกว่า 1 ไซส์ (เช่น David) → ต้องเลือกไซส์จากตัวเลือก
-                    จริงของรุ่นนั้น ไม่ใช่พิมพ์เอง (Bug fix — ดู handleModelSelected ด้านบน) */}
-                {line.selectedModel ? (
-                  <ModelSizeSelect model={line.selectedModel} onResolve={(r) => handleSizeResolve(line.key, r)} />
-                ) : (
-                  <input
-                    value={line.size}
-                    onChange={(e) => updateLine(line.key, { size: e.target.value })}
-                    placeholder="เช่น 5 ฟุต"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">จำนวน *</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={line.qtyCurrent}
-                  onChange={(e) => updateLine(line.key, { qtyCurrent: e.target.value })}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex items-end pb-2">
-                <label className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={line.urgency}
-                    onChange={(e) => {
-                      const urgent = e.target.checked;
-                      // ปิดด่วน = กลับไป inherit วันที่ของ P.O. เสมอ ห้ามเก็บ override ค้าง
-                      updateLine(line.key, urgent ? { urgency: true } : { urgency: false, requiredDate: "" });
-                    }}
-                    className="rounded"
-                  />
-                  ด่วนรายการนี้
-                </label>
-              </div>
-              {/* ปกติ = inherit วันที่จาก P.O. อัตโนมัติ ไม่บังคับเลือกซ้ำทุกบรรทัด — เปิดช่อง
-                  วันที่เฉพาะบรรทัดเมื่อติ๊ก "ด่วนรายการนี้" เท่านั้น ค่านี้ override เฉพาะ
-                  บรรทัดนี้บรรทัดเดียว (ยืนยันตามที่ตกลง) */}
-              {line.urgency ? (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">วันที่ต้องการ (เฉพาะรายการนี้)</label>
-                  <input
-                    type="date"
-                    value={line.requiredDate}
-                    onChange={(e) => updateLine(line.key, { requiredDate: e.target.value })}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                </div>
-              ) : (
-                <div className="flex items-end pb-2">
-                  <span className="text-xs text-gray-400">ตามวันที่ของออเดอร์</span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
-              <input
-                value={line.note}
-                onChange={(e) => updateLine(line.key, { note: e.target.value })}
-                className="w-full border rounded px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
 
       <button type="button" onClick={addLine} className="w-full border border-dashed rounded-lg py-2.5 text-sm text-gray-500 hover:border-cp-navy hover:text-cp-navy">

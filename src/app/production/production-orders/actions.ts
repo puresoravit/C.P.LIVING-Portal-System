@@ -307,3 +307,55 @@ export async function reviseProductionOrder(id: string, formData: FormData): Pro
   revalidatePath(`/production/production-orders/${id}`);
   redirect(`/production/production-orders/${id}`);
 }
+
+// S4 UAT (2026-08-29) — "ยืนยันเริ่มผลิตและพิมพ์" ครั้งแรก: เปลี่ยน status เป็นค่า
+// inProgressStatus จาก settings + บันทึกผู้กด/เวลา + mark Revision ปัจจุบันว่าพิมพ์แล้ว
+// ทั้งหมดใน transaction เดียว — เรียกจากปุ่ม explicit บนหน้า print เท่านั้น (ห้ามผูกกับ
+// การ render Preview หรือ afterprint event เด็ดขาด — preview/พิมพ์ซ้ำต้องไม่เปลี่ยน state)
+//
+// Idempotent โดยเจตนา: CAS บน productionStartedAt IS NULL — กดพร้อมกันสองคน/กดซ้ำ
+// คนหลังเป็น no-op สำเร็จเงียบๆ (ไม่ error เพราะผลลัพธ์ที่ผู้ใช้ต้องการ "เริ่มผลิตแล้ว"
+// เกิดขึ้นแล้วจริง) — ต่างจาก ConcurrentEditError ของการแก้เอกสารที่ข้อมูลอาจทับกัน
+export async function startProductionAndMarkPrint(id: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "productionOrder.print")) throw new Error("FORBIDDEN");
+
+  const settings = await getProductionSettings();
+
+  await db.$transaction(async (tx) => {
+    const cas = await tx.productionOrder.updateMany({
+      where: { id, productionStartedAt: null },
+      data: {
+        status: settings.inProgressStatus,
+        productionStartedAt: new Date(),
+        productionStartedById: user.id,
+      },
+    });
+    if (cas.count === 0) return; // เริ่มผลิตไปแล้ว (คนอื่น/กดซ้ำ) — no-op
+
+    const order = await tx.productionOrder.findUniqueOrThrow({ where: { id }, select: { currentRevNo: true, customerPoId: true } });
+    await tx.productionOrderRevision.update({
+      where: { productionOrderId_revNo: { productionOrderId: id, revNo: order.currentRevNo } },
+      data: { printedAt: new Date() },
+    });
+
+    const po = await tx.customerPO.findUniqueOrThrow({ where: { id: order.customerPoId }, select: { customerId: true, branchId: true } });
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE",
+        module: "ProductionOrder",
+        recordId: id,
+        customerId: po.customerId,
+        branchId: po.branchId,
+        customerPoId: order.customerPoId,
+        newValue: { event: "START_PRODUCTION", status: settings.inProgressStatus, revNo: order.currentRevNo },
+      },
+    });
+  });
+
+  revalidatePath("/production/production-orders");
+  revalidatePath(`/production/production-orders/${id}`);
+  revalidatePath(`/production/production-orders/${id}/print`);
+  return { success: true };
+}

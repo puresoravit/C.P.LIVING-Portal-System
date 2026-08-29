@@ -1194,6 +1194,12 @@ model ProductionOrder {
   currentRevNo Int        @default(0) // ชี้ revision ล่าสุด (ใช้แสดงผล/พิมพ์เป็นค่าเริ่มต้น)
   revCounter   Int        @default(0) // ที่มาของ revNo แบบ atomic (เหมือน CustomerPO.revCounter)
   status       String // ค่าตั้งค่าใน AppSetting
+  // S4 UAT (2026-08-29) — "เริ่มผลิต" เป็นข้อเท็จจริงแยกจากการพิมพ์/Confirm: เกิดครั้งเดียว
+  // ผ่านปุ่ม explicit "ยืนยันเริ่มผลิตและพิมพ์" เท่านั้น (ห้ามผูกกับ render Print Preview
+  // หรือ afterprint event — บทเรียน Billing: กด Cancel ใน print dialog ก็ยิง afterprint)
+  // พิมพ์ซ้ำหลังจากนี้ไม่เปลี่ยน state ใดๆ — null = ยังไม่เริ่มผลิต
+  productionStartedAt   DateTime?
+  productionStartedById String?
   createdById  String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

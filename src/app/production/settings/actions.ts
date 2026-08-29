@@ -60,6 +60,16 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
 
   const maxFabricsPerPlacement = parseMaxFabricsPerPlacementText(String(formData.get("maxFabricsPerPlacement") || ""));
 
+  const printCopies = Number(formData.get("printCopies") || 0);
+  if (!Number.isInteger(printCopies) || printCopies <= 0) {
+    return { success: false, error: "จำนวนสำเนาใบสั่งผลิตต้องเป็นจำนวนเต็มมากกว่า 0", fieldErrors: { printCopies: "จำนวนสำเนาต้องเป็นจำนวนเต็มมากกว่า 0" } };
+  }
+
+  const inProgressStatus = String(formData.get("inProgressStatus") || "").trim();
+  if (!inProgressStatus) {
+    return { success: false, error: "กรุณากรอกสถานะเมื่อเริ่มผลิต", fieldErrors: { inProgressStatus: "กรุณากรอกสถานะเมื่อเริ่มผลิต" } };
+  }
+
   const values: Record<string, string> = {
     [PRODUCTION_SETTING_KEYS.sizes]: JSON.stringify(sizes),
     [PRODUCTION_SETTING_KEYS.departments]: JSON.stringify(departments),
@@ -67,6 +77,8 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
     [PRODUCTION_SETTING_KEYS.productionOrderStatuses]: JSON.stringify(productionOrderStatuses),
     [PRODUCTION_SETTING_KEYS.maxGussetCount]: String(Math.floor(maxGussetCount)),
     [PRODUCTION_SETTING_KEYS.maxFabricsPerPlacement]: JSON.stringify(maxFabricsPerPlacement),
+    [PRODUCTION_SETTING_KEYS.printCopies]: String(printCopies),
+    [PRODUCTION_SETTING_KEYS.inProgressStatus]: inProgressStatus,
   };
 
   for (const [key, value] of Object.entries(values)) {
@@ -74,7 +86,7 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
   }
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "production", newValue: { sizes, departments, customerPoStatuses, productionOrderStatuses, maxGussetCount, maxFabricsPerPlacement } },
+    data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "production", newValue: { sizes, departments, customerPoStatuses, productionOrderStatuses, maxGussetCount, maxFabricsPerPlacement, printCopies, inProgressStatus } },
   });
 
   revalidatePath("/production/settings");

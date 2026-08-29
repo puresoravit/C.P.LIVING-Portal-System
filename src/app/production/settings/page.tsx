@@ -62,6 +62,18 @@ export default async function ProductionSettingsPage() {
           defaultValue={formatMaxFabricsPerPlacementText(settings.maxFabricsPerPlacement)}
           rows={2}
         />
+        <Field
+          label="จำนวนสำเนาใบสั่งผลิต (พิมพ์กี่ชุดต่อครั้ง — เนื้อหาเหมือนกันทุกชุด)"
+          name="printCopies"
+          type="number"
+          min={1}
+          defaultValue={String(settings.printCopies)}
+        />
+        <Field
+          label='สถานะใบสั่งผลิตเมื่อกด "ยืนยันเริ่มผลิตและพิมพ์" ครั้งแรก'
+          name="inProgressStatus"
+          defaultValue={settings.inProgressStatus}
+        />
         <SubmitButton>บันทึก</SubmitButton>
       </ActionForm>
     </div>
