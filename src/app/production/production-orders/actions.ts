@@ -316,28 +316,39 @@ export async function reviseProductionOrder(id: string, formData: FormData): Pro
 // Idempotent โดยเจตนา: CAS บน productionStartedAt IS NULL — กดพร้อมกันสองคน/กดซ้ำ
 // คนหลังเป็น no-op สำเร็จเงียบๆ (ไม่ error เพราะผลลัพธ์ที่ผู้ใช้ต้องการ "เริ่มผลิตแล้ว"
 // เกิดขึ้นแล้วจริง) — ต่างจาก ConcurrentEditError ของการแก้เอกสารที่ข้อมูลอาจทับกัน
-export async function startProductionAndMarkPrint(id: string): Promise<ActionResult> {
+// S4 UAT round 2 (2026-08-29) — Owner ถามก่อนเริ่มผลิตครั้งแรก vs พิมพ์ Rev ใหม่หลังเริ่ม
+// ผลิตไปแล้ว: สอง state นี้ต้องแยกกันเด็ดขาด — "ProductionOrder เริ่มผลิตหรือยัง" (ทั้งใบ,
+// เปลี่ยนครั้งเดียว) กับ "Revision นี้พิมพ์แล้วหรือยัง" (ต่อ Revision, ทุก Rev ใหม่เริ่มจาก
+// ยังไม่พิมพ์เสมอ) เดิม CAS เดียวผูกทั้งคู่ไว้ด้วยกัน (gate บน productionStartedAt) ทำให้
+// พิมพ์ Rev.1 บนออเดอร์ที่เริ่มผลิตไปแล้วกลายเป็น no-op เงียบ — printedAt ของ Rev.1 ไม่เคย
+// ถูกตั้งค่าเลย ทั้งที่ยังไม่เคยพิมพ์จริง — แก้เป็น 2 CAS อิสระต่อกัน:
+//   1) Revision.printedAt IS NULL → ยังไม่เคยพิมพ์ Rev นี้ → mark printedAt (ทำทุกครั้งที่
+//      Rev ปัจจุบันยังไม่เคยพิมพ์ ไม่ว่า order จะเคยเริ่มผลิตมาก่อนหรือไม่)
+//   2) ProductionOrder.productionStartedAt IS NULL → ยังไม่เคยเริ่มผลิตทั้งใบ → เปลี่ยน
+//      status+บันทึกผู้กด/เวลา (ทำครั้งเดียวในชีวิตของ ProductionOrder เท่านั้น)
+// ถ้า (1) no-op (Rev นี้พิมพ์แล้ว) แปลว่ากำลัง "พิมพ์ซ้ำ" จริง — ไม่ต้องทำอะไรต่อ ไม่มี audit
+// ถ้า (1) สำเร็จแต่ (2) no-op (order เริ่มผลิตไปแล้วจาก Rev ก่อนหน้า) แปลว่านี่คือ "พิมพ์ Rev
+// ใหม่" ไม่ใช่ "เริ่มผลิตซ้ำ" — status ของ order ไม่ถูกแตะเลย (ยังคง "กำลังผลิต" เดิม)
+export async function confirmPrintRevision(id: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "productionOrder.print")) throw new Error("FORBIDDEN");
 
   const settings = await getProductionSettings();
 
   await db.$transaction(async (tx) => {
-    const cas = await tx.productionOrder.updateMany({
-      where: { id, productionStartedAt: null },
-      data: {
-        status: settings.inProgressStatus,
-        productionStartedAt: new Date(),
-        productionStartedById: user.id,
-      },
-    });
-    if (cas.count === 0) return; // เริ่มผลิตไปแล้ว (คนอื่น/กดซ้ำ) — no-op
-
     const order = await tx.productionOrder.findUniqueOrThrow({ where: { id }, select: { currentRevNo: true, customerPoId: true } });
-    await tx.productionOrderRevision.update({
-      where: { productionOrderId_revNo: { productionOrderId: id, revNo: order.currentRevNo } },
+
+    const revisionCas = await tx.productionOrderRevision.updateMany({
+      where: { productionOrderId: id, revNo: order.currentRevNo, printedAt: null },
       data: { printedAt: new Date() },
     });
+    if (revisionCas.count === 0) return; // Revision ปัจจุบันพิมพ์ไปแล้ว — นี่คือพิมพ์ซ้ำจริง ไม่ต้องทำอะไรต่อ
+
+    const orderCas = await tx.productionOrder.updateMany({
+      where: { id, productionStartedAt: null },
+      data: { status: settings.inProgressStatus, productionStartedAt: new Date(), productionStartedById: user.id },
+    });
+    const isFirstStart = orderCas.count > 0; // false = order เริ่มผลิตไปแล้วจาก Rev ก่อนหน้า นี่คือพิมพ์ Rev ใหม่ ไม่ใช่เริ่มผลิตซ้ำ
 
     const po = await tx.customerPO.findUniqueOrThrow({ where: { id: order.customerPoId }, select: { customerId: true, branchId: true } });
     await tx.auditLog.create({
@@ -349,7 +360,9 @@ export async function startProductionAndMarkPrint(id: string): Promise<ActionRes
         customerId: po.customerId,
         branchId: po.branchId,
         customerPoId: order.customerPoId,
-        newValue: { event: "START_PRODUCTION", status: settings.inProgressStatus, revNo: order.currentRevNo },
+        newValue: isFirstStart
+          ? { event: "START_PRODUCTION", status: settings.inProgressStatus, revNo: order.currentRevNo }
+          : { event: "PRINT_REVISION", revNo: order.currentRevNo },
       },
     });
   });

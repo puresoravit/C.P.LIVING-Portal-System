@@ -9,7 +9,7 @@ import { printPageStyleFor, PRINT_PROFILES } from "@/lib/print-settings";
 import { ProductionPrintControls } from "@/components/production/production-print-controls";
 import { displayProdNo } from "@/lib/production-order-display";
 import { groupItemsBySpecHash } from "@/lib/production-item-grouping";
-import { startProductionAndMarkPrint } from "../../actions";
+import { confirmPrintRevision } from "../../actions";
 
 // S4 UAT (2026-08-29) — Compact layout ตาม Owner feedback + mockup: header ยุบเหลือ ~2
 // บรรทัด + meta บรรทัดเดียว, block ต่อสเปกใช้ grid ซ้าย (ไซส์/จำนวน) ขวา (ผ้า/โครงสร้าง),
@@ -134,7 +134,7 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
   const startedBy = order.productionStartedById
     ? await db.user.findUnique({ where: { id: order.productionStartedById }, select: { displayName: true, username: true } })
     : null;
-  const startAction = startProductionAndMarkPrint.bind(null, order.id);
+  const confirmAction = confirmPrintRevision.bind(null, order.id);
 
   const po = order.customerPo;
   const metaParts: { label: string; value: string }[] = [
@@ -264,15 +264,18 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
         }}
       />
       <ProductionPrintControls
-        started={!!order.productionStartedAt}
+        orderStarted={!!order.productionStartedAt}
+        currentRevPrinted={!!revision.printedAt}
         startedLabel={
           order.productionStartedAt
             ? `${order.productionStartedAt.toLocaleString("th-TH")}${startedBy ? ` โดย ${startedBy.displayName || startedBy.username}` : ""}`
             : undefined
         }
+        revisionPrintedLabel={revision.printedAt ? revision.printedAt.toLocaleString("th-TH") : undefined}
+        printCopies={settings.printCopies}
         inProgressStatus={settings.inProgressStatus}
         backHref={`/production/production-orders/${order.id}`}
-        startAction={startAction}
+        confirmAction={confirmAction}
       />
       <div className="print:hidden text-xs text-gray-500 mb-2">จะพิมพ์ {settings.printCopies} สำเนา (เนื้อหาเหมือนกันทุกชุด) — A4</div>
 
