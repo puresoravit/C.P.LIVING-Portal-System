@@ -52,12 +52,20 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
         {order.customerPo.branch && ` — ${order.customerPo.branch.name}`}
       </p>
 
-      <a
-        href={`/production/production-orders/${order.id}/revise`}
-        className="inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50 mb-4"
-      >
-        ออก Revision ใหม่
-      </a>
+      <div className="flex items-center gap-2 mb-4">
+        <a
+          href={`/production/production-orders/${order.id}/print`}
+          className="inline-block text-xs px-2 py-0.5 rounded-full bg-cp-navy text-white hover:bg-cp-navy-light"
+        >
+          พิมพ์ใบสั่งผลิต
+        </a>
+        <a
+          href={`/production/production-orders/${order.id}/revise`}
+          className="inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
+        >
+          ออก Revision ใหม่
+        </a>
+      </div>
 
       <h2 className="text-sm font-medium text-gray-700 mb-2">รายการผลิต ({currentRevision?.items.length ?? 0})</h2>
       {currentRevision && <ProductionOrderRevisionView items={currentRevision.items} customerPoId={order.customerPoId} />}
