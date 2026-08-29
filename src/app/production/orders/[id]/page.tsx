@@ -5,19 +5,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { customerPoStatusBadge, productionOrderStatusBadge } from "@/lib/production-status-badges";
 import { getProductionSettings } from "@/lib/production-settings";
 import { BackLink } from "@/components/production/back-link";
+import { collectSnapshotProductIds, describeCustomerPoChange } from "@/lib/customer-po-revision-describe";
 
 const DATE_MODE_LABEL: Record<string, string> = {
   UNSET: "ยังไม่กำหนด",
   ESTIMATE: "ประมาณ",
   EXACT: "ระบุชัด",
-};
-
-const CHANGE_TYPE_LABEL: Record<string, string> = {
-  ADD_LINE: "เพิ่มรายการ",
-  QTY_CHANGE: "แก้จำนวน",
-  CANCEL_LINE: "ยกเลิกรายการ",
-  RESOLVE_PRODUCT: "ผูกสินค้าจากระบบ",
-  ORDER_LEVEL: "แก้ข้อมูลหัวออเดอร์",
 };
 
 // S2 Checkpoint 2 — เพิ่มลิงก์แก้ไข + แสดงประวัติการแก้ไข (Revision History)
@@ -58,40 +51,12 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
   const actorNameById = new Map(actors.map((a) => [a.id, a.displayName || a.username]));
 
   // before/after เป็น Json snapshot เก็บ productId ดิบ — ดึงชื่อสินค้ามาแสดงแทน id ในประวัติ
-  const snapshotProductIds = new Set<string>();
-  for (const rev of po.revisions) {
-    for (const c of rev.changes) {
-      for (const snap of [c.before, c.after]) {
-        const pid = (snap as Record<string, unknown> | null)?.productId;
-        if (typeof pid === "string") snapshotProductIds.add(pid);
-      }
-    }
-  }
+  const snapshotProductIds = collectSnapshotProductIds(po.revisions.flatMap((r) => r.changes));
   const snapshotProducts = snapshotProductIds.size
     ? await db.product.findMany({ where: { id: { in: [...snapshotProductIds] } }, select: { id: true, name: true, productionLabel: true } })
     : [];
   const productLabelById = new Map(snapshotProducts.map((p) => [p.id, p.productionLabel ?? p.name]));
-
-  function describeChange(c: NonNullable<typeof po>["revisions"][number]["changes"][number]): string {
-    const before = (c.before ?? {}) as Record<string, any>;
-    const after = (c.after ?? {}) as Record<string, any>;
-    const labelOf = (snap: Record<string, any>) =>
-      snap.lineKind === "CATALOG" ? productLabelById.get(snap.productId) ?? "(สินค้าที่ถูกลบ)" : snap.rawProductText || "—";
-    switch (c.changeType) {
-      case "ADD_LINE":
-        return `+ เพิ่ม "${labelOf(after)}"${after.size ? ` ไซส์ ${after.size}` : ""} จำนวน ${after.qty}`;
-      case "CANCEL_LINE":
-        return `- ยกเลิก "${labelOf(before)}"${before.size ? ` ไซส์ ${before.size}` : ""} จำนวน ${before.qty}`;
-      case "RESOLVE_PRODUCT":
-        return `ผูกกับสินค้า "${labelOf(after)}" (เดิมพิมพ์เอง: "${before.rawProductText ?? "—"}")`;
-      case "QTY_CHANGE":
-        return `"${labelOf(before)}" จำนวน ${before.qty} → ${after.qty}`;
-      case "ORDER_LEVEL":
-        return "แก้ข้อมูลหัวออเดอร์ (ลูกค้า/สาขา/วันที่/ด่วน)";
-      default:
-        return CHANGE_TYPE_LABEL[c.changeType] ?? c.changeType;
-    }
-  }
+  const describeChange = (c: NonNullable<typeof po>["revisions"][number]["changes"][number]) => describeCustomerPoChange(c, productLabelById);
 
   return (
     <div className="max-w-2xl">
