@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
+import { stripUnitToNumber, formatWaddingWeight, formatFoamThickness } from "@/lib/fabric-unit-format";
 
 // Master Spec edit (2026-08-29) — แก้ผ้า/โครงสร้าง/ลำดับ/printVisible/displayOverride +
 // ผูก Product/ProductModel — key identity (specName/variant/thickness/gussetCount) แก้ไม่ได้
@@ -60,7 +61,11 @@ export function MasterSpecEditForm({
   const [head, setHead] = useState(initial.head);
   const [note, setNote] = useState(initial.note);
   const [approxThickness, setApproxThickness] = useState(initial.approxThickness);
-  const [fabrics, setFabrics] = useState<FabricDraft[]>(() => initial.fabrics.map((f) => ({ ...f, key: nextKey() })));
+  // S6 UAT — ช่องนี้ตอนนี้เก็บแค่ตัวเลข (ไม่มีหน่วย) ในฟอร์ม — ค่าเดิมที่เคยพิมพ์หน่วยติดมา
+  // (เช่น "280g"/"10mm") ต้อง strip หน่วยออกก่อนใส่กลับเข้าช่อง
+  const [fabrics, setFabrics] = useState<FabricDraft[]>(() =>
+    initial.fabrics.map((f) => ({ ...f, waddingWeight: stripUnitToNumber(f.waddingWeight), foamThickness: stripUnitToNumber(f.foamThickness), key: nextKey() }))
+  );
   const [layers, setLayers] = useState<LayerDraft[]>(() => initial.layers.map((l) => ({ ...l, key: nextKey() })));
   const [err, setErr] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -100,8 +105,9 @@ export function MasterSpecEditForm({
           placement: f.placement.trim(),
           fabricName: f.fabricName.trim(),
           fabricCode: f.fabricCode || undefined,
-          waddingWeight: f.waddingWeight || undefined,
-          foamThickness: f.foamThickness || undefined,
+          // ช่องเก็บแค่ตัวเลข เติมหน่วยกลับตอน submit เท่านั้น (g ติดกับตัวเลข, mm เว้นวรรค)
+          waddingWeight: formatWaddingWeight(f.waddingWeight) || undefined,
+          foamThickness: formatFoamThickness(f.foamThickness) || undefined,
           colorNote: f.colorNote || undefined,
           displayOverride: f.displayOverride || undefined,
           printVisible: f.printVisible,
@@ -188,9 +194,29 @@ export function MasterSpecEditForm({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 <input value={f.fabricCode} onChange={(e) => updateFabric(f.key, { fabricCode: e.target.value })} placeholder="รหัสผ้า" className="border rounded px-2 py-1.5 text-sm" />
-                <input value={f.waddingWeight} onChange={(e) => updateFabric(f.key, { waddingWeight: e.target.value })} placeholder="ใย เช่น 280g" className="border rounded px-2 py-1.5 text-sm" />
-                <input value={f.foamThickness} onChange={(e) => updateFabric(f.key, { foamThickness: e.target.value })} placeholder="ฟ. เช่น 10mm" className="border rounded px-2 py-1.5 text-sm" />
-                <input value={f.colorNote} onChange={(e) => updateFabric(f.key, { colorNote: e.target.value })} placeholder="สี/หมายเหตุผ้า" className="border rounded px-2 py-1.5 text-sm" />
+                {/* S6 UAT — พิมพ์แค่ตัวเลข ระบบเติมหน่วยให้เอง (g ติดกับตัวเลข, mm เว้นวรรค) */}
+                <div className="relative">
+                  <input
+                    value={f.waddingWeight}
+                    onChange={(e) => updateFabric(f.key, { waddingWeight: e.target.value })}
+                    placeholder="ใย (ตัวเลข) เช่น 280"
+                    inputMode="decimal"
+                    className="w-full border rounded pl-2 pr-6 py-1.5 text-sm"
+                  />
+                  {f.waddingWeight && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">g</span>}
+                </div>
+                <div className="relative">
+                  <input
+                    value={f.foamThickness}
+                    onChange={(e) => updateFabric(f.key, { foamThickness: e.target.value })}
+                    placeholder="ฟ. (ตัวเลข) เช่น 10"
+                    inputMode="decimal"
+                    className="w-full border rounded pl-2 pr-8 py-1.5 text-sm"
+                  />
+                  {f.foamThickness && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">mm</span>}
+                </div>
+                {/* สีปกติระบุไว้ในชื่อผ้าอยู่แล้ว — ช่องนี้เป็นแค่หมายเหตุเสริม เผื่อกรณีพิเศษ */}
+                <input value={f.colorNote} onChange={(e) => updateFabric(f.key, { colorNote: e.target.value })} placeholder="หมายเหตุผ้าเพิ่มเติม (ถ้ามี)" className="border rounded px-2 py-1.5 text-sm" />
               </div>
               <div className="flex items-center gap-3">
                 <input

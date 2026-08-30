@@ -59,13 +59,18 @@ function nowrapUnit(s: string): string {
   return s.replace(/ /g, "\u00A0");
 }
 
-function fabricText(f: FabricRow): string {
-  if (f.displayOverride) return f.displayOverride;
-  let text = f.fabricName;
-  if (f.waddingWeight) text += ` + ใย ${nowrapUnit(f.waddingWeight)}`;
-  if (f.foamThickness) text += ` + ฟ.${nowrapUnit(f.foamThickness)}`;
-  if (f.colorNote) text += ` (${f.colorNote})`;
-  return text;
+// S4 UAT round 7 — เคสจริง: "(สีขาว)" ถูกตัดกลางเป็น "(สี" / "ขาว)" คนละบรรทัด เพราะเป็นคำ
+// ไทยล้วนไม่มีช่องว่างในคำเลย (nowrapUnit ข้างบนแก้ไม่ได้ เพราะไม่มีช่องว่างให้แทนที่ —
+// เบราว์เซอร์ใช้พจนานุกรมตัดคำไทยเอง) ทางแก้จริงคือแยกสเปกผ้าเป็น "ชิ้นความหมาย" (ชื่อผ้า/
+// +ใย.../+ฟ..../(สี...)) แล้วห่อแต่ละชิ้นด้วย white-space:nowrap ของตัวเอง — พับบรรทัดได้
+// เฉพาะ "ระหว่างชิ้น" เท่านั้น ไม่มีวันตัดกลางชิ้นอีก ไม่ว่าเนื้อหาจะเป็นภาษาอะไร
+function fabricTextParts(f: FabricRow): string[] {
+  if (f.displayOverride) return [f.displayOverride];
+  const parts = [f.fabricName];
+  if (f.waddingWeight) parts.push(`+ ใย ${f.waddingWeight}`);
+  if (f.foamThickness) parts.push(`+ ฟ.${f.foamThickness}`);
+  if (f.colorNote) parts.push(`(${f.colorNote})`);
+  return parts;
 }
 
 function placementLabel(f: FabricRow, all: FabricRow[]): string {
@@ -77,21 +82,44 @@ function placementLabel(f: FabricRow, all: FabricRow[]): string {
 /** รวมผ้าที่สเปกเหมือนกันเป๊ะทุก field เข้าเป็นบรรทัดเดียว (label ตำแหน่งต่อกันด้วย "/") —
  * ไม่มีทางเสียข้อมูล เพราะรวมได้เฉพาะที่เนื้อหาเท่ากันทุกตัวอักษรเท่านั้น (เช่น Falcon ที่
  * บน/หัว-ท้าย/ล่าง ใช้ผ้าเดียวกัน → "บน/หัว-ท้าย/ล่าง: JQ ...") ผ้าที่ต่างกันยังแยกบรรทัด */
-function mergeIdenticalFabrics(fabrics: FabricRow[]): { label: string; text: string }[] {
+function mergeIdenticalFabrics(fabrics: FabricRow[]): { label: string; parts: string[] }[] {
   const order: string[] = [];
-  const grouped = new Map<string, { labels: string[]; text: string }>();
+  const grouped = new Map<string, { labels: string[]; parts: string[] }>();
   for (const f of fabrics) {
     const key = JSON.stringify([f.fabricName, f.fabricCode, f.waddingWeight, f.foamThickness, f.colorNote, f.displayOverride]);
     if (!grouped.has(key)) {
-      grouped.set(key, { labels: [], text: fabricText(f) });
+      grouped.set(key, { labels: [], parts: fabricTextParts(f) });
       order.push(key);
     }
     grouped.get(key)!.labels.push(placementLabel(f, fabrics));
   }
   return order.map((key) => {
     const g = grouped.get(key)!;
-    return { label: g.labels.join("/"), text: g.text };
+    return { label: g.labels.join("/"), parts: g.parts };
   });
+}
+
+/** เรนเดอร์ parts เป็น span ย่อยที่ห้ามตัดกลางแต่ละชิ้น เว้นวรรค "ระหว่าง" ชิ้นด้วย text
+ * node เปล่าๆ (ไม่ได้อยู่ใน span nowrap ของชิ้นไหนเลย) จึงยังพับบรรทัดตรงนั้นได้ตามปกติ */
+function NowrapFabricParts({ parts }: { parts: string[] }) {
+  return (
+    <>
+      {parts.flatMap((part, i) =>
+        i === 0
+          ? [
+              <span key={i} style={{ whiteSpace: "nowrap" }}>
+                {part}
+              </span>,
+            ]
+          : [
+              " ",
+              <span key={i} style={{ whiteSpace: "nowrap" }}>
+                {part}
+              </span>,
+            ]
+      )}
+    </>
+  );
 }
 
 export default async function ProductionOrderPrintPage(props: { params: Promise<{ id: string }> }) {
@@ -240,9 +268,16 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
                 {/* ขวา: ผ้า + โครงสร้าง */}
                 <div className="text-xs min-w-0">
                   <div className={`mb-1 ${fabricTextSizeClass}`} style={{ columnCount: fabricColumnCount, columnGap: "1rem" }}>
+                    {/* S4 UAT round 7 — ใส่เลขนำหน้าเหมือนช่องโครงสร้าง ให้คนต่อผ้ารู้ลำดับ
+                        มา-ก่อน-หลังตรงกับที่กรอกสเปกไว้ */}
                     {fabricRows.map((row, i) => (
                       <div key={i} style={{ breakInside: "avoid" }}>
-                        <span className="text-gray-600">ผ้า {row.label}:</span> <span className="font-medium">{row.text}</span>
+                        <span className="text-gray-600">
+                          {i + 1}. ผ้า {row.label}:
+                        </span>{" "}
+                        <span className="font-medium">
+                          <NowrapFabricParts parts={row.parts} />
+                        </span>
                       </div>
                     ))}
                   </div>

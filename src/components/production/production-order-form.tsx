@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
+import { stripUnitToNumber, formatWaddingWeight, formatFoamThickness } from "@/lib/fabric-unit-format";
 
 // S3 CP1 — ฟอร์มสร้าง ProductionOrder จาก CustomerPO ที่เลือกอยู่แล้ว (entry point เดียว
 // คือปุ่ม "สร้างใบสั่งผลิต" บนหน้า detail ของ CustomerPO) mobile-first เหมือน
@@ -111,8 +112,10 @@ function initialItemDraft(lineId: string, qtyCurrent: number, initial?: Producti
       placement: f.placement,
       fabricName: f.fabricName,
       fabricCode: f.fabricCode ?? "",
-      waddingWeight: f.waddingWeight ?? "",
-      foamThickness: f.foamThickness ?? "",
+      // S6 UAT — ช่องนี้ตอนนี้เก็บแค่ตัวเลข (ไม่มีหน่วย) ในฟอร์ม — ค่าเดิมจาก Revision ที่
+      // เคยพิมพ์หน่วยติดมา (เช่น "280g") ต้อง strip หน่วยออกก่อนใส่กลับเข้าช่อง
+      waddingWeight: stripUnitToNumber(f.waddingWeight ?? ""),
+      foamThickness: stripUnitToNumber(f.foamThickness ?? ""),
       colorNote: f.colorNote ?? "",
       displayOverride: f.displayOverride ?? "",
       printVisible: f.printVisible,
@@ -126,7 +129,8 @@ function draftsFromMaster(option: MasterSpecPrefillOption): Pick<ItemDraft, "gus
   return {
     gussetCount: option.gussetCount > 0 ? String(option.gussetCount) : "",
     thickness: option.thickness,
-    fabrics: option.fabrics.map((f) => ({ key: nextKey(), ...f })),
+    // S6 UAT — สูตร Master เก็บหน่วยติดมาด้วยเหมือนกัน (ข้อมูลเดิม) — strip ก่อนโชว์ในช่อง
+    fabrics: option.fabrics.map((f) => ({ key: nextKey(), ...f, waddingWeight: stripUnitToNumber(f.waddingWeight), foamThickness: stripUnitToNumber(f.foamThickness) })),
     layers: option.layers.map((l) => ({ key: nextKey(), ...l })),
     appliedMasterName: option.displayName,
   };
@@ -315,8 +319,9 @@ export function ProductionOrderForm({
             placement: f.placement.trim(),
             fabricName: f.fabricName.trim(),
             fabricCode: f.fabricCode || undefined,
-            waddingWeight: f.waddingWeight || undefined,
-            foamThickness: f.foamThickness || undefined,
+            // S6 UAT — ช่องเก็บแค่ตัวเลข เติมหน่วยกลับตอน submit เท่านั้น (g ติดกับตัวเลข, mm เว้นวรรค)
+            waddingWeight: formatWaddingWeight(f.waddingWeight) || undefined,
+            foamThickness: formatFoamThickness(f.foamThickness) || undefined,
             colorNote: f.colorNote || undefined,
             displayOverride: f.displayOverride || undefined,
             printVisible: f.printVisible,
@@ -531,9 +536,29 @@ export function ProductionOrderForm({
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                           <input value={f.fabricCode} onChange={(e) => updateFabric(line.id, f.key, { fabricCode: e.target.value })} placeholder="รหัสผ้า" className="border rounded px-2 py-1.5 text-sm" />
-                          <input value={f.waddingWeight} onChange={(e) => updateFabric(line.id, f.key, { waddingWeight: e.target.value })} placeholder="ใย เช่น 280g" className="border rounded px-2 py-1.5 text-sm" />
-                          <input value={f.foamThickness} onChange={(e) => updateFabric(line.id, f.key, { foamThickness: e.target.value })} placeholder="ฟ. เช่น 10mm" className="border rounded px-2 py-1.5 text-sm" />
-                          <input value={f.colorNote} onChange={(e) => updateFabric(line.id, f.key, { colorNote: e.target.value })} placeholder="สี/หมายเหตุผ้า" className="border rounded px-2 py-1.5 text-sm" />
+                          {/* S6 UAT — พิมพ์แค่ตัวเลข ระบบเติมหน่วยให้เอง (g ติดกับตัวเลข, mm เว้นวรรค) */}
+                          <div className="relative">
+                            <input
+                              value={f.waddingWeight}
+                              onChange={(e) => updateFabric(line.id, f.key, { waddingWeight: e.target.value })}
+                              placeholder="ใย (ตัวเลข) เช่น 280"
+                              inputMode="decimal"
+                              className="w-full border rounded pl-2 pr-6 py-1.5 text-sm"
+                            />
+                            {f.waddingWeight && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">g</span>}
+                          </div>
+                          <div className="relative">
+                            <input
+                              value={f.foamThickness}
+                              onChange={(e) => updateFabric(line.id, f.key, { foamThickness: e.target.value })}
+                              placeholder="ฟ. (ตัวเลข) เช่น 10"
+                              inputMode="decimal"
+                              className="w-full border rounded pl-2 pr-8 py-1.5 text-sm"
+                            />
+                            {f.foamThickness && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">mm</span>}
+                          </div>
+                          {/* สีปกติระบุไว้ในชื่อผ้าอยู่แล้ว — ช่องนี้เป็นแค่หมายเหตุเสริม เผื่อกรณีพิเศษ */}
+                          <input value={f.colorNote} onChange={(e) => updateFabric(line.id, f.key, { colorNote: e.target.value })} placeholder="หมายเหตุผ้าเพิ่มเติม (ถ้ามี)" className="border rounded px-2 py-1.5 text-sm" />
                         </div>
                       </div>
                     ))}

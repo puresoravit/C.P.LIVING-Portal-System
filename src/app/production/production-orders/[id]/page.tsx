@@ -121,11 +121,11 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
               <a
                 key={rev.id}
                 href={`/production/production-orders/${order.id}/rev/${rev.revNo}`}
-                className={`flex items-center justify-between bg-white border rounded-lg p-3 text-sm ${rev.revNo === order.currentRevNo ? "border-blue-300" : "hover:border-cp-navy"}`}
+                className={`flex items-center justify-between border rounded-lg p-3 text-sm ${rev.revNo === order.currentRevNo ? "bg-green-50 border-green-300" : "bg-white hover:border-cp-navy"}`}
               >
                 <span>
                   <span className="font-medium">Rev.{rev.revNo}</span>
-                  {rev.revNo === order.currentRevNo && <span className="ml-1.5 text-xs text-blue-600">(ปัจจุบัน)</span>}
+                  {rev.revNo === order.currentRevNo && <span className="ml-1.5 text-xs text-green-700">(ปัจจุบัน)</span>}
                   {rev.reason && <span className="text-gray-500 ml-2">— {rev.reason}</span>}
                 </span>
                 <span className="text-xs text-gray-400">
