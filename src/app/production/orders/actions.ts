@@ -398,6 +398,10 @@ export async function updateCustomerPO(id: string, formData: FormData): Promise<
 // บรรทัดสินค้าเลย) แยกจาก updateCustomerPO เต็มรูปแบบซึ่งบังคับส่ง lines ทั้งชุดมาด้วยเสมอ —
 // ยังคงหลักการเดียวกันทุกอย่าง: CAS + ห้ามแก้ออเดอร์ยกเลิก + บันทึกเป็น ORDER_LEVEL revision
 // (ห้ามเขียนทับประวัติ) ไม่ใช่แค่ UPDATE เงียบๆ
+//
+// CP7 round 7 — Owner ยืนยันอีกครั้งว่าต้องการลากการ์ดไปทับกันจริง (ไม่ใช่แค่ปุ่ม): รับ
+// targetDate เป็น optional มาด้วยได้ (จากการ์ดที่ลากไปวาง) ไม่ระบุ = default วันนี้เหมือนเดิม
+// (ปุ่ม "ส่งวันนี้แทน" เดิมยังใช้ path นี้ได้ไม่ต้องแก้)
 export async function pullForwardShipDate(id: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "customerPo.editDraft")) throw new Error("FORBIDDEN");
@@ -406,18 +410,24 @@ export async function pullForwardShipDate(id: string, formData: FormData): Promi
   if (!Number.isFinite(version)) {
     return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง" };
   }
+  const targetDateRaw = String(formData.get("targetDate") || "").trim();
+  let targetDate: Date;
+  if (targetDateRaw) {
+    targetDate = new Date(`${targetDateRaw}T00:00:00`);
+    if (Number.isNaN(targetDate.getTime())) return { success: false, error: "วันที่เป้าหมายไม่ถูกต้อง" };
+  } else {
+    targetDate = new Date();
+    targetDate.setHours(0, 0, 0, 0);
+  }
 
   try {
     await db.$transaction(async (tx) => {
       const current = await tx.customerPO.findUniqueOrThrow({ where: { id }, select: { cancelledAt: true, dateMode: true, requestedDate: true } });
       if (current.cancelledAt) throw new CancelledDocError();
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       const cas = await tx.customerPO.updateMany({
         where: { id, version, cancelledAt: null },
-        data: { dateMode: "EXACT", requestedDate: today, version: { increment: 1 }, revCounter: { increment: 1 } },
+        data: { dateMode: "EXACT", requestedDate: targetDate, version: { increment: 1 }, revCounter: { increment: 1 } },
       });
       if (cas.count === 0) throw new ConcurrentEditError();
 
@@ -425,7 +435,7 @@ export async function pullForwardShipDate(id: string, formData: FormData): Promi
       const revNo = existing.revCounter;
 
       const revision = await tx.customerPORevision.create({
-        data: { customerPoId: id, revNo, actorId: user.id, reason: "ดึงมาส่งวันนี้ (ผลิตเสร็จก่อนกำหนด)" },
+        data: { customerPoId: id, revNo, actorId: user.id, reason: targetDateRaw ? "ลากมาส่งพร้อมออเดอร์อื่น (จัดคิวใหม่หน้างาน)" : "ดึงมาส่งวันนี้ (ผลิตเสร็จก่อนกำหนด)" },
       });
       await tx.customerPORevisionChange.create({
         data: {
@@ -434,7 +444,7 @@ export async function pullForwardShipDate(id: string, formData: FormData): Promi
           changeType: "ORDER_LEVEL",
           qtyDelta: null,
           before: { dateMode: current.dateMode, requestedDate: current.requestedDate?.toISOString() ?? null },
-          after: { dateMode: "EXACT", requestedDate: today.toISOString() },
+          after: { dateMode: "EXACT", requestedDate: targetDate.toISOString() },
         },
       });
       await tx.auditLog.create({
