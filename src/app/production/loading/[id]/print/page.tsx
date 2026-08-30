@@ -31,15 +31,21 @@ const EMPTY_MARGIN_BOXES =
   "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
 const PORTRAIT_PAGE_STYLE = `@page { size: A4 portrait; margin: 8mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
 
-/** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว")
-    ไม่ใช่ตารางย่อย 30 ช่องเล็ก — เต็มความสูง/กว้างของ cell พ่อแม่เสมอ (ห้ามมี padding ที่ td พ่อ)
-    ให้เส้นแบ่งช่องชิดขอบบน-ล่างของแถวจริง ไม่ใช่ลอยอยู่กลางช่องว่าง
-    CP7 round 5 (Owner: ช่องแบ่งไม่เท่ากัน) — ใช้ CSS grid แทน flex: grid แบ่งพื้นที่เท่ากันเป๊ะ
-    ทุกช่อง ไม่มีปัญหาเศษพิกเซลสะสมแบบ flex-1 + border ที่ทำให้ช่องท้ายๆ กว้าง/แคบกว่าช่องอื่น */
+/** ความสูงแถวสินค้าทุกแถวในตาราง — ค่าเดียวใช้ร่วมกันทั้ง <tr> และ TallyBoxes กันเลขลอยตัวซ้ำ */
+const ROW_HEIGHT = "34pt";
+/** จำนวนช่องขีดต่อแถว — CP7 round 6 (Owner): ลดจาก 6 เหลือ 5 ช่อง ให้ตรงกับนิสัยขีดจริง
+    (ขีดเต็มช่อง = นับ 5 พอดี ไม่ต้องมานั่งคิดเลข 6 คูณ) */
+const TALLY_BOX_COUNT = 5;
+
+/** CP7 round 6 — บั๊กจริง: h-full (height:100%) บน div ลูกใน <td> ที่ตัว td เองไม่มี height
+    ระบุตรงๆ (แค่ "โดนยืดสายตา" จาก sibling ใน <tr>) จะคำนวณเป็น 0 เสมอ (พฤติกรรม CSS มาตรฐาน
+    — percentage height ต้องมี containing block ที่มี height แบบ definite ไม่ใช่แค่ auto ที่ถูก
+    stretch ด้วยแถวข้างเคียง) ผลคือเส้นแบ่งช่องหายไปหมดทั้งที่ logic ถูก — แก้โดยระบุความสูงตรงๆ
+    เท่ากับ ROW_HEIGHT แทนการพึ่ง h-full */
 function TallyBoxes() {
   return (
-    <div className="grid h-full w-full" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
-      {Array.from({ length: 6 }, (_, i) => (
+    <div className="grid w-full" style={{ gridTemplateColumns: `repeat(${TALLY_BOX_COUNT}, 1fr)`, height: ROW_HEIGHT }}>
+      {Array.from({ length: TALLY_BOX_COUNT }, (_, i) => (
         <div key={i} className="border-r border-gray-400 last:border-r-0" />
       ))}
     </div>
@@ -219,7 +225,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
               let dropCellRendered = false;
               if (groups.length === 0) {
                 return (
-                  <tr key={drop.id} className="border-b border-gray-400" style={{ height: "34pt", verticalAlign: "top" }}>
+                  <tr key={drop.id} className="border-b border-gray-400" style={{ height: ROW_HEIGHT, verticalAlign: "top" }}>
                     <td className="px-1.5 py-1 border-r border-gray-400 align-top">
                       <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
                       {drop.branchId && <span className="block text-[10px] text-gray-500">{branchNameById.get(drop.branchId) ?? ""}</span>}
@@ -236,7 +242,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                   const isFirstOfDrop = !dropCellRendered;
                   if (isFirstOfDrop) dropCellRendered = true;
                   return (
-                    <tr key={`${drop.id}-${gIdx}-${rIdx}`} className="border-b border-gray-400" style={{ height: "34pt", verticalAlign: "top" }}>
+                    <tr key={`${drop.id}-${gIdx}-${rIdx}`} className="border-b border-gray-400" style={{ height: ROW_HEIGHT, verticalAlign: "top" }}>
                       {isFirstOfDrop && (
                         <td rowSpan={dropRowCount} className="px-1.5 py-1 border-r border-gray-400 align-top">
                           <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
@@ -278,7 +284,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
                 <tr key={i} className="border-b border-gray-400" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[13%]" style={{ height: "34pt" }} />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[13%]" style={{ height: ROW_HEIGHT }} />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[18%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[4%]" />
