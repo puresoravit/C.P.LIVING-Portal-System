@@ -20,7 +20,8 @@ export function deliveryUrgency(
     return { level: "OVERDUE", label: `เกินกำหนด ${-daysUntil} วัน (${dateText})`, className: "bg-red-600 text-white", daysUntil };
   }
   if (daysUntil === 0) {
-    return { level: "TODAY", label: `${prefix}ส่งวันนี้`, className: "bg-orange-500 text-white", daysUntil };
+    // CP7 round 2 (Owner UAT) — เข้มขึ้นเป็นสีแสด ให้ต่างจากโทนเหลืองของ SOON ชัดเจนกว่าเดิม
+    return { level: "TODAY", label: `${prefix}ส่งวันนี้`, className: "bg-orange-600 text-white", daysUntil };
   }
   if (daysUntil === 1) {
     return { level: "TOMORROW", label: `${prefix}ส่งพรุ่งนี้`, className: "bg-amber-500 text-white", daysUntil };

@@ -70,9 +70,6 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
 
-  const totalPlanned = trip.drops.reduce((s, d) => s + d.lines.reduce((x, l) => x + l.qtyPlanned, 0), 0);
-  const statusText = trip.cancelledAt ? "ยกเลิกแล้ว" : trip.reconciledAt ? "สินค้าถูกส่งออกแล้ว" : trip.sheetPrintedAt ? "กำลังขึ้นของ" : "เตรียมขึ้นของ";
-
   // CP6 — confirm หลัง print dialog: บันทึกผู้พิมพ์/เวลา/เวอร์ชันแผน (พิมพ์ ≠ ส่งออก)
   const canConfirmPrint = !trip.cancelledAt && !trip.reconciledAt;
   const printedActor = trip.sheetPrintedById
@@ -168,15 +165,14 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
       )}
 
       <div className="bg-white border print:border-0 rounded-lg print:rounded-none p-4 text-sm">
-        {/* หัวใบ */}
+        {/* หัวใบ — ตัดให้กระชับตามสเปก (Owner: เวอร์ชันก่อนหน้าเวิ่นเว้อเกินไป) เหลือ 2 แถว
+            ข้อมูลจำเป็นจริง + มุมขวาบนพิมพ์เวลา/เวอร์ชันตัวเล็กกันกระดาษตกรุ่นเท่านั้น */}
         <div className="flex items-baseline justify-between border-b-2 border-gray-800 pb-1 mb-1">
-          <div>
-            <span className="font-semibold text-sm">{company.name}</span>
-            <span className="text-[10px] text-gray-500 ml-2">ใบขึ้นของ — เอกสารภายใน (แผนการขึ้น · ขีดนับหน้างาน)</span>
-          </div>
-          <div className="text-right">
-            <span className="text-xs text-gray-400 font-mono">{trip.tripNo}</span>
-            {trip.cancelledAt && <span className="ml-2 text-xs font-semibold text-red-700">[ยกเลิกแล้ว]</span>}
+          <span className="font-semibold text-sm">{company.name}</span>
+          <div className="text-right text-[10px] text-gray-400">
+            <span className="font-mono">{trip.tripNo}</span>
+            {trip.cancelledAt && <span className="ml-2 font-semibold text-red-700">[ยกเลิกแล้ว]</span>}
+            <span className="block">พิมพ์ {new Date().toLocaleString("th-TH")} · แก้ไขครั้งที่ {trip.version}</span>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
@@ -196,18 +192,14 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
             <span className="font-medium">{vehicleSeqThisMonth != null ? `รอบที่ ${vehicleSeqThisMonth}` : "—"}</span>
           </span>
           <span><span className="text-gray-500">คนขับ:</span> <span className="font-medium">{trip.driverName ?? "—"}</span></span>
-          <span><span className="text-gray-500">จุดส่ง:</span> <span className="font-medium">{totalDrops}</span></span>
-          <span><span className="text-gray-500">รวมตามแผน:</span> <span className="font-medium">{totalPlanned} ชิ้น</span></span>
-          <span><span className="text-gray-500">สถานะ:</span> <span className="font-medium">{statusText}</span></span>
           {trip.note && <span className="col-span-3"><span className="text-gray-500">หมายเหตุ:</span> {trip.note}</span>}
-          {/* กันกระดาษตกรุ่น: เทียบเวอร์ชันแผนบนกระดาษกับหน้าจอได้ทันที */}
-          <span className="col-span-3 text-gray-500">พิมพ์ {new Date().toLocaleString("th-TH")} · แผนแก้ไขครั้งที่ {trip.version}</span>
         </div>
 
-        {/* ตารางต่อเนื่องเดียวทั้งใบ ตาม 01-สรุปรวม.md: ร้านค้า | รายการ | ไซส์ | ค้างเดิม | ของใหม่ | ขีดนับ | รวมขึ้น | คงค้าง */}
-        <table className="w-full border-collapse text-[13px] print-keep-together" style={{ border: "1px solid #374151" }}>
+        {/* ตารางต่อเนื่องเดียวทั้งใบ ตาม 01-สรุปรวม.md: ร้านค้า | รายการ | ไซส์ | ค้างเดิม | ของใหม่ | ขีดนับ | รวมขึ้น | คงค้าง
+            สีเส้นเดียวกันทั้งตาราง (Owner: เวอร์ชันก่อนเส้นไม่ชนกัน) + collapse/spacing ระบุตรงๆ กัน sub-pixel gap ตอนพิมพ์ */}
+        <table className="w-full border border-gray-400 text-[13px] print-keep-together" style={{ borderCollapse: "collapse", borderSpacing: 0 }}>
           <thead>
-            <tr className="border-b border-gray-700">
+            <tr className="border-b-2 border-gray-400">
               <th className="text-left px-1.5 py-0.5 font-medium w-[16%]">ร้านค้า</th>
               <th className="text-left px-1.5 py-0.5 font-medium w-[24%]">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
               <th className="text-left px-1.5 py-0.5 font-medium w-[7%]">ไซส์</th>
@@ -224,7 +216,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                 <td colSpan={8} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีจุดส่ง —</td>
               </tr>
             )}
-            {trip.drops.map((drop, dropIdx) => {
+            {trip.drops.map((drop) => {
               const groups = groupDropLines(drop.lines);
               const dropRowCount = groups.reduce((s, g) => s + g.rows.length, 0) || 1;
               // ลำดับขึ้นรถ = ย้อนลำดับส่ง (จุดที่ส่งทีหลังสุด โหลดขึ้นรถก่อนสุด)
@@ -233,15 +225,15 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
               let dropCellRendered = false;
               if (groups.length === 0) {
                 return (
-                  <tr key={drop.id} className="border-b border-gray-300" style={{ height: "34pt", verticalAlign: "top" }}>
-                    <td className="px-1.5 py-1 border-r border-gray-300 align-top">
+                  <tr key={drop.id} className="border-b border-gray-400" style={{ height: "34pt", verticalAlign: "top" }}>
+                    <td className="px-1.5 py-1 border-r border-gray-400 align-top">
                       <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
                       {drop.branchId && <span className="block text-[10px] text-gray-500">{branchNameById.get(drop.branchId) ?? ""}</span>}
                       <span className="block text-[10px] text-gray-500">
                         ลงจุดที่ {drop.seq}/{totalDrops}{loadHint}
                       </span>
                     </td>
-                    <td colSpan={7} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีรายการ —</td>
+                    <td colSpan={7} className="px-1.5 py-1 text-gray-400 text-xs border-l border-gray-400">— ไม่มีรายการ —</td>
                   </tr>
                 );
               }
@@ -250,9 +242,9 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                   const isFirstOfDrop = !dropCellRendered;
                   if (isFirstOfDrop) dropCellRendered = true;
                   return (
-                    <tr key={`${drop.id}-${gIdx}-${rIdx}`} className="border-b border-gray-300" style={{ height: "34pt", verticalAlign: "top" }}>
+                    <tr key={`${drop.id}-${gIdx}-${rIdx}`} className="border-b border-gray-400" style={{ height: "34pt", verticalAlign: "top" }}>
                       {isFirstOfDrop && (
-                        <td rowSpan={dropRowCount} className="px-1.5 py-1 border-r border-gray-300 align-top">
+                        <td rowSpan={dropRowCount} className="px-1.5 py-1 border-r border-gray-400 align-top">
                           <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
                           {drop.branchId && <span className="block text-[10px] text-gray-500">{branchNameById.get(drop.branchId) ?? ""}</span>}
                           <span className="block text-[10px] text-gray-500">
@@ -261,19 +253,19 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                         </td>
                       )}
                       {rIdx === 0 && (
-                        <td rowSpan={group.rows.length} className="px-1.5 py-1 border-r border-gray-300 align-top">
+                        <td rowSpan={group.rows.length} className="px-1.5 py-1 border-r border-gray-400 align-top">
                           <span className="font-medium">{group.label}</span>
                           {group.sku && <span className="block text-[10px] text-gray-500 font-mono">{group.sku}</span>}
                         </td>
                       )}
-                      <td className="px-1.5 py-1 border-r border-gray-300">{row.size ?? "-"}</td>
-                      <td className="px-1.5 py-1 text-right border-r border-gray-300">{row.outstanding || ""}</td>
-                      <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-300">{row.fresh || ""}</td>
-                      <td className="px-1.5 py-1 border-r border-gray-300">
+                      <td className="px-1.5 py-1 border-r border-gray-400">{row.size ?? "-"}</td>
+                      <td className="px-1.5 py-1 text-right border-r border-gray-400">{row.outstanding || ""}</td>
+                      <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-400">{row.fresh || ""}</td>
+                      <td className="px-1.5 py-1 border-r border-gray-400">
                         <TallyBoxes />
                         {row.note && <div className="text-[10px] text-gray-600 mt-0.5">หมายเหตุ: {row.note}</div>}
                       </td>
-                      <td className="px-1.5 py-1 border-r border-gray-300" />
+                      <td className="px-1.5 py-1 border-r border-gray-400" />
                       <td className="px-1.5 py-1" />
                     </tr>
                   );
@@ -288,19 +280,19 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
           <div className="bg-gray-100 print:bg-gray-100 border border-gray-700 border-b-0 rounded-t px-2 py-0.5 font-semibold">
             รายการเพิ่มหน้างาน (เขียนมือ — นำเข้าระบบตอนบันทึกผลขึ้นของ)
           </div>
-          <table className="w-full border-collapse text-[13px]" style={{ border: "1px solid #374151" }}>
+          <table className="w-full border border-gray-400 text-[13px]" style={{ borderCollapse: "collapse", borderSpacing: 0 }}>
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
-                <tr key={i} className="border-b border-gray-300" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[16%]" style={{ height: "34pt" }} />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[24%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[20%]">
+                <tr key={i} className="border-b border-gray-400" style={{ verticalAlign: "top" }}>
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[16%]" style={{ height: "34pt" }} />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[24%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[20%]">
                     <TallyBoxes />
                   </td>
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[9%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[9%]" />
                   <td className="px-1.5 py-1 w-[9%]" />
                 </tr>
               ))}

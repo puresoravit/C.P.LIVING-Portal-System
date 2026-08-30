@@ -25,12 +25,26 @@ export default async function StartLoadingJobPage(props: { params: Promise<{ pro
   });
   if (!order) notFound();
 
-  // มีจุดส่งของใบนี้ในรอบ active อยู่แล้ว → เข้ารอบนั้นเลย (idempotent เหมือนฝั่ง action)
+  // มีจุดส่งของใบนี้ในรอบ active อยู่แล้ว — CP7 (Owner UAT): เดิม redirect() บังคับตรงนี้ทำ
+  // ปุ่มย้อนกลับเด้งวนไม่หยุด (กลับมาหน้านี้ปุ๊บ redirect ไปข้างหน้าทันทีอีกรอบ) เปลี่ยนเป็น
+  // แสดงลิงก์ให้กดเองแทน — ไม่มี auto-navigation ก็ไม่มี loop ให้ back button ติด
   const existingDrop = await db.loadingDrop.findFirst({
     where: { productionOrderId: order.id, trip: { cancelledAt: null, reconciledAt: null } },
     select: { tripId: true },
   });
-  if (existingDrop) redirect(`/production/loading/${existingDrop.tripId}`);
+  if (existingDrop) {
+    return (
+      <div className="max-w-2xl">
+        <BackLink fallbackHref="/production/loading" />
+        <div className="mt-3 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-3 py-3">
+          ออเดอร์นี้เริ่มขึ้นของไปแล้ว —{" "}
+          <a href={`/production/loading/${existingDrop.tripId}`} className="font-semibold underline">
+            ไปที่รอบจัดส่ง →
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const cancelled = !!(order.cancelledAt || order.customerPo.cancelledAt);
 

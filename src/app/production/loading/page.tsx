@@ -2,22 +2,25 @@ import { db } from "@/lib/db";
 import { StatusBadge } from "@/components/status-badge";
 import type { StatusBadgeConfig } from "@/components/status-badge";
 import { deliveryUrgency } from "@/lib/delivery-urgency";
+import { PullForwardButton } from "@/components/production/pull-forward-button";
 
 // CP6 Queue-first — หน้า "การขึ้นของและจัดส่ง" = คิวงานที่จะขึ้นของ (ไม่ใช่ list เที่ยวรถ):
 // ดึงใบสั่งผลิต active อัตโนมัติ เรียงตามวันที่ต้องการส่ง (สำคัญสุด) — เลขใบผลิตเป็นตัวเล็ก
 // อ้างอิงรอง — กดใบไหน = ตรวจของ + ยืนยันขึ้นวันนี้ → เข้าหน้าเตรียมขึ้นของของ "รอบจัดส่ง"
 //
-// CP7 (2026-08-30, Owner UAT) — 2 จุดแก้: (1) badge ความเร่งด่วนตามวันส่งแยกจาก badge สถานะ
-// งาน ให้ดูแว๊บเดียวรู้ว่าอันไหนต้องรีบ (deliveryUrgency ใช้ร่วมกับ badge สถานะเดิม ไม่แทนกัน)
-// (2) "กำลังขึ้นของ" ต้องเกิดหลังพิมพ์ใบแล้วเท่านั้น (ก่อนพิมพ์ = "เตรียมขึ้นของ") — เดิม
-// ขึ้น "กำลังขึ้นของ" ทันทีที่กดเริ่มงานจากคิว ทั้งที่ยังไม่ได้พิมพ์ใบให้คนขึ้นของถือเลย
+// CP7 (2026-08-30, Owner UAT) — badge ความเร่งด่วนตามวันส่งแยกจาก badge สถานะงาน · "กำลังขึ้น
+// ของ" เกิดหลังพิมพ์ใบแล้วเท่านั้น (ก่อนพิมพ์ = "เตรียมขึ้นของ")
+//
+// CP7 round 2 (2026-08-30, Owner UAT) — แยกเป็น 3 หมวดชัดเจนตาม mental model:
+// "คิวขึ้นของ" (ยังไม่พิมพ์) → "รอบันทึกผล" (พิมพ์แล้ว กดแล้วเข้าฟอร์มบันทึกผลตรงๆ ไม่ผ่าน
+// หน้ารอบจัดส่งอีกที — เดิมฝัง "บันทึกผลขึ้นของ" ไว้ลึกในหน้ารอบจัดส่งซึ่ง Owner บอกว่าลึกเกิน)
+// → "ส่งออกแล้วล่าสุด" (เดิม) · เพิ่มปุ่ม "ส่งวันนี้แทน" ต่อการ์ด (ทางลัดแทน drag-and-drop
+// ซึ่งซับซ้อนเกินไปบนมือถือ — เป้าหมายเดียวกันคือดึงออเดอร์ที่ผลิตเสร็จเร็วมาส่งวันนี้)
 
 const QUEUE_BADGE: StatusBadgeConfig = {
   PRODUCING: { label: "กำลังผลิต", className: "bg-green-100 text-green-700" },
   WAITING_PRODUCTION: { label: "รอเริ่มผลิต", className: "bg-blue-100 text-blue-700" },
   PREPARING: { label: "เตรียมขึ้นของ", className: "bg-blue-100 text-blue-700" },
-  LOADING: { label: "กำลังขึ้นของ · รอบันทึกผล", className: "bg-amber-100 text-amber-700" },
-  DISPATCHED: { label: "สินค้าถูกส่งออกแล้ว", className: "bg-green-100 text-green-700" },
 };
 
 export default async function LoadingQueuePage() {
@@ -27,6 +30,7 @@ export default async function LoadingQueuePage() {
     include: {
       customerPo: {
         select: {
+          version: true,
           requestedDate: true,
           dateMode: true,
           urgency: true,
@@ -50,7 +54,7 @@ export default async function LoadingQueuePage() {
   const revByOrder = new Map(revisions.map((r) => [`${r.productionOrderId}:${r.revNo}`, r]));
 
   // สถานะรอบจัดส่งต่อใบ (drop ในรอบที่ไม่ถูกยกเลิก) — ดึงทุก drop ของรอบเหล่านั้นด้วยเพื่อนับ
-  // ว่ารอบไหนรวมหลายใบผลิตเข้าด้วยกัน (item 6 — merge indicator)
+  // ว่ารอบไหนรวมหลายใบผลิตเข้าด้วยกัน (merge indicator)
   const myDrops = await db.loadingDrop.findMany({
     where: { productionOrderId: { in: orders.map((o) => o.id) }, trip: { cancelledAt: null } },
     select: { productionOrderId: true, tripId: true, trip: { select: { reconciledAt: true, sheetPrintedAt: true } } },
@@ -74,13 +78,12 @@ export default async function LoadingQueuePage() {
     if (drop) {
       if (drop.trip.reconciledAt) return { key: "DISPATCHED", tripId: drop.tripId };
       const mergedCount = mergedOrderCountByTrip.get(drop.tripId) ?? 1;
-      if (drop.trip.sheetPrintedAt) return { key: "LOADING", tripId: drop.tripId, mergedCount };
+      if (drop.trip.sheetPrintedAt) return { key: "PRINTED", tripId: drop.tripId, mergedCount };
       return { key: "PREPARING", tripId: drop.tripId, mergedCount };
     }
     return { key: o.productionStartedAt ? "PRODUCING" : "WAITING_PRODUCTION" };
   }
 
-  // เรียง: งานที่ยังไม่ส่งออกก่อน → เร่งด่วนสุดก่อน (เกินกำหนด/วันนี้/พรุ่งนี้/...) → ด่วนพิเศษ
   const enriched = orders.map((o) => {
     const rev = revByOrder.get(`${o.id}:${o.currentRevNo}`);
     return {
@@ -92,16 +95,18 @@ export default async function LoadingQueuePage() {
     };
   });
   const URGENCY_RANK: Record<string, number> = { OVERDUE: 0, TODAY: 1, TOMORROW: 2, SOON: 3, LATER: 4, UNSET: 5 };
-  const active = enriched
-    .filter((e) => e.status.key !== "DISPATCHED")
-    .sort((a, b) => {
-      const ra = URGENCY_RANK[a.urgency.level];
-      const rb = URGENCY_RANK[b.urgency.level];
-      if (ra !== rb) return ra - rb;
-      if ((a.urgency.daysUntil ?? Infinity) !== (b.urgency.daysUntil ?? Infinity)) return (a.urgency.daysUntil ?? Infinity) - (b.urgency.daysUntil ?? Infinity);
-      if (a.o.customerPo.urgency !== b.o.customerPo.urgency) return a.o.customerPo.urgency ? -1 : 1;
-      return a.o.createdAt.getTime() - b.o.createdAt.getTime();
-    });
+  function byUrgency(a: (typeof enriched)[number], b: (typeof enriched)[number]) {
+    const ra = URGENCY_RANK[a.urgency.level];
+    const rb = URGENCY_RANK[b.urgency.level];
+    if (ra !== rb) return ra - rb;
+    if ((a.urgency.daysUntil ?? Infinity) !== (b.urgency.daysUntil ?? Infinity)) return (a.urgency.daysUntil ?? Infinity) - (b.urgency.daysUntil ?? Infinity);
+    if (a.o.customerPo.urgency !== b.o.customerPo.urgency) return a.o.customerPo.urgency ? -1 : 1;
+    return a.o.createdAt.getTime() - b.o.createdAt.getTime();
+  }
+
+  // 3 หมวด: คิวขึ้นของ (ยังไม่พิมพ์) / รอบันทึกผล (พิมพ์แล้ว) / ส่งออกแล้วล่าสุด
+  const queue = enriched.filter((e) => e.status.key !== "DISPATCHED" && e.status.key !== "PRINTED").sort(byUrgency);
+  const awaitingResult = enriched.filter((e) => e.status.key === "PRINTED").sort(byUrgency);
   const dispatched = enriched.filter((e) => e.status.key === "DISPATCHED").slice(0, 10);
 
   return (
@@ -113,24 +118,29 @@ export default async function LoadingQueuePage() {
         </a>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        คิวงานที่จะขึ้นของ เรียงตามความเร่งด่วน — กดออเดอร์เพื่อตรวจของและเริ่มขึ้น ·{" "}
+        เรียงตามความเร่งด่วน — กดออเดอร์เพื่อตรวจของและเริ่มขึ้น ·{" "}
         <a href="/production/loading/trips" className="text-blue-600 hover:underline">ดูรอบจัดส่งทั้งหมด</a>
       </p>
 
-      {active.length === 0 ? (
+      <h2 className="text-sm font-semibold text-gray-700 mb-2">คิวขึ้นของ</h2>
+      {queue.length === 0 ? (
         <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500 text-center">ไม่มีงานรอขึ้นของ</div>
       ) : (
         <div className="space-y-2">
-          {active.map(({ o, status, urgency, itemCount, pieceCount }) => (
+          {queue.map(({ o, status, urgency, itemCount, pieceCount }) => (
             <a
               key={o.id}
               href={status.tripId ? `/production/loading/${status.tripId}` : `/production/loading/start/${o.id}`}
               className="block bg-white border rounded-lg p-3 hover:border-cp-navy"
             >
               <div className="flex items-center justify-between gap-2">
-                {/* item 1 — badge ความเร่งด่วนตามวันส่ง สำคัญสุด แยกจาก badge สถานะงาน */}
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${urgency.className}`}>{urgency.label}</span>
-                <StatusBadge status={status.key} config={QUEUE_BADGE} />
+                <div className="flex items-center gap-1.5">
+                  {urgency.level !== "TODAY" && urgency.level !== "OVERDUE" && (
+                    <PullForwardButton customerPoId={o.customerPoId} version={o.customerPo.version} dateLabel={urgency.label} />
+                  )}
+                  <StatusBadge status={status.key} config={QUEUE_BADGE} />
+                </div>
               </div>
               <div className="text-sm text-gray-700 mt-1 flex items-center gap-1.5 flex-wrap">
                 <span className="font-medium">{o.customerPo.customer.companyName}</span>
@@ -149,6 +159,38 @@ export default async function LoadingQueuePage() {
         </div>
       )}
 
+      {/* CP7 round 2 — "รอบันทึกผล" หมวดแยกชัด: พิมพ์ใบแล้ว กดแล้วเข้าฟอร์มบันทึกผลตรงๆ */}
+      {awaitingResult.length > 0 && (
+        <>
+          <h2 className="text-sm font-semibold text-gray-700 mt-6 mb-2">รอบันทึกผล</h2>
+          <div className="space-y-2">
+            {awaitingResult.map(({ o, status, urgency, itemCount, pieceCount }) => (
+              <a
+                key={o.id}
+                href={`/production/loading/${status.tripId}/finalize`}
+                className="block bg-white border-2 border-amber-300 rounded-lg p-3 hover:border-amber-500"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${urgency.className}`}>{urgency.label}</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">พิมพ์แล้ว · รอบันทึกผล</span>
+                </div>
+                <div className="text-sm text-gray-700 mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="font-medium">{o.customerPo.customer.companyName}</span>
+                  {o.customerPo.branch && <span className="text-gray-500">— {o.customerPo.branch.name}</span>}
+                  {status.mergedCount != null && status.mergedCount > 1 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">รวม {status.mergedCount} ใบผลิต</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {itemCount} รายการ · {pieceCount} ชิ้น
+                  <span className="text-gray-400 font-mono ml-2">{o.prodNo}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
       {dispatched.length > 0 && (
         <>
           <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ส่งออกแล้วล่าสุด</h2>
@@ -161,7 +203,7 @@ export default async function LoadingQueuePage() {
                     {o.customerPo.branch && <span className="text-gray-500"> — {o.customerPo.branch.name}</span>}
                     <span className="text-xs text-gray-400 font-mono ml-2">{o.prodNo}</span>
                   </span>
-                  <StatusBadge status="DISPATCHED" config={QUEUE_BADGE} />
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">สินค้าถูกส่งออกแล้ว</span>
                 </div>
               </a>
             ))}

@@ -15,7 +15,9 @@ import { getProductionSettings } from "@/lib/production-settings";
 // ที่กรองออเดอร์ยกเลิก + default กรองตรงสาขา + โชว์ยอดที่ถูกแผนไว้เที่ยวอื่น กัน accidental
 // duplicate โดยไม่ hard-block) — หลัง LOADED = อ่านอย่างเดียว โชว์แผน vs ขึ้นจริง + รูปหลักฐาน
 // CP6 Queue-first — ภาษาหน้างาน "รอบจัดส่ง" (เลข TRIP เป็นรอง) จุดส่งโชว์ใบผลิตต้นทาง ·
-// ปุ่มหลัก: พิมพ์ใบขึ้นของ → บันทึกผลขึ้นของ (finalize เดียวจบ แทน confirm+reconcile เดิม)
+// CP7 round 2 (Owner UAT) — "บันทึกผลขึ้นของ" ย้ายออกจากหน้านี้ทั้งหมด (ลึกเกินไปในหน้ารอบ
+// จัดส่ง) หน้านี้เหลือแค่เตรียมของ + พิมพ์ใบ — พิมพ์เสร็จแล้วไปบันทึกผลที่หมวด "รอบันทึกผล"
+// ในหน้าคิวหลักแทน (คลิกจากตรงนั้นเข้า finalize ตรงๆ ไม่ผ่านหน้านี้อีกที)
 export default async function LoadingTripDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getServerSession(authOptions);
@@ -34,7 +36,7 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   const canManage = can(role, "loadingTrip.manage");
   const totalLines = trip.drops.reduce((sum, d) => sum + d.lines.length, 0);
 
-  const [customers, branches, settings] = await Promise.all([
+  const [customers, branches, settings, products, plateRows] = await Promise.all([
     db.customer.findMany({
       where: { active: true },
       select: { id: true, companyName: true, branches: { where: { active: true }, select: { id: true, name: true } } },
@@ -42,7 +44,16 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     }),
     db.branch.findMany({ select: { id: true, name: true } }),
     getProductionSettings(),
+    db.product.findMany({
+      where: { parentProductId: { not: null } },
+      select: { id: true, sku: true, name: true, productionLabel: true, size: true },
+      orderBy: { name: "asc" },
+      take: 500,
+    }),
+    // CP7 round 2 — ทะเบียนรถที่เคยใช้ ให้เลือกจาก datalist แทนพิมพ์ใหม่ทุกครั้ง
+    db.loadingTrip.findMany({ where: { plateNumber: { not: null } }, select: { plateNumber: true }, distinct: ["plateNumber"], take: 50 }),
   ]);
+  const plateSuggestions = plateRows.map((r) => r.plateNumber!).filter(Boolean);
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
 
@@ -174,12 +185,15 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
         size: l.size,
         qtyPlanned: l.qtyPlanned,
         customerPoLineId: l.customerPoLineId,
+        sourceType: l.sourceType,
         plannedElsewhere: l.customerPoLineId ? plannedElsewhereById.get(l.customerPoLineId) ?? 0 : 0,
       })),
     })),
     customers: customers.map((c) => ({ id: c.id, name: c.companyName, branches: c.branches })),
     eligibleByCustomer,
     outstandingByCustomer,
+    products: products.map((p) => ({ id: p.id, label: `${p.productionLabel ?? p.name}${p.size ? ` (${p.size})` : ""} · ${p.sku}`, size: p.size })),
+    plateSuggestions,
   };
 
   // CP3 — หลังกระทบยอดแล้ว โชว์สรุปว่าแต่ละรายการตัดจากอะไร (อ่านจาก ledger จริง)
@@ -231,19 +245,8 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       )}
       {isDraft && trip.sheetPrintedAt && (
         <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg px-3 py-2 mb-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span>
-              🖨 พิมพ์ใบขึ้นของแล้วเมื่อ {trip.sheetPrintedAt.toLocaleString("th-TH")} — ขึ้นของเสร็จแล้วกดปุ่มขวานี้ได้เลย
-            </span>
-            {canManage && totalLines > 0 && (
-              <a
-                href={`/production/loading/${trip.id}/finalize`}
-                className="shrink-0 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold rounded-lg px-4 py-1.5"
-              >
-                บันทึกผลขึ้นของ →
-              </a>
-            )}
-          </div>
+          🖨 พิมพ์ใบขึ้นของแล้วเมื่อ {trip.sheetPrintedAt.toLocaleString("th-TH")} — ของเข้าคิว
+          "รอบันทึกผล" ที่หน้าคิวหลักแล้ว บันทึกผลขึ้นของได้จากตรงนั้น
           {trip.sheetPrintedVersion != null && trip.version > trip.sheetPrintedVersion && (
             <span className="block mt-1 font-medium">
               ⚠ แผนถูกแก้หลังพิมพ์ — ใบที่พิมพ์ไว้อาจไม่ตรงแผนล่าสุด แนะนำพิมพ์ใหม่ก่อนขึ้นของ
@@ -255,18 +258,10 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <a
           href={`/production/loading/${trip.id}/print`}
-          className="inline-block text-xs px-2 py-0.5 rounded-full bg-cp-navy text-white hover:bg-cp-navy-light"
+          className="inline-block text-xs px-2 py-0.5 rounded-full bg-green-700 text-white hover:bg-green-800"
         >
           พิมพ์ใบขึ้นของ
         </a>
-        {canManage && isDraft && totalLines > 0 && (
-          <a
-            href={`/production/loading/${trip.id}/finalize`}
-            className="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
-          >
-            บันทึกผลขึ้นของ
-          </a>
-        )}
         {canManage && isDraft && (
           <CancelDocumentButton
             buttonLabel="ยกเลิกรอบจัดส่ง"

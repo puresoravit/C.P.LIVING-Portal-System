@@ -12,6 +12,7 @@ export function LoadingTripHeaderForm({
   initial,
   version,
   submitLabel,
+  plateSuggestions = [],
   onDone,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
@@ -19,6 +20,8 @@ export function LoadingTripHeaderForm({
   /** ให้มา = โหมดแก้ไข (ส่ง version ไปกับ CAS) */
   version?: number;
   submitLabel: string;
+  /** CP7 round 2 — ทะเบียนที่เคยใช้มาก่อน โชว์เป็น datalist ให้เลือกแทนพิมพ์ใหม่ทุกครั้ง */
+  plateSuggestions?: string[];
   onDone?: () => void;
 }) {
   const [tripDate, setTripDate] = useState(initial.tripDate);
@@ -63,7 +66,20 @@ export function LoadingTripHeaderForm({
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">ทะเบียนรถ</label>
-          <input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="เช่น 71-2345" className="w-full border rounded px-3 py-2 text-sm" />
+          <input
+            value={plateNumber}
+            onChange={(e) => setPlateNumber(e.target.value)}
+            placeholder="เช่น 71-2345"
+            list="plate-suggestions"
+            className="w-full border rounded px-3 py-2 text-sm"
+          />
+          {plateSuggestions.length > 0 && (
+            <datalist id="plate-suggestions">
+              {plateSuggestions.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">คนขับ</label>

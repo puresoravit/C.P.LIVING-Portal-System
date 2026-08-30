@@ -393,6 +393,68 @@ export async function updateCustomerPO(id: string, formData: FormData): Promise<
   redirect(`/production/orders/${id}`);
 }
 
+// CP7 (2026-08-30, Owner UAT) — "ส่งวันนี้แทน" จากคิวขึ้นของ: บางครั้งฝ่ายผลิตเสร็จไวกว่ากำหนด
+// เดิม อยากดึงออเดอร์ที่กำหนดส่งวันหลังมาส่งวันนี้แทน — action เบาเฉพาะวันที่/dateMode (ไม่แตะ
+// บรรทัดสินค้าเลย) แยกจาก updateCustomerPO เต็มรูปแบบซึ่งบังคับส่ง lines ทั้งชุดมาด้วยเสมอ —
+// ยังคงหลักการเดียวกันทุกอย่าง: CAS + ห้ามแก้ออเดอร์ยกเลิก + บันทึกเป็น ORDER_LEVEL revision
+// (ห้ามเขียนทับประวัติ) ไม่ใช่แค่ UPDATE เงียบๆ
+export async function pullForwardShipDate(id: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "customerPo.editDraft")) throw new Error("FORBIDDEN");
+
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) {
+    return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง" };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      const current = await tx.customerPO.findUniqueOrThrow({ where: { id }, select: { cancelledAt: true, dateMode: true, requestedDate: true } });
+      if (current.cancelledAt) throw new CancelledDocError();
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const cas = await tx.customerPO.updateMany({
+        where: { id, version, cancelledAt: null },
+        data: { dateMode: "EXACT", requestedDate: today, version: { increment: 1 }, revCounter: { increment: 1 } },
+      });
+      if (cas.count === 0) throw new ConcurrentEditError();
+
+      const existing = await tx.customerPO.findUniqueOrThrow({ where: { id }, select: { revCounter: true } });
+      const revNo = existing.revCounter;
+
+      const revision = await tx.customerPORevision.create({
+        data: { customerPoId: id, revNo, actorId: user.id, reason: "ดึงมาส่งวันนี้ (ผลิตเสร็จก่อนกำหนด)" },
+      });
+      await tx.customerPORevisionChange.create({
+        data: {
+          revisionId: revision.id,
+          orderLineId: null,
+          changeType: "ORDER_LEVEL",
+          qtyDelta: null,
+          before: { dateMode: current.dateMode, requestedDate: current.requestedDate?.toISOString() ?? null },
+          after: { dateMode: "EXACT", requestedDate: today.toISOString() },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id, action: "UPDATE", module: "CustomerPO", recordId: id, customerPoId: id,
+          oldValue: { revNo: revNo - 1 }, newValue: { revNo, event: "PULL_FORWARD_SHIP_DATE" },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof CancelledDocError) return { success: false, error: "ออเดอร์นี้ถูกยกเลิกแล้ว" };
+    if (error instanceof ConcurrentEditError) return { success: false, error: "ออเดอร์นี้ถูกแก้ไขโดยคนอื่น — กรุณาโหลดหน้าใหม่" };
+    throw error;
+  }
+
+  revalidatePath("/production/loading");
+  revalidatePath(`/production/orders/${id}`);
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // CP0 — ยกเลิกออเดอร์ลูกค้า (docs 05/07 + D1-D5, Owner อนุมัติ 2026-08-30)
 // ---------------------------------------------------------------------------

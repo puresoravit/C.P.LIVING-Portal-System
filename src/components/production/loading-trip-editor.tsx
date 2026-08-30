@@ -26,6 +26,8 @@ export type TripEditorData = {
   /** CP7 — รายชื่อภาค/ปลายทางที่ตั้งค่าไว้ (production.destinations) ว่างได้ */
   destinations: string[];
   header: { tripDate: string; plateNumber: string; driverName: string; note: string };
+  /** CP7 round 2 — ทะเบียนรถที่เคยใช้มาก่อน ให้เลือกจาก datalist แทนพิมพ์ใหม่ทุกครั้ง */
+  plateSuggestions: string[];
   drops: {
     id: string;
     seq: number;
@@ -45,11 +47,15 @@ export type TripEditorData = {
       size: string | null;
       qtyPlanned: number;
       customerPoLineId: string | null;
+      /** CP7 round 2 — โชว์ marker "หน้างาน"/"ของค้างเดิม" บนรายการที่เพิ่มไปแล้ว */
+      sourceType: "FRESH" | "OUTSTANDING" | "ADHOC";
       /** ยอดที่บรรทัดต้นทางเดียวกันถูกวางแผนไว้ในเที่ยว active อื่น (บริบทกัน duplicate) */
       plannedElsewhere: number;
     }[];
   }[];
   customers: { id: string; name: string; branches: { id: string; name: string }[] }[];
+  /** CP7 round 2 — สินค้าจาก Product Master ให้เลือกตอนเพิ่ม ADHOC แทนพิมพ์ชื่อเองล้วนๆ */
+  products: { id: string; label: string; size: string | null }[];
   /** CP3 lock 7 — บัตรค้างเปิดอยู่ของลูกค้าแต่ละราย (metadata ครบ: อายุ/เหลือ/ต้นทาง) */
   outstandingByCustomer: Record<
     string,
@@ -89,10 +95,11 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
   const [dropNote, setDropNote] = useState("");
   // add-line state ต่อ drop (เปิดฟอร์มได้ทีละจุด)
   const [addingLineDropId, setAddingLineDropId] = useState<string | null>(null);
-  const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING" | "ADHOC">("FRESH");
+  const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING" | "ADHOC">("ADHOC");
   const [lineChoice, setLineChoice] = useState("");
   const [lineQty, setLineQty] = useState("");
   // CP6 — สินค้านอกออเดอร์ (สต็อก/หน้างาน) เพิ่มได้ช่วงเตรียม ไม่ต้องมีใบสั่งผลิต
+  const [adhocProductId, setAdhocProductId] = useState("");
   const [adhocLabel, setAdhocLabel] = useState("");
   const [adhocSize, setAdhocSize] = useState("");
   // CP2 lock 3 — default โชว์เฉพาะออเดอร์สาขาเดียวกับจุดส่ง ส่งข้ามสาขาต้องกดเปิดเอง
@@ -143,7 +150,8 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
             action={updateLoadingTripHeader.bind(null, data.tripId)}
             initial={data.header}
             version={data.version}
-            submitLabel="บันทึกข้อมูลเที่ยว"
+            submitLabel="บันทึกข้อมูลรถ"
+            plateSuggestions={data.plateSuggestions}
             onDone={() => setEditHeader(false)}
           />
         )}
@@ -303,6 +311,13 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         {line.label}
                         {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
                         {line.sku && <span className="text-xs text-gray-400 font-mono ml-1">{line.sku}</span>}
+                        {/* CP7 round 2 — mark ชัดว่ารายการนี้มาจากไหน (Owner: เพิ่มของหน้างานแล้วดูไม่ออกว่าเป็นของเพิ่ม) */}
+                        {line.sourceType === "ADHOC" && (
+                          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">ของเพิ่มหน้างาน</span>
+                        )}
+                        {line.sourceType === "OUTSTANDING" && (
+                          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">ของค้างเดิม</span>
+                        )}
                         {line.plannedElsewhere > 0 && (
                           <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                             อยู่ในแผนเที่ยวอื่นด้วย {line.plannedElsewhere}
@@ -325,18 +340,19 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
 
                   {addingLineDropId === drop.id ? (
                     <div className="bg-gray-50 border rounded p-2 space-y-1.5 mt-1">
-                      {/* CP3/CP6 — เลือกแหล่ง: ออเดอร์ใหม่ / ของค้างเดิม / สินค้าอื่นนอกออเดอร์ (ไม่ auto/ไม่ FIFO) */}
+                      {/* CP3/CP6/CP7 — เลือกแหล่ง: สินค้าอื่น (สต็อก/หน้างาน) ก่อน เพราะเป็นเคสที่เจอบ่อยสุด
+                          ตามด้วยของค้างเดิม แล้วจากออเดอร์อยู่ท้ายสุด (ไม่ auto/ไม่ FIFO) */}
                       <div className="flex flex-wrap gap-1.5 text-xs">
                         <button
                           type="button"
                           onClick={() => {
-                            setLineSource("FRESH");
+                            setLineSource("ADHOC");
                             setLineChoice("");
                             setLineQty("");
                           }}
-                          className={`px-2 py-1 rounded-full border ${lineSource === "FRESH" ? "bg-cp-navy text-white border-cp-navy" : "border-gray-300 text-gray-600"}`}
+                          className={`px-2 py-1 rounded-full border ${lineSource === "ADHOC" ? "bg-gray-700 text-white border-gray-700" : "border-gray-300 text-gray-600"}`}
                         >
-                          จากออเดอร์
+                          สินค้าอื่น (สต็อก/หน้างาน)
                         </button>
                         {(data.outstandingByCustomer[drop.customerId]?.length ?? 0) > 0 && (
                           <button
@@ -354,29 +370,55 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         <button
                           type="button"
                           onClick={() => {
-                            setLineSource("ADHOC");
+                            setLineSource("FRESH");
                             setLineChoice("");
                             setLineQty("");
                           }}
-                          className={`px-2 py-1 rounded-full border ${lineSource === "ADHOC" ? "bg-gray-700 text-white border-gray-700" : "border-gray-300 text-gray-600"}`}
+                          className={`px-2 py-1 rounded-full border ${lineSource === "FRESH" ? "bg-cp-navy text-white border-cp-navy" : "border-gray-300 text-gray-600"}`}
                         >
-                          สินค้าอื่น (สต็อก/หน้างาน)
+                          จากออเดอร์
                         </button>
                       </div>
                       {lineSource === "ADHOC" ? (
                         <>
-                          <input
-                            value={adhocLabel}
-                            onChange={(e) => setAdhocLabel(e.target.value)}
-                            placeholder="ชื่อสินค้า เช่น ที่นอนยางพารา 3.5 ฟุต"
+                          {/* CP7 round 2 — เลือกจาก Product Master ก่อนเป็นหลัก (พิมพ์เองเป็นสำรองไว้กรณีสินค้ายังไม่มีในระบบ เช่นหมอน) */}
+                          <select
+                            value={adhocProductId}
+                            onChange={(e) => {
+                              setAdhocProductId(e.target.value);
+                              const p = data.products.find((x) => x.id === e.target.value);
+                              if (p) {
+                                setAdhocLabel(p.label);
+                                setAdhocSize(p.size ?? "");
+                              } else {
+                                setAdhocLabel("");
+                                setAdhocSize("");
+                              }
+                            }}
                             className="w-full border rounded px-2 py-1.5 text-sm"
-                          />
+                          >
+                            <option value="">— เลือกสินค้าจากระบบ —</option>
+                            {data.products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.label}
+                              </option>
+                            ))}
+                          </select>
+                          {!adhocProductId && (
+                            <input
+                              value={adhocLabel}
+                              onChange={(e) => setAdhocLabel(e.target.value)}
+                              placeholder="ไม่เจอในระบบ — พิมพ์ชื่อสินค้าเอง เช่น หมอนยางพารา"
+                              className="w-full border rounded px-2 py-1.5 text-sm"
+                            />
+                          )}
                           <div className="flex items-center gap-2">
                             <input
                               value={adhocSize}
                               onChange={(e) => setAdhocSize(e.target.value)}
                               placeholder="ไซส์ (ถ้ามี)"
-                              className="w-28 border rounded px-2 py-1.5 text-sm"
+                              disabled={!!adhocProductId}
+                              className="w-28 border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                             />
                             <input
                               type="number"
@@ -388,15 +430,16 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                               className="w-24 border rounded px-2 py-1.5 text-sm"
                             />
                           </div>
-                          <p className="text-xs text-gray-500">ของที่ไม่อยู่ในออเดอร์ (จากสต็อก/ของแถม/เพิ่มหน้างาน) — จะถูกบันทึกแยกเป็น &quot;ของหน้างาน&quot; ไม่ตัดยอดออเดอร์ใคร</p>
+                          <p className="text-xs text-gray-500">ของที่ไม่อยู่ในออเดอร์ (จากสต็อก/ของแถม/เพิ่มหน้างาน) — จะถูกบันทึกแยกเป็น &quot;ของเพิ่มหน้างาน&quot; ไม่ตัดยอดออเดอร์ใคร</p>
                           <div className="flex gap-2">
                             <button
                               type="button"
                               disabled={isPending || !adhocLabel.trim() || !lineQty}
                               onClick={() =>
                                 run(async () => {
-                                  const result = await addAdhocPlannedLine(data.tripId, drop.id, fd({ label: adhocLabel, size: adhocSize, qtyPlanned: lineQty }));
+                                  const result = await addAdhocPlannedLine(data.tripId, drop.id, fd({ label: adhocLabel, size: adhocSize, qtyPlanned: lineQty, productId: adhocProductId }));
                                   if (result.success) {
+                                    setAdhocProductId("");
                                     setAdhocLabel("");
                                     setAdhocSize("");
                                     setLineQty("");
@@ -413,6 +456,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                               type="button"
                               onClick={() => {
                                 setAddingLineDropId(null);
+                                setAdhocProductId("");
                                 setAdhocLabel("");
                                 setAdhocSize("");
                                 setLineQty("");
@@ -533,6 +577,11 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                           แบ่งขึ้นหลายเที่ยว/หลายจุดได้ แต่ตรวจให้แน่ใจว่าไม่ใช่การเพิ่มซ้ำโดยไม่ตั้งใจ
                         </p>
                       )}
+                      {chosen && (
+                        <p className="text-xs font-semibold text-cp-navy bg-cp-navy/5 border border-cp-navy/20 rounded px-2 py-1">
+                          {chosen.poInfo} — ยอดสั่งปัจจุบัน {chosen.qtyCurrent}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -543,7 +592,6 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                           placeholder="จำนวนที่จะขึ้น"
                           className="w-32 border rounded px-2 py-1.5 text-sm"
                         />
-                        {chosen && <span className="text-xs text-gray-500">ยอดสั่งปัจจุบัน {chosen.qtyCurrent}</span>}
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -584,7 +632,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                       type="button"
                       onClick={() => {
                         setAddingLineDropId(drop.id);
-                        setLineSource("FRESH");
+                        setLineSource("ADHOC");
                         setLineChoice("");
                         setLineQty("");
                       }}
