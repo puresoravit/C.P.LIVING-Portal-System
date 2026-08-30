@@ -47,4 +47,11 @@ describe("Permission Matrix (ข้อ 3, 65)", () => {
     expect(can("BILLING_STAFF", "loadingTrip.manage")).toBe(true);
     expect(can("VIEWER", "loadingTrip.manage")).toBe(false);
   });
+
+  // CP4 — ตัดยอดของค้าง = กฎข้อ 7 "ต้องอนุมัติ หัวหน้า/แอดมินเท่านั้น"
+  it("CP4: outstanding.cancel — เฉพาะ OWNER_ADMIN", () => {
+    expect(can("OWNER_ADMIN", "outstanding.cancel")).toBe(true);
+    expect(can("BILLING_STAFF", "outstanding.cancel")).toBe(false);
+    expect(can("VIEWER", "outstanding.cancel")).toBe(false);
+  });
 });

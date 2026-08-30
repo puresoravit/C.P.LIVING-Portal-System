@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { can } from "@/lib/permissions";
 import { customerPOSchema, customerPOLineInputSchema, customerPOLineUpdateInputSchema } from "@/lib/validation";
 import { getNextBranchOrderSeq } from "@/lib/branch-order-sequence";
@@ -402,6 +403,9 @@ class AlreadyCancelledError extends Error {}
 // Lock 3: มีใบที่เริ่มผลิตแล้วแต่ผู้กดไม่มีสิทธิ์ production.cancelStarted — โยนใน
 // transaction เพื่อให้ rollback ทั้งก้อน ห้ามเกิด partial cancellation เด็ดขาด
 class CancelStartedForbiddenError extends Error {}
+// CP4 — มีของค้างเปิดอยู่แต่ผู้กดไม่มีสิทธิ์ outstanding.cancel: ห้ามใช้การยกเลิกออเดอร์
+// เป็นทางลัดตัดของค้าง (กฎข้อ 7) — STAFF ถูก block, ADMIN cascade-cut พร้อมกันใน tx เดียว
+class OutstandingOpenForbiddenError extends Error {}
 
 // Cancel = terminal fact (D4 ห้าม reopen) เก็บเป็น timestamp ไม่แตะ status text เดิม —
 // cascade ทางเดียวไปยังใบสั่งผลิตที่ยัง active ทุกใบใน transaction เดียว (D3/Lock 3) —
@@ -435,6 +439,23 @@ export async function cancelCustomerPO(id: string, formData: FormData): Promise<
       });
       const hasStarted = activePOs.some((p) => p.productionStartedAt !== null);
       if (hasStarted && !can(user.role, "production.cancelStarted")) throw new CancelStartedForbiddenError();
+
+      // CP4 — ของค้างเปิดอยู่ของออเดอร์นี้: STAFF ห้ามใช้ cancel เป็นทางลัดตัดของค้าง (กฎ
+      // ข้อ 7) — ADMIN (มี outstanding.cancel) ตัดพร้อมกันใน tx เดียว: แถว CUT ใน ledger +
+      // ปิดบัตร + audit — qtyOriginal/openedAt ของบัตรไม่ถูกแตะ (ประวัติเดิมครบ)
+      const lineIds = (await tx.customerPOLine.findMany({ where: { customerPoId: id }, select: { id: true } })).map((l) => l.id);
+      const openCards = lineIds.length
+        ? await tx.outstandingDelivery.findMany({
+            where: { customerPoLineId: { in: lineIds }, closedAt: null },
+            include: { allocations: { select: { qty: true } } },
+          })
+        : [];
+      const openCardsWithRemaining = openCards
+        .map((c) => ({ id: c.id, remaining: c.qtyOriginal - c.allocations.reduce((s, a) => s + a.qty, 0) }))
+        .filter((c) => c.remaining > 0);
+      if (openCardsWithRemaining.length > 0 && !can(user.role, "outstanding.cancel")) {
+        throw new OutstandingOpenForbiddenError();
+      }
 
       const now = new Date();
       const cas = await tx.customerPO.updateMany({
@@ -474,6 +495,14 @@ export async function cancelCustomerPO(id: string, formData: FormData): Promise<
         });
       }
 
+      // CP4 — cascade-cut ของค้างที่เปิดอยู่ (เฉพาะ ADMIN ที่ผ่านเช็คข้างบนแล้ว)
+      for (const card of openCardsWithRemaining) {
+        await tx.loadingAllocation.create({
+          data: { loadingLineId: null, kind: "CUT", outstandingId: card.id, customerPoLineId: null, qty: card.remaining, reason: `ยกเลิกออเดอร์: ${reason}`, actorId: user.id },
+        });
+        await tx.outstandingDelivery.update({ where: { id: card.id }, data: { closedAt: now } });
+      }
+
       // Audit: 1 แถวต่อ entity ที่โดนแตะ ผูกกันด้วย correlationId (การใช้ field นี้ครั้งแรก
       // ตามที่ schema เตรียมไว้) — revision/print/started history ไม่ถูกแตะเลย (D5)
       const correlationId = revision.id;
@@ -488,9 +517,29 @@ export async function cancelCustomerPO(id: string, formData: FormData): Promise<
           customerPoId: id,
           correlationId,
           reason,
-          newValue: { cancelledProductionOrders: activePOs.map((p) => p.prodNo), hasStartedProduction: hasStarted },
+          newValue: {
+            cancelledProductionOrders: activePOs.map((p) => p.prodNo),
+            hasStartedProduction: hasStarted,
+            cutOutstandings: openCardsWithRemaining.map((c) => ({ id: c.id, qty: c.remaining })),
+          },
         },
       });
+      for (const card of openCardsWithRemaining) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE",
+            module: "Outstanding",
+            recordId: card.id,
+            customerId: existing.customerId,
+            branchId: existing.branchId,
+            customerPoId: id,
+            correlationId,
+            reason: `ยกเลิกออเดอร์: ${reason}`,
+            newValue: { event: "CUT_OUTSTANDING", qty: card.remaining, remainingAfter: 0, closed: true, viaOrderCancel: true },
+          },
+        });
+      }
       for (const po of activePOs) {
         await tx.auditLog.create({
           data: {
@@ -507,8 +556,20 @@ export async function cancelCustomerPO(id: string, formData: FormData): Promise<
           },
         });
       }
-    });
+    },
+    // CP4 — tx นี้แตะทั้งออเดอร์/ใบผลิต/บัตรค้าง — Serializable กัน race กับ reconcile/ตัดยอด
+    // ที่กำลังแตะบัตรเดียวกัน (ชนจริง = P2034 ให้ลองใหม่)
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return { success: false, error: "มีการบันทึกชนกันพอดี — กรุณาลองอีกครั้ง" };
+    }
+    if (error instanceof OutstandingOpenForbiddenError) {
+      return {
+        success: false,
+        error: "ออเดอร์นี้มีของค้างส่งเปิดอยู่ — การยกเลิกต้องให้ผู้ดูแลระบบเป็นผู้ทำ (จะตัดยอดค้างพร้อมกันอย่างมีบันทึก)",
+      };
+    }
     if (error instanceof AlreadyCancelledError) {
       return { success: false, error: "ออเดอร์นี้ถูกยกเลิกไปแล้ว" };
     }

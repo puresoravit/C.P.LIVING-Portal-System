@@ -13,7 +13,7 @@ import type { AuditLog } from "@prisma/client";
 // query เปราะกับ Prisma+Postgres) จึงกรอง eventType ใน memory หลัง fetch ช่วงวันที่/ลูกค้า
 // จาก DB ก่อนแล้ว (ปริมาณข้อมูล P1 ยังน้อย เพียงพอสำหรับแนวทางนี้ไม่ต้องทำ pagination ซับซ้อน)
 
-type EventKey = "PO_CREATE" | "PO_UPDATE" | "PO_CANCEL" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT" | "PROD_CANCEL";
+type EventKey = "PO_CREATE" | "PO_UPDATE" | "PO_CANCEL" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT" | "PROD_CANCEL" | "TRIP_CREATE" | "TRIP_LOADED" | "TRIP_RECONCILE" | "TRIP_CANCEL" | "OUT_OPEN" | "OUT_CUT" | "OUT_CLOSE";
 
 const EVENT_LABELS: Record<EventKey, string> = {
   PO_CREATE: "รับออเดอร์ลูกค้า",
@@ -24,6 +24,13 @@ const EVENT_LABELS: Record<EventKey, string> = {
   PROD_START: "เริ่มผลิต",
   PROD_PRINT: "พิมพ์ใบสั่งผลิต",
   PROD_CANCEL: "ยกเลิกใบสั่งผลิต",
+  TRIP_CREATE: "สร้างเที่ยวรถ",
+  TRIP_LOADED: "ยืนยันขึ้นของ",
+  TRIP_RECONCILE: "กระทบยอดเที่ยวรถ",
+  TRIP_CANCEL: "ยกเลิกเที่ยวรถ",
+  OUT_OPEN: "เกิดของค้างส่ง",
+  OUT_CUT: "ตัดยอดของค้าง",
+  OUT_CLOSE: "ของค้างส่งครบ",
 };
 
 const EVENT_DOT: Record<EventKey, string> = {
@@ -35,6 +42,13 @@ const EVENT_DOT: Record<EventKey, string> = {
   PROD_START: "bg-green-600",
   PROD_PRINT: "bg-gray-500",
   PROD_CANCEL: "bg-red-600",
+  TRIP_CREATE: "bg-violet-500",
+  TRIP_LOADED: "bg-blue-600",
+  TRIP_RECONCILE: "bg-emerald-600",
+  TRIP_CANCEL: "bg-red-600",
+  OUT_OPEN: "bg-amber-600",
+  OUT_CUT: "bg-red-600",
+  OUT_CLOSE: "bg-green-600",
 };
 
 function classify(row: Pick<AuditLog, "module" | "action" | "newValue">): EventKey | null {
@@ -50,6 +64,23 @@ function classify(row: Pick<AuditLog, "module" | "action" | "newValue">): EventK
     if (nv?.event === "PRINT_REVISION") return "PROD_PRINT";
     return "PROD_REVISE";
   }
+  // CP4 — เหตุการณ์เที่ยวรถ/ของค้าง (เฉพาะจังหวะสำคัญ — ADD_DROP/ADD_LINE ฯลฯ ละเอียดเกิน
+  // สำหรับ timeline รวม จึง return null ให้ถูกกรองออก แต่ยังอยู่ครบใน AuditLog เสมอ)
+  if (row.module === "LoadingTrip") {
+    const nv = row.newValue as Record<string, unknown> | null;
+    if (nv?.event === "CREATE") return "TRIP_CREATE";
+    if (nv?.event === "CONFIRM_LOADED") return "TRIP_LOADED";
+    if (nv?.event === "RECONCILE") return "TRIP_RECONCILE";
+    if (nv?.event === "CANCEL") return "TRIP_CANCEL";
+    return null;
+  }
+  if (row.module === "Outstanding") {
+    const nv = row.newValue as Record<string, unknown> | null;
+    if (nv?.event === "OPEN_OUTSTANDING") return "OUT_OPEN";
+    if (nv?.event === "CUT_OUTSTANDING") return "OUT_CUT";
+    if (nv?.event === "CLOSE_OUTSTANDING") return "OUT_CLOSE";
+    return null;
+  }
   return null;
 }
 
@@ -63,7 +94,7 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
   const [rows, customers] = await Promise.all([
     db.auditLog.findMany({
       where: {
-        module: { in: ["CustomerPO", "ProductionOrder"] },
+        module: { in: ["CustomerPO", "ProductionOrder", "LoadingTrip", "Outstanding"] },
         ...(customerId ? { customerId } : {}),
         ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       },
@@ -73,7 +104,8 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
     db.customer.findMany({ where: { active: true }, select: { id: true, companyName: true }, orderBy: { companyName: "asc" } }),
   ]);
 
-  const filtered = eventType ? rows.filter((r) => classify(r) === eventType) : rows;
+  const classified = rows.filter((r) => classify(r) !== null); // เหตุการณ์ย่อยของเที่ยว (ADD_DROP ฯลฯ) ไม่ขึ้น timeline รวม
+  const filtered = eventType ? classified.filter((r) => classify(r) === eventType) : classified;
   const display = filtered.slice(0, 100);
 
   const actorIds = [...new Set(display.map((r) => r.userId))];
@@ -89,6 +121,13 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
     prodIds.length ? db.productionOrder.findMany({ where: { id: { in: prodIds } }, select: { id: true, prodNo: true, currentRevNo: true } }) : Promise.resolve([]),
   ]);
   void poIds; // CustomerPO เอง label ไม่ต้อง join เพิ่ม (แสดงชื่อลูกค้า/สาขาก็พอสื่อความหมาย)
+
+  // CP4 — เที่ยวรถ/บัตรค้างที่ปรากฏใน timeline
+  const tripIds = [...new Set(display.filter((r) => r.module === "LoadingTrip").map((r) => r.recordId))];
+  const trips = tripIds.length
+    ? await db.loadingTrip.findMany({ where: { id: { in: tripIds } }, select: { id: true, tripNo: true } })
+    : [];
+  const tripById = new Map(trips.map((t) => [t.id, t]));
 
   const actorNameById = new Map(actors.map((a) => [a.id, a.displayName || a.username]));
   const custNameById = new Map(custs.map((c) => [c.id, c.companyName]));
@@ -164,13 +203,34 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
         changes: [],
       };
     }
-    // PROD_PRINT
-    return {
-      eventKey: key,
-      title: `พิมพ์ใบสั่งผลิต ${prod ? displayProdNo(prod.prodNo, nv.revNo) : prodNoText}`,
-      href: `/production/production-orders/${row.recordId}`,
-      changes: [],
-    };
+    if (key === "PROD_PRINT") {
+      return {
+        eventKey: key,
+        title: `พิมพ์ใบสั่งผลิต ${prod ? displayProdNo(prod.prodNo, nv.revNo) : prodNoText}`,
+        href: `/production/production-orders/${row.recordId}`,
+        changes: [],
+      };
+    }
+    // CP4 — เที่ยวรถ / ของค้างส่ง
+    if (key === "TRIP_CREATE" || key === "TRIP_LOADED" || key === "TRIP_RECONCILE" || key === "TRIP_CANCEL") {
+      const trip = tripById.get(row.recordId);
+      const tripNoText = trip?.tripNo ?? nv.tripNo ?? "(เที่ยวที่ถูกลบ)";
+      const extra =
+        key === "TRIP_LOADED" && nv.totalLoaded != null
+          ? ` (ขึ้นจริงรวม ${nv.totalLoaded} ชิ้น)`
+          : key === "TRIP_CANCEL" && row.reason
+            ? ` — เหตุผล: ${row.reason}`
+            : "";
+      return { eventKey: key, title: `${EVENT_LABELS[key]} ${tripNoText}${extra}`, href: `/production/loading/${row.recordId}`, changes: [] };
+    }
+    // OUT_OPEN / OUT_CUT / OUT_CLOSE
+    const outExtra =
+      key === "OUT_OPEN" && nv.qtyOriginal != null
+        ? ` ${nv.qtyOriginal} ชิ้น`
+        : key === "OUT_CUT"
+          ? ` ${nv.qty ?? ""} ชิ้น${row.reason ? ` — เหตุผล: ${row.reason}` : ""}`
+          : "";
+    return { eventKey: key, title: `${EVENT_LABELS[key]}${outExtra}`, href: `/production/outstanding/${row.recordId}`, changes: [] };
   }
 
   return (

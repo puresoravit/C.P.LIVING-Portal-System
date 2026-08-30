@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { can } from "@/lib/permissions";
 import { currentPeriod, formatDocNumber, getNextSeq } from "@/lib/running-number";
 import { revalidatePath } from "next/cache";
@@ -831,8 +832,14 @@ export async function reconcileLoadingTrip(tripId: string, formData: FormData): 
           },
         });
       }
-    });
+    },
+    // CP4 — Serializable: กัน race ระหว่าง reconcile 2 เที่ยว/การตัดยอด ที่แตะบัตรเดียวกัน
+    // (validate ยอดเหลือแล้วค่อย insert — READ COMMITTED ปล่อยให้ over-allocate ได้)
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return { success: false, error: "มีการบันทึกชนกันพอดี — กรุณาลองอีกครั้ง" };
+    }
     if (error instanceof TripConflictError) {
       return { success: false, error: "กระทบยอดไม่ได้ — เที่ยวต้องยืนยันขึ้นของแล้ว ยังไม่ถูกกระทบยอด/ยกเลิก และไม่ถูกแก้พร้อมกัน กรุณาโหลดหน้าใหม่" };
     }

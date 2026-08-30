@@ -66,10 +66,25 @@ export default async function EditCustomerPOPage(props: { params: Promise<{ id: 
 
   const updateAction = updateCustomerPO.bind(null, po.id);
 
+  // CP4 — ออเดอร์นี้มีของค้างส่งเปิดอยู่: การแก้/ลดยอดไม่ตัดของค้างให้อัตโนมัติ (บัตรค้างเป็น
+  // ข้อเท็จจริงทาง operation — ตัดได้เฉพาะผู้ดูแลที่หน้าของค้างส่ง ตามกฎข้อ 7)
+  const openCards = await db.outstandingDelivery.findMany({
+    where: { customerPoLineId: { in: po.lines.map((l) => l.id) }, closedAt: null },
+    select: { qtyOriginal: true, allocations: { select: { qty: true } } },
+  });
+  const openRemaining = openCards.reduce((s, c) => s + c.qtyOriginal - c.allocations.reduce((x, a) => x + a.qty, 0), 0);
+
   return (
     <div className="max-w-2xl">
       <BackLink fallbackHref={`/production/orders/${po.id}`} />
       <h1 className="text-lg font-semibold mt-2 mb-1">แก้ไขออเดอร์</h1>
+      {openRemaining > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2 mb-3">
+          ⚠ ออเดอร์นี้มีของค้างส่งเปิดอยู่ {openRemaining} ชิ้น — การแก้/ลดยอดที่นี่<b>ไม่ตัดของค้างให้อัตโนมัติ</b>{" "}
+          ถ้าลูกค้ายกเลิกส่วนที่ค้าง ให้ผู้ดูแลระบบตัดยอดที่{" "}
+          <a href="/production/outstanding" className="underline">หน้าของค้างส่ง</a>
+        </div>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         การแก้ไขทุกครั้งจะถูกบันทึกเป็นประวัติ (Revision) — ไม่เขียนทับข้อมูลเดิม
       </p>

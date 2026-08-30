@@ -38,6 +38,9 @@ export type Permission =
   // P2 CP1 — จัดการเที่ยวรถ (สร้าง/แก้แผน DRAFT) เป็นงานปฏิบัติการหน้างานเหมือน customerPo.*
   // (การยืนยันขึ้นของ/กระทบยอด/ตัดของค้าง จะมี permission แยกตามที่ doc 07 กำหนดใน CP ถัดไป)
   | "loadingTrip.manage"
+  // CP4 — ตัดยอดของค้าง (กฎ P1 ข้อ 7: "ตัดของค้างต้องอนุมัติ — หัวหน้า/ผู้ดูแลระบบเท่านั้น
+  // ห้าม Hard Delete") — OWNER_ADMIN เท่านั้น ตาม boundary ที่อนุมัติใน doc 07
+  | "outstanding.cancel"
   | "productAlias.manage"
   | "productionSetting.manage"
   | "productionMasterSpec.manage";
@@ -65,6 +68,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "productionOrder.cancel",
     "production.cancelStarted", // OWNER_ADMIN เท่านั้น — ดู comment ที่ประกาศ type
     "loadingTrip.manage",
+    "outstanding.cancel", // OWNER_ADMIN เท่านั้น — กฎข้อ 7
     "productAlias.manage",
     "productionSetting.manage",
     // Master Spec (สูตรผ้า/โครงสร้างต้นแบบ) — master data นำเข้า/แก้ได้เฉพาะ Admin เช่นเดียว

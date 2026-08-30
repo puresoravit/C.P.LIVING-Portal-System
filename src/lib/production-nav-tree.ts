@@ -22,6 +22,7 @@ export const PRODUCTION_NAV_TREE: NavNode[] = [
     ],
   },
   { type: "link", href: "/production/loading", label: "การขึ้นของและจัดส่ง", perm: null, icon: "delivery" },
+  { type: "link", href: "/production/outstanding", label: "ของค้างส่ง", perm: null, icon: "list" },
   { type: "link", href: "/production/history", label: "ประวัติ", perm: null, icon: "history" },
   { type: "link", href: "/production/settings", label: "ตั้งค่า", perm: "productionSetting.manage", icon: "settings" },
   { type: "signout", label: "ออกจากระบบ", icon: "logout" },

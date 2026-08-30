@@ -1,3 +1,5 @@
+import { db } from "@/lib/db";
+
 // Dashboard Shell (S1, redesign S4 UAT round 5 ตาม mockup ของ Owner) — ยังเป็นโครง
 // ไม่ผูก business logic จริง ไม่ query DB (ตัวเลข/ข้อความแจ้งเตือนจะเริ่มมีความหมายเมื่อ
 // Sprint ที่เกี่ยวข้องเสร็จ) — การ์ดโทนสีอ่อนตามประเภทการแจ้งเตือน + ไอคอนประกอบ
@@ -10,7 +12,8 @@ type StatusCard = {
   tone: string; // พื้น/ขอบการ์ด
   chipTone: string; // ป้ายไอคอนมุมบน
   icon: React.ReactNode;
-  future?: boolean; // ยังไม่มี sprint รองรับ (รอ P2)
+  future?: boolean; // ยังไม่มี sprint รองรับ
+  live?: boolean; // CP4 — การ์ดที่เปิดข้อมูลจริงแล้ว (กดเข้าได้)
 };
 
 function Icon({ path, className }: { path: React.ReactNode; className?: string }) {
@@ -110,7 +113,7 @@ const STATUS_CARDS: StatusCard[] = [
     tone: "bg-gray-50 border-gray-200",
     chipTone: "bg-gray-400 text-white border-gray-400",
     icon: ICONS.truck,
-    future: true,
+    live: true, // CP4 — การ์ดเดียวที่เปิด query จริงตาม approval
   },
 ];
 
@@ -128,7 +131,16 @@ const QUICK_ACTIONS: QuickAction[] = [
   { label: "ทำใบขึ้นของ", hint: "บันทึกรายการขึ้นของ (Phase P2)", href: "/production/loading", iconTone: "bg-violet-600", icon: ICONS.upload },
 ];
 
-export default function ProductionHomePage() {
+export default async function ProductionHomePage() {
+  // CP4 — Owner อนุมัติเปิด query จริง "เฉพาะการ์ดของค้างส่ง" (การ์ดอื่นยังเป็น placeholder
+  // ตาม scope เดิม): นับบัตรเปิด + ยอดชิ้นคงเหลือรวม (derive จาก ledger)
+  const openCards = await db.outstandingDelivery.findMany({
+    where: { closedAt: null },
+    select: { qtyOriginal: true, allocations: { select: { qty: true } } },
+  });
+  const outstandingCount = openCards.length;
+  const outstandingPieces = openCards.reduce((s, c) => s + c.qtyOriginal - c.allocations.reduce((x, a) => x + a.qty, 0), 0);
+
   return (
     <div className="max-w-5xl">
       <h1 className="text-lg font-semibold mb-1">ภาพรวม</h1>
@@ -138,25 +150,40 @@ export default function ProductionHomePage() {
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-8">
-        {STATUS_CARDS.map((card) => (
-          <div
-            key={card.label}
-            className={`border rounded-2xl p-3 sm:p-4 flex flex-col min-h-[10rem] sm:min-h-[13rem] ${card.tone} ${card.future ? "border-dashed" : ""}`}
-          >
-            <span className={`inline-flex items-center gap-1.5 self-start border rounded-full px-2 py-1 text-[11px] font-medium ${card.chipTone}`}>
-              <Icon path={card.icon} className="w-3.5 h-3.5" />
-              {card.label}
-            </span>
-            <div className="mt-3 sm:mt-4">
-              <div className="text-sm sm:text-base font-semibold text-gray-800">{card.label}</div>
-              {/* พื้นที่นี้เผื่อไว้แสดงจำนวน/ข้อความแจ้งเตือนจริงในอนาคต */}
-              <div className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-snug">{card.hint}</div>
+        {STATUS_CARDS.map((card) => {
+          const inner = (
+            <>
+              <span className={`inline-flex items-center gap-1.5 self-start border rounded-full px-2 py-1 text-[11px] font-medium ${card.chipTone}`}>
+                <Icon path={card.icon} className="w-3.5 h-3.5" />
+                {card.label}
+              </span>
+              <div className="mt-3 sm:mt-4">
+                <div className="text-sm sm:text-base font-semibold text-gray-800">{card.label}</div>
+                {card.live ? (
+                  <div className="text-xs sm:text-sm mt-1 leading-snug">
+                    <span className="font-semibold text-gray-800">{outstandingCount} รายการ</span>
+                    <span className="text-gray-500"> · เหลือ {outstandingPieces} ชิ้น</span>
+                  </div>
+                ) : (
+                  <div className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-snug">{card.hint}</div>
+                )}
+              </div>
+              <div className="flex-1 flex items-end justify-center pb-1 text-current opacity-25">
+                <Icon path={card.icon} className="w-10 h-10 sm:w-12 sm:h-12" />
+              </div>
+            </>
+          );
+          const cls = `border rounded-2xl p-3 sm:p-4 flex flex-col min-h-[10rem] sm:min-h-[13rem] ${card.tone} ${card.future ? "border-dashed" : ""}`;
+          return card.live ? (
+            <a key={card.label} href="/production/outstanding" className={`${cls} hover:border-gray-400`}>
+              {inner}
+            </a>
+          ) : (
+            <div key={card.label} className={cls}>
+              {inner}
             </div>
-            <div className="flex-1 flex items-end justify-center pb-1 text-current opacity-25">
-              <Icon path={card.icon} className="w-10 h-10 sm:w-12 sm:h-12" />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <h2 className="text-sm font-medium text-gray-700 mb-2">ทางลัด</h2>
