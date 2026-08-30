@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getCompanySettings } from "@/lib/company-settings";
 import { LoadingSheetControls } from "@/components/production/loading-sheet-controls";
 import { confirmSheetPrinted } from "../../actions";
 
@@ -15,10 +14,12 @@ import { confirmSheetPrinted } from "../../actions";
 // เทียบกับหน้าจอแล้วรู้ทันทีว่าตกรุ่น
 //
 // CP7 (2026-08-30, Owner UAT) — สร้างใหม่ตามสเปกเดิม docs/production-module/01-สรุปรวม.md
-// (ตกหล่นตอน CP2): คอลัมน์ ร้านค้า|รายการ|ไซส์|ค้างเดิม|ของใหม่|ขีดนับ|รวมขึ้น|คงค้าง เป็น
-// ตารางต่อเนื่องเดียวทั้งใบ (ไม่แยกตารางต่อจุดส่งเหมือนเดิม) + 3 ตัวนับรีเซ็ตรายเดือน (เที่ยวที่/
-// รอบรถคันนี้/รอบภาค) นับที่ "ออกจริง" (reconciledAt ไม่ null) เที่ยวที่ยกเลิกก่อนออกไม่กินเลข
-// โดยธรรมชาติ (ไม่เคยมี reconciledAt) — ลำดับขึ้นรถ = สลับกับลำดับส่ง (โหลดจุดที่ส่งทีหลังก่อน)
+// (ตกหล่นตอน CP2): คอลัมน์ ร้านค้า|รายการ|ไซส์|ค้างเดิม|จำนวนผลิต|จำนวน|รวมขึ้น|ค้างส่ง (ชื่อ
+// คอลัมน์หลังปรับตาม UAT round 4 — เดิมชื่อ ของใหม่/ขีดนับ/คงค้าง) เป็นตารางต่อเนื่องเดียวทั้งใบ
+// (ไม่แยกตารางต่อจุดส่งเหมือนเดิม) + 2 ตัวนับรีเซ็ตรายเดือน (เที่ยวที่/รอบรถคันนี้ — ตัดตัวนับ
+// "รอบภาค" ออกจากใบพิมพ์ตอน round 4 แม้ยังเก็บ destinationLabel ในระบบ) นับที่ "ออกจริง"
+// (reconciledAt ไม่ null) เที่ยวที่ยกเลิกก่อนออกไม่กินเลขโดยธรรมชาติ (ไม่เคยมี reconciledAt) —
+// ลำดับขึ้นรถ = สลับกับลำดับส่ง (โหลดจุดที่ส่งทีหลังก่อน)
 //
 // @page CSS เขียนเฉพาะหน้านี้ ไม่เพิ่ม key ใน PRINT_PROFILES เด็ดขาด — profile ตัวนั้นถูก
 // enumerate ใน dropdown ของ Billing (PrintProfileSelector/print-template-designer) เพิ่ม
@@ -30,10 +31,12 @@ const EMPTY_MARGIN_BOXES =
   "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
 const PORTRAIT_PAGE_STYLE = `@page { size: A4 portrait; margin: 8mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
 
-/** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว") ไม่ใช่ตารางย่อย 30 ช่องเล็ก */
+/** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว")
+    ไม่ใช่ตารางย่อย 30 ช่องเล็ก — เต็มความสูง/กว้างของ cell พ่อแม่เสมอ (ห้ามมี padding ที่ td พ่อ)
+    ให้เส้นแบ่งช่องชิดขอบบน-ล่างของแถวจริง ไม่ใช่ลอยอยู่กลางช่องว่าง */
 function TallyBoxes() {
   return (
-    <div className="flex" style={{ height: "9mm" }}>
+    <div className="flex h-full w-full">
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i} className="border-r border-gray-400 last:border-r-0 flex-1" />
       ))}
@@ -53,13 +56,10 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   const session = await getServerSession(authOptions);
   if (!can((session?.user as any)?.role, "loadingTrip.manage")) redirect("/");
 
-  const [trip, company] = await Promise.all([
-    db.loadingTrip.findUnique({
-      where: { id: params.id },
-      include: { drops: { orderBy: { seq: "asc" }, include: { lines: { orderBy: { id: "asc" } } } } },
-    }),
-    getCompanySettings(),
-  ]);
+  const trip = await db.loadingTrip.findUnique({
+    where: { id: params.id },
+    include: { drops: { orderBy: { seq: "asc" }, include: { lines: { orderBy: { id: "asc" } } } } },
+  });
   if (!trip) notFound();
 
   const customerIds = [...new Set(trip.drops.map((d) => d.customerId))];
@@ -105,17 +105,9 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
     vehicleSeqThisMonth = before + 1;
   }
 
-  const destinationLabels = [...new Set(trip.drops.map((d) => d.destinationLabel).filter((v): v is string => !!v))];
-  const destinationSeqs = new Map<string, number>();
-  for (const label of destinationLabels) {
-    const before = await db.loadingDrop.count({
-      where: {
-        destinationLabel: label,
-        trip: { reconciledAt: trip.reconciledAt ? { gte: monthLo, lt: trip.reconciledAt } : { gte: monthLo, lt: monthHi } },
-      },
-    });
-    destinationSeqs.set(label, before + 1);
-  }
+  // CP7 round 4 — Owner: ตัด "ภาค" ออกจากหัวใบพิมพ์ (บรรทัดข้อมูลยาวเกิน อยากให้เหลือบรรทัด
+  // เดียว) — ยังเก็บ destinationLabel ต่อจุดส่งไว้ในระบบตามเดิม (ใช้ในหน้าเตรียมของ/รายงาน
+  // อนาคต) แค่ไม่แสดง/นับบนใบพิมพ์แผ่นนี้อีกต่อไป
 
   // จัดกลุ่มต่อจุดส่ง: รายการ (label+sku) → ไซส์ → แยกยอด ค้างเดิม(OUTSTANDING) / ของใหม่(FRESH+ADHOC)
   type SizeRow = { size: string | null; outstanding: number; fresh: number; note: string | null };
@@ -166,49 +158,47 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
       )}
 
       <div className="bg-white border print:border-0 rounded-lg print:rounded-none p-4 text-sm">
-        {/* หัวใบ — ตัดให้กระชับตามสเปก (Owner: เวอร์ชันก่อนหน้าเวิ่นเว้อเกินไป) เหลือ 2 แถว
-            ข้อมูลจำเป็นจริง + มุมขวาบนพิมพ์เวลา/เวอร์ชันตัวเล็กกันกระดาษตกรุ่นเท่านั้น */}
-        <div className="flex items-baseline justify-between border-b-2 border-gray-800 pb-1 mb-1">
-          <span className="font-semibold text-sm">{company.name}</span>
-          <div className="text-right text-[10px] text-gray-400">
+        {/* หัวใบ — CP7 round 4 (Owner): เหลือ "บรรทัดเดียว" ต่อบล็อก ตัดชื่อบริษัทออก ใช้ชื่อ
+            เอกสารตรงๆ แทน ("ใบขึ้นสินค้า") + ยุบเลขที่/เวลาพิมพ์มาบรรทัดเดียวกัน ส่วนแถว
+            ข้อมูลรถ (วันที่/เที่ยวที่/ทะเบียน/คนขับ) ก็ยุบเหลือบรรทัดเดียวเช่นกัน ตัดภาคออก */}
+        <div className="flex items-baseline justify-between border-b-2 border-gray-800 pb-1 mb-1 text-xs">
+          <span className="font-bold text-sm">ใบขึ้นสินค้า</span>
+          <span className="text-gray-400">
             <span className="font-mono">{trip.tripNo}</span>
             {trip.cancelledAt && <span className="ml-2 font-semibold text-red-700">[ยกเลิกแล้ว]</span>}
-            <span className="block">พิมพ์ {new Date().toLocaleString("th-TH")} · แก้ไขครั้งที่ {trip.version}</span>
-          </div>
+            <span className="ml-2">พิมพ์ {new Date().toLocaleString("th-TH")} · แก้ไขครั้งที่ {trip.version}</span>
+          </span>
         </div>
-        <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
           <span><span className="text-gray-500">วันที่:</span> <span className="font-medium">{trip.tripDate.toLocaleDateString("th-TH")}</span></span>
           <span><span className="text-gray-500">เที่ยวที่ (เดือนนี้):</span> <span className="font-medium">{tripSeqThisMonth}</span></span>
           <span>
-            <span className="text-gray-500">ภาค:</span>{" "}
+            <span className="text-gray-500">ทะเบียนรถ:</span>{" "}
             <span className="font-medium">
-              {destinationLabels.length === 0
-                ? "—"
-                : destinationLabels.map((l) => `${l} รอบที่ ${destinationSeqs.get(l)}`).join(", ")}
+              {trip.plateNumber ?? "—"}
+              {vehicleSeqThisMonth != null && ` (รอบที่ ${vehicleSeqThisMonth})`}
             </span>
           </span>
-          <span><span className="text-gray-500">ทะเบียนรถ:</span> <span className="font-medium">{trip.plateNumber ?? "—"}</span></span>
-          <span>
-            <span className="text-gray-500">รถคันนี้ (เดือนนี้):</span>{" "}
-            <span className="font-medium">{vehicleSeqThisMonth != null ? `รอบที่ ${vehicleSeqThisMonth}` : "—"}</span>
-          </span>
           <span><span className="text-gray-500">คนขับ:</span> <span className="font-medium">{trip.driverName ?? "—"}</span></span>
-          {trip.note && <span className="col-span-3"><span className="text-gray-500">หมายเหตุ:</span> {trip.note}</span>}
+          {trip.note && <span><span className="text-gray-500">หมายเหตุ:</span> {trip.note}</span>}
         </div>
 
-        {/* ตารางต่อเนื่องเดียวทั้งใบ ตาม 01-สรุปรวม.md: ร้านค้า | รายการ | ไซส์ | ค้างเดิม | ของใหม่ | ขีดนับ | รวมขึ้น | คงค้าง
-            สีเส้นเดียวกันทั้งตาราง (Owner: เวอร์ชันก่อนเส้นไม่ชนกัน) + collapse/spacing ระบุตรงๆ กัน sub-pixel gap ตอนพิมพ์ */}
+        {/* ตารางต่อเนื่องเดียวทั้งใบ: ร้านค้า | รายการ | ไซส์ | ค้างเดิม | จำนวนผลิต | จำนวน | รวมขึ้น | ค้างส่ง
+            สีเส้นเดียวกันทั้งตาราง + collapse/spacing ระบุตรงๆ กัน sub-pixel gap ตอนพิมพ์ */}
         <table className="w-full border border-gray-400 text-[13px] print-keep-together" style={{ borderCollapse: "collapse", borderSpacing: 0 }}>
           <thead>
+            {/* CP7 round 4 — Owner: หัวตารางไม่มีเส้นแบ่งช่อง (ตัว td ข้างล่างมีแต่ th ไม่มี) ทำให้
+                ดูไม่ใช่กริดเดียวกัน + บีบค้างเดิม/จำนวนผลิตให้แคบลง ขยายช่องจำนวน(ขีดนับ)แทน
+                + เปลี่ยนชื่อคอลัมน์ตามที่สั่ง: ของใหม่→จำนวนผลิต, ขีดนับ→จำนวน, คงค้าง→ค้างส่ง */}
             <tr className="border-b-2 border-gray-400">
-              <th className="text-left px-1.5 py-0.5 font-medium w-[16%]">ร้านค้า</th>
-              <th className="text-left px-1.5 py-0.5 font-medium w-[24%]">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
-              <th className="text-left px-1.5 py-0.5 font-medium w-[7%]">ไซส์</th>
-              <th className="text-right px-1.5 py-0.5 font-medium w-[7%]">ค้างเดิม</th>
-              <th className="text-right px-1.5 py-0.5 font-medium w-[7%]">ของใหม่</th>
-              <th className="text-left px-1.5 py-0.5 font-medium w-[20%]">ขีดนับ</th>
-              <th className="text-center px-1.5 py-0.5 font-medium w-[9%]">รวมขึ้น</th>
-              <th className="text-center px-1.5 py-0.5 font-medium w-[9%]">คงค้าง</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[15%] border-r border-gray-400">ร้านค้า</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[21%] border-r border-gray-400">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[7%] border-r border-gray-400">ไซส์</th>
+              <th className="text-right px-1.5 py-0.5 font-medium w-[5%] border-r border-gray-400">ค้างเดิม</th>
+              <th className="text-right px-1.5 py-0.5 font-medium w-[6%] border-r border-gray-400">จำนวนผลิต</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[32%] border-r border-gray-400">จำนวน</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[7%] border-r border-gray-400">รวมขึ้น</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[7%]">ค้างส่ง</th>
             </tr>
           </thead>
           <tbody>
@@ -262,9 +252,9 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                       <td className="px-1.5 py-1 border-r border-gray-400">{row.size ?? "-"}</td>
                       <td className="px-1.5 py-1 text-right border-r border-gray-400">{row.outstanding || ""}</td>
                       <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-400">{row.fresh || ""}</td>
-                      <td className="px-1.5 py-1 border-r border-gray-400">
+                      <td className="p-0 border-r border-gray-400 align-top">
                         <TallyBoxes />
-                        {row.note && <div className="text-[10px] text-gray-600 mt-0.5">หมายเหตุ: {row.note}</div>}
+                        {row.note && <div className="text-[10px] text-gray-600 px-1 mt-0.5">หมายเหตุ: {row.note}</div>}
                       </td>
                       <td className="px-1.5 py-1 border-r border-gray-400" />
                       <td className="px-1.5 py-1" />
@@ -285,21 +275,21 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
                 <tr key={i} className="border-b border-gray-400" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[16%]" style={{ height: "34pt" }} />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[24%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[15%]" style={{ height: "34pt" }} />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[21%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[20%]">
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
+                  <td className="p-0 border-r border-gray-400 w-[32%]">
                     <TallyBoxes />
                   </td>
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[9%]" />
-                  <td className="px-1.5 py-1 w-[9%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
+                  <td className="px-1.5 py-1 w-[7%]" />
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="text-[10px] text-gray-500 mt-0.5">คอลัมน์: ร้านค้า / รายการ / ไซส์ / ค้างเดิม / ของใหม่ / ขีดนับ / รวมขึ้น / คงค้าง</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">คอลัมน์: ร้านค้า / รายการ / ไซส์ / ค้างเดิม / จำนวนผลิต / จำนวน / รวมขึ้น / ค้างส่ง</div>
         </div>
       </div>
     </div>
