@@ -42,6 +42,21 @@ export type TripEditorData = {
     }[];
   }[];
   customers: { id: string; name: string; branches: { id: string; name: string }[] }[];
+  /** CP3 lock 7 — บัตรค้างเปิดอยู่ของลูกค้าแต่ละราย (metadata ครบ: อายุ/เหลือ/ต้นทาง) */
+  outstandingByCustomer: Record<
+    string,
+    {
+      id: string;
+      label: string;
+      size: string | null;
+      qtyOriginal: number;
+      remaining: number;
+      openedAt: string;
+      ageDays: number;
+      sourceBranchName: string | null;
+      poInfo: string;
+    }[]
+  >;
   eligibleByCustomer: Record<
     string,
     {
@@ -66,6 +81,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
   const [dropNote, setDropNote] = useState("");
   // add-line state ต่อ drop (เปิดฟอร์มได้ทีละจุด)
   const [addingLineDropId, setAddingLineDropId] = useState<string | null>(null);
+  const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING">("FRESH");
   const [lineChoice, setLineChoice] = useState("");
   const [lineQty, setLineQty] = useState("");
   // CP2 lock 3 — default โชว์เฉพาะออเดอร์สาขาเดียวกับจุดส่ง ส่งข้ามสาขาต้องกดเปิดเอง
@@ -278,6 +294,98 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
 
                   {addingLineDropId === drop.id ? (
                     <div className="bg-gray-50 border rounded p-2 space-y-1.5 mt-1">
+                      {/* CP3 — เลือกแหล่ง: ออเดอร์ใหม่ หรือ ของค้างเดิม (ไม่ auto/ไม่ FIFO) */}
+                      {(data.outstandingByCustomer[drop.customerId]?.length ?? 0) > 0 && (
+                        <div className="flex gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLineSource("FRESH");
+                              setLineChoice("");
+                              setLineQty("");
+                            }}
+                            className={`px-2 py-1 rounded-full border ${lineSource === "FRESH" ? "bg-cp-navy text-white border-cp-navy" : "border-gray-300 text-gray-600"}`}
+                          >
+                            จากออเดอร์
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLineSource("OUTSTANDING");
+                              setLineChoice("");
+                              setLineQty("");
+                            }}
+                            className={`px-2 py-1 rounded-full border ${lineSource === "OUTSTANDING" ? "bg-amber-600 text-white border-amber-600" : "border-gray-300 text-gray-600"}`}
+                          >
+                            จากของค้างเดิม ({data.outstandingByCustomer[drop.customerId]!.length})
+                          </button>
+                        </div>
+                      )}
+                      {lineSource === "OUTSTANDING" ? (
+                        <>
+                          <select
+                            value={lineChoice}
+                            onChange={(e) => {
+                              setLineChoice(e.target.value);
+                              const opt = (data.outstandingByCustomer[drop.customerId] ?? []).find((o) => o.id === e.target.value);
+                              if (opt) setLineQty(String(opt.remaining));
+                            }}
+                            className="w-full border rounded px-2 py-1.5 text-sm"
+                          >
+                            <option value="">— เลือกบัตรค้างเดิมของลูกค้ารายนี้ —</option>
+                            {(data.outstandingByCustomer[drop.customerId] ?? []).map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.label}
+                                {o.size ? ` (${o.size})` : ""} · เหลือ {o.remaining}/{o.qtyOriginal} · ค้างมา {o.ageDays} วัน (ตั้งแต่ {o.openedAt}) · {o.poInfo}
+                                {o.sourceBranchName ? ` · สาขา ${o.sourceBranchName}` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={lineQty}
+                              onChange={(e) => setLineQty(e.target.value)}
+                              placeholder="จำนวนที่จะขึ้น"
+                              className="w-32 border rounded px-2 py-1.5 text-sm"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={isPending || !lineChoice || !lineQty}
+                              onClick={() =>
+                                run(async () => {
+                                  const result = await addLoadingLine(data.tripId, drop.id, fd({ outstandingId: lineChoice, qtyPlanned: lineQty }));
+                                  if (result.success) {
+                                    setLineChoice("");
+                                    setLineQty("");
+                                    setAddingLineDropId(null);
+                                  }
+                                  return result;
+                                })
+                              }
+                              className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded px-3 py-1.5"
+                            >
+                              เพิ่มของค้างเข้าเที่ยวนี้
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingLineDropId(null);
+                                setLineChoice("");
+                                setLineQty("");
+                              }}
+                              className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50"
+                            >
+                              ปิด
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
                       <select
                         value={lineChoice}
                         onChange={(e) => {
@@ -366,12 +474,15 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                           ปิด
                         </button>
                       </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => {
                         setAddingLineDropId(drop.id);
+                        setLineSource("FRESH");
                         setLineChoice("");
                         setLineQty("");
                       }}

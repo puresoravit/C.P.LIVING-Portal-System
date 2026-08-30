@@ -1470,7 +1470,65 @@ model LoadingLine {
   size             String?
   qtyPlanned       Int // แผนจะขึ้น (กรอกตอนจัดเที่ยว)
   qtyLoaded        Int? // ขึ้นจริง — CP2 เป็นผู้กรอก (CP1 เป็น null เสมอ)
+  // CP3 — บริบทการวางแผนเมื่อ sourceType=OUTSTANDING: บัตรค้างที่ตั้งใจเอาไปขึ้นเที่ยวนี้
+  // (ใช้ prefill ตอน reconcile เท่านั้น — ไม่ผูกมัด: planned ≠ final allocation คนตัดสินจริง
+  // ตอนกระทบยอดเสมอ)
+  plannedOutstandingId String?
   note             String?
 
+  allocations LoadingAllocation[]
+
   @@map("loading_lines")
+}
+
+// ==========================================================================
+// P2 CP3 — Reconcile + ของค้างส่ง (docs 04/06/07 + D1/D2 + Owner locks 2026-08-30)
+// ==========================================================================
+
+// Ledger การจัดสรรยอดที่ finalize แล้ว — immutable append-only (ห้าม update/delete แถว)
+// หมายเหตุ challenge ต่อ doc 07: schema เดิม (OutstandingAllocation ผูก outstanding เท่านั้น)
+// บันทึกการตัด "ออเดอร์ใหม่ (FRESH)"/"ADHOC" ไม่ได้ ขัด lock "ทุก quantity ที่ finalize ต้องมี
+// allocation อธิบายย้อนหลัง" — รวมเป็น ledger เดียวชื่อ loading_allocations ตามที่เอกสาร P1
+// ต้นฉบับ (กฎข้อ 2) ตั้งชื่อไว้แต่แรก: "ต้องบันทึกไว้ว่าเลือกอะไร (ตาราง loading_allocations)"
+enum AllocationKind {
+  FRESH // ตัดออเดอร์ใหม่ (demand ปัจจุบันของ customerPoLineId)
+  OUTSTANDING // ตัดของค้างเดิม (ผูก outstandingId)
+  ADHOC // ของหน้างาน ไม่มี source order จริง — ห้ามสร้าง fake order เพื่อให้ FK ครบ
+  CUT // ตัดของค้างแบบอนุมัติ (CP4 — loadingLineId เป็น null เพราะไม่ใช่เหตุการณ์ขึ้นของ)
+}
+
+model LoadingAllocation {
+  id               String               @id @default(cuid())
+  loadingLineId    String? // null เฉพาะ kind=CUT
+  loadingLine      LoadingLine?         @relation(fields: [loadingLineId], references: [id])
+  kind             AllocationKind
+  outstandingId    String? // บังคับเมื่อ kind=OUTSTANDING/CUT
+  outstanding      OutstandingDelivery? @relation(fields: [outstandingId], references: [id])
+  customerPoLineId String? // บังคับเมื่อ kind=FRESH (demand เป้าหมาย) — identity ถาวร (line เป็น soft-delete)
+  qty              Int // > 0 เสมอ
+  reason           String? // บังคับเมื่อ kind=CUT
+  actorId          String // "ใครเลือก" (D1)
+  createdAt        DateTime             @default(now())
+
+  @@map("loading_allocations")
+}
+
+// บัตรของค้างส่ง — 1 แถวคงที่ตลอดอายุ (D1): qtyOriginal/openedAt ห้ามแก้ตลอดชีวิตแถว
+// ยอดคงเหลือ = qtyOriginal − Σ allocations(kind OUTSTANDING/CUT) — derive เสมอ ไม่เก็บ
+// mutable remaining (ปริมาณข้อมูลระดับนี้ derive ได้สบาย และตัดปัญหา drift ทิ้งทั้งก้อน)
+// ชื่อ "OutstandingDelivery" ไม่ใช่ "Outstanding" เฉยๆ — กันชนความหมาย outstanding balance
+// ทางการเงินเมื่อเชื่อม Billing ในอนาคต (บทเรียน PurchaseOrder → CustomerPO)
+model OutstandingDelivery {
+  id               String    @id @default(cuid())
+  customerPoLineId String // anchor = CustomerPOLine (customer demand คือ source of truth — ไม่ใช่ Production qty)
+  qtyOriginal      Int // เริ่มค้างกี่ชิ้น — immutable
+  openedAt         DateTime  @default(now()) // เริ่มค้างเมื่อไร (D2: reconcile แรกที่พบว่าไม่ครบ) — ห้าม reset จาก partial
+  openedById       String
+  openedFromTripId String? // เที่ยวที่ทำให้รู้ว่าค้าง (สอบย้อน)
+  closedAt         DateTime? // Σ ครบ qtyOriginal — ตั้งใน tx เดียวกับ allocation ที่ทำให้ครบ
+  createdAt        DateTime  @default(now())
+
+  allocations LoadingAllocation[]
+
+  @@map("outstanding_deliveries")
 }

@@ -81,6 +81,45 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     : [];
   const plannedElsewhereById = new Map(plannedElsewhereRows.map((r) => [r.customerPoLineId as string, r._sum.qtyPlanned ?? 0]));
 
+  // CP3 lock 7 — OUTSTANDING picker: บัตรค้างเปิดอยู่ของลูกค้าในเที่ยวนี้ (closed ไม่ eligible)
+  // พร้อม metadata: สินค้า/ไซส์/เริ่มค้างเท่าไร/เหลือ/ค้างตั้งแต่/อายุ/ออเดอร์ต้นทาง — ไม่ FIFO
+  // ไม่ auto-select คนเลือกเอง
+  const openOutstandings = await db.outstandingDelivery.findMany({
+    where: { closedAt: null },
+    include: { allocations: { select: { qty: true } } },
+    orderBy: { openedAt: "asc" },
+  });
+  const outLineIds = [...new Set(openOutstandings.map((o) => o.customerPoLineId))];
+  const outLines = outLineIds.length
+    ? await db.customerPOLine.findMany({
+        where: { id: { in: outLineIds }, customerPo: { customerId: { in: dropCustomerIds } } },
+        include: {
+          product: { select: { sku: true, name: true, productionLabel: true } },
+          customerPo: { select: { customerId: true, branchId: true, createdAt: true, orderSeqNo: true } },
+        },
+      })
+    : [];
+  const outLineById = new Map(outLines.map((l) => [l.id, l]));
+  const outstandingByCustomer: TripEditorData["outstandingByCustomer"] = {};
+  for (const o of openOutstandings) {
+    const srcLine = outLineById.get(o.customerPoLineId);
+    if (!srcLine) continue; // ลูกค้าไม่อยู่ในเที่ยวนี้
+    const remaining = o.qtyOriginal - o.allocations.reduce((s, a) => s + a.qty, 0);
+    if (remaining <= 0) continue;
+    const cid = srcLine.customerPo.customerId;
+    (outstandingByCustomer[cid] ??= []).push({
+      id: o.id,
+      label: srcLine.product?.productionLabel ?? srcLine.product?.name ?? "—",
+      size: srcLine.size,
+      qtyOriginal: o.qtyOriginal,
+      remaining,
+      openedAt: o.openedAt.toLocaleDateString("th-TH"),
+      ageDays: Math.floor((Date.now() - o.openedAt.getTime()) / 86400000),
+      sourceBranchName: srcLine.customerPo.branchId ? branchNameById.get(srcLine.customerPo.branchId) ?? null : null,
+      poInfo: `ออเดอร์ ${srcLine.customerPo.createdAt.toLocaleDateString("th-TH")}${srcLine.customerPo.orderSeqNo != null ? ` ครั้งที่ ${srcLine.customerPo.orderSeqNo}` : ""}`,
+    });
+  }
+
   const eligibleByCustomer: TripEditorData["eligibleByCustomer"] = {};
   for (const line of eligibleLines) {
     const cid = line.customerPo.customerId;
@@ -125,7 +164,22 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     })),
     customers: customers.map((c) => ({ id: c.id, name: c.companyName, branches: c.branches })),
     eligibleByCustomer,
+    outstandingByCustomer,
   };
+
+  // CP3 — หลังกระทบยอดแล้ว โชว์สรุปว่าแต่ละรายการตัดจากอะไร (อ่านจาก ledger จริง)
+  const allocationsByLine = new Map<string, { kind: string; qty: number }[]>();
+  if (trip.reconciledAt) {
+    const lineIds = trip.drops.flatMap((d) => d.lines.map((l) => l.id));
+    const allocs = lineIds.length
+      ? await db.loadingAllocation.findMany({ where: { loadingLineId: { in: lineIds } }, select: { loadingLineId: true, kind: true, qty: true } })
+      : [];
+    for (const a of allocs) {
+      if (!a.loadingLineId) continue;
+      (allocationsByLine.get(a.loadingLineId) ?? allocationsByLine.set(a.loadingLineId, []).get(a.loadingLineId)!).push({ kind: a.kind, qty: a.qty });
+    }
+  }
+  const ALLOC_LABEL: Record<string, string> = { FRESH: "ตัดออเดอร์ใหม่", OUTSTANDING: "ตัดของค้างเดิม", ADHOC: "ของหน้างาน" };
 
   return (
     <div className="max-w-2xl">
@@ -168,6 +222,14 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
             ยืนยันขึ้นของจริง
           </a>
         )}
+        {canManage && trip.loadedAt && !trip.reconciledAt && !trip.cancelledAt && (
+          <a
+            href={`/production/loading/${trip.id}/reconcile`}
+            className="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
+          >
+            กระทบยอด
+          </a>
+        )}
         {canManage && isDraft && (
           <CancelDocumentButton
             buttonLabel="ยกเลิกเที่ยว"
@@ -205,13 +267,18 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
                         {line.labelSnapshot}
                         {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
                       </span>
-                      <span className="shrink-0 text-xs">
+                      <span className="shrink-0 text-xs text-right">
                         แผน <span className="font-semibold">{line.qtyPlanned}</span>
                         {line.qtyLoaded != null && (
                           <>
                             {" · "}ขึ้นจริง{" "}
                             <span className={`font-semibold ${line.qtyLoaded !== line.qtyPlanned ? "text-amber-700" : "text-green-700"}`}>{line.qtyLoaded}</span>
                           </>
+                        )}
+                        {allocationsByLine.has(line.id) && (
+                          <span className="block text-gray-500">
+                            {allocationsByLine.get(line.id)!.map((a) => `${ALLOC_LABEL[a.kind] ?? a.kind} ${a.qty}`).join(" · ")}
+                          </span>
                         )}
                       </span>
                     </div>
