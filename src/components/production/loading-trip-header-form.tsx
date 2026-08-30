@@ -15,14 +15,15 @@ export function LoadingTripHeaderForm({
   onDone,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
-  initial: { tripDate: string; vehicleNote: string; note: string };
+  initial: { tripDate: string; plateNumber: string; driverName: string; note: string };
   /** ให้มา = โหมดแก้ไข (ส่ง version ไปกับ CAS) */
   version?: number;
   submitLabel: string;
   onDone?: () => void;
 }) {
   const [tripDate, setTripDate] = useState(initial.tripDate);
-  const [vehicleNote, setVehicleNote] = useState(initial.vehicleNote);
+  const [plateNumber, setPlateNumber] = useState(initial.plateNumber);
+  const [driverName, setDriverName] = useState(initial.driverName);
   const [note, setNote] = useState(initial.note);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -35,7 +36,8 @@ export function LoadingTripHeaderForm({
       try {
         const formData = new FormData();
         formData.set("tripDate", tripDate);
-        formData.set("vehicleNote", vehicleNote);
+        formData.set("plateNumber", plateNumber);
+        formData.set("driverName", driverName);
         formData.set("note", note);
         if (version != null) formData.set("version", String(version));
         const result = await action(formData);
@@ -58,9 +60,15 @@ export function LoadingTripHeaderForm({
         <label className="block text-xs font-medium text-gray-600 mb-1">วันที่ออกรถ *</label>
         <input type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" required />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">รถ / ทะเบียน / คนขับ</label>
-        <input value={vehicleNote} onChange={(e) => setVehicleNote(e.target.value)} placeholder="เช่น 6 ล้อ 71-2345 พี่หนุ่ม" className="w-full border rounded px-3 py-2 text-sm" />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">ทะเบียนรถ</label>
+          <input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="เช่น 71-2345" className="w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">คนขับ</label>
+          <input value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="เช่น พี่หนุ่ม" className="w-full border rounded px-3 py-2 text-sm" />
+        </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>

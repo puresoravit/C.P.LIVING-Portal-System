@@ -31,17 +31,31 @@ export function customerPoStatusBadge(hasProductionOrder: boolean, cancelled = f
 
 // P2 CP1 — สถานะเที่ยวรถ derive จาก timestamp facts ล้วน (loadedAt/reconciledAt/cancelledAt)
 // CP1 มีแต่ "วางแผน" — state อื่นเตรียมไว้ให้ CP2/CP3 ที่เป็นผู้ตั้ง fact
+//
+// CP7 (2026-08-30, Owner UAT) — "กำลังขึ้นของ" เดิม derive ตั้งแต่ DRAFT เพิ่งเริ่ม (แค่กดเริ่ม
+// งานจากคิว/เข้าหน้า start ก็ขึ้นสถานะนี้แล้ว) แต่ความจริงหน้างานคือ "ของยังไม่ได้ขึ้นจนกว่าจะ
+// พิมพ์ใบให้คนขึ้นของถือ" — ย้าย "กำลังขึ้นของ" มา derive จาก sheetPrintedAt (fact ที่มีอยู่
+// แล้วตั้งแต่ CP6) แทน ส่วน DRAFT ที่ยังไม่พิมพ์ = "เตรียมขึ้นของ" (สถานะเตรียมงาน ไม่ใช่ลงมือ)
 export function loadingTripStatusBadge(trip: {
   loadedAt: Date | null;
   reconciledAt: Date | null;
   cancelledAt: Date | null;
+  sheetPrintedAt?: Date | null;
 }): { status: string; config: StatusBadgeConfig } {
-  const status = trip.cancelledAt ? "CANCELLED" : trip.reconciledAt ? "RECONCILED" : trip.loadedAt ? "LOADED" : "DRAFT";
+  const status = trip.cancelledAt
+    ? "CANCELLED"
+    : trip.reconciledAt
+      ? "RECONCILED"
+      : trip.loadedAt
+        ? "LOADED"
+        : trip.sheetPrintedAt
+          ? "PRINTED"
+          : "DRAFT";
   return {
     status,
     config: {
-      // CP6 — ภาษาหน้างานตาม flow ใหม่: กำลังขึ้นของ → (พิมพ์แล้วดูจาก sheetPrintedAt แยก) → ส่งออกแล้ว
-      DRAFT: { label: "กำลังขึ้นของ", className: "bg-amber-100 text-amber-700" },
+      DRAFT: { label: "เตรียมขึ้นของ", className: "bg-blue-100 text-blue-700" },
+      PRINTED: { label: "กำลังขึ้นของ · รอบันทึกผล", className: "bg-amber-100 text-amber-700" },
       LOADED: { label: "ขึ้นของแล้ว", className: "bg-blue-100 text-blue-700" },
       RECONCILED: { label: "สินค้าถูกส่งออกแล้ว", className: "bg-green-100 text-green-700" },
       CANCELLED: { label: "ยกเลิกแล้ว", className: "bg-red-100 text-red-700" },

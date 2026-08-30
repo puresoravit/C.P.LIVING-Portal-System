@@ -51,7 +51,7 @@ export default async function LoadingTripsPage() {
                 </div>
                 <div className="text-sm text-gray-600 mt-1">
                   ออกรถ {trip.tripDate.toLocaleDateString("th-TH")}
-                  {trip.vehicleNote && ` · ${trip.vehicleNote}`}
+                  {(trip.plateNumber || trip.driverName) && ` · ${[trip.plateNumber, trip.driverName].filter(Boolean).join(" ")}`}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
                   {trip.drops.length} จุดส่ง · {lineCount} รายการ

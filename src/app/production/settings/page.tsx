@@ -74,6 +74,12 @@ export default async function ProductionSettingsPage() {
           name="inProgressStatus"
           defaultValue={settings.inProgressStatus}
         />
+        <TextareaField
+          label='ภาค/ปลายทาง สำหรับใบขึ้นของ (คั่นด้วย , เช่น "เหนือ, ใต้, อีสาน, กลาง" — ว่างได้ ใช้แค่นับรอบต่อภาคต่อเดือน ไม่มีผลต่อเส้นทาง)'
+          name="destinations"
+          defaultValue={formatSizesText(settings.destinations)}
+          rows={2}
+        />
         <SubmitButton>บันทึก</SubmitButton>
       </ActionForm>
     </div>

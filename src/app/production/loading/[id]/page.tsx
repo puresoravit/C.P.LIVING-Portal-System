@@ -9,6 +9,7 @@ import { BackLink } from "@/components/production/back-link";
 import { CancelDocumentButton } from "@/components/production/cancel-document-button";
 import { LoadingTripEditor, type TripEditorData } from "@/components/production/loading-trip-editor";
 import { cancelLoadingTrip } from "../actions";
+import { getProductionSettings } from "@/lib/production-settings";
 
 // P2 CP1/CP2 — หน้า detail เที่ยวรถ: ช่วง DRAFT = editor เต็ม (จุดส่ง/รายการ + FRESH picker
 // ที่กรองออเดอร์ยกเลิก + default กรองตรงสาขา + โชว์ยอดที่ถูกแผนไว้เที่ยวอื่น กัน accidental
@@ -29,21 +30,18 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   if (!trip) notFound();
 
   const badge = loadingTripStatusBadge(trip);
-  // CP6 — สถานะ "พิมพ์แล้ว·รอบันทึกผล" ทับ label DRAFT เมื่อพิมพ์ใบขึ้นของแล้ว (fact แยก ไม่ freeze แผน)
-  if (badge.status === "DRAFT" && trip.sheetPrintedAt) {
-    badge.config = { ...badge.config, DRAFT: { label: "พิมพ์ใบขึ้นของแล้ว · รอบันทึกผล", className: "bg-violet-100 text-violet-700" } };
-  }
   const isDraft = !trip.loadedAt && !trip.cancelledAt;
   const canManage = can(role, "loadingTrip.manage");
   const totalLines = trip.drops.reduce((sum, d) => sum + d.lines.length, 0);
 
-  const [customers, branches] = await Promise.all([
+  const [customers, branches, settings] = await Promise.all([
     db.customer.findMany({
       where: { active: true },
       select: { id: true, companyName: true, branches: { where: { active: true }, select: { id: true, name: true } } },
       orderBy: { companyName: "asc" },
     }),
     db.branch.findMany({ select: { id: true, name: true } }),
+    getProductionSettings(),
   ]);
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
@@ -152,9 +150,11 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   const editorData: TripEditorData = {
     tripId: trip.id,
     version: trip.version,
+    destinations: settings.destinations,
     header: {
       tripDate: trip.tripDate.toISOString().slice(0, 10),
-      vehicleNote: trip.vehicleNote ?? "",
+      plateNumber: trip.plateNumber ?? "",
+      driverName: trip.driverName ?? "",
       note: trip.note ?? "",
     },
     drops: trip.drops.map((d) => ({
@@ -165,6 +165,7 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       customerName: customerNameById.get(d.customerId) ?? "(ลูกค้าถูกปิดใช้งาน)",
       branchName: d.branchId ? branchNameById.get(d.branchId) ?? null : null,
       prodNo: d.productionOrderId ? prodNoById.get(d.productionOrderId) ?? null : null,
+      destinationLabel: d.destinationLabel,
       note: d.note,
       lines: d.lines.map((l) => ({
         id: l.id,
@@ -206,7 +207,13 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       </div>
       <p className="text-sm text-gray-500 mb-3">
         ออกรถ {trip.tripDate.toLocaleDateString("th-TH")}
-        {trip.vehicleNote && ` · ${trip.vehicleNote}`} — {trip.drops.length} จุดส่ง · {totalLines} รายการ
+        {(trip.plateNumber || trip.driverName) && ` · ${[trip.plateNumber, trip.driverName].filter(Boolean).join(" ")}`} — {trip.drops.length} จุดส่ง · {totalLines} รายการ
+        {/* CP7 item 6 — indicator รวมหลายใบผลิตเข้ารอบเดียวกัน ให้เห็นชัดทั้ง list และ detail */}
+        {new Set(trip.drops.map((d) => d.productionOrderId).filter(Boolean)).size > 1 && (
+          <span className="ml-1.5 inline-block text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 align-middle">
+            รวม {new Set(trip.drops.map((d) => d.productionOrderId).filter(Boolean)).size} ใบผลิตในรอบนี้
+          </span>
+        )}
       </p>
 
       {trip.cancelledAt && (
@@ -223,10 +230,22 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
         </div>
       )}
       {isDraft && trip.sheetPrintedAt && (
-        <div className="bg-violet-50 border border-violet-200 text-violet-800 text-sm rounded-lg px-3 py-2 mb-3">
-          🖨 พิมพ์ใบขึ้นของแล้วเมื่อ {trip.sheetPrintedAt.toLocaleString("th-TH")} · รอบันทึกผลขึ้นของ
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg px-3 py-2 mb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span>
+              🖨 พิมพ์ใบขึ้นของแล้วเมื่อ {trip.sheetPrintedAt.toLocaleString("th-TH")} — ขึ้นของเสร็จแล้วกดปุ่มขวานี้ได้เลย
+            </span>
+            {canManage && totalLines > 0 && (
+              <a
+                href={`/production/loading/${trip.id}/finalize`}
+                className="shrink-0 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold rounded-lg px-4 py-1.5"
+              >
+                บันทึกผลขึ้นของ →
+              </a>
+            )}
+          </div>
           {trip.sheetPrintedVersion != null && trip.version > trip.sheetPrintedVersion && (
-            <span className="block mt-0.5 font-medium">
+            <span className="block mt-1 font-medium">
               ⚠ แผนถูกแก้หลังพิมพ์ — ใบที่พิมพ์ไว้อาจไม่ตรงแผนล่าสุด แนะนำพิมพ์ใหม่ก่อนขึ้นของ
             </span>
           )}

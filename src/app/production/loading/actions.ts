@@ -79,7 +79,8 @@ export async function createLoadingTrip(formData: FormData): Promise<ActionResul
   if (!tripDateRaw) {
     return { success: false, error: "กรุณาเลือกวันที่ออกรถ", fieldErrors: { tripDate: "กรุณาเลือกวันที่ออกรถ" } };
   }
-  const vehicleNote = String(formData.get("vehicleNote") || "").trim() || null;
+  const plateNumber = String(formData.get("plateNumber") || "").trim() || null;
+  const driverName = String(formData.get("driverName") || "").trim() || null;
   const note = String(formData.get("note") || "").trim() || null;
 
   const trip = await db.$transaction(async (tx) => {
@@ -87,7 +88,7 @@ export async function createLoadingTrip(formData: FormData): Promise<ActionResul
     const seq = await getNextSeq("TRIP", period, tx);
     const tripNo = formatDocNumber("TRIP", period, seq);
     const created = await tx.loadingTrip.create({
-      data: { tripNo, tripDate: new Date(`${tripDateRaw}T00:00:00`), vehicleNote, note, createdById: user.id },
+      data: { tripNo, tripDate: new Date(`${tripDateRaw}T00:00:00`), plateNumber, driverName, note, createdById: user.id },
     });
     await auditTrip(tx, { userId: user.id, tripId: created.id, event: "CREATE", detail: { tripNo } });
     return created;
@@ -105,7 +106,8 @@ export async function updateLoadingTripHeader(tripId: string, formData: FormData
   if (!Number.isFinite(version)) return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่" };
   const tripDateRaw = String(formData.get("tripDate") || "").trim();
   if (!tripDateRaw) return { success: false, error: "กรุณาเลือกวันที่ออกรถ" };
-  const vehicleNote = String(formData.get("vehicleNote") || "").trim() || null;
+  const plateNumber = String(formData.get("plateNumber") || "").trim() || null;
+  const driverName = String(formData.get("driverName") || "").trim() || null;
   const note = String(formData.get("note") || "").trim() || null;
 
   try {
@@ -113,9 +115,9 @@ export async function updateLoadingTripHeader(tripId: string, formData: FormData
       await casDraftTrip(tx, tripId, version);
       await tx.loadingTrip.update({
         where: { id: tripId },
-        data: { tripDate: new Date(`${tripDateRaw}T00:00:00`), vehicleNote, note },
+        data: { tripDate: new Date(`${tripDateRaw}T00:00:00`), plateNumber, driverName, note },
       });
-      await auditTrip(tx, { userId: user.id, tripId, event: "EDIT_HEADER", detail: { tripDate: tripDateRaw, vehicleNote, note } });
+      await auditTrip(tx, { userId: user.id, tripId, event: "EDIT_HEADER", detail: { tripDate: tripDateRaw, plateNumber, driverName, note } });
     });
   } catch (error) {
     if (error instanceof TripConflictError) return conflictResult();
@@ -135,6 +137,7 @@ export async function addLoadingDrop(tripId: string, formData: FormData): Promis
   const customerId = String(formData.get("customerId") || "").trim();
   if (!customerId) return { success: false, error: "กรุณาเลือกลูกค้าปลายทาง" };
   const branchId = String(formData.get("branchId") || "").trim() || null;
+  const destinationLabel = String(formData.get("destinationLabel") || "").trim() || null;
   const note = String(formData.get("note") || "").trim() || null;
 
   try {
@@ -148,8 +151,8 @@ export async function addLoadingDrop(tripId: string, formData: FormData): Promis
         if (!branch) throw new Error("BRANCH_MISMATCH");
       }
       const last = await tx.loadingDrop.findFirst({ where: { tripId }, orderBy: { seq: "desc" }, select: { seq: true } });
-      await tx.loadingDrop.create({ data: { tripId, seq: (last?.seq ?? 0) + 1, customerId, branchId, note } });
-      await auditTrip(tx, { userId: user.id, tripId, event: "ADD_DROP", customerId, branchId, detail: {} });
+      await tx.loadingDrop.create({ data: { tripId, seq: (last?.seq ?? 0) + 1, customerId, branchId, destinationLabel, note } });
+      await auditTrip(tx, { userId: user.id, tripId, event: "ADD_DROP", customerId, branchId, detail: { destinationLabel } });
     });
   } catch (error) {
     if (error instanceof TripConflictError) return conflictResult();
@@ -406,6 +409,31 @@ export async function removeLoadingLine(tripId: string, lineId: string, formData
         branchId: line.drop.branchId,
         detail: { label: line.labelSnapshot },
       });
+    });
+  } catch (error) {
+    if (error instanceof TripConflictError) return conflictResult();
+    throw error;
+  }
+  revalidatePath(`/production/loading/${tripId}`);
+  return { success: true };
+}
+
+// CP7 — ตั้ง/แก้ "ภาค" ของจุดส่ง (ป้ายนับล้วน ไม่ผูก FK ตาม CLAUDE.md ห้าม hardcode) แก้ได้
+// อิสระจากวิธีสร้างจุดส่ง (คิว/สต็อก/เพิ่มมือ) — ไม่ต้อง thread ผ่านทุกฟอร์มสร้างจุด
+export async function setDropDestination(tripId: string, dropId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "loadingTrip.manage")) throw new Error("FORBIDDEN");
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่" };
+  const destinationLabel = String(formData.get("destinationLabel") || "").trim() || null;
+
+  try {
+    await db.$transaction(async (tx) => {
+      await casDraftTrip(tx, tripId, version);
+      const drop = await tx.loadingDrop.findFirst({ where: { id: dropId, tripId }, select: { customerId: true, branchId: true } });
+      if (!drop) throw new TripConflictError();
+      await tx.loadingDrop.update({ where: { id: dropId }, data: { destinationLabel } });
+      await auditTrip(tx, { userId: user.id, tripId, event: "SET_DROP_DESTINATION", customerId: drop.customerId, branchId: drop.branchId, detail: { destinationLabel } });
     });
   } catch (error) {
     if (error instanceof TripConflictError) return conflictResult();

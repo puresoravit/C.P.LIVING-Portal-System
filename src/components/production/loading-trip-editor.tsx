@@ -13,6 +13,7 @@ import {
   addLoadingLine,
   removeLoadingLine,
   addAdhocPlannedLine,
+  setDropDestination,
 } from "@/app/production/loading/actions";
 
 // P2 CP1 — editor เที่ยวรถช่วง DRAFT (mobile-first): จุดส่งเป็นการ์ดเรียงตาม seq มีปุ่ม ▲▼/ลบ
@@ -22,7 +23,9 @@ import {
 export type TripEditorData = {
   tripId: string;
   version: number;
-  header: { tripDate: string; vehicleNote: string; note: string };
+  /** CP7 — รายชื่อภาค/ปลายทางที่ตั้งค่าไว้ (production.destinations) ว่างได้ */
+  destinations: string[];
+  header: { tripDate: string; plateNumber: string; driverName: string; note: string };
   drops: {
     id: string;
     seq: number;
@@ -32,6 +35,8 @@ export type TripEditorData = {
     branchName: string | null;
     /** CP6 — เลขใบสั่งผลิตต้นทางของจุดนี้ (null = งานสต็อก) แสดงเป็นตัวเล็กอ้างอิงรอง */
     prodNo: string | null;
+    /** CP7 — ภาค/ปลายทางของจุดนี้ (ป้ายนับล้วน แก้ได้อิสระ) */
+    destinationLabel: string | null;
     note: string | null;
     lines: {
       id: string;
@@ -125,12 +130,12 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
 
   return (
     <div className="space-y-4">
-      {/* หัวเที่ยว */}
+      {/* CP7 item 7 — เลี่ยงคำว่า "เที่ยว" เป็นภาษาหลัก ใช้ "ข้อมูลรถ" ตรงตามที่แก้จริง (ทะเบียน/คนขับ) */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium text-gray-700">ข้อมูลเที่ยว</h2>
+          <h2 className="text-sm font-medium text-gray-700">ข้อมูลรถ</h2>
           <button type="button" onClick={() => setEditHeader((v) => !v)} className="text-xs text-blue-700 hover:underline">
-            {editHeader ? "ปิดการแก้ไข" : "แก้ไขข้อมูลเที่ยว"}
+            {editHeader ? "ปิดการแก้ไข" : "แก้ไขข้อมูลรถ"}
           </button>
         </div>
         {editHeader && (
@@ -270,6 +275,25 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                     ×
                   </button>
                 </div>
+
+                {/* CP7 — ภาค/ปลายทาง (ป้ายนับล้วน แก้ได้อิสระจากตอนสร้างจุด) */}
+                {data.destinations.length > 0 && (
+                  <div className="pl-6 mt-1">
+                    <select
+                      value={drop.destinationLabel ?? ""}
+                      disabled={isPending}
+                      onChange={(e) => run(() => setDropDestination(data.tripId, drop.id, fd({ destinationLabel: e.target.value })))}
+                      className="text-xs border rounded px-1.5 py-0.5 text-gray-600"
+                    >
+                      <option value="">— ภาค —</option>
+                      {data.destinations.map((dest) => (
+                        <option key={dest} value={dest}>
+                          {dest}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* รายการของจุดนี้ */}
                 <div className="mt-2 pl-6 space-y-1">
@@ -564,7 +588,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         setLineChoice("");
                         setLineQty("");
                       }}
-                      className="text-xs text-cp-navy hover:underline mt-1"
+                      className="mt-1.5 w-full text-sm font-medium text-cp-navy border border-cp-navy/40 border-dashed rounded-lg py-2 hover:bg-cp-navy/5"
                     >
                       + เพิ่มรายการในจุดนี้
                     </button>

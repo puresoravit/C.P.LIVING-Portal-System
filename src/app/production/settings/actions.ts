@@ -70,6 +70,9 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
     return { success: false, error: "กรุณากรอกสถานะเมื่อเริ่มผลิต", fieldErrors: { inProgressStatus: "กรุณากรอกสถานะเมื่อเริ่มผลิต" } };
   }
 
+  // CP7 — ภาค/ปลายทาง ว่างได้ (ไม่บังคับใช้ทุกจุดส่ง — แค่ป้ายชื่อไว้นับ)
+  const destinations = parseSizesText(String(formData.get("destinations") || ""));
+
   const values: Record<string, string> = {
     [PRODUCTION_SETTING_KEYS.sizes]: JSON.stringify(sizes),
     [PRODUCTION_SETTING_KEYS.departments]: JSON.stringify(departments),
@@ -79,6 +82,7 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
     [PRODUCTION_SETTING_KEYS.maxFabricsPerPlacement]: JSON.stringify(maxFabricsPerPlacement),
     [PRODUCTION_SETTING_KEYS.printCopies]: String(printCopies),
     [PRODUCTION_SETTING_KEYS.inProgressStatus]: inProgressStatus,
+    [PRODUCTION_SETTING_KEYS.destinations]: JSON.stringify(destinations),
   };
 
   for (const [key, value] of Object.entries(values)) {
@@ -86,7 +90,7 @@ export async function updateProductionSettings(formData: FormData): Promise<Acti
   }
 
   await db.auditLog.create({
-    data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "production", newValue: { sizes, departments, customerPoStatuses, productionOrderStatuses, maxGussetCount, maxFabricsPerPlacement, printCopies, inProgressStatus } },
+    data: { userId: user.id, action: "UPDATE", module: "AppSetting", recordId: "production", newValue: { sizes, departments, customerPoStatuses, productionOrderStatuses, maxGussetCount, maxFabricsPerPlacement, printCopies, inProgressStatus, destinations } },
   });
 
   revalidatePath("/production/settings");

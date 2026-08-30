@@ -91,7 +91,7 @@ export default async function StartLoadingJobPage(props: { params: Promise<{ pro
             submitLabel="ยืนยัน เริ่มขึ้นของ"
             openRuns={openRuns.map((r) => ({
               id: r.id,
-              label: `${r.tripNo} · ${r.tripDate.toLocaleDateString("th-TH")} · ${r.drops.length} จุดส่ง`,
+              label: `${r.tripNo} · ${r.tripDate.toLocaleDateString("th-TH")}${r.plateNumber ? ` · ${r.plateNumber}` : ""}${r.driverName ? ` (${r.driverName})` : ""} · ${r.drops.length} จุดส่ง`,
             }))}
             action={startLoadingJob.bind(null, order.id)}
           />

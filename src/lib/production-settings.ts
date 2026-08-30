@@ -32,6 +32,9 @@ export type ProductionSettings = {
   // สถานะที่ตั้งเมื่อกด "ยืนยันเริ่มผลิตและพิมพ์" ครั้งแรก — เป็นค่าตั้งค่า ไม่ hardcode
   // ในโค้ด (ตามกฎ CLAUDE.md เรื่องสถานะเอกสาร)
   inProgressStatus: string;
+  // CP7 (2026-08-30) — "ภาค/ปลายทาง" สำหรับใบขึ้นของ (01-สรุปรวม.md): ป้ายชื่อล้วนไว้นับ
+  // "รอบของภาค" รายเดือน ไม่มี logic เส้นทางใดๆ — ห้าม hardcode ตาม CLAUDE.md
+  destinations: string[];
 };
 
 const DEFAULTS: ProductionSettings = {
@@ -51,6 +54,7 @@ const DEFAULTS: ProductionSettings = {
   maxFabricsPerPlacement: { WING: 2, SIDE: 2 },
   printCopies: 8,
   inProgressStatus: "กำลังผลิต",
+  destinations: [],
 };
 
 const KEYS = {
@@ -62,6 +66,7 @@ const KEYS = {
   maxFabricsPerPlacement: "production.maxFabricsPerPlacement", // JSON Record<string, number>
   printCopies: "production.printCopies", // plain number (as string)
   inProgressStatus: "production.inProgressStatus", // plain string
+  destinations: "production.destinations", // JSON string[]
 } as const;
 
 export async function getProductionSettings(): Promise<ProductionSettings> {
@@ -76,6 +81,7 @@ export async function getProductionSettings(): Promise<ProductionSettings> {
   const maxFabricsPerPlacementRaw = map[KEYS.maxFabricsPerPlacement];
   const printCopiesRaw = map[KEYS.printCopies];
   const inProgressStatusRaw = map[KEYS.inProgressStatus];
+  const destinationsRaw = map[KEYS.destinations];
 
   const maxGussetCountParsed = maxGussetCountRaw ? Number(maxGussetCountRaw) : NaN;
   const printCopiesParsed = printCopiesRaw ? Number(printCopiesRaw) : NaN;
@@ -91,6 +97,7 @@ export async function getProductionSettings(): Promise<ProductionSettings> {
       : DEFAULTS.maxFabricsPerPlacement,
     printCopies: Number.isInteger(printCopiesParsed) && printCopiesParsed > 0 ? printCopiesParsed : DEFAULTS.printCopies,
     inProgressStatus: (inProgressStatusRaw ?? "").trim() || DEFAULTS.inProgressStatus,
+    destinations: destinationsRaw ? safeParseJson<string[]>(destinationsRaw, DEFAULTS.destinations) : DEFAULTS.destinations,
   };
 }
 

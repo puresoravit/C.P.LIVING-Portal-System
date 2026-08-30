@@ -10,7 +10,7 @@ export default function NewLoadingTripPage() {
       <BackLink fallbackHref="/production/loading" />
       <h1 className="text-lg font-semibold mt-2 mb-1">สร้างรอบจัดส่งเปล่า</h1>
       <p className="text-sm text-gray-500 mb-4">กรอกข้อมูลรอบก่อน แล้วค่อยเพิ่มจุดส่ง/รายการสินค้าในหน้าถัดไป — ปกติแนะนำเริ่มจากหน้าคิวงานแทน</p>
-      <LoadingTripHeaderForm action={createLoadingTrip} initial={{ tripDate: todayInputValue(), vehicleNote: "", note: "" }} submitLabel="สร้างรอบจัดส่ง" />
+      <LoadingTripHeaderForm action={createLoadingTrip} initial={{ tripDate: todayInputValue(), plateNumber: "", driverName: "", note: "" }} submitLabel="สร้างรอบจัดส่ง" />
     </div>
   );
 }

@@ -275,9 +275,9 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                   setAdhocQty("");
                   setAdhocProductId("");
                 }}
-                className="text-xs text-cp-navy hover:underline"
+                className="text-xs font-medium text-cp-navy border border-cp-navy/40 rounded-full px-2.5 py-1 hover:bg-cp-navy/5"
               >
-                + ของที่เพิ่มหน้างาน
+                + สินค้าที่เพิ่มหน้างาน
               </button>
             </div>
 

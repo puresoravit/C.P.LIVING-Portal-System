@@ -38,7 +38,7 @@ export default async function StartStockJobPage() {
         customers={customers.map((c) => ({ id: c.id, name: c.companyName, branches: c.branches }))}
         openRuns={openRuns.map((r) => ({
           id: r.id,
-          label: `${r.tripNo} · ${r.tripDate.toLocaleDateString("th-TH")} · ${r.drops.length} จุดส่ง`,
+          label: `${r.tripNo} · ${r.tripDate.toLocaleDateString("th-TH")}${r.plateNumber ? ` · ${r.plateNumber}` : ""}${r.driverName ? ` (${r.driverName})` : ""} · ${r.drops.length} จุดส่ง`,
         }))}
         action={startStockJob}
       />

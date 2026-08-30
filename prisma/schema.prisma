@@ -1428,7 +1428,11 @@ model LoadingTrip {
   id             String    @id @default(cuid())
   tripNo         String    @unique // getNextSeq("TRIP", YYYYMM) — reuse DocumentSequence เดิม
   tripDate       DateTime // วันออกรถตามแผน
-  vehicleNote    String? // ทะเบียน/คนขับ — free text V1 (ไม่ทำ master รถก่อนเวลา)
+  vehicleNote    String? // ทะเบียน/คนขับ — free text V1 เดิม (คงไว้กันข้อมูลหาย ของใหม่ใช้ 2 field ล่างแทน)
+  // CP7 (2026-08-30) — แยกจาก vehicleNote เป็น field จริงตามสเปกเดิม 01-สรุปรวม.md: ต้องนับ
+  // "รอบของรถคันนี้ เดือนนี้" ให้แม่นยำ (WHERE plateNumber ตรงกัน) ซึ่งข้อความก้อนเดียวทำไม่ได้
+  plateNumber    String?
+  driverName     String?
   note           String?
   version        Int       @default(0) // optimistic lock ทุก mutation (pattern CustomerPO.version)
   loadedAt       DateTime? // ยืนยันขึ้นของจริงแล้ว — one-way (CP2)
@@ -1464,6 +1468,10 @@ model LoadingDrop {
   // ห้ามสร้าง fake ProductionOrder เพื่อให้ FK ครบ) ใช้คำนวณสถานะคิวต่อใบผลิต
   productionOrderId String?
   photoPaths String[] // รูปใบขึ้นของที่ขีดนับแล้วของจุดส่งนี้ (บังคับใช้จริง CP2/CP3 — pattern poImagePaths)
+  // CP7 — "ภาค/ปลายทาง" ตามสเปกเดิม 01-สรุปรวม.md: ป้ายชื่อล้วนสำหรับนับ "รอบของภาค" รายเดือน
+  // ไม่มีการคำนวณเส้นทางใดๆ — รายชื่อที่เลือกได้มาจาก AppSetting (production.destinations)
+  // เก็บเป็น snapshot string ตรงๆ (ไม่ผูก FK) กันของเก่าพังถ้าแก้ลิสต์ทีหลัง
+  destinationLabel String?
   note       String?
 
   lines LoadingLine[]

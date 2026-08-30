@@ -7,11 +7,17 @@ import { getCompanySettings } from "@/lib/company-settings";
 import { LoadingSheetControls } from "@/components/production/loading-sheet-controls";
 import { confirmSheetPrinted } from "../../actions";
 
-// CP2 — ใบขึ้นของ A4 "แนวนอน": เอกสาร planned loading สำหรับพนักงานขีด tally หน้างาน
+// CP2/CP7 — ใบขึ้นของ A4 "แนวนอน": เอกสาร planned loading สำหรับพนักงานขีด tally หน้างาน
 // เรียงตามลำดับจุดส่ง — การพิมพ์ไม่ mutate อะไรเลย (ไม่ตั้ง qtyLoaded/ไม่ reconcile/ไม่สร้าง
 // ของค้าง — "พิมพ์" ≠ "ยืนยันขึ้นของ") — กันกระดาษเก่ากลายเป็น source of truth เงียบๆ ด้วย
 // การพิมพ์ "เวอร์ชันแผน N + เวลาพิมพ์" บนหัวใบ: แผนแก้เมื่อไหร่ version ขยับ กระดาษเก่า
 // เทียบกับหน้าจอแล้วรู้ทันทีว่าตกรุ่น
+//
+// CP7 (2026-08-30, Owner UAT) — สร้างใหม่ตามสเปกเดิม docs/production-module/01-สรุปรวม.md
+// (ตกหล่นตอน CP2): คอลัมน์ ร้านค้า|รายการ|ไซส์|ค้างเดิม|ของใหม่|ขีดนับ|รวมขึ้น|คงค้าง เป็น
+// ตารางต่อเนื่องเดียวทั้งใบ (ไม่แยกตารางต่อจุดส่งเหมือนเดิม) + 3 ตัวนับรีเซ็ตรายเดือน (เที่ยวที่/
+// รอบรถคันนี้/รอบภาค) นับที่ "ออกจริง" (reconciledAt ไม่ null) เที่ยวที่ยกเลิกก่อนออกไม่กินเลข
+// โดยธรรมชาติ (ไม่เคยมี reconciledAt) — ลำดับขึ้นรถ = สลับกับลำดับส่ง (โหลดจุดที่ส่งทีหลังก่อน)
 //
 // @page CSS เขียนเฉพาะหน้านี้ ไม่เพิ่ม key ใน PRINT_PROFILES เด็ดขาด — profile ตัวนั้นถูก
 // enumerate ใน dropdown ของ Billing (PrintProfileSelector/print-template-designer) เพิ่ม
@@ -23,15 +29,22 @@ const EMPTY_MARGIN_BOXES =
   "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
 const LANDSCAPE_PAGE_STYLE = `@page { size: A4 landscape; margin: 6mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
 
-/** ตาราง tally 6×5 = 30 ช่องต่อรายการ ตาม requirement — ช่องใหญ่พอขีดปากกาหน้างาน */
-function TallyGrid() {
+/** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว") ไม่ใช่ตารางย่อย 30 ช่องเล็ก */
+function TallyBoxes() {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 9mm)", gridAutoRows: "6.5mm" }}>
-      {Array.from({ length: 30 }, (_, i) => (
-        <div key={i} className="border border-gray-400" style={{ marginRight: "-1px", marginBottom: "-1px" }} />
+    <div className="flex" style={{ height: "9mm" }}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="border-r border-gray-400 last:border-r-0 flex-1" />
       ))}
     </div>
   );
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
 }
 
 export default async function LoadingSheetPrintPage(props: { params: Promise<{ id: string }> }) {
@@ -58,7 +71,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
 
   const totalPlanned = trip.drops.reduce((s, d) => s + d.lines.reduce((x, l) => x + l.qtyPlanned, 0), 0);
-  const statusText = trip.cancelledAt ? "ยกเลิกแล้ว" : trip.reconciledAt ? "สินค้าถูกส่งออกแล้ว" : trip.sheetPrintedAt ? "พิมพ์ใบขึ้นของแล้ว" : "กำลังขึ้นของ";
+  const statusText = trip.cancelledAt ? "ยกเลิกแล้ว" : trip.reconciledAt ? "สินค้าถูกส่งออกแล้ว" : trip.sheetPrintedAt ? "กำลังขึ้นของ" : "เตรียมขึ้นของ";
 
   // CP6 — confirm หลัง print dialog: บันทึกผู้พิมพ์/เวลา/เวอร์ชันแผน (พิมพ์ ≠ ส่งออก)
   const canConfirmPrint = !trip.cancelledAt && !trip.reconciledAt;
@@ -72,17 +85,65 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
     return confirmSheetPrinted(trip!.id, formData);
   }
 
-  // สินค้าเดียวหลายไซส์อ่านต่อเนื่อง: sort ตามชื่อ→ไซส์ แล้วแสดงชื่อครั้งเดียว (rowSpan)
-  function groupedRows(lines: NonNullable<typeof trip>["drops"][number]["lines"]) {
+  // CP7 — 3 ตัวนับรีเซ็ตรายเดือน นับที่ "ออกจริง" (reconciledAt) เท่านั้น — เที่ยวที่ยกเลิก/
+  // ยังไม่ส่งออกไม่กินเลขไปแล้วโดยธรรมชาติ (ตัวเลขของเที่ยวนี้เองเป็นค่าประมาณจนกว่าจะส่งออกจริง)
+  const monthLo = startOfMonth(trip.tripDate);
+  const monthHi = endOfMonth(trip.tripDate);
+  const reconciledThisMonthBefore = await db.loadingTrip.count({
+    where: {
+      reconciledAt: trip.reconciledAt ? { gte: monthLo, lt: trip.reconciledAt } : { gte: monthLo, lt: monthHi },
+    },
+  });
+  const tripSeqThisMonth = reconciledThisMonthBefore + 1;
+
+  let vehicleSeqThisMonth: number | null = null;
+  if (trip.plateNumber) {
+    const before = await db.loadingTrip.count({
+      where: {
+        plateNumber: trip.plateNumber,
+        reconciledAt: trip.reconciledAt ? { gte: monthLo, lt: trip.reconciledAt } : { gte: monthLo, lt: monthHi },
+      },
+    });
+    vehicleSeqThisMonth = before + 1;
+  }
+
+  const destinationLabels = [...new Set(trip.drops.map((d) => d.destinationLabel).filter((v): v is string => !!v))];
+  const destinationSeqs = new Map<string, number>();
+  for (const label of destinationLabels) {
+    const before = await db.loadingDrop.count({
+      where: {
+        destinationLabel: label,
+        trip: { reconciledAt: trip.reconciledAt ? { gte: monthLo, lt: trip.reconciledAt } : { gte: monthLo, lt: monthHi } },
+      },
+    });
+    destinationSeqs.set(label, before + 1);
+  }
+
+  // จัดกลุ่มต่อจุดส่ง: รายการ (label+sku) → ไซส์ → แยกยอด ค้างเดิม(OUTSTANDING) / ของใหม่(FRESH+ADHOC)
+  type SizeRow = { size: string | null; outstanding: number; fresh: number; note: string | null };
+  type LabelGroup = { label: string; sku: string | null; rows: SizeRow[] };
+  function groupDropLines(lines: NonNullable<typeof trip>["drops"][number]["lines"]): LabelGroup[] {
     const sorted = [...lines].sort((a, b) => a.labelSnapshot.localeCompare(b.labelSnapshot, "th") || (a.size ?? "").localeCompare(b.size ?? "", "th"));
-    const groups: { label: string; sku: string | null; rows: typeof sorted }[] = [];
+    const groups: LabelGroup[] = [];
     for (const line of sorted) {
-      const last = groups[groups.length - 1];
-      if (last && last.label === line.labelSnapshot && last.sku === line.skuSnapshot) last.rows.push(line);
-      else groups.push({ label: line.labelSnapshot, sku: line.skuSnapshot, rows: [line] });
+      let group = groups.find((g) => g.label === line.labelSnapshot && g.sku === line.skuSnapshot);
+      if (!group) {
+        group = { label: line.labelSnapshot, sku: line.skuSnapshot, rows: [] };
+        groups.push(group);
+      }
+      let row = group.rows.find((r) => r.size === line.size);
+      if (!row) {
+        row = { size: line.size, outstanding: 0, fresh: 0, note: null };
+        group.rows.push(row);
+      }
+      if (line.sourceType === "OUTSTANDING") row.outstanding += line.qtyPlanned;
+      else row.fresh += line.qtyPlanned; // FRESH + ADHOC รวมเป็น "ของใหม่"
+      if (line.note) row.note = row.note ? `${row.note}; ${line.note}` : line.note;
     }
     return groups;
   }
+
+  const totalDrops = trip.drops.length;
 
   return (
     <div className="mx-auto" style={{ maxWidth: "281mm" }}>
@@ -114,95 +175,138 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
             <span className="text-[10px] text-gray-500 ml-2">ใบขึ้นของ — เอกสารภายใน (แผนการขึ้น · ขีดนับหน้างาน)</span>
           </div>
           <div className="text-right">
-            <span className="font-semibold text-sm">{trip.tripNo}</span>
+            <span className="text-xs text-gray-400 font-mono">{trip.tripNo}</span>
             {trip.cancelledAt && <span className="ml-2 text-xs font-semibold text-red-700">[ยกเลิกแล้ว]</span>}
           </div>
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
-          <span><span className="text-gray-500">ออกรถ:</span> <span className="font-medium">{trip.tripDate.toLocaleDateString("th-TH")}</span></span>
-          {trip.vehicleNote && <span><span className="text-gray-500">รถ/คนขับ:</span> <span className="font-medium">{trip.vehicleNote}</span></span>}
-          <span><span className="text-gray-500">จุดส่ง:</span> <span className="font-medium">{trip.drops.length}</span></span>
+        <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
+          <span><span className="text-gray-500">วันที่:</span> <span className="font-medium">{trip.tripDate.toLocaleDateString("th-TH")}</span></span>
+          <span><span className="text-gray-500">เที่ยวที่ (เดือนนี้):</span> <span className="font-medium">{tripSeqThisMonth}</span></span>
+          <span>
+            <span className="text-gray-500">ภาค:</span>{" "}
+            <span className="font-medium">
+              {destinationLabels.length === 0
+                ? "—"
+                : destinationLabels.map((l) => `${l} รอบที่ ${destinationSeqs.get(l)}`).join(", ")}
+            </span>
+          </span>
+          <span><span className="text-gray-500">ทะเบียนรถ:</span> <span className="font-medium">{trip.plateNumber ?? "—"}</span></span>
+          <span>
+            <span className="text-gray-500">รถคันนี้ (เดือนนี้):</span>{" "}
+            <span className="font-medium">{vehicleSeqThisMonth != null ? `รอบที่ ${vehicleSeqThisMonth}` : "—"}</span>
+          </span>
+          <span><span className="text-gray-500">คนขับ:</span> <span className="font-medium">{trip.driverName ?? "—"}</span></span>
+          <span><span className="text-gray-500">จุดส่ง:</span> <span className="font-medium">{totalDrops}</span></span>
           <span><span className="text-gray-500">รวมตามแผน:</span> <span className="font-medium">{totalPlanned} ชิ้น</span></span>
           <span><span className="text-gray-500">สถานะ:</span> <span className="font-medium">{statusText}</span></span>
-          {trip.note && <span><span className="text-gray-500">หมายเหตุ:</span> {trip.note}</span>}
+          {trip.note && <span className="col-span-3"><span className="text-gray-500">หมายเหตุ:</span> {trip.note}</span>}
           {/* กันกระดาษตกรุ่น: เทียบเวอร์ชันแผนบนกระดาษกับหน้าจอได้ทันที */}
-          <span className="text-gray-500">พิมพ์ {new Date().toLocaleString("th-TH")} · แผนแก้ไขครั้งที่ {trip.version}</span>
+          <span className="col-span-3 text-gray-500">พิมพ์ {new Date().toLocaleString("th-TH")} · แผนแก้ไขครั้งที่ {trip.version}</span>
         </div>
 
-        {/* ต่อจุดส่ง */}
-        <div className="space-y-3">
-          {trip.drops.map((drop, idx) => (
-            <div key={drop.id} className="print-keep-together">
-              <div className="bg-gray-100 print:bg-gray-100 border border-gray-700 border-b-0 rounded-t px-2 py-0.5 flex items-center justify-between">
-                <span className="font-semibold">
-                  จุดที่ {idx + 1} — {customerNameById.get(drop.customerId) ?? "—"}
-                  {drop.branchId && ` (${branchNameById.get(drop.branchId) ?? ""})`}
-                  {drop.note && <span className="font-normal text-gray-600"> · {drop.note}</span>}
-                </span>
-                <span className="text-xs">รวมแผนจุดนี้ {drop.lines.reduce((s, l) => s + l.qtyPlanned, 0)} ชิ้น</span>
-              </div>
-              <table className="w-full border-collapse text-[13px]" style={{ border: "1px solid #374151" }}>
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left px-1.5 py-0.5 font-medium w-[34%]">สินค้า</th>
-                    <th className="text-left px-1.5 py-0.5 font-medium w-[9%]">ไซส์</th>
-                    <th className="text-right px-1.5 py-0.5 font-medium w-[7%]">แผน</th>
-                    <th className="text-left px-1.5 py-0.5 font-medium">ช่องขีดนับ</th>
-                    <th className="text-center px-1.5 py-0.5 font-medium w-[10%]">นับได้จริง</th>
+        {/* ตารางต่อเนื่องเดียวทั้งใบ ตาม 01-สรุปรวม.md: ร้านค้า | รายการ | ไซส์ | ค้างเดิม | ของใหม่ | ขีดนับ | รวมขึ้น | คงค้าง */}
+        <table className="w-full border-collapse text-[13px] print-keep-together" style={{ border: "1px solid #374151" }}>
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left px-1.5 py-0.5 font-medium w-[16%]">ร้านค้า</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[24%]">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[7%]">ไซส์</th>
+              <th className="text-right px-1.5 py-0.5 font-medium w-[7%]">ค้างเดิม</th>
+              <th className="text-right px-1.5 py-0.5 font-medium w-[7%]">ของใหม่</th>
+              <th className="text-left px-1.5 py-0.5 font-medium w-[20%]">ขีดนับ</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[9%]">รวมขึ้น</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[9%]">คงค้าง</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trip.drops.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีจุดส่ง —</td>
+              </tr>
+            )}
+            {trip.drops.map((drop, dropIdx) => {
+              const groups = groupDropLines(drop.lines);
+              const dropRowCount = groups.reduce((s, g) => s + g.rows.length, 0) || 1;
+              // ลำดับขึ้นรถ = ย้อนลำดับส่ง (จุดที่ส่งทีหลังสุด โหลดขึ้นรถก่อนสุด)
+              const loadOrder = totalDrops - drop.seq + 1;
+              const loadHint = loadOrder === 1 ? " · ขึ้นก่อน" : loadOrder === totalDrops ? " · ขึ้นทีหลัง" : "";
+              let dropCellRendered = false;
+              if (groups.length === 0) {
+                return (
+                  <tr key={drop.id} className="border-b border-gray-300" style={{ height: "34pt", verticalAlign: "top" }}>
+                    <td className="px-1.5 py-1 border-r border-gray-300 align-top">
+                      <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
+                      {drop.branchId && <span className="block text-[10px] text-gray-500">{branchNameById.get(drop.branchId) ?? ""}</span>}
+                      <span className="block text-[10px] text-gray-500">
+                        ลงจุดที่ {drop.seq}/{totalDrops}{loadHint}
+                      </span>
+                    </td>
+                    <td colSpan={7} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีรายการ —</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {drop.lines.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีรายการ —</td>
-                    </tr>
-                  )}
-                  {groupedRows(drop.lines).flatMap((group) =>
-                    group.rows.map((line, i) => (
-                      <tr key={line.id} className="border-b border-gray-300" style={{ verticalAlign: "top" }}>
-                        {i === 0 && (
-                          <td rowSpan={group.rows.length} className="px-1.5 py-1 border-r border-gray-300">
-                            <span className="font-medium">{group.label}</span>
-                            {group.sku && <span className="block text-[10px] text-gray-500 font-mono">{group.sku}</span>}
-                          </td>
-                        )}
-                        <td className="px-1.5 py-1 border-r border-gray-300">{line.size ?? "-"}</td>
-                        <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-300">{line.qtyPlanned}</td>
-                        <td className="px-1.5 py-1 border-r border-gray-300">
-                          <TallyGrid />
-                          {line.note && <div className="text-[10px] text-gray-600 mt-0.5">หมายเหตุ: {line.note}</div>}
+                );
+              }
+              return groups.flatMap((group, gIdx) =>
+                group.rows.map((row, rIdx) => {
+                  const isFirstOfDrop = !dropCellRendered;
+                  if (isFirstOfDrop) dropCellRendered = true;
+                  return (
+                    <tr key={`${drop.id}-${gIdx}-${rIdx}`} className="border-b border-gray-300" style={{ height: "34pt", verticalAlign: "top" }}>
+                      {isFirstOfDrop && (
+                        <td rowSpan={dropRowCount} className="px-1.5 py-1 border-r border-gray-300 align-top">
+                          <span className="font-medium">{customerNameById.get(drop.customerId) ?? "—"}</span>
+                          {drop.branchId && <span className="block text-[10px] text-gray-500">{branchNameById.get(drop.branchId) ?? ""}</span>}
+                          <span className="block text-[10px] text-gray-500">
+                            ลงจุดที่ {drop.seq}/{totalDrops}{loadHint}
+                          </span>
                         </td>
-                        <td className="px-1.5 py-1" />
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
+                      )}
+                      {rIdx === 0 && (
+                        <td rowSpan={group.rows.length} className="px-1.5 py-1 border-r border-gray-300 align-top">
+                          <span className="font-medium">{group.label}</span>
+                          {group.sku && <span className="block text-[10px] text-gray-500 font-mono">{group.sku}</span>}
+                        </td>
+                      )}
+                      <td className="px-1.5 py-1 border-r border-gray-300">{row.size ?? "-"}</td>
+                      <td className="px-1.5 py-1 text-right border-r border-gray-300">{row.outstanding || ""}</td>
+                      <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-300">{row.fresh || ""}</td>
+                      <td className="px-1.5 py-1 border-r border-gray-300">
+                        <TallyBoxes />
+                        {row.note && <div className="text-[10px] text-gray-600 mt-0.5">หมายเหตุ: {row.note}</div>}
+                      </td>
+                      <td className="px-1.5 py-1 border-r border-gray-300" />
+                      <td className="px-1.5 py-1" />
+                    </tr>
+                  );
+                })
+              );
+            })}
+          </tbody>
+        </table>
 
-        {/* พื้นที่เขียนมือหน้างาน — กระดาษล้วน ไม่มีความหมายในระบบจนกว่าจะบันทึกตอนกระทบยอด */}
+        {/* พื้นที่เขียนมือหน้างาน — กระดาษล้วน ไม่มีความหมายในระบบจนกว่าจะบันทึกตอนบันทึกผล — หน้าสุดท้ายหน้าเดียวตามสเปก */}
         <div className="mt-3 print-keep-together">
           <div className="bg-gray-100 print:bg-gray-100 border border-gray-700 border-b-0 rounded-t px-2 py-0.5 font-semibold">
-            รายการเพิ่มหน้างาน (เขียนมือ — นำเข้าระบบตอนกระทบยอด)
+            รายการเพิ่มหน้างาน (เขียนมือ — นำเข้าระบบตอนบันทึกผลขึ้นของ)
           </div>
           <table className="w-full border-collapse text-[13px]" style={{ border: "1px solid #374151" }}>
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
                 <tr key={i} className="border-b border-gray-300" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[27%]" style={{ height: "12mm" }} />
-                  <td className="px-1.5 py-1 border-r border-gray-300 w-[9%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[16%]" style={{ height: "34pt" }} />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[24%]" />
                   <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-300">
-                    <TallyGrid />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[7%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[20%]">
+                    <TallyBoxes />
                   </td>
-                  <td className="px-1.5 py-1 w-[10%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-300 w-[9%]" />
+                  <td className="px-1.5 py-1 w-[9%]" />
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="text-[10px] text-gray-500 mt-0.5">คอลัมน์: สินค้า / ไซส์ / จำนวน / ช่องขีดนับ / นับได้จริง — จุดส่งไหนระบุกำกับในช่องสินค้า</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">คอลัมน์: ร้านค้า / รายการ / ไซส์ / ค้างเดิม / ของใหม่ / ขีดนับ / รวมขึ้น / คงค้าง</div>
         </div>
       </div>
     </div>
