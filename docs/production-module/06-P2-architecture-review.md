@@ -1,5 +1,8 @@
 # 06 — P2 Architecture Review (ทบทวน/แย้ง 04) + Owner Decision Sheet
 
+> **⚠ SUPERSEDED (2026-08-30):** decision sheet ในเอกสารนี้ถูกตัดสินครบแล้ว (D1-D5) และ implementation จริงเสร็จ CP0-CP5 — **อ่าน `08-P2-current-truth.md` เป็น source of truth แทนเสมอ**
+
+
 **สถานะ: ข้อเสนอเพื่อ Owner review — ยังไม่ implement, ไม่มี schema/migration/โค้ด P2 ใดๆ**
 
 รอบนี้เอา `04-P2-discovery-proposal.md` มา challenge เทียบกับโค้ด/schema P1 จริงหลังปิด S6 — จุดที่ 04 คิดถูกคงไว้ จุดที่คิดตื้นไปแก้ตามด้านล่าง (ระบุชัดว่าเปลี่ยนอะไรเพราะอะไร)

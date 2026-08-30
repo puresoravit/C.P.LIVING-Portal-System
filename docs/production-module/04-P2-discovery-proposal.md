@@ -1,5 +1,8 @@
 # 04 — P2 Discovery: การขึ้นของและจัดส่ง (Loading & Delivery)
 
+> **⚠ SUPERSEDED (2026-08-30):** เอกสารนี้เป็น discovery ระหว่างทาง — สถาปัตยกรรมจริงหลายจุดเปลี่ยนไปแล้ว (เพิ่ม LoadingDrop, ledger เดียว loading_allocations, ไม่มี status text ฯลฯ) **อ่าน `08-P2-current-truth.md` เป็น source of truth แทนเสมอ**
+
+
 **สถานะ: ข้อเสนอเพื่อ Owner review เท่านั้น — ยังไม่ implement, ไม่มี Prisma schema/migration ใดๆ ในรอบนี้**
 
 เขียนขึ้นหลังปิด S6 (P1 พร้อม final confirm) ตามที่ Owner ขอให้ "inspect + วางแผน P2 ได้ แต่ห้าม implement/schema/migration" — อิงกฎธุรกิจล่าสุดที่ Owner ให้มาตรงๆ ทุกข้อ ไม่เดาเพิ่ม
