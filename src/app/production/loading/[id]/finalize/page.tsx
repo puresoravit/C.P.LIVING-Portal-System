@@ -5,11 +5,12 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { freshCapacityFor, outstandingRemaining } from "@/lib/loading-reconcile";
 import { BackLink } from "@/components/production/back-link";
-import { ReconcileForm, type ReconcileData } from "@/components/production/reconcile-form";
+import { FinalizeLoadingForm, type FinalizeData } from "@/components/production/finalize-loading-form";
 
-// CP3 — หน้ากระทบยอด: คนเห็นสามฝั่งชัด "ของที่ขึ้นจริง → จะตัดจากอะไร → หลังตัดแล้วเหลืออะไร"
-// ภาษาหน้างานล้วน (ไม่มีคำว่า allocation ให้ผู้ใช้ต้องเข้าใจ) — server action ตรวจซ้ำทุกกติกา
-export default async function ReconcilePage(props: { params: Promise<{ id: string }> }) {
+// CP6 — หน้าบันทึกผลขึ้นของ (แทน confirm + reconcile 2 หน้าเดิม): หลังขึ้นของจริงเสร็จ
+// คีย์ยอดจริง + แนบรูปใบที่ขีดนับ + ระบุที่มาของทุกชิ้น (ภาษาหน้างาน — เติมให้อัตโนมัติ
+// ตามแผน แก้ได้ทุกอย่าง ไม่ FIFO) แล้วกด "ยืนยันส่งออก" ครั้งเดียวจบใน tx เดียว
+export default async function FinalizeLoadingPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
@@ -20,13 +21,13 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
   });
   if (!trip) notFound();
 
-  const eligible = trip.loadedAt && !trip.reconciledAt && !trip.cancelledAt && can(role, "loadingTrip.manage");
+  const eligible = !trip.loadedAt && !trip.reconciledAt && !trip.cancelledAt && can(role, "loadingTrip.manage");
   if (!eligible) {
     return (
       <div className="max-w-2xl">
         <BackLink fallbackHref={`/production/loading/${trip.id}`} />
         <div className="mt-3 bg-white border border-dashed rounded-lg p-4 text-sm text-gray-500">
-          กระทบยอดได้เฉพาะเที่ยวที่ยืนยันขึ้นของแล้วและยังไม่ถูกกระทบยอด/ยกเลิก — หรือคุณไม่มีสิทธิ์
+          บันทึกผลขึ้นของได้เฉพาะรอบที่ยังเปิดอยู่ (ยังไม่ส่งออก/ไม่ถูกยกเลิก) — หรือคุณไม่มีสิทธิ์
         </div>
       </div>
     );
@@ -36,16 +37,15 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
   const customers = await db.customer.findMany({ where: { id: { in: customerIds } }, select: { id: true, companyName: true } });
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
 
-  // demand context ต่อ customerPoLineId ที่เที่ยวนี้แตะ: capacity (ตัดออเดอร์ใหม่ได้สูงสุด) +
+  // demand context ต่อ customerPoLineId ที่รอบนี้แตะ: capacity (ตัดออเดอร์ใหม่ได้สูงสุด) +
   // ยอดสั่งปัจจุบัน + ยอดสั่งผลิตล่าสุด (context เตือนเมื่อไม่เท่ากัน — ห้ามใช้สร้างของค้าง)
   const poLineIds = [...new Set(trip.drops.flatMap((d) => d.lines.map((l) => l.customerPoLineId)).filter((v): v is string => !!v))];
-  const capacityByPoLine: ReconcileData["capacityByPoLine"] = {};
+  const capacityByPoLine: FinalizeData["capacityByPoLine"] = {};
   for (const id of poLineIds) {
     const c = await freshCapacityFor(db, id);
     capacityByPoLine[id] = { capacity: c.capacity, qtyCurrent: c.qtyCurrent, cancelled: c.cancelled, productionQty: null };
   }
   if (poLineIds.length) {
-    // ยอดสั่งผลิตของ Rev ปัจจุบัน (เฉพาะใบสั่งผลิตที่ไม่ถูกยกเลิก) — context เท่านั้น
     const prodItems = await db.productionItem.findMany({
       where: { customerPoLineId: { in: poLineIds }, revision: { productionOrder: { cancelledAt: null } } },
       select: { customerPoLineId: true, qty: true, revision: { select: { revNo: true, productionOrder: { select: { currentRevNo: true } } } } },
@@ -57,7 +57,7 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
     }
   }
 
-  // บัตรค้างเปิดอยู่ของลูกค้าในเที่ยว (เป้าหมาย "ตัดของค้างเดิม")
+  // บัตรค้างเปิดอยู่ของลูกค้าในรอบ (เป้าหมาย "ตัดของค้างเดิม")
   const openOutstandings = await db.outstandingDelivery.findMany({
     where: { closedAt: null },
     include: { allocations: { select: { qty: true } } },
@@ -71,7 +71,7 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
       })
     : [];
   const outLineById = new Map(outLines.map((l) => [l.id, l]));
-  const outstandingOptions: ReconcileData["outstandingOptions"] = [];
+  const outstandingOptions: FinalizeData["outstandingOptions"] = [];
   for (const o of openOutstandings) {
     const srcLine = outLineById.get(o.customerPoLineId);
     if (!srcLine) continue;
@@ -97,20 +97,22 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
     take: 500,
   });
 
-  const data: ReconcileData = {
+  const data: FinalizeData = {
     tripId: trip.id,
     tripNo: trip.tripNo,
     version: trip.version,
+    sheetPrinted: !!trip.sheetPrintedAt,
     drops: trip.drops.map((d, idx) => ({
       id: d.id,
       label: `${idx + 1}. ${customerNameById.get(d.customerId) ?? "—"}`,
       customerId: d.customerId,
+      photoPaths: d.photoPaths,
       lines: d.lines.map((l) => ({
         id: l.id,
         label: l.labelSnapshot,
         size: l.size,
         sourceType: l.sourceType,
-        qtyLoaded: l.qtyLoaded ?? 0,
+        qtyPlanned: l.qtyPlanned,
         customerPoLineId: l.customerPoLineId,
         plannedOutstandingId: l.plannedOutstandingId,
       })),
@@ -123,12 +125,14 @@ export default async function ReconcilePage(props: { params: Promise<{ id: strin
   return (
     <div className="max-w-2xl">
       <BackLink fallbackHref={`/production/loading/${trip.id}`} />
-      <h1 className="text-lg font-semibold mt-2 mb-1">กระทบยอด — {trip.tripNo}</h1>
+      <h1 className="text-lg font-semibold mt-2 mb-1">
+        บันทึกผลขึ้นของ <span className="text-xs text-gray-400 font-mono font-normal">{trip.tripNo}</span>
+      </h1>
       <p className="text-sm text-gray-500 mb-4">
-        ระบุว่า &quot;ของที่ขึ้นจริง&quot; แต่ละรายการตัดจากอะไร (ออเดอร์ใหม่ / ของค้างเดิม / ของหน้างานที่ไม่มีออเดอร์) — ระบบไม่เลือกให้เอง
-        ทุกชิ้นต้องมีที่มา และจะเห็นผลลัพธ์ก่อนกดยืนยันเสมอ
+        คีย์ยอดที่ขึ้นจริง + แนบรูปใบขึ้นของที่ขีดนับแล้ว แต่ละรายการระบุว่าตัดจากอะไร (ออเดอร์ใหม่ / ของค้างเดิม / ของหน้างาน) —
+        ระบบเติมให้ตามแผนแต่แก้ได้ทุกอย่าง ไม่เลือกให้เอง กด &quot;ยืนยันส่งออก&quot; ครั้งเดียวเมื่อทุกอย่างถูกต้อง
       </p>
-      <ReconcileForm data={data} />
+      <FinalizeLoadingForm data={data} />
     </div>
   );
 }

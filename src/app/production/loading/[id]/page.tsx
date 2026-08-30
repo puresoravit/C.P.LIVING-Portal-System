@@ -13,6 +13,8 @@ import { cancelLoadingTrip } from "../actions";
 // P2 CP1/CP2 — หน้า detail เที่ยวรถ: ช่วง DRAFT = editor เต็ม (จุดส่ง/รายการ + FRESH picker
 // ที่กรองออเดอร์ยกเลิก + default กรองตรงสาขา + โชว์ยอดที่ถูกแผนไว้เที่ยวอื่น กัน accidental
 // duplicate โดยไม่ hard-block) — หลัง LOADED = อ่านอย่างเดียว โชว์แผน vs ขึ้นจริง + รูปหลักฐาน
+// CP6 Queue-first — ภาษาหน้างาน "รอบจัดส่ง" (เลข TRIP เป็นรอง) จุดส่งโชว์ใบผลิตต้นทาง ·
+// ปุ่มหลัก: พิมพ์ใบขึ้นของ → บันทึกผลขึ้นของ (finalize เดียวจบ แทน confirm+reconcile เดิม)
 export default async function LoadingTripDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getServerSession(authOptions);
@@ -27,6 +29,10 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   if (!trip) notFound();
 
   const badge = loadingTripStatusBadge(trip);
+  // CP6 — สถานะ "พิมพ์แล้ว·รอบันทึกผล" ทับ label DRAFT เมื่อพิมพ์ใบขึ้นของแล้ว (fact แยก ไม่ freeze แผน)
+  if (badge.status === "DRAFT" && trip.sheetPrintedAt) {
+    badge.config = { ...badge.config, DRAFT: { label: "พิมพ์ใบขึ้นของแล้ว · รอบันทึกผล", className: "bg-violet-100 text-violet-700" } };
+  }
   const isDraft = !trip.loadedAt && !trip.cancelledAt;
   const canManage = can(role, "loadingTrip.manage");
   const totalLines = trip.drops.reduce((sum, d) => sum + d.lines.length, 0);
@@ -41,6 +47,13 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   ]);
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
+
+  // CP6 — ใบสั่งผลิตต้นทางของแต่ละจุดส่ง (งานสต็อกไม่มี)
+  const jobOrderIds = trip.drops.map((d) => d.productionOrderId).filter((v): v is string => !!v);
+  const jobOrders = jobOrderIds.length
+    ? await db.productionOrder.findMany({ where: { id: { in: jobOrderIds } }, select: { id: true, prodNo: true } })
+    : [];
+  const prodNoById = new Map(jobOrders.map((o) => [o.id, o.prodNo]));
 
   const actorIds = [trip.loadedById, trip.cancelledById].filter((v): v is string => !!v);
   const actors = actorIds.length
@@ -151,6 +164,7 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       branchId: d.branchId,
       customerName: customerNameById.get(d.customerId) ?? "(ลูกค้าถูกปิดใช้งาน)",
       branchName: d.branchId ? branchNameById.get(d.branchId) ?? null : null,
+      prodNo: d.productionOrderId ? prodNoById.get(d.productionOrderId) ?? null : null,
       note: d.note,
       lines: d.lines.map((l) => ({
         id: l.id,
@@ -185,7 +199,9 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     <div className="max-w-2xl">
       <BackLink fallbackHref="/production/loading" />
       <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-lg font-semibold">{trip.tripNo}</h1>
+        <h1 className="text-lg font-semibold">
+          รอบจัดส่ง <span className="text-xs text-gray-400 font-mono font-normal">{trip.tripNo}</span>
+        </h1>
         <StatusBadge {...badge} />
       </div>
       <p className="text-sm text-gray-500 mb-3">
@@ -200,10 +216,20 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
           {trip.cancelReason && ` — เหตุผล: ${trip.cancelReason}`}
         </div>
       )}
-      {trip.loadedAt && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-3 py-2 mb-3">
-          ✓ ยืนยันขึ้นของจริงแล้วเมื่อ {trip.loadedAt.toLocaleString("th-TH")}
-          {trip.loadedById && ` โดย ${actorNameById.get(trip.loadedById) ?? ""}`} — แผนถูกล็อก แก้ไขต่อได้ที่ขั้นกระทบยอด
+      {trip.reconciledAt && (
+        <div className="bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg px-3 py-2 mb-3">
+          ✓ สินค้าถูกส่งออกแล้วเมื่อ {trip.reconciledAt.toLocaleString("th-TH")}
+          {trip.loadedById && ` โดย ${actorNameById.get(trip.loadedById) ?? ""}`} — ยอดขึ้นจริงและการตัดยอดถูกบันทึกครบแล้ว
+        </div>
+      )}
+      {isDraft && trip.sheetPrintedAt && (
+        <div className="bg-violet-50 border border-violet-200 text-violet-800 text-sm rounded-lg px-3 py-2 mb-3">
+          🖨 พิมพ์ใบขึ้นของแล้วเมื่อ {trip.sheetPrintedAt.toLocaleString("th-TH")} · รอบันทึกผลขึ้นของ
+          {trip.sheetPrintedVersion != null && trip.version > trip.sheetPrintedVersion && (
+            <span className="block mt-0.5 font-medium">
+              ⚠ แผนถูกแก้หลังพิมพ์ — ใบที่พิมพ์ไว้อาจไม่ตรงแผนล่าสุด แนะนำพิมพ์ใหม่ก่อนขึ้นของ
+            </span>
+          )}
         </div>
       )}
 
@@ -216,27 +242,19 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
         </a>
         {canManage && isDraft && totalLines > 0 && (
           <a
-            href={`/production/loading/${trip.id}/confirm`}
-            className="inline-block text-xs px-2 py-0.5 rounded-full bg-green-700 text-white hover:bg-green-800"
-          >
-            ยืนยันขึ้นของจริง
-          </a>
-        )}
-        {canManage && trip.loadedAt && !trip.reconciledAt && !trip.cancelledAt && (
-          <a
-            href={`/production/loading/${trip.id}/reconcile`}
+            href={`/production/loading/${trip.id}/finalize`}
             className="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
           >
-            กระทบยอด
+            บันทึกผลขึ้นของ
           </a>
         )}
         {canManage && isDraft && (
           <CancelDocumentButton
-            buttonLabel="ยกเลิกเที่ยว"
-            modalTitle="ยกเลิกเที่ยวรถนี้?"
+            buttonLabel="ยกเลิกรอบจัดส่ง"
+            modalTitle="ยกเลิกรอบจัดส่งนี้?"
             warningLines={[
-              "ยกเลิกได้เฉพาะเที่ยวที่ยังไม่ยืนยันขึ้นของ — ไม่กระทบออเดอร์/ใบสั่งผลิตใดๆ",
-              "เที่ยวที่ยกเลิกจะไม่ถูกนับเป็นแผน/ยอดขึ้นของอีก — การยกเลิกถอนกลับไม่ได้",
+              "ยกเลิกได้เฉพาะรอบที่ยังไม่บันทึกผลขึ้นของ — ไม่กระทบออเดอร์/ใบสั่งผลิตใดๆ",
+              "รอบที่ยกเลิกจะไม่ถูกนับเป็นแผน/ยอดขึ้นของอีก — การยกเลิกถอนกลับไม่ได้",
             ]}
             danger={false}
             version={trip.version}
@@ -255,6 +273,9 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
               <div className="text-sm font-medium mb-1">
                 {idx + 1}. {customerNameById.get(drop.customerId) ?? "—"}
                 {drop.branchId && <span className="text-gray-500"> — {branchNameById.get(drop.branchId) ?? ""}</span>}
+                {drop.productionOrderId && (
+                  <span className="text-xs text-gray-400 font-mono font-normal ml-1.5">{prodNoById.get(drop.productionOrderId) ?? ""}</span>
+                )}
                 {drop.note && <span className="text-xs text-gray-500 font-normal"> · {drop.note}</span>}
               </div>
               {drop.lines.length === 0 ? (

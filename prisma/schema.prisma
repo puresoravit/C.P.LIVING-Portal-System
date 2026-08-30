@@ -1215,6 +1215,12 @@ model ProductionOrder {
   cancelledAt   DateTime?
   cancelledById String?
   cancelReason  String?
+  // CP6 Queue-first UX (2026-08-30) — fact "ผลิตเสร็จแล้ว": ฝ่ายขึ้นของเป็นผู้รับรองตอนกด
+  // "ยืนยันขึ้นออเดอร์นี้วันนี้" (จุดตรวจของจริงสุดท้ายก่อนขึ้นรถ — Owner ไม่เพิ่มขั้นให้
+  // หัวหน้าผลิตกดแยก) — timestamp fact ตั้งครั้งเดียว ไม่ใช่ status text, คนละ fact กับ
+  // loading state โดยสิ้นเชิง ห้าม overwrite กัน
+  productionCompletedAt   DateTime?
+  productionCompletedById String?
   createdById  String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -1432,6 +1438,12 @@ model LoadingTrip {
   cancelledAt    DateTime? // ยกเลิกได้เฉพาะช่วง DRAFT (workflow มาใน CP2)
   cancelledById  String?
   cancelReason   String?
+  // CP6 — fact การพิมพ์ใบขึ้นของ (ยืนยันหลัง print dialog กลับมา — pattern S4): เก็บผู้พิมพ์/
+  // เวลา/เวอร์ชันแผนที่พิมพ์ — พิมพ์ ≠ ขึ้นของแล้ว/ส่งออกแล้ว ไม่แตะ quantity ใดๆ · พิมพ์ซ้ำ
+  // อัปเดต fact ล่าสุด (ประวัติทุกครั้งอยู่ใน AuditLog)
+  sheetPrintedAt      DateTime?
+  sheetPrintedById    String?
+  sheetPrintedVersion Int?
   createdById    String
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -1448,6 +1460,9 @@ model LoadingDrop {
   seq        Int // ลำดับจุดส่งในเที่ยว (ไปไหนก่อน-หลัง) — reorder ได้ช่วง DRAFT
   customerId String // เที่ยวเดียวหลายลูกค้า/สาขาได้ — ปลายทางอยู่ระดับ Drop (ไม่ผูก FK แข็ง ตาม convention actorId)
   branchId   String?
+  // CP6 — งานในคิวขึ้นของ: drop นี้เกิดจากใบสั่งผลิตใบไหน (null = งานจากสต็อก/ไม่มีใบผลิต —
+  // ห้ามสร้าง fake ProductionOrder เพื่อให้ FK ครบ) ใช้คำนวณสถานะคิวต่อใบผลิต
+  productionOrderId String?
   photoPaths String[] // รูปใบขึ้นของที่ขีดนับแล้วของจุดส่งนี้ (บังคับใช้จริง CP2/CP3 — pattern poImagePaths)
   note       String?
 

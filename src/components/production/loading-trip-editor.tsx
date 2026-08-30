@@ -12,6 +12,7 @@ import {
   moveLoadingDrop,
   addLoadingLine,
   removeLoadingLine,
+  addAdhocPlannedLine,
 } from "@/app/production/loading/actions";
 
 // P2 CP1 — editor เที่ยวรถช่วง DRAFT (mobile-first): จุดส่งเป็นการ์ดเรียงตาม seq มีปุ่ม ▲▼/ลบ
@@ -29,6 +30,8 @@ export type TripEditorData = {
     branchId: string | null;
     customerName: string;
     branchName: string | null;
+    /** CP6 — เลขใบสั่งผลิตต้นทางของจุดนี้ (null = งานสต็อก) แสดงเป็นตัวเล็กอ้างอิงรอง */
+    prodNo: string | null;
     note: string | null;
     lines: {
       id: string;
@@ -81,9 +84,12 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
   const [dropNote, setDropNote] = useState("");
   // add-line state ต่อ drop (เปิดฟอร์มได้ทีละจุด)
   const [addingLineDropId, setAddingLineDropId] = useState<string | null>(null);
-  const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING">("FRESH");
+  const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING" | "ADHOC">("FRESH");
   const [lineChoice, setLineChoice] = useState("");
   const [lineQty, setLineQty] = useState("");
+  // CP6 — สินค้านอกออเดอร์ (สต็อก/หน้างาน) เพิ่มได้ช่วงเตรียม ไม่ต้องมีใบสั่งผลิต
+  const [adhocLabel, setAdhocLabel] = useState("");
+  const [adhocSize, setAdhocSize] = useState("");
   // CP2 lock 3 — default โชว์เฉพาะออเดอร์สาขาเดียวกับจุดส่ง ส่งข้ามสาขาต้องกดเปิดเอง
   // (explicit override + warning) — ไม่มีการเขียนทับสาขาต้นทางใดๆ
   const [showOtherBranch, setShowOtherBranch] = useState(false);
@@ -250,6 +256,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                     <div className="text-sm font-medium">
                       {idx + 1}. {drop.customerName}
                       {drop.branchName && <span className="text-gray-500"> — {drop.branchName}</span>}
+                      {drop.prodNo && <span className="text-xs text-gray-400 font-mono font-normal ml-1.5">{drop.prodNo}</span>}
                     </div>
                     {drop.note && <div className="text-xs text-gray-500">{drop.note}</div>}
                   </div>
@@ -294,20 +301,20 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
 
                   {addingLineDropId === drop.id ? (
                     <div className="bg-gray-50 border rounded p-2 space-y-1.5 mt-1">
-                      {/* CP3 — เลือกแหล่ง: ออเดอร์ใหม่ หรือ ของค้างเดิม (ไม่ auto/ไม่ FIFO) */}
-                      {(data.outstandingByCustomer[drop.customerId]?.length ?? 0) > 0 && (
-                        <div className="flex gap-1.5 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLineSource("FRESH");
-                              setLineChoice("");
-                              setLineQty("");
-                            }}
-                            className={`px-2 py-1 rounded-full border ${lineSource === "FRESH" ? "bg-cp-navy text-white border-cp-navy" : "border-gray-300 text-gray-600"}`}
-                          >
-                            จากออเดอร์
-                          </button>
+                      {/* CP3/CP6 — เลือกแหล่ง: ออเดอร์ใหม่ / ของค้างเดิม / สินค้าอื่นนอกออเดอร์ (ไม่ auto/ไม่ FIFO) */}
+                      <div className="flex flex-wrap gap-1.5 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLineSource("FRESH");
+                            setLineChoice("");
+                            setLineQty("");
+                          }}
+                          className={`px-2 py-1 rounded-full border ${lineSource === "FRESH" ? "bg-cp-navy text-white border-cp-navy" : "border-gray-300 text-gray-600"}`}
+                        >
+                          จากออเดอร์
+                        </button>
+                        {(data.outstandingByCustomer[drop.customerId]?.length ?? 0) > 0 && (
                           <button
                             type="button"
                             onClick={() => {
@@ -319,9 +326,80 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                           >
                             จากของค้างเดิม ({data.outstandingByCustomer[drop.customerId]!.length})
                           </button>
-                        </div>
-                      )}
-                      {lineSource === "OUTSTANDING" ? (
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLineSource("ADHOC");
+                            setLineChoice("");
+                            setLineQty("");
+                          }}
+                          className={`px-2 py-1 rounded-full border ${lineSource === "ADHOC" ? "bg-gray-700 text-white border-gray-700" : "border-gray-300 text-gray-600"}`}
+                        >
+                          สินค้าอื่น (สต็อก/หน้างาน)
+                        </button>
+                      </div>
+                      {lineSource === "ADHOC" ? (
+                        <>
+                          <input
+                            value={adhocLabel}
+                            onChange={(e) => setAdhocLabel(e.target.value)}
+                            placeholder="ชื่อสินค้า เช่น ที่นอนยางพารา 3.5 ฟุต"
+                            className="w-full border rounded px-2 py-1.5 text-sm"
+                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={adhocSize}
+                              onChange={(e) => setAdhocSize(e.target.value)}
+                              placeholder="ไซส์ (ถ้ามี)"
+                              className="w-28 border rounded px-2 py-1.5 text-sm"
+                            />
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={lineQty}
+                              onChange={(e) => setLineQty(e.target.value)}
+                              placeholder="จำนวน"
+                              className="w-24 border rounded px-2 py-1.5 text-sm"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">ของที่ไม่อยู่ในออเดอร์ (จากสต็อก/ของแถม/เพิ่มหน้างาน) — จะถูกบันทึกแยกเป็น &quot;ของหน้างาน&quot; ไม่ตัดยอดออเดอร์ใคร</p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={isPending || !adhocLabel.trim() || !lineQty}
+                              onClick={() =>
+                                run(async () => {
+                                  const result = await addAdhocPlannedLine(data.tripId, drop.id, fd({ label: adhocLabel, size: adhocSize, qtyPlanned: lineQty }));
+                                  if (result.success) {
+                                    setAdhocLabel("");
+                                    setAdhocSize("");
+                                    setLineQty("");
+                                    setAddingLineDropId(null);
+                                  }
+                                  return result;
+                                })
+                              }
+                              className="flex-1 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-medium rounded px-3 py-1.5"
+                            >
+                              เพิ่มสินค้านอกออเดอร์
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingLineDropId(null);
+                                setAdhocLabel("");
+                                setAdhocSize("");
+                                setLineQty("");
+                              }}
+                              className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50"
+                            >
+                              ปิด
+                            </button>
+                          </div>
+                        </>
+                      ) : lineSource === "OUTSTANDING" ? (
                         <>
                           <select
                             value={lineChoice}

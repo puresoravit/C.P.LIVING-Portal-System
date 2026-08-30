@@ -13,7 +13,7 @@ import type { AuditLog } from "@prisma/client";
 // query เปราะกับ Prisma+Postgres) จึงกรอง eventType ใน memory หลัง fetch ช่วงวันที่/ลูกค้า
 // จาก DB ก่อนแล้ว (ปริมาณข้อมูล P1 ยังน้อย เพียงพอสำหรับแนวทางนี้ไม่ต้องทำ pagination ซับซ้อน)
 
-type EventKey = "PO_CREATE" | "PO_UPDATE" | "PO_CANCEL" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT" | "PROD_CANCEL" | "TRIP_CREATE" | "TRIP_LOADED" | "TRIP_RECONCILE" | "TRIP_CANCEL" | "OUT_OPEN" | "OUT_CUT" | "OUT_CLOSE";
+type EventKey = "PO_CREATE" | "PO_UPDATE" | "PO_CANCEL" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT" | "PROD_CANCEL" | "PROD_COMPLETED" | "TRIP_CREATE" | "TRIP_LOADED" | "TRIP_RECONCILE" | "TRIP_CANCEL" | "OUT_OPEN" | "OUT_CUT" | "OUT_CLOSE";
 
 const EVENT_LABELS: Record<EventKey, string> = {
   PO_CREATE: "รับออเดอร์ลูกค้า",
@@ -24,6 +24,7 @@ const EVENT_LABELS: Record<EventKey, string> = {
   PROD_START: "เริ่มผลิต",
   PROD_PRINT: "พิมพ์ใบสั่งผลิต",
   PROD_CANCEL: "ยกเลิกใบสั่งผลิต",
+  PROD_COMPLETED: "ผลิตเสร็จ (ฝ่ายขึ้นของยืนยัน)",
   TRIP_CREATE: "สร้างเที่ยวรถ",
   TRIP_LOADED: "ยืนยันขึ้นของ",
   TRIP_RECONCILE: "กระทบยอดเที่ยวรถ",
@@ -42,6 +43,7 @@ const EVENT_DOT: Record<EventKey, string> = {
   PROD_START: "bg-green-600",
   PROD_PRINT: "bg-gray-500",
   PROD_CANCEL: "bg-red-600",
+  PROD_COMPLETED: "bg-emerald-500",
   TRIP_CREATE: "bg-violet-500",
   TRIP_LOADED: "bg-blue-600",
   TRIP_RECONCILE: "bg-emerald-600",
@@ -62,6 +64,7 @@ function classify(row: Pick<AuditLog, "module" | "action" | "newValue">): EventK
     const nv = row.newValue as Record<string, unknown> | null;
     if (nv?.event === "START_PRODUCTION") return "PROD_START";
     if (nv?.event === "PRINT_REVISION") return "PROD_PRINT";
+    if (nv?.event === "PRODUCTION_COMPLETED") return "PROD_COMPLETED";
     return "PROD_REVISE";
   }
   // CP4 — เหตุการณ์เที่ยวรถ/ของค้าง (เฉพาะจังหวะสำคัญ — ADD_DROP/ADD_LINE ฯลฯ ละเอียดเกิน
@@ -194,6 +197,9 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
     }
     if (key === "PROD_START") {
       return { eventKey: key, title: `เริ่มผลิต ${prodNoText} (สถานะ: ${nv.status ?? "-"})`, href: `/production/production-orders/${row.recordId}`, changes: [] };
+    }
+    if (key === "PROD_COMPLETED") {
+      return { eventKey: key, title: `ผลิตเสร็จ ${prodNoText} — ฝ่ายขึ้นของยืนยันตอนเริ่มขึ้นของ`, href: `/production/production-orders/${row.recordId}`, changes: [] };
     }
     if (key === "PROD_CANCEL") {
       return {

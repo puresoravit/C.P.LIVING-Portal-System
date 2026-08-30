@@ -40,9 +40,10 @@ export function loadingTripStatusBadge(trip: {
   return {
     status,
     config: {
-      DRAFT: { label: "วางแผน", className: "bg-amber-100 text-amber-700" },
+      // CP6 — ภาษาหน้างานตาม flow ใหม่: กำลังขึ้นของ → (พิมพ์แล้วดูจาก sheetPrintedAt แยก) → ส่งออกแล้ว
+      DRAFT: { label: "กำลังขึ้นของ", className: "bg-amber-100 text-amber-700" },
       LOADED: { label: "ขึ้นของแล้ว", className: "bg-blue-100 text-blue-700" },
-      RECONCILED: { label: "กระทบยอดแล้ว", className: "bg-green-100 text-green-700" },
+      RECONCILED: { label: "สินค้าถูกส่งออกแล้ว", className: "bg-green-100 text-green-700" },
       CANCELLED: { label: "ยกเลิกแล้ว", className: "bg-red-100 text-red-700" },
     },
   };

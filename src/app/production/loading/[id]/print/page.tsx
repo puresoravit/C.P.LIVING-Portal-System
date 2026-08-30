@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getCompanySettings } from "@/lib/company-settings";
 import { LoadingSheetControls } from "@/components/production/loading-sheet-controls";
+import { confirmSheetPrinted } from "../../actions";
 
 // CP2 — ใบขึ้นของ A4 "แนวนอน": เอกสาร planned loading สำหรับพนักงานขีด tally หน้างาน
 // เรียงตามลำดับจุดส่ง — การพิมพ์ไม่ mutate อะไรเลย (ไม่ตั้ง qtyLoaded/ไม่ reconcile/ไม่สร้าง
@@ -57,7 +58,19 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
 
   const totalPlanned = trip.drops.reduce((s, d) => s + d.lines.reduce((x, l) => x + l.qtyPlanned, 0), 0);
-  const statusText = trip.cancelledAt ? "ยกเลิกแล้ว" : trip.reconciledAt ? "กระทบยอดแล้ว" : trip.loadedAt ? "ขึ้นของแล้ว" : "วางแผน";
+  const statusText = trip.cancelledAt ? "ยกเลิกแล้ว" : trip.reconciledAt ? "สินค้าถูกส่งออกแล้ว" : trip.sheetPrintedAt ? "พิมพ์ใบขึ้นของแล้ว" : "กำลังขึ้นของ";
+
+  // CP6 — confirm หลัง print dialog: บันทึกผู้พิมพ์/เวลา/เวอร์ชันแผน (พิมพ์ ≠ ส่งออก)
+  const canConfirmPrint = !trip.cancelledAt && !trip.reconciledAt;
+  const printedActor = trip.sheetPrintedById
+    ? await db.user.findUnique({ where: { id: trip.sheetPrintedById }, select: { displayName: true, username: true } })
+    : null;
+  async function confirmPrint() {
+    "use server";
+    const formData = new FormData();
+    formData.set("version", String(trip!.version));
+    return confirmSheetPrinted(trip!.id, formData);
+  }
 
   // สินค้าเดียวหลายไซส์อ่านต่อเนื่อง: sort ตามชื่อ→ไซส์ แล้วแสดงชื่อครั้งเดียว (rowSpan)
   function groupedRows(lines: NonNullable<typeof trip>["drops"][number]["lines"]) {
@@ -74,11 +87,22 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   return (
     <div className="mx-auto" style={{ maxWidth: "281mm" }}>
       <style id="print-page-style" dangerouslySetInnerHTML={{ __html: `@media print { ${LANDSCAPE_PAGE_STYLE} }` }} />
-      <LoadingSheetControls backHref={`/production/loading/${trip.id}`} />
+      <LoadingSheetControls
+        backHref={`/production/loading/${trip.id}`}
+        canConfirm={canConfirmPrint}
+        alreadyPrinted={!!trip.sheetPrintedAt}
+        printedLabel={
+          trip.sheetPrintedAt
+            ? `${trip.sheetPrintedAt.toLocaleString("th-TH")}${printedActor ? ` โดย ${printedActor.displayName || printedActor.username}` : ""}`
+            : undefined
+        }
+        planChangedAfterPrint={trip.sheetPrintedAt != null && trip.sheetPrintedVersion != null && trip.version > trip.sheetPrintedVersion}
+        confirmAction={confirmPrint}
+      />
 
       {trip.cancelledAt && (
         <div className="print:hidden bg-red-50 border border-red-200 text-red-800 text-sm rounded px-3 py-2 mb-2">
-          ✕ เที่ยวนี้ถูกยกเลิกแล้ว — เอกสารนี้เป็นเพียงประวัติ ห้ามใช้ขึ้นของ
+          ✕ รอบจัดส่งนี้ถูกยกเลิกแล้ว — เอกสารนี้เป็นเพียงประวัติ ห้ามใช้ขึ้นของ
         </div>
       )}
 
