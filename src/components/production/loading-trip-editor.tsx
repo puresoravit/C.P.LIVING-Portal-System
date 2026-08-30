@@ -54,8 +54,9 @@ export type TripEditorData = {
     }[];
   }[];
   customers: { id: string; name: string; branches: { id: string; name: string }[] }[];
-  /** CP7 round 2 — สินค้าจาก Product Master ให้เลือกตอนเพิ่ม ADHOC แทนพิมพ์ชื่อเองล้วนๆ */
-  products: { id: string; label: string; size: string | null }[];
+  /** CP7 round 5 — จัดกลุ่มเป็นตระกูลสินค้า (ชื่อเดียว หลายไซส์) แทน list แบนชื่อซ้ำทุกไซส์ —
+      usesSize=true บังคับเลือกจาก sizeOptions (+ ไซส์พิเศษ), false = พิมพ์ไซส์เองอิสระ */
+  productFamilies: { familyLabel: string; usesSize: boolean; variants: { id: string; size: string | null; sku: string }[] }[];
   /** CP3 lock 7 — บัตรค้างเปิดอยู่ของลูกค้าแต่ละราย (metadata ครบ: อายุ/เหลือ/ต้นทาง) */
   outstandingByCustomer: Record<
     string,
@@ -98,10 +99,14 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
   const [lineSource, setLineSource] = useState<"FRESH" | "OUTSTANDING" | "ADHOC">("ADHOC");
   const [lineChoice, setLineChoice] = useState("");
   const [lineQty, setLineQty] = useState("");
-  // CP6 — สินค้านอกออเดอร์ (สต็อก/หน้างาน) เพิ่มได้ช่วงเตรียม ไม่ต้องมีใบสั่งผลิต
-  const [adhocProductId, setAdhocProductId] = useState("");
-  const [adhocLabel, setAdhocLabel] = useState("");
-  const [adhocSize, setAdhocSize] = useState("");
+  // CP6/CP7 round 5 — สินค้านอกออเดอร์ (สต็อก/หน้างาน) เพิ่มได้ช่วงเตรียม ไม่ต้องมีใบสั่งผลิต
+  // ค้นชื่อครั้งเดียวผ่าน datalist (พิมพ์ได้อิสระ ไม่ใช่ select ล็อก) แล้วแยกเลือกไซส์ทีหลัง —
+  // ถ้าตระกูลสินค้านี้ usesSize (เช่นที่นอน) บังคับเลือกจากไซส์มาตรฐาน + มีตัวเลือกไซส์พิเศษ
+  // ถ้าไม่ใช่ (หรือพิมพ์ชื่อที่ระบบไม่รู้จัก) ให้พิมพ์ไซส์อิสระ
+  const OTHER_SIZE = "__OTHER__";
+  const [adhocQuery, setAdhocQuery] = useState("");
+  const [adhocSizeChoice, setAdhocSizeChoice] = useState("");
+  const [adhocCustomSize, setAdhocCustomSize] = useState("");
   // CP2 lock 3 — default โชว์เฉพาะออเดอร์สาขาเดียวกับจุดส่ง ส่งข้ามสาขาต้องกดเปิดเอง
   // (explicit override + warning) — ไม่มีการเขียนทับสาขาต้นทางใดๆ
   const [showOtherBranch, setShowOtherBranch] = useState(false);
@@ -379,95 +384,125 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                           จากออเดอร์
                         </button>
                       </div>
-                      {lineSource === "ADHOC" ? (
-                        <>
-                          {/* CP7 round 2 — เลือกจาก Product Master ก่อนเป็นหลัก (พิมพ์เองเป็นสำรองไว้กรณีสินค้ายังไม่มีในระบบ เช่นหมอน) */}
-                          <select
-                            value={adhocProductId}
-                            onChange={(e) => {
-                              setAdhocProductId(e.target.value);
-                              const p = data.products.find((x) => x.id === e.target.value);
-                              if (p) {
-                                setAdhocLabel(p.label);
-                                setAdhocSize(p.size ?? "");
-                              } else {
-                                setAdhocLabel("");
-                                setAdhocSize("");
-                              }
-                            }}
-                            className="w-full border rounded px-2 py-1.5 text-sm"
-                          >
-                            <option value="">— เลือกสินค้าจากระบบ —</option>
-                            {data.products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </select>
-                          {!adhocProductId && (
+                      {lineSource === "ADHOC" ? (() => {
+                        const matchedFamily = data.productFamilies.find((f) => f.familyLabel.trim() === adhocQuery.trim());
+                        const effectiveSize = matchedFamily?.usesSize
+                          ? (adhocSizeChoice === OTHER_SIZE ? adhocCustomSize : adhocSizeChoice)
+                          : adhocCustomSize;
+                        const matchedVariant = matchedFamily?.variants.find((v) => (v.size ?? "") === effectiveSize.trim());
+                        const datalistId = `adhoc-products-${drop.id}`;
+                        return (
+                          <>
+                            {/* CP7 round 5 — ค้นชื่อสินค้าครั้งเดียวผ่าน datalist (พิมพ์ได้อิสระ + เห็นตัวเลือกเด้งจากคลัง
+                                ไม่ใช่ select ล็อกที่มีชื่อซ้ำทุกไซส์) แล้วเลือก/พิมพ์ไซส์แยกทีหลัง */}
                             <input
-                              value={adhocLabel}
-                              onChange={(e) => setAdhocLabel(e.target.value)}
-                              placeholder="ไม่เจอในระบบ — พิมพ์ชื่อสินค้าเอง เช่น หมอนยางพารา"
+                              value={adhocQuery}
+                              onChange={(e) => {
+                                setAdhocQuery(e.target.value);
+                                setAdhocSizeChoice("");
+                                setAdhocCustomSize("");
+                              }}
+                              list={datalistId}
+                              placeholder="พิมพ์ชื่อสินค้า — เลือกจากที่เด้งขึ้น หรือพิมพ์เองถ้าไม่มีในระบบ"
                               className="w-full border rounded px-2 py-1.5 text-sm"
                             />
-                          )}
-                          <div className="flex items-center gap-2">
-                            <input
-                              value={adhocSize}
-                              onChange={(e) => setAdhocSize(e.target.value)}
-                              placeholder="ไซส์ (ถ้ามี)"
-                              disabled={!!adhocProductId}
-                              className="w-28 border rounded px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                            />
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={lineQty}
-                              onChange={(e) => setLineQty(e.target.value)}
-                              placeholder="จำนวน"
-                              className="w-24 border rounded px-2 py-1.5 text-sm"
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500">ของที่ไม่อยู่ในออเดอร์ (จากสต็อก/ของแถม/เพิ่มหน้างาน) — จะถูกบันทึกแยกเป็น &quot;ของเพิ่มหน้างาน&quot; ไม่ตัดยอดออเดอร์ใคร</p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              disabled={isPending || !adhocLabel.trim() || !lineQty}
-                              onClick={() =>
-                                run(async () => {
-                                  const result = await addAdhocPlannedLine(data.tripId, drop.id, fd({ label: adhocLabel, size: adhocSize, qtyPlanned: lineQty, productId: adhocProductId }));
-                                  if (result.success) {
-                                    setAdhocProductId("");
-                                    setAdhocLabel("");
-                                    setAdhocSize("");
-                                    setLineQty("");
-                                    setAddingLineDropId(null);
-                                  }
-                                  return result;
-                                })
-                              }
-                              className="flex-1 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-medium rounded px-3 py-1.5"
-                            >
-                              เพิ่มสินค้านอกออเดอร์
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAddingLineDropId(null);
-                                setAdhocProductId("");
-                                setAdhocLabel("");
-                                setAdhocSize("");
-                                setLineQty("");
-                              }}
-                              className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50"
-                            >
-                              ปิด
-                            </button>
-                          </div>
-                        </>
-                      ) : lineSource === "OUTSTANDING" ? (
+                            <datalist id={datalistId}>
+                              {data.productFamilies.map((f) => (
+                                <option key={f.familyLabel} value={f.familyLabel} />
+                              ))}
+                            </datalist>
+                            <div className="flex items-center gap-2">
+                              {matchedFamily?.usesSize ? (
+                                <select
+                                  value={adhocSizeChoice}
+                                  onChange={(e) => setAdhocSizeChoice(e.target.value)}
+                                  className="flex-1 border rounded px-2 py-1.5 text-sm"
+                                >
+                                  <option value="">— เลือกไซส์ —</option>
+                                  {/* CP7 round 5 — ตัวเลือกไซส์มาจากไซส์จริงที่ตระกูลนี้มีในระบบเท่านั้น (ไม่ใช่ลิสต์ไซส์กลาง
+                                      ของบริษัท ซึ่งรูปแบบข้อความอาจไม่ตรงกับ Product.size จริง เช่น "3" vs "3 ฟุต") —
+                                      รับประกันว่าเลือกแล้วเจอ SKU จริงเสมอ ยกเว้นกด "ไซส์พิเศษ" */}
+                                  {[...new Set(matchedFamily.variants.map((v) => v.size).filter((sz): sz is string => !!sz))].map((sz) => (
+                                    <option key={sz} value={sz}>
+                                      {sz}
+                                    </option>
+                                  ))}
+                                  <option value={OTHER_SIZE}>ไซส์พิเศษ (พิมพ์เอง)</option>
+                                </select>
+                              ) : (
+                                <input
+                                  value={adhocCustomSize}
+                                  onChange={(e) => setAdhocCustomSize(e.target.value)}
+                                  placeholder="ไซส์ (ถ้ามี)"
+                                  className="flex-1 border rounded px-2 py-1.5 text-sm"
+                                />
+                              )}
+                              {matchedFamily?.usesSize && adhocSizeChoice === OTHER_SIZE && (
+                                <input
+                                  value={adhocCustomSize}
+                                  onChange={(e) => setAdhocCustomSize(e.target.value)}
+                                  placeholder="ระบุไซส์พิเศษ"
+                                  className="flex-1 border rounded px-2 py-1.5 text-sm"
+                                />
+                              )}
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={lineQty}
+                                onChange={(e) => setLineQty(e.target.value)}
+                                placeholder="จำนวน"
+                                className="w-20 border rounded px-2 py-1.5 text-sm shrink-0"
+                              />
+                            </div>
+                            {matchedFamily && !matchedVariant && effectiveSize.trim() && (
+                              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                ⚠ ไซส์นี้ไม่มี SKU ในระบบสำหรับ &quot;{matchedFamily.familyLabel}&quot; — บันทึกได้ปกติ แค่ไม่ผูก SKU
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500">ของที่ไม่อยู่ในออเดอร์ (จากสต็อก/ของแถม/เพิ่มหน้างาน) — จะถูกบันทึกแยกเป็น &quot;ของเพิ่มหน้างาน&quot; ไม่ตัดยอดออเดอร์ใคร</p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={isPending || !adhocQuery.trim() || !lineQty}
+                                onClick={() =>
+                                  run(async () => {
+                                    const result = await addAdhocPlannedLine(
+                                      data.tripId,
+                                      drop.id,
+                                      fd({ label: adhocQuery, size: effectiveSize, qtyPlanned: lineQty, productId: matchedVariant?.id ?? "" })
+                                    );
+                                    if (result.success) {
+                                      setAdhocQuery("");
+                                      setAdhocSizeChoice("");
+                                      setAdhocCustomSize("");
+                                      setLineQty("");
+                                      setAddingLineDropId(null);
+                                    }
+                                    return result;
+                                  })
+                                }
+                                className="flex-1 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-medium rounded px-3 py-1.5"
+                              >
+                                เพิ่มสินค้านอกออเดอร์
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingLineDropId(null);
+                                  setAdhocQuery("");
+                                  setAdhocSizeChoice("");
+                                  setAdhocCustomSize("");
+                                  setLineQty("");
+                                }}
+                                className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50"
+                              >
+                                ปิด
+                              </button>
+                            </div>
+                          </>
+                        );
+                      })() : lineSource === "OUTSTANDING" ? (
                         <>
                           <select
                             value={lineChoice}

@@ -75,7 +75,7 @@ export function LoadingSheetControls({
           disabled={isPending}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded px-4 py-2 whitespace-nowrap"
         >
-          {alreadyPrinted && !planChangedAfterPrint ? "พิมพ์ซ้ำ / บันทึกเป็น PDF" : "พิมพ์ใบขึ้นของ (A4 แนวนอน)"}
+          {alreadyPrinted && !planChangedAfterPrint ? "พิมพ์ซ้ำ / บันทึกเป็น PDF" : "พิมพ์ใบขึ้นของ (A4 แนวตั้ง)"}
         </button>
         {alreadyPrinted && (
           <span className="text-sm text-green-700 border border-green-200 bg-green-50 rounded px-3 py-2 whitespace-nowrap">

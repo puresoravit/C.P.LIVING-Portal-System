@@ -33,12 +33,14 @@ const PORTRAIT_PAGE_STYLE = `@page { size: A4 portrait; margin: 8mm 8mm; ${EMPTY
 
 /** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว")
     ไม่ใช่ตารางย่อย 30 ช่องเล็ก — เต็มความสูง/กว้างของ cell พ่อแม่เสมอ (ห้ามมี padding ที่ td พ่อ)
-    ให้เส้นแบ่งช่องชิดขอบบน-ล่างของแถวจริง ไม่ใช่ลอยอยู่กลางช่องว่าง */
+    ให้เส้นแบ่งช่องชิดขอบบน-ล่างของแถวจริง ไม่ใช่ลอยอยู่กลางช่องว่าง
+    CP7 round 5 (Owner: ช่องแบ่งไม่เท่ากัน) — ใช้ CSS grid แทน flex: grid แบ่งพื้นที่เท่ากันเป๊ะ
+    ทุกช่อง ไม่มีปัญหาเศษพิกเซลสะสมแบบ flex-1 + border ที่ทำให้ช่องท้ายๆ กว้าง/แคบกว่าช่องอื่น */
 function TallyBoxes() {
   return (
-    <div className="flex h-full w-full">
+    <div className="grid h-full w-full" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
       {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="border-r border-gray-400 last:border-r-0 flex-1" />
+        <div key={i} className="border-r border-gray-400 last:border-r-0" />
       ))}
     </div>
   );
@@ -161,15 +163,16 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
         {/* หัวใบ — CP7 round 4 (Owner): เหลือ "บรรทัดเดียว" ต่อบล็อก ตัดชื่อบริษัทออก ใช้ชื่อ
             เอกสารตรงๆ แทน ("ใบขึ้นสินค้า") + ยุบเลขที่/เวลาพิมพ์มาบรรทัดเดียวกัน ส่วนแถว
             ข้อมูลรถ (วันที่/เที่ยวที่/ทะเบียน/คนขับ) ก็ยุบเหลือบรรทัดเดียวเช่นกัน ตัดภาคออก */}
-        <div className="flex items-baseline justify-between border-b-2 border-gray-800 pb-1 mb-1 text-xs">
-          <span className="font-bold text-sm">ใบขึ้นสินค้า</span>
-          <span className="text-gray-400">
+        {/* CP7 round 5 (Owner) — หัวข้อ+รายละเอียดตัวเล็กไป ขยายขึ้น */}
+        <div className="flex items-baseline justify-between border-b-2 border-gray-800 pb-1 mb-1">
+          <span className="font-bold text-lg">ใบขึ้นสินค้า</span>
+          <span className="text-xs text-gray-400">
             <span className="font-mono">{trip.tripNo}</span>
             {trip.cancelledAt && <span className="ml-2 font-semibold text-red-700">[ยกเลิกแล้ว]</span>}
             <span className="ml-2">พิมพ์ {new Date().toLocaleString("th-TH")} · แก้ไขครั้งที่ {trip.version}</span>
           </span>
         </div>
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs border-b pb-1 mb-2">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-sm border-b pb-1 mb-2">
           <span><span className="text-gray-500">วันที่:</span> <span className="font-medium">{trip.tripDate.toLocaleDateString("th-TH")}</span></span>
           <span><span className="text-gray-500">เที่ยวที่ (เดือนนี้):</span> <span className="font-medium">{tripSeqThisMonth}</span></span>
           <span>
@@ -191,12 +194,12 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                 ดูไม่ใช่กริดเดียวกัน + บีบค้างเดิม/จำนวนผลิตให้แคบลง ขยายช่องจำนวน(ขีดนับ)แทน
                 + เปลี่ยนชื่อคอลัมน์ตามที่สั่ง: ของใหม่→จำนวนผลิต, ขีดนับ→จำนวน, คงค้าง→ค้างส่ง */}
             <tr className="border-b-2 border-gray-400">
-              <th className="text-left px-1.5 py-0.5 font-medium w-[15%] border-r border-gray-400">ร้านค้า</th>
-              <th className="text-left px-1.5 py-0.5 font-medium w-[21%] border-r border-gray-400">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
-              <th className="text-left px-1.5 py-0.5 font-medium w-[7%] border-r border-gray-400">ไซส์</th>
-              <th className="text-right px-1.5 py-0.5 font-medium w-[5%] border-r border-gray-400">ค้างเดิม</th>
-              <th className="text-right px-1.5 py-0.5 font-medium w-[6%] border-r border-gray-400">จำนวนผลิต</th>
-              <th className="text-center px-1.5 py-0.5 font-medium w-[32%] border-r border-gray-400">จำนวน</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[13%] border-r border-gray-400">ร้านค้า</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[18%] border-r border-gray-400">รายการ (รุ่น·กุ๊น·หนา·ผ้า)</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[6%] border-r border-gray-400">ไซส์</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[4%] border-r border-gray-400">ค้างเดิม</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[5%] border-r border-gray-400">จำนวนผลิต</th>
+              <th className="text-center px-1.5 py-0.5 font-medium w-[40%] border-r border-gray-400">จำนวน</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[7%] border-r border-gray-400">รวมขึ้น</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[7%]">ค้างส่ง</th>
             </tr>
@@ -249,15 +252,15 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                           {group.sku && <span className="block text-[10px] text-gray-500 font-mono">{group.sku}</span>}
                         </td>
                       )}
-                      <td className="px-1.5 py-1 border-r border-gray-400">{row.size ?? "-"}</td>
-                      <td className="px-1.5 py-1 text-right border-r border-gray-400">{row.outstanding || ""}</td>
-                      <td className="px-1.5 py-1 text-right font-semibold border-r border-gray-400">{row.fresh || ""}</td>
+                      <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.size ?? "-"}</td>
+                      <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.outstanding || ""}</td>
+                      <td className="px-1.5 py-1 text-center font-semibold border-r border-gray-400">{row.fresh || ""}</td>
                       <td className="p-0 border-r border-gray-400 align-top">
                         <TallyBoxes />
                         {row.note && <div className="text-[10px] text-gray-600 px-1 mt-0.5">หมายเหตุ: {row.note}</div>}
                       </td>
-                      <td className="px-1.5 py-1 border-r border-gray-400" />
-                      <td className="px-1.5 py-1" />
+                      <td className="px-1.5 py-1 text-center border-r border-gray-400" />
+                      <td className="px-1.5 py-1 text-center" />
                     </tr>
                   );
                 })
@@ -275,12 +278,12 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
                 <tr key={i} className="border-b border-gray-400" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[15%]" style={{ height: "34pt" }} />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[21%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[13%]" style={{ height: "34pt" }} />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[18%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
-                  <td className="p-0 border-r border-gray-400 w-[32%]">
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[4%]" />
+                  <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
+                  <td className="p-0 border-r border-gray-400 w-[40%]">
                     <TallyBoxes />
                   </td>
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />

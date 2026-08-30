@@ -44,9 +44,12 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     }),
     db.branch.findMany({ select: { id: true, name: true } }),
     getProductionSettings(),
+    // CP7 round 5 — จัดกลุ่มเป็น "ตระกูลสินค้า" (ชื่อเดียว หลายไซส์) แทน list แบนที่มีชื่อซ้ำ
+    // ทุกไซส์ — ค้นหาแค่ชื่อครั้งเดียว แล้วเลือกไซส์แยกจาก dropdown/พิมพ์เอง (usesSize ต่อ
+    // Category ตัดสินว่าบังคับเลือกจากลิสต์ไซส์มาตรฐานหรือพิมพ์อิสระ)
     db.product.findMany({
       where: { parentProductId: { not: null } },
-      select: { id: true, sku: true, name: true, productionLabel: true, size: true },
+      select: { id: true, sku: true, name: true, productionLabel: true, size: true, category: { select: { usesSize: true } } },
       orderBy: { name: "asc" },
       take: 500,
     }),
@@ -54,6 +57,20 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     db.loadingTrip.findMany({ where: { plateNumber: { not: null } }, select: { plateNumber: true }, distinct: ["plateNumber"], take: 50 }),
   ]);
   const plateSuggestions = plateRows.map((r) => r.plateNumber!).filter(Boolean);
+
+  // CP7 round 5 — group เป็นตระกูลสินค้า: key = ชื่อที่แสดง (productionLabel มาก่อน) เพราะ
+  // ไซส์ต่างกันของสินค้าเดียวกันใช้ชื่อนี้ร่วมกันเสมอตาม convention เดิมของ Product Master
+  const productFamilyByLabel = new Map<string, { familyLabel: string; usesSize: boolean; variants: { id: string; size: string | null; sku: string }[] }>();
+  for (const p of products) {
+    const key = p.productionLabel ?? p.name;
+    let fam = productFamilyByLabel.get(key);
+    if (!fam) {
+      fam = { familyLabel: key, usesSize: p.category?.usesSize ?? false, variants: [] };
+      productFamilyByLabel.set(key, fam);
+    }
+    fam.variants.push({ id: p.id, size: p.size, sku: p.sku });
+  }
+  const productFamilies = [...productFamilyByLabel.values()];
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const customerNameById = new Map(customers.map((c) => [c.id, c.companyName]));
 
@@ -192,7 +209,7 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
     customers: customers.map((c) => ({ id: c.id, name: c.companyName, branches: c.branches })),
     eligibleByCustomer,
     outstandingByCustomer,
-    products: products.map((p) => ({ id: p.id, label: `${p.productionLabel ?? p.name}${p.size ? ` (${p.size})` : ""} · ${p.sku}`, size: p.size })),
+    productFamilies,
     plateSuggestions,
   };
 
