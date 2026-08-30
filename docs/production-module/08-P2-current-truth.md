@@ -76,7 +76,7 @@
 - **รูปหลักฐาน**: อัปโหลดผ่าน route handler (เกิน limit server action) เก็บ `uploads/` **นอก public/** เสิร์ฟผ่าน GET ที่เช็ค session + กัน path traversal — ลบได้เฉพาะ DRAFT — ⚠ **PRODUCTION-READINESS: deploy จริงต้องมี persistent storage + รวม `uploads/` เข้า backup strategy** (ยังไม่ redesign — บันทึกไว้เป็นเงื่อนไขก่อน deploy)
 - **Dashboard**: เปิด query จริงเฉพาะการ์ด "ของค้างส่ง" (จำนวนบัตรเปิด + ชิ้นคงเหลือ กดเข้า `/production/outstanding`) — การ์ดอื่นเป็น placeholder ตาม scope
 - **P6 Billing ยังไม่เชื่อม**: ไม่มี FK ไปตาราง Billing ใดๆ — เผื่ออนาคตผ่าน `customerPoLineId` + snapshots บน LoadingLine เท่านั้น
-- ใบขึ้นของ A4 แนวนอน: @page CSS เฉพาะหน้า — **ไม่เพิ่ม key ใน PRINT_PROFILES** (record นั้นถูก enumerate ใน dropdown ของ Billing)
+- ใบขึ้นของ A4 แนวตั้ง (เปลี่ยนจากแนวนอนตอน CP7 round 2 — Owner: ประหยัดกระดาษกว่า+สูงพอใส่รายการเยอะกว่า สเปกตั้งต้นใน 01-สรุปรวม.md เขียนไว้ว่าแนวนอนแต่ถูก override ด้วยการตัดสินใจนี้): @page CSS เฉพาะหน้า — **ไม่เพิ่ม key ใน PRINT_PROFILES** (record นั้นถูก enumerate ใน dropdown ของ Billing)
 
 ## 9. จุดที่ implementation จริงต่างจากแผน 07 (challenge ที่บันทึกไว้แล้วตอน CP นั้นๆ)
 

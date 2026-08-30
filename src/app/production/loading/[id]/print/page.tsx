@@ -7,10 +7,11 @@ import { getCompanySettings } from "@/lib/company-settings";
 import { LoadingSheetControls } from "@/components/production/loading-sheet-controls";
 import { confirmSheetPrinted } from "../../actions";
 
-// CP2/CP7 — ใบขึ้นของ A4 "แนวนอน": เอกสาร planned loading สำหรับพนักงานขีด tally หน้างาน
-// เรียงตามลำดับจุดส่ง — การพิมพ์ไม่ mutate อะไรเลย (ไม่ตั้ง qtyLoaded/ไม่ reconcile/ไม่สร้าง
-// ของค้าง — "พิมพ์" ≠ "ยืนยันขึ้นของ") — กันกระดาษเก่ากลายเป็น source of truth เงียบๆ ด้วย
-// การพิมพ์ "เวอร์ชันแผน N + เวลาพิมพ์" บนหัวใบ: แผนแก้เมื่อไหร่ version ขยับ กระดาษเก่า
+// CP2/CP7 — ใบขึ้นของ A4 "แนวตั้ง" (เปลี่ยนจากแนวนอนตอน CP7 round 2 — Owner: แนวตั้งประหยัด
+// กระดาษกว่าและสูงพอใส่รายการได้เยอะกว่า): เอกสาร planned loading สำหรับพนักงานขีด tally
+// หน้างาน เรียงตามลำดับจุดส่ง — การพิมพ์ไม่ mutate อะไรเลย (ไม่ตั้ง qtyLoaded/ไม่ reconcile/
+// ไม่สร้างของค้าง — "พิมพ์" ≠ "ยืนยันขึ้นของ") — กันกระดาษเก่ากลายเป็น source of truth เงียบๆ
+// ด้วยการพิมพ์ "เวอร์ชันแผน N + เวลาพิมพ์" บนหัวใบ: แผนแก้เมื่อไหร่ version ขยับ กระดาษเก่า
 // เทียบกับหน้าจอแล้วรู้ทันทีว่าตกรุ่น
 //
 // CP7 (2026-08-30, Owner UAT) — สร้างใหม่ตามสเปกเดิม docs/production-module/01-สรุปรวม.md
@@ -27,7 +28,7 @@ import { confirmSheetPrinted } from "../../actions";
 const EMPTY_MARGIN_BOXES =
   "@top-left { content: '' } @top-center { content: '' } @top-right { content: '' } " +
   "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
-const LANDSCAPE_PAGE_STYLE = `@page { size: A4 landscape; margin: 6mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
+const PORTRAIT_PAGE_STYLE = `@page { size: A4 portrait; margin: 8mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
 
 /** 6 ช่องขีดกว้างต่อแถว — แต่ละช่องรับ "แต้ม" ขีดกลุ่มละ 5 ด้วยมือ (01-สรุปรวม.md: "6 ช่อง × 5 หลัง = 30 หลัง/แถว") ไม่ใช่ตารางย่อย 30 ช่องเล็ก */
 function TallyBoxes() {
@@ -143,8 +144,8 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
   const totalDrops = trip.drops.length;
 
   return (
-    <div className="mx-auto" style={{ maxWidth: "281mm" }}>
-      <style id="print-page-style" dangerouslySetInnerHTML={{ __html: `@media print { ${LANDSCAPE_PAGE_STYLE} }` }} />
+    <div className="mx-auto" style={{ maxWidth: "194mm" }}>
+      <style id="print-page-style" dangerouslySetInnerHTML={{ __html: `@media print { ${PORTRAIT_PAGE_STYLE} }` }} />
       <LoadingSheetControls
         backHref={`/production/loading/${trip.id}`}
         canConfirm={canConfirmPrint}
