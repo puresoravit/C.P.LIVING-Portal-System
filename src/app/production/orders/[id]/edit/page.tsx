@@ -30,6 +30,17 @@ export default async function EditCustomerPOPage(props: { params: Promise<{ id: 
     }),
   ]);
   if (!po) notFound();
+  // CP0 — ออเดอร์ยกเลิกแล้ว = terminal แก้ไขไม่ได้ (server action guard ไว้อีกชั้น)
+  if (po.cancelledAt) {
+    return (
+      <div className="max-w-2xl">
+        <BackLink fallbackHref={`/production/orders/${po.id}`} />
+        <div className="mt-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2">
+          ออเดอร์นี้ถูกยกเลิกแล้ว แก้ไขไม่ได้ — ถ้าลูกค้ากลับมาสั่งใหม่ให้สร้างออเดอร์ใหม่
+        </div>
+      </div>
+    );
+  }
 
   const initial: CustomerPOFormInitial = {
     id: po.id,

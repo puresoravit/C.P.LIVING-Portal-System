@@ -15,25 +15,31 @@ import type { StatusBadgeConfig } from "@/components/status-badge";
 // สียึดชุดเดียวกันทั้งโมดูล Production (Owner กำหนดตรงๆ รอบ UAT 4): amber = รอออกเอกสาร/
 // ต้องดำเนินการต่อ, blue = ออกเอกสารแล้วแต่ยังไม่เริ่มลงมือ, green = กำลังดำเนินการอยู่จริง
 
-export function customerPoStatusBadge(hasProductionOrder: boolean): { status: string; config: StatusBadgeConfig } {
+// CP0 (2026-08-30) — เพิ่ม state "ยกเลิกแล้ว" (สีแดง) derive จาก cancelledAt fact ตรงๆ
+// terminal state ชนะทุกอย่าง — status text เดิมใน DB ไม่ถูกแตะตอนยกเลิก (เก็บเป็นประวัติ)
+
+export function customerPoStatusBadge(hasProductionOrder: boolean, cancelled = false): { status: string; config: StatusBadgeConfig } {
   return {
-    status: hasProductionOrder ? "HAS_PRODUCTION_ORDER" : "NO_PRODUCTION_ORDER",
+    status: cancelled ? "CANCELLED" : hasProductionOrder ? "HAS_PRODUCTION_ORDER" : "NO_PRODUCTION_ORDER",
     config: {
       NO_PRODUCTION_ORDER: { label: "รอออกใบสั่งผลิต", className: "bg-amber-100 text-amber-700" },
       HAS_PRODUCTION_ORDER: { label: "ออกใบสั่งผลิตแล้ว", className: "bg-blue-100 text-blue-700" },
+      CANCELLED: { label: "ยกเลิกแล้ว", className: "bg-red-100 text-red-700" },
     },
   };
 }
 
 export function productionOrderStatusBadge(
   started: boolean,
-  settings: { productionOrderStatuses: string[]; inProgressStatus: string }
+  settings: { productionOrderStatuses: string[]; inProgressStatus: string },
+  cancelled = false
 ): { status: string; config: StatusBadgeConfig } {
   return {
-    status: started ? "IN_PROGRESS" : "PENDING",
+    status: cancelled ? "CANCELLED" : started ? "IN_PROGRESS" : "PENDING",
     config: {
       PENDING: { label: settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต", className: "bg-blue-100 text-blue-700" },
       IN_PROGRESS: { label: settings.inProgressStatus, className: "bg-green-100 text-green-700" },
+      CANCELLED: { label: "ยกเลิกแล้ว", className: "bg-red-100 text-red-700" },
     },
   };
 }

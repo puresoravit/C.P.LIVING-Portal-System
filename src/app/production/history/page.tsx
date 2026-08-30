@@ -13,29 +13,37 @@ import type { AuditLog } from "@prisma/client";
 // query เปราะกับ Prisma+Postgres) จึงกรอง eventType ใน memory หลัง fetch ช่วงวันที่/ลูกค้า
 // จาก DB ก่อนแล้ว (ปริมาณข้อมูล P1 ยังน้อย เพียงพอสำหรับแนวทางนี้ไม่ต้องทำ pagination ซับซ้อน)
 
-type EventKey = "PO_CREATE" | "PO_UPDATE" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT";
+type EventKey = "PO_CREATE" | "PO_UPDATE" | "PO_CANCEL" | "PROD_CREATE" | "PROD_REVISE" | "PROD_START" | "PROD_PRINT" | "PROD_CANCEL";
 
 const EVENT_LABELS: Record<EventKey, string> = {
   PO_CREATE: "รับออเดอร์ลูกค้า",
   PO_UPDATE: "แก้ไขออเดอร์ลูกค้า",
+  PO_CANCEL: "ยกเลิกออเดอร์ลูกค้า",
   PROD_CREATE: "ออกใบสั่งผลิต",
   PROD_REVISE: "แก้ไขใบสั่งผลิต",
   PROD_START: "เริ่มผลิต",
   PROD_PRINT: "พิมพ์ใบสั่งผลิต",
+  PROD_CANCEL: "ยกเลิกใบสั่งผลิต",
 };
 
 const EVENT_DOT: Record<EventKey, string> = {
   PO_CREATE: "bg-blue-500",
   PO_UPDATE: "bg-amber-500",
+  PO_CANCEL: "bg-red-600",
   PROD_CREATE: "bg-cp-navy",
   PROD_REVISE: "bg-amber-500",
   PROD_START: "bg-green-600",
   PROD_PRINT: "bg-gray-500",
+  PROD_CANCEL: "bg-red-600",
 };
 
 function classify(row: Pick<AuditLog, "module" | "action" | "newValue">): EventKey | null {
-  if (row.module === "CustomerPO") return row.action === "CREATE" ? "PO_CREATE" : "PO_UPDATE";
+  if (row.module === "CustomerPO") {
+    if (row.action === "CANCEL") return "PO_CANCEL";
+    return row.action === "CREATE" ? "PO_CREATE" : "PO_UPDATE";
+  }
   if (row.module === "ProductionOrder") {
+    if (row.action === "CANCEL") return "PROD_CANCEL";
     if (row.action === "CREATE") return "PROD_CREATE";
     const nv = row.newValue as Record<string, unknown> | null;
     if (nv?.event === "START_PRODUCTION") return "PROD_START";
@@ -112,6 +120,16 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
     if (key === "PO_CREATE") {
       return { eventKey: key, title: `รับออเดอร์ลูกค้าใหม่ (${nv.lineCount ?? "?"} รายการ)`, href: `/production/orders/${row.recordId}`, changes: [] };
     }
+    if (key === "PO_CANCEL") {
+      // AuditLog.reason เก็บเหตุผลตรงๆ (CP0) — ใบสั่งผลิตที่โดน cascade อยู่ใน newValue
+      const cascaded = Array.isArray(nv.cancelledProductionOrders) && nv.cancelledProductionOrders.length > 0 ? ` (ยกเลิกใบสั่งผลิต ${nv.cancelledProductionOrders.join(", ")} ด้วย)` : "";
+      return {
+        eventKey: key,
+        title: `ยกเลิกออเดอร์ลูกค้า${row.reason ? ` — เหตุผล: ${row.reason}` : ""}${cascaded}`,
+        href: `/production/orders/${row.recordId}`,
+        changes: [],
+      };
+    }
     if (key === "PO_UPDATE") {
       const rev = revisionByKey.get(`${row.recordId}:${nv.revNo}`);
       const changes = rev ? rev.changes.map((c) => describeCustomerPoChange(c, productLabelById)) : [];
@@ -137,6 +155,14 @@ export default async function ProductionHistoryPage(props: { searchParams: Promi
     }
     if (key === "PROD_START") {
       return { eventKey: key, title: `เริ่มผลิต ${prodNoText} (สถานะ: ${nv.status ?? "-"})`, href: `/production/production-orders/${row.recordId}`, changes: [] };
+    }
+    if (key === "PROD_CANCEL") {
+      return {
+        eventKey: key,
+        title: `ยกเลิกใบสั่งผลิต ${prodNoText}${nv.viaCustomerPo ? " (ตามการยกเลิกออเดอร์)" : ""}${row.reason ? ` — เหตุผล: ${row.reason}` : ""}`,
+        href: `/production/production-orders/${row.recordId}`,
+        changes: [],
+      };
     }
     // PROD_PRINT
     return {

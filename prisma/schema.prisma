@@ -1089,6 +1089,13 @@ model CustomerPO {
   poImagePaths  String[] // P1 shortcut — เตรียม migrate เป็น Attachment model ภายหลัง
   version       Int       @default(0) // optimistic lock กัน lost update (reject + reload, ไม่ auto-merge)
   revCounter    Int       @default(0) // ที่มาของ revNo แบบ atomic ให้ CustomerPORevision
+  // CP0 Cancellation (2026-08-30, docs 05/07 + D1-D5) — เก็บเป็น timestamp fact ไม่ใช่ status
+  // text (บทเรียน S4: guard ห้ามผูกกับข้อความที่แอดมินแก้ได้) — terminal, ห้ามล้างค่ากลับ (D4)
+  // status เดิมไม่ถูกแตะตอนยกเลิก (ค่าสุดท้ายคงอยู่เป็นประวัติ) การแสดงผล "ยกเลิกแล้ว" derive
+  // จาก cancelledAt ผ่าน production-status-badges.ts จุดเดียว
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
   createdById   String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -1159,7 +1166,8 @@ enum RevisionChangeType {
   QTY_CHANGE
   CANCEL_LINE
   RESOLVE_PRODUCT // ผูก UNRESOLVED line เข้ากับ SKU จริงทีหลัง
-  ORDER_LEVEL // เปลี่ยนแปลงระดับทั้งออเดอร์ ไม่ผูกกับบรรทัดเดียว (ยกเลิกทั้งใบ/เปลี่ยนวันที่)
+  ORDER_LEVEL // เปลี่ยนแปลงระดับทั้งออเดอร์ ไม่ผูกกับบรรทัดเดียว (เปลี่ยนวันที่/หัวเอกสาร)
+  CANCEL_ORDER // CP0 — ยกเลิกทั้งออเดอร์ (แยกจาก ORDER_LEVEL เพื่อให้หน้าประวัติแสดงคำตรงความจริง)
 }
 
 model CustomerPORevisionChange {
@@ -1200,6 +1208,13 @@ model ProductionOrder {
   // พิมพ์ซ้ำหลังจากนี้ไม่เปลี่ยน state ใดๆ — null = ยังไม่เริ่มผลิต
   productionStartedAt   DateTime?
   productionStartedById String?
+  // CP0 Cancellation (2026-08-30) — set ได้ 2 ทาง: cascade จาก cancelCustomerPO (ทางเดียว
+  // ตาม D3) หรือ cancelProductionOrder แยกใบ (CustomerPO ต้นทางยัง active ออกใบใหม่ได้ —
+  // ไม่มี unique constraint บน customerPoId อยู่แล้ว ยืนยัน 2026-08-30) — terminal เหมือนกัน
+  // ห้าม reuse/uncancel ใบที่ยกเลิกแล้ว · revision/print/started history ไม่ถูกแตะใดๆ
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
   createdById  String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

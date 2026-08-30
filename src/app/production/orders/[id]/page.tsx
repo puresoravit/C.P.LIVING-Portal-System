@@ -1,11 +1,16 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { displayProdNo } from "@/lib/production-order-display";
 import { StatusBadge } from "@/components/status-badge";
 import { customerPoStatusBadge, productionOrderStatusBadge } from "@/lib/production-status-badges";
 import { getProductionSettings } from "@/lib/production-settings";
 import { BackLink } from "@/components/production/back-link";
+import { CancelDocumentButton } from "@/components/production/cancel-document-button";
 import { collectSnapshotProductIds, describeCustomerPoChange } from "@/lib/customer-po-revision-describe";
+import { cancelCustomerPO } from "../actions";
 
 const DATE_MODE_LABEL: Record<string, string> = {
   UNSET: "ยังไม่กำหนด",
@@ -32,13 +37,36 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
       },
       productionOrders: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, prodNo: true, currentRevNo: true, status: true, createdAt: true, productionStartedAt: true },
+        select: { id: true, prodNo: true, currentRevNo: true, status: true, createdAt: true, productionStartedAt: true, cancelledAt: true },
       },
     },
   });
   if (!po) notFound();
 
   const productionSettings = await getProductionSettings();
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+
+  const isCancelled = !!po.cancelledAt;
+  // CP0 — บริบทของ modal ยกเลิก: cascade ไปใบสั่งผลิตที่ยัง active ทุกใบ (D3) — ถ้ามีใบที่
+  // เริ่มผลิตแล้วต้องใช้สิทธิ์ production.cancelStarted (server enforce ซ้ำอีกชั้นใน tx เสมอ)
+  const activePOsForCancel = po.productionOrders.filter((o) => !o.cancelledAt);
+  const startedPOs = activePOsForCancel.filter((o) => o.productionStartedAt);
+  const cancelBlocked = startedPOs.length > 0 && !can(role, "production.cancelStarted");
+  const cancelWarnings: string[] = [];
+  if (startedPOs.length > 0) {
+    cancelWarnings.push(
+      `⚠ ใบสั่งผลิต ${startedPOs.map((o) => o.prodNo).join(", ")} เริ่มผลิตไปแล้ว — ของจริงอาจอยู่บนไลน์ผลิต การยกเลิกในระบบไม่ได้ทำให้ของที่ผลิตแล้วหายไป`
+    );
+    cancelWarnings.push("แจ้งหน้างานเก็บใบสั่งผลิตชุดที่พิมพ์แล้วคืนด้วย");
+  }
+  if (activePOsForCancel.length > 0) {
+    cancelWarnings.push(`ใบสั่งผลิตที่จะถูกยกเลิกพร้อมกัน: ${activePOsForCancel.map((o) => o.prodNo).join(", ")}`);
+  }
+  cancelWarnings.push("ประวัติ/Revision ทั้งหมดยังเปิดดูได้ — การยกเลิกถอนกลับไม่ได้ ถ้าลูกค้ากลับมาสั่งใหม่ให้สร้างออเดอร์ใหม่");
+  const cancelledBy = po.cancelledById
+    ? await db.user.findUnique({ where: { id: po.cancelledById }, select: { displayName: true, username: true } })
+    : null;
 
   const hasEligibleLineForProduction = po.lines.some((l) => l.lineKind === "CATALOG");
 
@@ -67,17 +95,41 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
           {po.urgency && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 align-middle">ด่วน</span>}
         </h1>
         <div className="flex items-center gap-2">
-          <StatusBadge {...customerPoStatusBadge(po.productionOrders.length > 0)} />
-          <a
-            href={`/production/orders/${po.id}/edit`}
-            className="text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
-          >
-            แก้ไข
-          </a>
+          <StatusBadge {...customerPoStatusBadge(po.productionOrders.length > 0, isCancelled)} />
+          {!isCancelled && (
+            <a
+              href={`/production/orders/${po.id}/edit`}
+              className="text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              แก้ไข
+            </a>
+          )}
+          {!isCancelled && can(role, "customerPo.cancel") && (
+            <CancelDocumentButton
+              buttonLabel="ยกเลิกออเดอร์"
+              modalTitle={startedPOs.length > 0 ? "ยกเลิกออเดอร์ที่เริ่มผลิตแล้ว?" : "ยกเลิกออเดอร์นี้?"}
+              warningLines={cancelWarnings}
+              danger={startedPOs.length > 0}
+              blockedMessage={cancelBlocked ? "มีใบสั่งผลิตที่เริ่มผลิตไปแล้ว — การยกเลิกออเดอร์นี้ต้องให้ผู้ดูแลระบบเป็นผู้ทำ" : undefined}
+              version={po.version}
+              action={cancelCustomerPO.bind(null, po.id)}
+            />
+          )}
         </div>
       </div>
 
-      {hasEligibleLineForProduction && (
+      {isCancelled && (
+        <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2 mb-4">
+          ✕ ออเดอร์นี้ถูกยกเลิกเมื่อ {po.cancelledAt!.toLocaleString("th-TH")}
+          {cancelledBy && ` โดย ${cancelledBy.displayName || cancelledBy.username}`}
+          {po.cancelReason && ` — เหตุผล: ${po.cancelReason}`}
+          <span className="block text-xs mt-0.5 text-red-600">
+            ประวัติทั้งหมดยังเปิดดูได้ — แก้ไข/ออกใบสั่งผลิตต่อไม่ได้ ถ้าลูกค้ากลับมาสั่งใหม่ให้สร้างออเดอร์ใหม่
+          </span>
+        </div>
+      )}
+
+      {hasEligibleLineForProduction && !isCancelled && (
         <a
           href={`/production/production-orders/new?customerPoId=${po.id}`}
           className="block text-center bg-cp-navy hover:bg-cp-navy-light text-white text-sm font-medium rounded-lg px-4 py-2.5 mb-4"
@@ -154,7 +206,7 @@ export default async function CustomerPODetailPage(props: { params: Promise<{ id
                 className="flex items-center justify-between bg-white border rounded-lg p-3 hover:border-cp-navy text-sm"
               >
                 <span className="font-medium">{displayProdNo(order.prodNo, order.currentRevNo)}</span>
-                <StatusBadge {...productionOrderStatusBadge(!!order.productionStartedAt, productionSettings)} />
+                <StatusBadge {...productionOrderStatusBadge(!!order.productionStartedAt, productionSettings, !!order.cancelledAt)} />
               </a>
             ))}
           </div>

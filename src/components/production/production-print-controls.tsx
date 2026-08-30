@@ -15,6 +15,7 @@ import { BackLink } from "@/components/production/back-link";
 // ตัดสินเองจาก CAS อิสระ 2 ชุดว่า mark เฉพาะ revision หรือต้อง mark เริ่มผลิตด้วย (actions.ts)
 // ฝั่ง client เปลี่ยนแค่จังหวะเรียก ไม่แตะ logic ฝั่ง server
 export function ProductionPrintControls({
+  cancelled = false,
   orderStarted,
   currentRevPrinted,
   startedLabel,
@@ -24,6 +25,9 @@ export function ProductionPrintControls({
   backHref,
   confirmAction,
 }: {
+  /** CP0 — ใบที่ยกเลิกแล้ว: พิมพ์ได้เฉพาะเพื่อดูเอกสารประวัติ ไม่มี confirm flow ใดๆ (server
+   * guard confirmPrintRevision ไว้อีกชั้นแล้ว — prop นี้เป็น UX เท่านั้น) */
+  cancelled?: boolean;
   /** true = ProductionOrder เคยเริ่มผลิตแล้ว (ทั้งใบ เปลี่ยนครั้งเดียวตลอดชีวิตของออเดอร์) */
   orderStarted: boolean;
   /** true = Revision ปัจจุบัน (currentRevNo) เคยถูกพิมพ์แล้ว */
@@ -67,6 +71,25 @@ export function ProductionPrintControls({
         showError("บันทึกไม่สำเร็จ — กรุณาลองอีกครั้ง หรือแจ้งผู้ดูแลระบบ");
       }
     });
+  }
+
+  // CP0 — ใบยกเลิกแล้ว: เหลือแค่พิมพ์เพื่อดูเอกสาร (ไม่มี modal/confirm/state ใดๆ)
+  if (cancelled) {
+    return (
+      <div className="print:hidden flex flex-wrap items-center gap-2 mb-4 sticky top-0 bg-gray-50 py-2 z-10">
+        <button
+          onClick={() => window.print()}
+          className="bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded px-4 py-2 whitespace-nowrap"
+        >
+          พิมพ์เอกสารอ้างอิง (ยกเลิกแล้ว)
+        </button>
+        <BackLink
+          fallbackHref={backHref}
+          label="← ย้อนกลับ"
+          className="text-sm text-gray-600 hover:text-gray-900 border rounded px-4 py-2 whitespace-nowrap"
+        />
+      </div>
+    );
   }
 
   return (

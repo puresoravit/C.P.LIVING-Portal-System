@@ -168,7 +168,13 @@ export async function createProductionOrder(customerPoId: string, formData: Form
   const settings = await getProductionSettings();
   const defaultStatus = settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต";
 
-  const productionOrder = await db.$transaction(async (tx) => {
+  let productionOrder;
+  try {
+    productionOrder = await db.$transaction(async (tx) => {
+    // CP0 — ออเดอร์ที่ยกเลิกแล้วออกใบสั่งผลิตไม่ได้ (เช็คใน tx กัน race กับการยกเลิกพร้อมกัน)
+    const poState = await tx.customerPO.findUniqueOrThrow({ where: { id: customerPoId }, select: { cancelledAt: true } });
+    if (poState.cancelledAt) throw new CancelledDocError();
+
     const period = currentPeriod(new Date());
     const seq = await getNextSeq("PROD", period, tx);
     const prodNo = formatDocNumber("PROD", period, seq);
@@ -210,7 +216,13 @@ export async function createProductionOrder(customerPoId: string, formData: Form
     });
 
     return order;
-  });
+    });
+  } catch (error) {
+    if (error instanceof CancelledDocError) {
+      return { success: false, error: "ออเดอร์นี้ถูกยกเลิกแล้ว ออกใบสั่งผลิตไม่ได้ — กรุณาโหลดหน้าใหม่" };
+    }
+    throw error;
+  }
 
   revalidatePath(`/production/orders/${customerPoId}`);
   revalidatePath("/production/production-orders");
@@ -220,6 +232,10 @@ export async function createProductionOrder(customerPoId: string, formData: Form
 // สัญญาณ "มีคนออก Rev ใหม่ไปแล้วระหว่างที่เปิดฟอร์มอยู่" — Pattern เดียวกับ ConcurrentEditError
 // ของ updateCustomerPO (CustomerPO.version) แต่ที่นี่ CAS บน ProductionOrder.currentRevNo แทน
 class ConcurrentReviseError extends Error {}
+// CP0 — เอกสาร (ออเดอร์ต้นทางหรือใบสั่งผลิต) ถูกยกเลิกแล้ว ห้ามเดินงานต่อ (terminal)
+class CancelledDocError extends Error {}
+// CP0/Lock 3 — กระทบใบที่เริ่มผลิตแล้วโดยไม่มีสิทธิ์ production.cancelStarted
+class CancelStartedForbiddenError extends Error {}
 
 // S3 CP3 — ออก Revision ใหม่: สร้างแถว ProductionItem/Fabric/Layer ชุดใหม่ทั้งหมดผูกกับ
 // ProductionOrderRevision แถวใหม่ (revNo = revCounter อะตอมิก) ไม่แตะ/ไม่ลบ Revision เดิม
@@ -262,8 +278,15 @@ export async function reviseProductionOrder(id: string, formData: FormData): Pro
 
   try {
     await db.$transaction(async (tx) => {
+      // CP0 — ใบสั่งผลิต/ออเดอร์ต้นทางที่ยกเลิกแล้ว ห้ามออก Revision ใหม่ (เช็คใน tx)
+      const state = await tx.productionOrder.findUniqueOrThrow({
+        where: { id },
+        select: { cancelledAt: true, customerPo: { select: { cancelledAt: true } } },
+      });
+      if (state.cancelledAt || state.customerPo.cancelledAt) throw new CancelledDocError();
+
       const cas = await tx.productionOrder.updateMany({
-        where: { id, currentRevNo: baseRevNo },
+        where: { id, currentRevNo: baseRevNo, cancelledAt: null },
         data: { currentRevNo: { increment: 1 }, revCounter: { increment: 1 } },
       });
       if (cas.count === 0) throw new ConcurrentReviseError();
@@ -293,6 +316,9 @@ export async function reviseProductionOrder(id: string, formData: FormData): Pro
       });
     });
   } catch (error) {
+    if (error instanceof CancelledDocError) {
+      return { success: false, error: "ใบสั่งผลิตนี้ (หรือออเดอร์ต้นทาง) ถูกยกเลิกแล้ว แก้ไขไม่ได้ — กรุณาโหลดหน้าใหม่" };
+    }
     if (error instanceof ConcurrentReviseError) {
       return {
         success: false,
@@ -335,8 +361,12 @@ export async function confirmPrintRevision(id: string): Promise<ActionResult> {
 
   const settings = await getProductionSettings();
 
-  await db.$transaction(async (tx) => {
-    const order = await tx.productionOrder.findUniqueOrThrow({ where: { id }, select: { currentRevNo: true, customerPoId: true } });
+  try {
+    await db.$transaction(async (tx) => {
+    const order = await tx.productionOrder.findUniqueOrThrow({ where: { id }, select: { currentRevNo: true, customerPoId: true, cancelledAt: true } });
+    // CP0 — ใบที่ยกเลิกแล้วห้ามเปลี่ยน state ใดๆ (mark พิมพ์/เริ่มผลิต) — พิมพ์ซ้ำเพื่อดู
+    // เอกสารประวัติยังทำได้ฝั่ง client (ไม่ผ่าน action นี้)
+    if (order.cancelledAt) throw new CancelledDocError();
 
     const revisionCas = await tx.productionOrderRevision.updateMany({
       where: { productionOrderId: id, revNo: order.currentRevNo, printedAt: null },
@@ -365,10 +395,86 @@ export async function confirmPrintRevision(id: string): Promise<ActionResult> {
           : { event: "PRINT_REVISION", revNo: order.currentRevNo },
       },
     });
-  });
+    });
+  } catch (error) {
+    if (error instanceof CancelledDocError) {
+      return { success: false, error: "ใบสั่งผลิตนี้ถูกยกเลิกแล้ว — บันทึกการพิมพ์/เริ่มผลิตไม่ได้" };
+    }
+    throw error;
+  }
 
   revalidatePath("/production/production-orders");
   revalidatePath(`/production/production-orders/${id}`);
   revalidatePath(`/production/production-orders/${id}/print`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// CP0 — ยกเลิกใบสั่งผลิตแยกใบ (D3: cascade ทางเดียวเท่านั้น — ออเดอร์ต้นทางยัง active
+// และออกใบสั่งผลิตใหม่ได้เสมอ ยืนยันแล้วว่าไม่มี unique constraint ขวาง 1 PO : N ใบ)
+// ---------------------------------------------------------------------------
+export async function cancelProductionOrder(id: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "productionOrder.cancel")) throw new Error("FORBIDDEN");
+
+  const reason = String(formData.get("reason") || "").trim();
+  if (!reason) {
+    return { success: false, error: "กรุณากรอกเหตุผลที่ยกเลิก", fieldErrors: { reason: "กรุณากรอกเหตุผลที่ยกเลิก" } };
+  }
+
+  let customerPoId = "";
+  try {
+    await db.$transaction(async (tx) => {
+      const order = await tx.productionOrder.findUniqueOrThrow({
+        where: { id },
+        select: {
+          prodNo: true,
+          cancelledAt: true,
+          productionStartedAt: true,
+          customerPoId: true,
+          customerPo: { select: { customerId: true, branchId: true } },
+        },
+      });
+      customerPoId = order.customerPoId;
+      if (order.cancelledAt) throw new CancelledDocError();
+      // Lock 1: enforce ผ่าน can() ใน server เท่านั้น — เช็คใน tx กัน race กับการกดเริ่มผลิต
+      if (order.productionStartedAt !== null && !can(user.role, "production.cancelStarted")) {
+        throw new CancelStartedForbiddenError();
+      }
+
+      const cas = await tx.productionOrder.updateMany({
+        where: { id, cancelledAt: null },
+        data: { cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason },
+      });
+      if (cas.count === 0) throw new CancelledDocError(); // มีคนยกเลิกตัดหน้าใน race — ผลลัพธ์เดียวกัน
+
+      // ไม่แตะ CustomerPO ใดๆ (D3) · ไม่แตะ revision/printedAt/productionStartedAt (D5)
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "ProductionOrder",
+          recordId: id,
+          customerId: order.customerPo.customerId,
+          branchId: order.customerPo.branchId,
+          customerPoId: order.customerPoId,
+          reason,
+          newValue: { event: "CANCEL", prodNo: order.prodNo, viaCustomerPo: false, wasStarted: order.productionStartedAt !== null },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof CancelledDocError) {
+      return { success: false, error: "ใบสั่งผลิตนี้ถูกยกเลิกไปแล้ว" };
+    }
+    if (error instanceof CancelStartedForbiddenError) {
+      return { success: false, error: "ใบสั่งผลิตนี้เริ่มผลิตไปแล้ว — การยกเลิกต้องให้ผู้ดูแลระบบเป็นผู้ทำ" };
+    }
+    throw error;
+  }
+
+  revalidatePath("/production/production-orders");
+  revalidatePath(`/production/production-orders/${id}`);
+  if (customerPoId) revalidatePath(`/production/orders/${customerPoId}`);
   return { success: true };
 }

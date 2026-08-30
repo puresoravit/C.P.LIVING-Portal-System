@@ -26,4 +26,18 @@ describe("Permission Matrix (ข้อ 3, 65)", () => {
     expect(can("VIEWER", "report.view")).toBe(true);
     expect(can("VIEWER", "report.export")).toBe(true);
   });
+
+  // CP0 Cancellation boundary (doc 07 ข้อ 1 — Owner อนุมัติ 2026-08-30): ยกเลิกก่อนเริ่มผลิต
+  // staff ทำได้ · กระทบใบที่เริ่มผลิตแล้วต้อง production.cancelStarted ซึ่งสงวน OWNER_ADMIN
+  it("CP0: staff ยกเลิกออเดอร์/ใบสั่งผลิตที่ยังไม่เริ่มผลิตได้ แต่ cancelStarted เป็นของแอดมินเท่านั้น", () => {
+    expect(can("BILLING_STAFF", "customerPo.cancel")).toBe(true);
+    expect(can("BILLING_STAFF", "productionOrder.cancel")).toBe(true);
+    expect(can("BILLING_STAFF", "production.cancelStarted")).toBe(false);
+    expect(can("OWNER_ADMIN", "customerPo.cancel")).toBe(true);
+    expect(can("OWNER_ADMIN", "productionOrder.cancel")).toBe(true);
+    expect(can("OWNER_ADMIN", "production.cancelStarted")).toBe(true);
+    expect(can("VIEWER", "customerPo.cancel")).toBe(false);
+    expect(can("VIEWER", "productionOrder.cancel")).toBe(false);
+    expect(can("VIEWER", "production.cancelStarted")).toBe(false);
+  });
 });

@@ -29,7 +29,7 @@ export default async function ProductionOrdersPage() {
       ) : (
         <div className="space-y-2">
           {orders.map((order) => {
-            const badge = productionOrderStatusBadge(!!order.productionStartedAt, settings);
+            const badge = productionOrderStatusBadge(!!order.productionStartedAt, settings, !!order.cancelledAt);
             return (
               <a
                 key={order.id}

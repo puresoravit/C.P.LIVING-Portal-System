@@ -1,11 +1,16 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { displayProdNo } from "@/lib/production-order-display";
 import { ProductionOrderRevisionView } from "@/components/production/production-order-revision-view";
 import { StatusBadge } from "@/components/status-badge";
 import { productionOrderStatusBadge } from "@/lib/production-status-badges";
 import { getProductionSettings } from "@/lib/production-settings";
 import { BackLink } from "@/components/production/back-link";
+import { CancelDocumentButton } from "@/components/production/cancel-document-button";
+import { cancelProductionOrder } from "../actions";
 
 // S3 CP2/CP3 — หน้ารายละเอียดใบสั่งผลิต แสดง Revision ปัจจุบัน (currentRevNo) แบบจัดกลุ่มตาม
 // specHash (Production Block) ผ่าน ProductionOrderRevisionView ที่ใช้ร่วมกับหน้าดู
@@ -25,7 +30,24 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
   if (!order) notFound();
 
   const settings = await getProductionSettings();
-  const statusBadge = productionOrderStatusBadge(!!order.productionStartedAt, settings);
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+
+  const isCancelled = !!order.cancelledAt;
+  const statusBadge = productionOrderStatusBadge(!!order.productionStartedAt, settings, isCancelled);
+  // CP0 — ยกเลิกแยกใบ (D3): CustomerPO ต้นทางไม่โดนแตะ ออกใบใหม่ได้ · ใบที่เริ่มผลิตแล้ว
+  // ต้องมีสิทธิ์ production.cancelStarted (server enforce ซ้ำใน tx เสมอ)
+  const cancelBlocked = !!order.productionStartedAt && !can(role, "production.cancelStarted");
+  const cancelWarnings: string[] = [];
+  if (order.productionStartedAt) {
+    cancelWarnings.push("⚠ ใบนี้เริ่มผลิตไปแล้ว — ของจริงอาจอยู่บนไลน์ผลิต การยกเลิกในระบบไม่ได้ทำให้ของที่ผลิตแล้วหายไป");
+    cancelWarnings.push("แจ้งหน้างานเก็บใบสั่งผลิตชุดที่พิมพ์แล้วคืนด้วย");
+  }
+  cancelWarnings.push("ออเดอร์ลูกค้าต้นทางยังใช้งานได้ตามปกติ และออกใบสั่งผลิตใหม่ได้ — ยกเลิกเฉพาะใบนี้เท่านั้น");
+  cancelWarnings.push("ประวัติ/Revision ของใบนี้ยังเปิดดูได้ — การยกเลิกถอนกลับไม่ได้");
+  const cancelledBy = order.cancelledById
+    ? await db.user.findUnique({ where: { id: order.cancelledById }, select: { displayName: true, username: true } })
+    : null;
 
   const currentRevision = await db.productionOrderRevision.findUnique({
     where: { productionOrderId_revNo: { productionOrderId: order.id, revNo: order.currentRevNo } },
@@ -77,28 +99,53 @@ export default async function ProductionOrderDetailPage(props: { params: Promise
           คือกลไก Production Revision เดิมเป๊ะ (แค่เปลี่ยน label) ส่วน "+ ลูกค้าสั่งเพิ่ม /
           แก้ P.O." พาเข้าหน้าแก้ CustomerPO ต้นทางตรงๆ ไม่ต้องย้อนไปหาเองในหน้ารายการ —
           คำว่า Revision เหลือไว้เฉพาะ section ประวัติด้านล่าง */}
+      {isCancelled && (
+        <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2 mb-4">
+          ✕ ใบสั่งผลิตนี้ถูกยกเลิกเมื่อ {order.cancelledAt!.toLocaleString("th-TH")}
+          {cancelledBy && ` โดย ${cancelledBy.displayName || cancelledBy.username}`}
+          {order.cancelReason && ` — เหตุผล: ${order.cancelReason}`}
+          <span className="block text-xs mt-0.5 text-red-600">
+            ประวัติ/Revision ยังเปิดดูได้ — แก้ไข/พิมพ์เพื่อสั่งงาน/เริ่มผลิตต่อไม่ได้ ใบที่พิมพ์ไปแล้วถือเป็นโมฆะ
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <a
           href={`/production/production-orders/${order.id}/print`}
           className="inline-block text-xs px-2 py-0.5 rounded-full bg-cp-navy text-white hover:bg-cp-navy-light"
         >
-          พิมพ์ใบสั่งผลิต
+          {isCancelled ? "ดูเอกสาร (ยกเลิกแล้ว)" : "พิมพ์ใบสั่งผลิต"}
         </a>
-        <a
-          href={`/production/production-orders/${order.id}/revise`}
-          className="inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
-        >
-          แก้ไขใบสั่งผลิต
-        </a>
-        <a
-          href={`/production/orders/${order.customerPoId}/edit`}
-          className="inline-block text-xs px-2 py-0.5 rounded-full border border-green-300 text-green-700 hover:bg-green-50"
-        >
-          + ลูกค้าสั่งเพิ่ม / แก้ออเดอร์
-        </a>
+        {!isCancelled && (
+          <>
+            <a
+              href={`/production/production-orders/${order.id}/revise`}
+              className="inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              แก้ไขใบสั่งผลิต
+            </a>
+            <a
+              href={`/production/orders/${order.customerPoId}/edit`}
+              className="inline-block text-xs px-2 py-0.5 rounded-full border border-green-300 text-green-700 hover:bg-green-50"
+            >
+              + ลูกค้าสั่งเพิ่ม / แก้ออเดอร์
+            </a>
+            {can(role, "productionOrder.cancel") && (
+              <CancelDocumentButton
+                buttonLabel="ยกเลิกใบสั่งผลิต"
+                modalTitle={order.productionStartedAt ? "ยกเลิกใบสั่งผลิตที่เริ่มผลิตแล้ว?" : "ยกเลิกใบสั่งผลิตนี้?"}
+                warningLines={cancelWarnings}
+                danger={!!order.productionStartedAt}
+                blockedMessage={cancelBlocked ? "ใบสั่งผลิตนี้เริ่มผลิตไปแล้ว — การยกเลิกต้องให้ผู้ดูแลระบบเป็นผู้ทำ" : undefined}
+                action={cancelProductionOrder.bind(null, order.id)}
+              />
+            )}
+          </>
+        )}
       </div>
 
-      {poEditedAfterCurrentRev && (
+      {!isCancelled && poEditedAfterCurrentRev && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2 mb-4">
           ⚠ ออเดอร์ต้นทางมีการแก้ไขหลังออกใบสั่งผลิตนี้ (แก้ล่าสุด{" "}
           {latestPoRevision!.createdAt.toLocaleString("th-TH")}) — กรุณาตรวจสอบว่ารายการผลิตยังตรงกับที่ลูกค้าสั่งจริง

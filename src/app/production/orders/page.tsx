@@ -42,7 +42,7 @@ export default async function CustomerOrdersPage() {
 
       <div className="bg-white border rounded-lg overflow-hidden divide-y">
         {orders.map((po) => {
-          const badge = customerPoStatusBadge(po._count.productionOrders > 0);
+          const badge = customerPoStatusBadge(po._count.productionOrders > 0, !!po.cancelledAt);
           return (
             <a
               key={po.id}

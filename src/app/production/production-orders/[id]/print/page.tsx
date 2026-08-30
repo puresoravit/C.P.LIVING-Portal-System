@@ -183,7 +183,8 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
     },
     // สถานะ derive จาก productionStartedAt (แหล่งเดียวกับ badge ทุกหน้า — ดู
     // production-status-badges.ts) ไม่อ่าน order.status ดิบ กันข้อความเก่าค้างใน DB
-    { label: "สถานะ", value: order.productionStartedAt ? settings.inProgressStatus : settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต" },
+    // CP0 — ยกเลิกแล้วชนะทุกสถานะ (derive จาก cancelledAt fact เหมือน badge ทุกหน้า)
+    { label: "สถานะ", value: order.cancelledAt ? "ยกเลิกแล้ว" : order.productionStartedAt ? settings.inProgressStatus : settings.productionOrderStatuses[0] ?? "รอเริ่มผลิต" },
   ];
 
   const copyBody = (copyNo: number) => (
@@ -321,7 +322,14 @@ export default async function ProductionOrderPrintPage(props: { params: Promise<
           __html: `@media print { ${printPageStyleFor("a4")} } :root { --print-content-height: ${PRINT_PROFILES.a4.contentHeightMm}mm; }`,
         }}
       />
+      {order.cancelledAt && (
+        <div className="print:hidden bg-red-50 border border-red-200 text-red-800 text-sm rounded px-3 py-2 mb-2">
+          ✕ ใบสั่งผลิตนี้ถูกยกเลิกแล้ว ({order.cancelledAt.toLocaleString("th-TH")}
+          {order.cancelReason ? ` — เหตุผล: ${order.cancelReason}` : ""}) — เอกสารนี้เป็นเพียงประวัติ ห้ามใช้สั่งงานผลิต
+        </div>
+      )}
       <ProductionPrintControls
+        cancelled={!!order.cancelledAt}
         orderStarted={!!order.productionStartedAt}
         currentRevPrinted={!!revision.printedAt}
         startedLabel={

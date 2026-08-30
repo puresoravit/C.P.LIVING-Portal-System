@@ -175,6 +175,8 @@ function lineDiffers(existing: ExistingLineLike, next: Omit<ExistingLineLike, "i
 // สัญญาณ "มีคนแก้ไปก่อนแล้วระหว่างที่เปิดฟอร์มอยู่" — จับแยกจาก Error ที่ไม่คาดคิดจริงๆ
 // (ตาม Pattern ActionResult เดิม: Error ที่คาดไว้แล้ว return แทนการ throw)
 class ConcurrentEditError extends Error {}
+// CP0 — เอกสารถูกยกเลิกแล้ว ห้ามแก้/เดินงานต่อ (terminal)
+class CancelledDocError extends Error {}
 
 // ข้อ 3 (S2 Checkpoint 2 requirement) — Create ครั้งแรก = Rev.0 (ทำแล้วใน createCustomerPO)
 // การแก้แต่ละครั้งต้องมี Revision ชัดเจน ทุก Mutation (Header + Lines + Revision + Audit)
@@ -221,9 +223,14 @@ export async function updateCustomerPO(id: string, formData: FormData): Promise<
 
   try {
     await db.$transaction(async (tx) => {
+      // CP0 — ออเดอร์ที่ยกเลิกแล้วเป็น terminal แก้ไขไม่ได้ (จะกลับมาสั่งใหม่ = สร้างออเดอร์ใหม่
+      // ตาม D4) เช็คใน tx + ใส่ใน WHERE ของ CAS ซ้ำอีกชั้นกัน race กับการยกเลิกที่มาพร้อมกัน
+      const current = await tx.customerPO.findUniqueOrThrow({ where: { id }, select: { cancelledAt: true } });
+      if (current.cancelledAt) throw new CancelledDocError();
+
       // Compare-and-swap: ถ้า version ไม่ตรง (มีคนแก้ไปแล้วระหว่างเปิดฟอร์มอยู่) count = 0
       const cas = await tx.customerPO.updateMany({
-        where: { id, version },
+        where: { id, version, cancelledAt: null },
         data: {
           customerId: header.customerId,
           branchId: header.branchId || null,
@@ -368,6 +375,9 @@ export async function updateCustomerPO(id: string, formData: FormData): Promise<
       });
     });
   } catch (error) {
+    if (error instanceof CancelledDocError) {
+      return { success: false, error: "ออเดอร์นี้ถูกยกเลิกแล้ว แก้ไขไม่ได้ — ถ้าลูกค้ากลับมาสั่งใหม่ให้สร้างออเดอร์ใหม่" };
+    }
     if (error instanceof ConcurrentEditError) {
       return {
         success: false,
@@ -380,4 +390,145 @@ export async function updateCustomerPO(id: string, formData: FormData): Promise<
   revalidatePath("/production/orders");
   revalidatePath(`/production/orders/${id}`);
   redirect(`/production/orders/${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// CP0 — ยกเลิกออเดอร์ลูกค้า (docs 05/07 + D1-D5, Owner อนุมัติ 2026-08-30)
+// ---------------------------------------------------------------------------
+
+// ยกเลิกไปแล้ว = ผลลัพธ์ที่ผู้ใช้ต้องการเกิดแล้ว — แจ้งเฉยๆ ไม่ใช่ error ระบบ (pattern
+// cancelOrder ของ Billing) — แยก class จาก ConcurrentEditError เพราะข้อความต่างกัน
+class AlreadyCancelledError extends Error {}
+// Lock 3: มีใบที่เริ่มผลิตแล้วแต่ผู้กดไม่มีสิทธิ์ production.cancelStarted — โยนใน
+// transaction เพื่อให้ rollback ทั้งก้อน ห้ามเกิด partial cancellation เด็ดขาด
+class CancelStartedForbiddenError extends Error {}
+
+// Cancel = terminal fact (D4 ห้าม reopen) เก็บเป็น timestamp ไม่แตะ status text เดิม —
+// cascade ทางเดียวไปยังใบสั่งผลิตที่ยัง active ทุกใบใน transaction เดียว (D3/Lock 3) —
+// enforce สิทธิ์ผ่าน can() เท่านั้น ไม่เทียบชื่อ role (Lock 1)
+export async function cancelCustomerPO(id: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "customerPo.cancel")) throw new Error("FORBIDDEN");
+
+  const reason = String(formData.get("reason") || "").trim();
+  if (!reason) {
+    return { success: false, error: "กรุณากรอกเหตุผลที่ยกเลิก", fieldErrors: { reason: "กรุณากรอกเหตุผลที่ยกเลิก" } };
+  }
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) {
+    return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง" };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      const existing = await tx.customerPO.findUniqueOrThrow({
+        where: { id },
+        select: { cancelledAt: true, customerId: true, branchId: true },
+      });
+      if (existing.cancelledAt) throw new AlreadyCancelledError();
+
+      // เช็คสิทธิ์ cancelStarted "ใน transaction" — กัน race ที่มีคนกดยืนยันเริ่มผลิต
+      // ระหว่างผู้ใช้เปิด modal ค้างไว้ (เช็คก่อนหน้านั้นจะหลุด) — throw = rollback ทั้งหมด
+      const activePOs = await tx.productionOrder.findMany({
+        where: { customerPoId: id, cancelledAt: null },
+        select: { id: true, prodNo: true, productionStartedAt: true },
+      });
+      const hasStarted = activePOs.some((p) => p.productionStartedAt !== null);
+      if (hasStarted && !can(user.role, "production.cancelStarted")) throw new CancelStartedForbiddenError();
+
+      const now = new Date();
+      const cas = await tx.customerPO.updateMany({
+        where: { id, version, cancelledAt: null },
+        data: {
+          cancelledAt: now,
+          cancelledById: user.id,
+          cancelReason: reason,
+          version: { increment: 1 },
+          revCounter: { increment: 1 },
+        },
+      });
+      if (cas.count === 0) throw new ConcurrentEditError();
+
+      const updated = await tx.customerPO.findUniqueOrThrow({ where: { id }, select: { revCounter: true } });
+
+      // การยกเลิกเป็นการแก้ไขเนื้อหาออเดอร์ครั้งหนึ่ง — เก็บ Revision + CANCEL_ORDER change
+      // ตามกฎ "ห้ามเขียนทับประวัติ" (หน้าประวัติ/detail เดิมแสดงได้ทันทีไม่ต้องแก้ UI)
+      const revision = await tx.customerPORevision.create({
+        data: { customerPoId: id, revNo: updated.revCounter, actorId: user.id, reason },
+      });
+      await tx.customerPORevisionChange.create({
+        data: {
+          revisionId: revision.id,
+          orderLineId: null,
+          changeType: "CANCEL_ORDER",
+          qtyDelta: null,
+          before: { cancelled: false },
+          after: { cancelled: true, reason },
+        },
+      });
+
+      if (activePOs.length > 0) {
+        await tx.productionOrder.updateMany({
+          where: { customerPoId: id, cancelledAt: null },
+          data: { cancelledAt: now, cancelledById: user.id, cancelReason: reason },
+        });
+      }
+
+      // Audit: 1 แถวต่อ entity ที่โดนแตะ ผูกกันด้วย correlationId (การใช้ field นี้ครั้งแรก
+      // ตามที่ schema เตรียมไว้) — revision/print/started history ไม่ถูกแตะเลย (D5)
+      const correlationId = revision.id;
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "CustomerPO",
+          recordId: id,
+          customerId: existing.customerId,
+          branchId: existing.branchId,
+          customerPoId: id,
+          correlationId,
+          reason,
+          newValue: { cancelledProductionOrders: activePOs.map((p) => p.prodNo), hasStartedProduction: hasStarted },
+        },
+      });
+      for (const po of activePOs) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CANCEL",
+            module: "ProductionOrder",
+            recordId: po.id,
+            customerId: existing.customerId,
+            branchId: existing.branchId,
+            customerPoId: id,
+            correlationId,
+            reason,
+            newValue: { event: "CANCEL", prodNo: po.prodNo, viaCustomerPo: true, wasStarted: po.productionStartedAt !== null },
+          },
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof AlreadyCancelledError) {
+      return { success: false, error: "ออเดอร์นี้ถูกยกเลิกไปแล้ว" };
+    }
+    if (error instanceof CancelStartedForbiddenError) {
+      return {
+        success: false,
+        error: "มีใบสั่งผลิตที่เริ่มผลิตไปแล้ว — การยกเลิกออเดอร์นี้ต้องให้ผู้ดูแลระบบเป็นผู้ทำ",
+      };
+    }
+    if (error instanceof ConcurrentEditError) {
+      return {
+        success: false,
+        error: "ออเดอร์นี้ถูกแก้ไขโดยคนอื่นระหว่างที่คุณเปิดหน้าอยู่ — กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง",
+      };
+    }
+    throw error;
+  }
+
+  revalidatePath("/production/orders");
+  revalidatePath(`/production/orders/${id}`);
+  revalidatePath("/production/production-orders");
+  return { success: true };
 }

@@ -10,6 +10,7 @@ export const CHANGE_TYPE_LABEL: Record<string, string> = {
   CANCEL_LINE: "ยกเลิกรายการ",
   RESOLVE_PRODUCT: "ผูกสินค้าจากระบบ",
   ORDER_LEVEL: "แก้ข้อมูลหัวออเดอร์",
+  CANCEL_ORDER: "ยกเลิกออเดอร์",
 };
 
 export type CustomerPoChangeLike = {
@@ -47,6 +48,8 @@ export function describeCustomerPoChange(c: CustomerPoChangeLike, productLabelBy
       return `"${labelOf(before)}" จำนวน ${before.qty} → ${after.qty}`;
     case "ORDER_LEVEL":
       return "แก้ข้อมูลหัวออเดอร์ (ลูกค้า/สาขา/วันที่/ด่วน)";
+    case "CANCEL_ORDER":
+      return `✕ ยกเลิกออเดอร์${after.reason ? ` — เหตุผล: ${after.reason}` : ""}`;
     default:
       return CHANGE_TYPE_LABEL[c.changeType] ?? c.changeType;
   }

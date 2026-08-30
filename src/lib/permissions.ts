@@ -28,6 +28,13 @@ export type Permission =
   // ---------------------------------------------------------------
   | "customerPo.create" | "customerPo.editDraft" | "customerPo.confirm" | "customerPo.cancel"
   | "productionOrder.create" | "productionOrder.confirm" | "productionOrder.revise" | "productionOrder.print"
+  // CP0 Cancellation (2026-08-30, doc 07 ข้อ 1 — Owner อนุมัติ boundary แล้ว):
+  // productionOrder.cancel = ยกเลิกใบสั่งผลิตแยกใบที่ยังไม่เริ่มผลิต (staff ทำได้ เหมือน
+  // customerPo.cancel เดิม) · production.cancelStarted = ต้องมี "เพิ่มเติม" เมื่อการยกเลิก
+  // (ทางไหนก็ตาม) กระทบใบที่ productionStartedAt แล้ว — สงวน OWNER_ADMIN เพราะของจริงอาจอยู่
+  // บนไลน์ผลิต · enforce ฝั่ง server ผ่าน can() เท่านั้น ห้ามเทียบชื่อ role ใน business logic
+  | "productionOrder.cancel"
+  | "production.cancelStarted"
   | "productAlias.manage"
   | "productionSetting.manage"
   | "productionMasterSpec.manage";
@@ -52,6 +59,8 @@ const MATRIX: Record<Role, Permission[]> = {
     // Production Module (P1) — Admin ทำได้ทุกอย่างรวมถึง Master/Settings
     "customerPo.create", "customerPo.editDraft", "customerPo.confirm", "customerPo.cancel",
     "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
+    "productionOrder.cancel",
+    "production.cancelStarted", // OWNER_ADMIN เท่านั้น — ดู comment ที่ประกาศ type
     "productAlias.manage",
     "productionSetting.manage",
     // Master Spec (สูตรผ้า/โครงสร้างต้นแบบ) — master data นำเข้า/แก้ได้เฉพาะ Admin เช่นเดียว
@@ -76,6 +85,9 @@ const MATRIX: Record<Role, Permission[]> = {
     // สิทธิ์นี้อยู่แล้ว ตรงกับ decision ที่ยืนยันว่าต้องหัวหน้า/Admin เท่านั้น)
     "customerPo.create", "customerPo.editDraft", "customerPo.confirm", "customerPo.cancel",
     "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
+    // ยกเลิกใบสั่งผลิตที่ยังไม่เริ่มผลิตได้ (สมมาตรกับ customerPo.cancel ที่ staff มีอยู่แล้ว) —
+    // แต่ "production.cancelStarted" ไม่มีโดยเจตนา: ใบที่เริ่มผลิตแล้วต้องแอดมินเท่านั้น
+    "productionOrder.cancel",
   ],
   VIEWER: [
     "customer.view", "branch.view", "product.view", "productType.view",

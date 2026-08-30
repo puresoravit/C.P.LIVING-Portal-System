@@ -31,6 +31,17 @@ export default async function ReviseProductionOrderPage(props: { params: Promise
     getProductionSettings(),
   ]);
   if (!order) notFound();
+  // CP0 — ใบสั่งผลิต/ออเดอร์ต้นทางยกเลิกแล้ว แก้ไขไม่ได้ (server action guard ไว้อีกชั้น)
+  if (order.cancelledAt || order.customerPo.cancelledAt) {
+    return (
+      <div className="max-w-2xl">
+        <BackLink fallbackHref={`/production/production-orders/${order.id}`} />
+        <div className="mt-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2">
+          ใบสั่งผลิตนี้ (หรือออเดอร์ต้นทาง) ถูกยกเลิกแล้ว แก้ไขไม่ได้
+        </div>
+      </div>
+    );
+  }
 
   const currentRevision = await db.productionOrderRevision.findUnique({
     where: { productionOrderId_revNo: { productionOrderId: order.id, revNo: order.currentRevNo } },
