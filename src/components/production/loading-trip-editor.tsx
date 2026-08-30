@@ -26,13 +26,36 @@ export type TripEditorData = {
     id: string;
     seq: number;
     customerId: string;
+    branchId: string | null;
     customerName: string;
     branchName: string | null;
     note: string | null;
-    lines: { id: string; label: string; sku: string | null; size: string | null; qtyPlanned: number }[];
+    lines: {
+      id: string;
+      label: string;
+      sku: string | null;
+      size: string | null;
+      qtyPlanned: number;
+      customerPoLineId: string | null;
+      /** ยอดที่บรรทัดต้นทางเดียวกันถูกวางแผนไว้ในเที่ยว active อื่น (บริบทกัน duplicate) */
+      plannedElsewhere: number;
+    }[];
   }[];
   customers: { id: string; name: string; branches: { id: string; name: string }[] }[];
-  eligibleByCustomer: Record<string, { id: string; label: string; sku: string | null; size: string | null; qtyCurrent: number; poInfo: string }[]>;
+  eligibleByCustomer: Record<
+    string,
+    {
+      id: string;
+      label: string;
+      sku: string | null;
+      size: string | null;
+      qtyCurrent: number;
+      sourceBranchId: string | null;
+      sourceBranchName: string | null;
+      plannedElsewhere: number;
+      poInfo: string;
+    }[]
+  >;
 };
 
 export function LoadingTripEditor({ data }: { data: TripEditorData }) {
@@ -45,6 +68,9 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
   const [addingLineDropId, setAddingLineDropId] = useState<string | null>(null);
   const [lineChoice, setLineChoice] = useState("");
   const [lineQty, setLineQty] = useState("");
+  // CP2 lock 3 — default โชว์เฉพาะออเดอร์สาขาเดียวกับจุดส่ง ส่งข้ามสาขาต้องกดเปิดเอง
+  // (explicit override + warning) — ไม่มีการเขียนทับสาขาต้นทางใดๆ
+  const [showOtherBranch, setShowOtherBranch] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { showError } = useToast();
@@ -174,8 +200,15 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
 
         <div className="space-y-2">
           {data.drops.map((drop, idx) => {
-            const options = data.eligibleByCustomer[drop.customerId] ?? [];
+            const allOptions = data.eligibleByCustomer[drop.customerId] ?? [];
+            // default: เฉพาะออเดอร์สาขาเดียวกับจุดส่งนี้ (null ต้องตรง null ด้วย) — toggle เปิดสาขาอื่น
+            const sameBranch = allOptions.filter((o) => o.sourceBranchId === drop.branchId);
+            const otherBranch = allOptions.filter((o) => o.sourceBranchId !== drop.branchId);
+            const options = showOtherBranch ? allOptions : sameBranch;
             const chosen = options.find((o) => o.id === lineChoice);
+            const chosenInThisTrip = chosen
+              ? data.drops.reduce((s, d) => s + d.lines.filter((l) => l.customerPoLineId === chosen.id).reduce((x, l) => x + l.qtyPlanned, 0), 0)
+              : 0;
             return (
               <div key={drop.id} className="bg-white border rounded-lg p-3">
                 <div className="flex items-center gap-2">
@@ -223,6 +256,11 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         {line.label}
                         {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
                         {line.sku && <span className="text-xs text-gray-400 font-mono ml-1">{line.sku}</span>}
+                        {line.plannedElsewhere > 0 && (
+                          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            อยู่ในแผนเที่ยวอื่นด้วย {line.plannedElsewhere}
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
                         <span className="font-semibold">แผน {line.qtyPlanned}</span>
@@ -244,7 +282,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         value={lineChoice}
                         onChange={(e) => {
                           setLineChoice(e.target.value);
-                          const opt = options.find((o) => o.id === e.target.value);
+                          const opt = allOptions.find((o) => o.id === e.target.value);
                           if (opt) setLineQty(String(opt.qtyCurrent));
                         }}
                         className="w-full border rounded px-2 py-1.5 text-sm"
@@ -252,12 +290,39 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         <option value="">— เลือกสินค้าจากออเดอร์ของลูกค้ารายนี้ —</option>
                         {options.map((o) => (
                           <option key={o.id} value={o.id}>
+                            {o.sourceBranchId !== drop.branchId ? "⚠ " : ""}
                             {o.label}
-                            {o.size ? ` (${o.size})` : ""} · สั่ง {o.qtyCurrent} · {o.poInfo}
+                            {o.size ? ` (${o.size})` : ""} · สั่ง {o.qtyCurrent}
+                            {o.plannedElsewhere > 0 ? ` · แผนไว้เที่ยวอื่นแล้ว ${o.plannedElsewhere}` : ""} · {o.poInfo}
+                            {o.sourceBranchId !== drop.branchId ? ` · สาขาต้นทาง: ${o.sourceBranchName ?? "ไม่ระบุ"}` : ""}
                           </option>
                         ))}
                       </select>
-                      {options.length === 0 && <p className="text-xs text-gray-500">ลูกค้ารายนี้ไม่มีรายการที่พร้อมขึ้นรถ (ออเดอร์อาจถูกยกเลิกหรือยังไม่มีออเดอร์)</p>}
+                      {otherBranch.length > 0 && (
+                        <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <input type="checkbox" checked={showOtherBranch} onChange={(e) => setShowOtherBranch(e.target.checked)} className="rounded" />
+                          แสดงออเดอร์สาขาอื่นของลูกค้ารายนี้ ({otherBranch.length} รายการ)
+                        </label>
+                      )}
+                      {options.length === 0 && (
+                        <p className="text-xs text-gray-500">
+                          {sameBranch.length === 0 && otherBranch.length > 0
+                            ? "ไม่มีออเดอร์ของสาขาเดียวกับจุดส่งนี้ — ติ๊ก \"แสดงออเดอร์สาขาอื่น\" ถ้าต้องการส่งข้ามสาขา"
+                            : "ลูกค้ารายนี้ไม่มีรายการที่พร้อมขึ้นรถ (ออเดอร์อาจถูกยกเลิกหรือยังไม่มีออเดอร์)"}
+                        </p>
+                      )}
+                      {chosen && chosen.sourceBranchId !== drop.branchId && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          ⚠ ออเดอร์นี้เป็นของสาขา &quot;{chosen.sourceBranchName ?? "ไม่ระบุ"}&quot; ต่างจากจุดส่งนี้ — ระบบจะจดที่มาตามสาขาต้นทางเดิม ไม่เปลี่ยนให้
+                        </p>
+                      )}
+                      {chosen && (chosen.plannedElsewhere > 0 || chosenInThisTrip > 0) && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          ⚠ รายการนี้ถูกวางแผนไว้แล้ว{chosenInThisTrip > 0 ? ` ${chosenInThisTrip} ในเที่ยวนี้` : ""}
+                          {chosen.plannedElsewhere > 0 ? ` ${chosen.plannedElsewhere} ในเที่ยวอื่น` : ""} (ยอดสั่งทั้งหมด {chosen.qtyCurrent}) —
+                          แบ่งขึ้นหลายเที่ยว/หลายจุดได้ แต่ตรวจให้แน่ใจว่าไม่ใช่การเพิ่มซ้ำโดยไม่ตั้งใจ
+                        </p>
+                      )}
                       <div className="flex items-center gap-2">
                         <input
                           type="number"

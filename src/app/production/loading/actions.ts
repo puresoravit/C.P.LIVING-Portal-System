@@ -271,6 +271,147 @@ export async function addLoadingLine(tripId: string, dropId: string, formData: F
   return { success: true };
 }
 
+// ---------------------------------------------------------------------------
+// CP2 — ยกเลิกเที่ยว (DRAFT เท่านั้น) · ยืนยันขึ้นของจริง · ลบรูปหลักฐาน
+// ---------------------------------------------------------------------------
+
+// CP2 — ยกเลิกเที่ยวช่วงวางแผน: terminal fact + เหตุผล + audit ไม่ hard delete ไม่ cascade
+// ไปออเดอร์/ใบสั่งผลิตใดๆ (เที่ยวเป็นแค่แผน ไม่ใช่เอกสารต้นทาง) — เที่ยวที่พ้น DRAFT แล้ว
+// (loadedAt มีค่า = ของขึ้นรถจริงไปแล้ว) ยกเลิกด้วย flow นี้ไม่ได้โดยเจตนา: ความจริงทาง
+// กายภาพเกิดแล้ว ต้องไปจัดการที่ขั้นกระทบยอด (CP3) ไม่ใช่ทำเหมือนเที่ยวไม่เคยเกิด
+export async function cancelLoadingTrip(tripId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "loadingTrip.manage")) throw new Error("FORBIDDEN");
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่" };
+  const reason = String(formData.get("reason") || "").trim();
+  if (!reason) return { success: false, error: "กรุณากรอกเหตุผลที่ยกเลิก", fieldErrors: { reason: "กรุณากรอกเหตุผลที่ยกเลิก" } };
+
+  try {
+    await db.$transaction(async (tx) => {
+      const cas = await tx.loadingTrip.updateMany({
+        where: { id: tripId, version, loadedAt: null, cancelledAt: null },
+        data: { cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason, version: { increment: 1 } },
+      });
+      if (cas.count === 0) throw new TripConflictError();
+      await auditTrip(tx, { userId: user.id, tripId, event: "CANCEL", detail: { reason } });
+    });
+  } catch (error) {
+    if (error instanceof TripConflictError) {
+      return { success: false, error: "ยกเลิกไม่ได้ — เที่ยวนี้ถูกแก้ไข/ยืนยันขึ้นของ/ยกเลิกไปแล้ว กรุณาโหลดหน้าใหม่" };
+    }
+    throw error;
+  }
+  revalidatePath("/production/loading");
+  revalidatePath(`/production/loading/${tripId}`);
+  return { success: true };
+}
+
+// CP2 — "ยืนยันขึ้นของจริง": เหตุการณ์ทางกายภาพเดียวที่ตั้ง loadedAt คือ มนุษย์นับยอดที่ขึ้น
+// รถจริงครบทุกรายการ (qtyLoaded — planned ≠ loaded โดยชอบธรรม รวมถึง 0 ได้ถ้าไม่ได้ขึ้น)
+// พร้อมรูปใบขีดนับครบทุกจุดส่ง — การพิมพ์ใบขึ้นของไม่เกี่ยวกับ fact นี้เลย (พิมพ์ = กระดาษ
+// เปล่าสำหรับ tally ไม่ mutate อะไร) — one-way: หลังยืนยันแล้วแผน/ยอดถูก freeze แก้ผ่าน
+// การกระทบยอด (CP3) เท่านั้น — ไม่สร้าง Outstanding/reconcile ใดๆ ที่นี่ (CP3)
+export async function confirmLoadingTrip(tripId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "loadingTrip.manage")) throw new Error("FORBIDDEN");
+  const version = Number(formData.get("version"));
+  if (!Number.isFinite(version)) return { success: false, error: "ข้อมูลเวอร์ชันไม่ถูกต้อง กรุณาโหลดหน้าใหม่" };
+
+  let entries: { lineId: string; qtyLoaded: number }[];
+  try {
+    const raw = JSON.parse(String(formData.get("linesJson") || "[]"));
+    if (!Array.isArray(raw)) throw new Error("bad");
+    entries = raw.map((e: any) => ({ lineId: String(e.lineId), qtyLoaded: Number(e.qtyLoaded) }));
+    if (entries.some((e) => !e.lineId || !Number.isInteger(e.qtyLoaded) || e.qtyLoaded < 0)) throw new Error("bad");
+  } catch {
+    return { success: false, error: "ข้อมูลยอดขึ้นจริงไม่ถูกต้อง — กรุณากรอกจำนวนเต็ม 0 ขึ้นไปให้ครบทุกรายการ" };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      const cas = await tx.loadingTrip.updateMany({
+        where: { id: tripId, version, loadedAt: null, cancelledAt: null },
+        data: { version: { increment: 1 } },
+      });
+      if (cas.count === 0) throw new TripConflictError();
+
+      const drops = await tx.loadingDrop.findMany({
+        where: { tripId },
+        select: { id: true, customerId: true, photoPaths: true, lines: { select: { id: true } } },
+      });
+      const allLineIds = drops.flatMap((d) => d.lines.map((l) => l.id));
+      if (allLineIds.length === 0) throw new Error("NO_LINES");
+
+      // ทุกรายการต้องมียอดจริงส่งมาครบ (กันหน้าเก่าค้าง: รายการที่เพิ่งถูกเพิ่ม/ลบไม่ตรง)
+      const entryById = new Map(entries.map((e) => [e.lineId, e.qtyLoaded]));
+      if (allLineIds.length !== entries.length || allLineIds.some((id) => !entryById.has(id))) {
+        throw new Error("LINES_MISMATCH");
+      }
+      // กฎ "หลักฐานมาก่อนตัวเลข": ทุกจุดส่งที่มีรายการ ต้องมีรูปใบขีดนับอย่างน้อย 1 รูป —
+      // enforce ฝั่ง server ไม่ใช่แค่ UI
+      const dropMissingPhoto = drops.find((d) => d.lines.length > 0 && d.photoPaths.length === 0);
+      if (dropMissingPhoto) throw new Error("PHOTO_REQUIRED");
+
+      for (const [lineId, qtyLoaded] of entryById) {
+        await tx.loadingLine.update({ where: { id: lineId }, data: { qtyLoaded } });
+      }
+      await tx.loadingTrip.update({
+        where: { id: tripId },
+        data: { loadedAt: new Date(), loadedById: user.id },
+      });
+      const totalLoaded = entries.reduce((s, e) => s + e.qtyLoaded, 0);
+      await auditTrip(tx, {
+        userId: user.id,
+        tripId,
+        event: "CONFIRM_LOADED",
+        detail: { lineCount: entries.length, totalLoaded },
+      });
+    });
+  } catch (error) {
+    if (error instanceof TripConflictError) {
+      return { success: false, error: "ยืนยันไม่ได้ — เที่ยวนี้ถูกแก้ไข/ยืนยัน/ยกเลิกไปแล้ว กรุณาโหลดหน้าใหม่" };
+    }
+    if (error instanceof Error && error.message === "NO_LINES") {
+      return { success: false, error: "เที่ยวนี้ยังไม่มีรายการสินค้า — เพิ่มรายการก่อนยืนยันขึ้นของ" };
+    }
+    if (error instanceof Error && error.message === "LINES_MISMATCH") {
+      return { success: false, error: "รายการในเที่ยวถูกแก้ไขระหว่างที่เปิดหน้าอยู่ — กรุณาโหลดหน้าใหม่แล้วกรอกยอดอีกครั้ง" };
+    }
+    if (error instanceof Error && error.message === "PHOTO_REQUIRED") {
+      return { success: false, error: "ทุกจุดส่งที่มีรายการต้องแนบรูปใบขึ้นของที่ขีดนับแล้วอย่างน้อย 1 รูป (หลักฐานมาก่อนตัวเลข)" };
+    }
+    throw error;
+  }
+  revalidatePath("/production/loading");
+  revalidatePath(`/production/loading/${tripId}`);
+  return { success: true };
+}
+
+// CP2 — ลบรูป (เฉพาะช่วง DRAFT — หลังยืนยันขึ้นของแล้วรูปคือหลักฐานประกอบ fact ห้ามถอน)
+export async function removeLoadingPhoto(tripId: string, dropId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "loadingTrip.manage")) throw new Error("FORBIDDEN");
+  const version = Number(formData.get("version"));
+  const path = String(formData.get("path") || "");
+  if (!Number.isFinite(version) || !path) return { success: false, error: "ข้อมูลไม่ถูกต้อง กรุณาโหลดหน้าใหม่" };
+
+  try {
+    await db.$transaction(async (tx) => {
+      await casDraftTrip(tx, tripId, version);
+      const drop = await tx.loadingDrop.findFirst({ where: { id: dropId, tripId }, select: { photoPaths: true, customerId: true, branchId: true } });
+      if (!drop || !drop.photoPaths.includes(path)) throw new TripConflictError();
+      await tx.loadingDrop.update({ where: { id: dropId }, data: { photoPaths: drop.photoPaths.filter((p) => p !== path) } });
+      await auditTrip(tx, { userId: user.id, tripId, event: "REMOVE_PHOTO", customerId: drop.customerId, branchId: drop.branchId, detail: { path } });
+    });
+  } catch (error) {
+    if (error instanceof TripConflictError) return conflictResult();
+    throw error;
+  }
+  revalidatePath(`/production/loading/${tripId}`);
+  return { success: true };
+}
+
 export async function removeLoadingLine(tripId: string, lineId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!can(user.role, "loadingTrip.manage")) throw new Error("FORBIDDEN");
