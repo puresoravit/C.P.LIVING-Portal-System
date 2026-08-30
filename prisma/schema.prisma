@@ -1404,3 +1404,73 @@ model ProductionMasterLayer {
   @@unique([specId, seq])
   @@map("production_master_layers")
 }
+
+// ==========================================================================
+// P2 CP1 — การขึ้นของและจัดส่ง: โครงเที่ยวรถ (docs 04/06/07 — Owner อนุมัติ 2026-08-30)
+// สถานะเที่ยว = timestamp facts ล้วน ไม่มีคอลัมน์ status text (บทเรียน S4: business guard
+// ห้ามผูกกับข้อความที่แอดมินแก้ได้) — DRAFT = ยังไม่มี fact ใด, LOADED = loadedAt,
+// RECONCILED = reconciledAt (CP2/CP3 เป็นผู้ตั้งค่า — CP1 มีแต่ DRAFT)
+// ==========================================================================
+
+enum LoadingSourceType {
+  FRESH // ตัดจากออเดอร์/ใบผลิตรอบนี้ตรงๆ
+  OUTSTANDING // เอาของค้างเก่ามาขึ้น (ใช้จริง CP3 — enum เตรียมตาม schema ที่อนุมัติ)
+  ADHOC // ของหน้างาน ไม่มี ProductionItem รองรับ (ใช้จริง CP ถัดไป)
+}
+
+model LoadingTrip {
+  id             String    @id @default(cuid())
+  tripNo         String    @unique // getNextSeq("TRIP", YYYYMM) — reuse DocumentSequence เดิม
+  tripDate       DateTime // วันออกรถตามแผน
+  vehicleNote    String? // ทะเบียน/คนขับ — free text V1 (ไม่ทำ master รถก่อนเวลา)
+  note           String?
+  version        Int       @default(0) // optimistic lock ทุก mutation (pattern CustomerPO.version)
+  loadedAt       DateTime? // ยืนยันขึ้นของจริงแล้ว — one-way (CP2)
+  loadedById     String?
+  reconciledAt   DateTime? // กระทบยอดแล้ว — one-way (CP3)
+  reconciledById String?
+  cancelledAt    DateTime? // ยกเลิกได้เฉพาะช่วง DRAFT (workflow มาใน CP2)
+  cancelledById  String?
+  cancelReason   String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  drops LoadingDrop[]
+
+  @@map("loading_trips")
+}
+
+model LoadingDrop {
+  id         String      @id @default(cuid())
+  tripId     String
+  trip       LoadingTrip @relation(fields: [tripId], references: [id])
+  seq        Int // ลำดับจุดส่งในเที่ยว (ไปไหนก่อน-หลัง) — reorder ได้ช่วง DRAFT
+  customerId String // เที่ยวเดียวหลายลูกค้า/สาขาได้ — ปลายทางอยู่ระดับ Drop (ไม่ผูก FK แข็ง ตาม convention actorId)
+  branchId   String?
+  photoPaths String[] // รูปใบขึ้นของที่ขีดนับแล้วของจุดส่งนี้ (บังคับใช้จริง CP2/CP3 — pattern poImagePaths)
+  note       String?
+
+  lines LoadingLine[]
+
+  @@unique([tripId, seq])
+  @@map("loading_drops")
+}
+
+model LoadingLine {
+  id               String            @id @default(cuid())
+  dropId           String
+  drop             LoadingDrop       @relation(fields: [dropId], references: [id])
+  sourceType       LoadingSourceType
+  customerPoLineId String? // null เฉพาะ ADHOC — identity ถาวร (CustomerPOLine เป็น soft-delete)
+  productionItemId String? // ProductionItem ที่ผลิตจริง — CP1 ปล่อย null เสมอ (คนเลือกที่มาจริงตอน reconcile CP3 ระบบห้ามเดา)
+  productId        String?
+  skuSnapshot      String?
+  labelSnapshot    String // ชื่อที่แสดง ณ วันวางแผน (pattern productionLabelSnapshot)
+  size             String?
+  qtyPlanned       Int // แผนจะขึ้น (กรอกตอนจัดเที่ยว)
+  qtyLoaded        Int? // ขึ้นจริง — CP2 เป็นผู้กรอก (CP1 เป็น null เสมอ)
+  note             String?
+
+  @@map("loading_lines")
+}

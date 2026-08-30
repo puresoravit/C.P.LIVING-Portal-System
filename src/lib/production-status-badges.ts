@@ -29,6 +29,25 @@ export function customerPoStatusBadge(hasProductionOrder: boolean, cancelled = f
   };
 }
 
+// P2 CP1 — สถานะเที่ยวรถ derive จาก timestamp facts ล้วน (loadedAt/reconciledAt/cancelledAt)
+// CP1 มีแต่ "วางแผน" — state อื่นเตรียมไว้ให้ CP2/CP3 ที่เป็นผู้ตั้ง fact
+export function loadingTripStatusBadge(trip: {
+  loadedAt: Date | null;
+  reconciledAt: Date | null;
+  cancelledAt: Date | null;
+}): { status: string; config: StatusBadgeConfig } {
+  const status = trip.cancelledAt ? "CANCELLED" : trip.reconciledAt ? "RECONCILED" : trip.loadedAt ? "LOADED" : "DRAFT";
+  return {
+    status,
+    config: {
+      DRAFT: { label: "วางแผน", className: "bg-amber-100 text-amber-700" },
+      LOADED: { label: "ขึ้นของแล้ว", className: "bg-blue-100 text-blue-700" },
+      RECONCILED: { label: "กระทบยอดแล้ว", className: "bg-green-100 text-green-700" },
+      CANCELLED: { label: "ยกเลิกแล้ว", className: "bg-red-100 text-red-700" },
+    },
+  };
+}
+
 export function productionOrderStatusBadge(
   started: boolean,
   settings: { productionOrderStatuses: string[]; inProgressStatus: string },

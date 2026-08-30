@@ -35,6 +35,9 @@ export type Permission =
   // บนไลน์ผลิต · enforce ฝั่ง server ผ่าน can() เท่านั้น ห้ามเทียบชื่อ role ใน business logic
   | "productionOrder.cancel"
   | "production.cancelStarted"
+  // P2 CP1 — จัดการเที่ยวรถ (สร้าง/แก้แผน DRAFT) เป็นงานปฏิบัติการหน้างานเหมือน customerPo.*
+  // (การยืนยันขึ้นของ/กระทบยอด/ตัดของค้าง จะมี permission แยกตามที่ doc 07 กำหนดใน CP ถัดไป)
+  | "loadingTrip.manage"
   | "productAlias.manage"
   | "productionSetting.manage"
   | "productionMasterSpec.manage";
@@ -61,6 +64,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
     "productionOrder.cancel",
     "production.cancelStarted", // OWNER_ADMIN เท่านั้น — ดู comment ที่ประกาศ type
+    "loadingTrip.manage",
     "productAlias.manage",
     "productionSetting.manage",
     // Master Spec (สูตรผ้า/โครงสร้างต้นแบบ) — master data นำเข้า/แก้ได้เฉพาะ Admin เช่นเดียว
@@ -88,6 +92,7 @@ const MATRIX: Record<Role, Permission[]> = {
     // ยกเลิกใบสั่งผลิตที่ยังไม่เริ่มผลิตได้ (สมมาตรกับ customerPo.cancel ที่ staff มีอยู่แล้ว) —
     // แต่ "production.cancelStarted" ไม่มีโดยเจตนา: ใบที่เริ่มผลิตแล้วต้องแอดมินเท่านั้น
     "productionOrder.cancel",
+    "loadingTrip.manage",
   ],
   VIEWER: [
     "customer.view", "branch.view", "product.view", "productType.view",

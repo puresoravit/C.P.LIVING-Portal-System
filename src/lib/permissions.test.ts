@@ -40,4 +40,11 @@ describe("Permission Matrix (ข้อ 3, 65)", () => {
     expect(can("VIEWER", "productionOrder.cancel")).toBe(false);
     expect(can("VIEWER", "production.cancelStarted")).toBe(false);
   });
+
+  // P2 CP1 — จัดการเที่ยวรถเป็นงานปฏิบัติการ (staff ทำได้เหมือน customerPo.*), VIEWER ไม่ได้
+  it("CP1: loadingTrip.manage — ADMIN+STAFF ได้, VIEWER ไม่ได้", () => {
+    expect(can("OWNER_ADMIN", "loadingTrip.manage")).toBe(true);
+    expect(can("BILLING_STAFF", "loadingTrip.manage")).toBe(true);
+    expect(can("VIEWER", "loadingTrip.manage")).toBe(false);
+  });
 });
