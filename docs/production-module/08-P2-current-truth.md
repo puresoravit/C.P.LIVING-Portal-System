@@ -1,14 +1,16 @@
-# 08 — P2 Current Truth (สถาปัตยกรรมตามที่ implement จริง — ปิด CP5 2026-08-30)
+# 08 — P2 Current Truth (สถาปัตยกรรมตามที่ implement จริง — ปิด CP6 2026-08-30)
 
-**เอกสารนี้คือ source of truth ปัจจุบันของ P2** — เอกสาร 04 (discovery) และ 06 (review) เป็นข้อเสนอระหว่างทางที่ถูก supersede บางจุดแล้ว (มีหมายเหตุหัวไฟล์ชี้มาที่นี่) · เอกสาร 07 คือแผนที่อนุมัติ — จุดที่ implementation จริงต่างจาก 07 ระบุไว้ในหัวข้อ 9 ท้ายไฟล์นี้
+**เอกสารนี้คือ source of truth ปัจจุบันของ P2** — เอกสาร 04 (discovery) และ 06 (review) เป็นข้อเสนอระหว่างทางที่ถูก supersede บางจุดแล้ว (มีหมายเหตุหัวไฟล์ชี้มาที่นี่) · เอกสาร 07 คือแผนที่อนุมัติ — จุดที่ implementation จริงต่างจาก 07 ระบุไว้ในหัวข้อ 9 · **CP6 (2026-08-30) เปลี่ยน UX entry point จาก trip-first เป็น queue-first — ดูหัวข้อ 10 — ไม่กระทบ backend/invariants ในหัวข้อ 1-9 เลย ยกเว้นจุดที่ระบุชัดในหัวข้อ 10 (confirm+reconcile รวมเป็น finalize เดียว)**
 
 ## 1. Lifecycle (timestamp facts ล้วน — ไม่มี business guard ผูกกับ status text ที่แอดมินแก้ได้)
 
 ```
 ออเดอร์ลูกค้า (CustomerPO):   ปกติ → ยกเลิก (cancelledAt — terminal, ไม่มี reopen)
 ใบสั่งผลิต (ProductionOrder): รอเริ่มผลิต → กำลังผลิต (productionStartedAt) → (ยกเลิกได้ทุกจังหวะ terminal)
-เที่ยวรถ (LoadingTrip):       วางแผน (DRAFT) → ขึ้นของแล้ว (loadedAt) → กระทบยอดแล้ว (reconciledAt)
+เที่ยวรถ (LoadingTrip):       วางแผน/กำลังขึ้นของ (DRAFT) → [พิมพ์ใบขึ้นของ sheetPrintedAt — ไม่บังคับ]
+                              → ส่งออกแล้ว (loadedAt+reconciledAt ตั้งพร้อมกัน — CP6 finalize เดียว)
                               ยกเลิกได้เฉพาะช่วง DRAFT (cancelledAt)
+ใบสั่งผลิต (CP6 เพิ่ม):        productionCompletedAt — ฝ่ายขึ้นของรับรองตอนกด "ยืนยันขึ้นวันนี้" (คนละ fact กับ loading)
 บัตรค้าง (OutstandingDelivery): เปิด → ปิด (closedAt) — ปิดเพราะส่งครบ หรือมีตัดยอด (แยกจาก ledger)
 ```
 
@@ -83,3 +85,23 @@
 3. เพิ่ม `LoadingLine.plannedOutstandingId` (nullable) — บริบท prefill ตอน reconcile ไม่ผูกมัด
 4. รูปหลักฐานเก็บที่ระดับ **จุดส่ง (LoadingDrop.photoPaths)** = รูปใบขีดนับต่อจุด ตามกฎ "หลักฐานมาก่อนตัวเลข"
 5. ไม่เก็บ mutable `remainingQty` (07 เปิดช่องไว้) — derive เสมอ ตัด drift โดยโครงสร้าง
+
+
+## 10. CP6 — Queue-first UX (2026-08-30, ไม่กระทบ invariants หัวข้อ 1-9)
+
+Final UAT พบว่า backend ถูกแล้วแต่จุดเริ่มงานผิดกับ workflow จริง (หน้างานคิดจาก "ใบผลิตไหนต้องออกวันนี้" ไม่ใช่ "เที่ยวรถไหน") — refactor เฉพาะ UX entry point เท่านั้น ตาราง/ledger/สูตร demand/no-FIFO/cancellation/cut ในหัวข้อ 1-9 **ไม่เปลี่ยน**
+
+**หน้าใหม่**: `/production/loading` = คิวใบสั่งผลิต active เรียงตามวันที่ต้องส่ง (ไม่ใช่ trip list อีกต่อไป — ย้ายไป `/production/loading/trips` เป็น advanced/secondary view) แต่ละแถวคือใบสั่งผลิต 1 ใบ derive สถานะจาก `LoadingDrop.productionOrderId` (ถ้ามี drop ในรอบ active) + `sheetPrintedAt`/`reconciledAt` ของรอบนั้น
+
+**Fact ใหม่ 2 ชุด (additive, migration `20260830081619_cp6_queue_first_facts`)**:
+- `ProductionOrder.productionCompletedAt/By` — ตั้งครั้งเดียว (CAS `updateMany` where `productionCompletedAt: null`) ตอนกดยืนยัน "จะขึ้นออเดอร์นี้วันนี้ใช่ไหม?" ที่หน้า `/production/loading/start/[productionOrderId]` — **นี่คือฝ่ายขึ้นของรับรองว่าผลิตเสร็จ ไม่ใช่ขั้นแยกของหัวหน้าผลิต** (Owner ยืนยันไม่เพิ่มขั้น) คนละ fact กับ loading โดยสิ้นเชิง ห้าม overwrite กัน
+- `LoadingDrop.productionOrderId` (nullable) — โยง drop กลับใบสั่งผลิตต้นทาง ใช้คำนวณสถานะคิว · null = งานสต็อก/ไม่มีใบผลิต (ห้ามสร้าง fake order ให้ FK ครบ — `startStockJob` เปิด drop เปล่าตรงๆ)
+- `LoadingTrip.sheetPrintedAt/By/Version` — fact "พิมพ์ใบขึ้นของแล้ว" แยกจาก loaded/reconciled โดยสิ้นเชิง (พิมพ์ ≠ ขึ้นของ/ส่งออก ไม่แตะ quantity ใดๆ) ตั้งผ่าน `confirmSheetPrinted` หลัง print-dialog กลับมา (pattern เดียวกับใบสั่งผลิต S4: เปิด dialog ก่อนเสมอ แล้วถามยืนยัน — ไม่ใช้ `afterprint` ตัดสินเอง) `sheetPrintedVersion` ใช้เตือนถ้าแผนถูกแก้หลังพิมพ์ครั้งล่าสุด (พิมพ์ใหม่ได้ ไม่บังคับ)
+
+**Flow ที่มองเห็น**: กำลังผลิต → กำลังขึ้นของ (DRAFT) → [พิมพ์ใบขึ้นของแล้ว · รอบันทึกผล — ถ้าพิมพ์] → สินค้าถูกส่งออกแล้ว
+
+**การรวม confirm+reconcile เป็น `finalizeLoadingTrip` เดียว** — เดิม CP2/CP3 แยก 2 หน้า/2 tx (ยืนยันขึ้นของจริง → กระทบยอด) CP6 รวมเป็น tx Serializable เดียวที่หน้า `/production/loading/[id]/finalize` (ปุ่ม "ยืนยันส่งออก"): ตรวจ photo ครบ + Σ allocation = qtyLoaded เป๊ะทุกรายการ + FRESH ≤ capacity + OUTSTANDING ≤ remaining → เขียนยอดจริง + ledger + ปิด/เปิดบัตรค้าง + ตั้ง `loadedAt`/`reconciledAt` **พร้อมกันในทีเดียว** (เข้มกว่าเดิมที่แยก 2 ขั้น — status "ส่งออกแล้ว" เกิดเฉพาะเมื่อทั้งก้อนสำเร็จจริง) ฟอร์มฝั่ง client เติมแถวการตัดให้อัตโนมัติจากบริบทแผนแต่คนแก้ได้ทุกอย่าง (ไม่ใช่ FIFO — เป็นแค่ค่าเริ่มต้นให้ตรงกับที่วางแผนไว้แล้ว) — action `confirmLoadingTrip`/`reconcileLoadingTrip`/`correctLoadingLineQty`/`addAdhocLine`/`removeAdhocLine` เดิมถูกลบทิ้ง แทนที่ด้วย `finalizeLoadingTrip`/`addAdhocPlannedLine` (ADHOC ย้ายมาคีย์ได้ตั้งแต่ช่วงเตรียม DRAFT ด้วย ไม่ต้องรอถึง reconcile)
+
+**หน้าที่เพิ่ม**: `/production/loading/start/[productionOrderId]` (ทวนรายการจาก Rev ปัจจุบัน + ยืนยัน + เลือกรอบใหม่/รอบเดิม) · `/production/loading/start-stock` (งานไม่มีใบผลิต) · `/production/loading/[id]/finalize` (บันทึกผลขึ้นของ)
+
+**Regression**: 20 assertions ครอบคลุม idempotent start / print CAS+stale-version / finalize validation gates ทั้งหมด (photo/sum/capacity/remaining) / partial fulfillment เปิดบัตรค้าง / stock job / cancelled-source block / ปิดบัตรพอดี — รันกับ dev DB จริงแล้วลบข้อมูลทดสอบเองครบ

@@ -76,10 +76,10 @@ Portal Application ของบริษัท C.P. Living ประกอบด
 
 ---
 
-## สถานะปัจจุบัน (อัปเดต 2026-08-30 — ปิด P2 CP5)
+## สถานะปัจจุบัน (อัปเดต 2026-08-30 — ปิด P2 CP6)
 
 - **P1 เสร็จสมบูรณ์ + Owner final UAT ผ่านแล้ว** (ออเดอร์ลูกค้า/ใบสั่งผลิต/Master Spec/พิมพ์/ประวัติ/ยกเลิก)
-- **P2 การขึ้นของและจัดส่ง เสร็จครบ CP0–CP5 (local เท่านั้น ยังไม่ deploy)** — เที่ยวรถ/จุดส่ง/ใบขึ้นของ A4 แนวนอน/ยืนยันขึ้นจริง+รูป/กระทบยอด/ของค้างส่ง+ตัดยอด — **source of truth ปัจจุบันของสถาปัตยกรรม P2 คือ `docs/production-module/08-P2-current-truth.md`** (เอกสาร 04/06 เป็นข้อเสนอเก่าที่ถูก supersede บางส่วน — อ่าน 08 ก่อนเสมอ)
+- **P2 การขึ้นของและจัดส่ง เสร็จครบ CP0–CP6 (local เท่านั้น ยังไม่ deploy) — รอ Final Owner UAT รอบเดียวจบ (queue → เลือกใบผลิต → เช็กของ → print → actual/photo → ยืนยันส่งออก)** — CP6 refactor UX จาก trip-first เป็น queue-first (หน้าหลัก = คิวใบสั่งผลิตที่ต้องขึ้นของ ไม่ใช่ list เที่ยวรถ) backend/ledger/demand-formula/no-FIFO/cancellation/cut ไม่เปลี่ยน — **source of truth ปัจจุบันของสถาปัตยกรรม P2 คือ `docs/production-module/08-P2-current-truth.md` (อ่านหัวข้อ 10 สำหรับ CP6)** (เอกสาร 04/06 เป็นข้อเสนอเก่าที่ถูก supersede บางส่วน — อ่าน 08 ก่อนเสมอ)
 - **Role:** 3 Role เดิม (OWNER_ADMIN/BILLING_STAFF/VIEWER) + permission string ฝั่ง Production เพิ่มตาม pattern เดิม (`production.cancelStarted`/`outstanding.cancel` = ADMIN เท่านั้น)
 - **ยังไม่ทำ (ห้ามเริ่มเองทุกกรณี):** P5 AI อ่านลายมือ · P6 เชื่อม Billing · deploy P2 ขึ้น production · Dashboard cards อื่นนอกจาก "ของค้างส่ง"
 - **Production-readiness ที่ต้องจัดการก่อน deploy จริง:** โฟลเดอร์ `uploads/` (รูปหลักฐานใบขึ้นของ) อยู่บนดิสก์เครื่องล้วน — ต้องมี persistent storage + รวมเข้า backup strategy
