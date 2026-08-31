@@ -323,55 +323,66 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
                 </div>
                 {drop.lines.length === 0 ? (
                   <p className="text-xs text-gray-400">ไม่มีรายการ</p>
-                ) : (
-                  <div className="space-y-1.5">
+                ) : !isDraft ? (
+                  // CP7 round 15 (Owner UAT) — หลังบันทึกผลแล้ว แยก "ขอเพิ่มออเดอร์" (เกินแผน)
+                  // กับ "ค้างส่ง" (ขาดแผน) เป็นคอลัมน์ของตัวเองเสมอ (ว่างไว้เมื่อไม่มี ไม่ใส่ 0)
+                  // แทนที่จะซ่อนไว้ใต้ "ดูรายละเอียด" — กวาดสายตาหาความผิดปกติได้เร็วขึ้นเวลามี
+                  // หลายรายการ ("ดูรายละเอียด" ที่เหลือคือที่มา/ตัดจากอะไรเท่านั้น)
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400 font-medium pb-1 border-b">
+                      <span className="min-w-0 flex-1">รายการ</span>
+                      <span className="w-16 text-right shrink-0">ขอเพิ่มออเดอร์</span>
+                      <span className="w-14 text-right shrink-0">ค้างส่ง</span>
+                      <span className="w-14 text-right shrink-0">ขึ้นจริง</span>
+                    </div>
                     {drop.lines.map((line) => {
-                      const short = line.qtyLoaded != null ? line.qtyPlanned - line.qtyLoaded : 0;
+                      const loaded = line.qtyLoaded;
+                      const excess = loaded != null ? Math.max(0, loaded - line.qtyPlanned) : 0;
+                      const short = loaded != null ? Math.max(0, line.qtyPlanned - loaded) : 0;
                       return (
-                        <div key={line.id} className="flex items-center justify-between gap-2 border-b border-dashed pb-1.5">
-                          <span className="min-w-0 text-sm">
+                        <div key={line.id} className="flex items-center gap-2 border-b border-dashed pb-1.5">
+                          <span className="min-w-0 flex-1 text-sm">
                             {line.labelSnapshot}
                             {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
                           </span>
-                          <span className="shrink-0 text-right">
-                            {line.qtyLoaded != null ? (
-                              <>
-                                <span className={`text-base font-semibold ${line.qtyLoaded !== line.qtyPlanned ? "text-amber-700" : "text-green-700"}`}>
-                                  ขึ้นจริง {line.qtyLoaded}
-                                </span>
-                                {short > 0 && <span className="block text-xs font-medium text-red-600">ค้างส่ง {short}</span>}
-                              </>
-                            ) : (
-                              <span className="text-sm font-semibold text-gray-700">สั่งผลิตจำนวน {line.qtyPlanned}</span>
-                            )}
+                          <span className="w-16 text-right shrink-0 text-sm font-semibold text-blue-700">{excess > 0 ? excess : ""}</span>
+                          <span className="w-14 text-right shrink-0 text-sm font-semibold text-red-600">{short > 0 ? short : ""}</span>
+                          <span className={`w-14 text-right shrink-0 text-base font-semibold ${loaded == null ? "text-gray-400" : loaded !== line.qtyPlanned ? "text-amber-700" : "text-green-700"}`}>
+                            {loaded ?? "-"}
                           </span>
                         </div>
                       );
                     })}
                   </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {drop.lines.map((line) => (
+                      <div key={line.id} className="flex items-center justify-between gap-2 border-b border-dashed pb-1.5">
+                        <span className="min-w-0 text-sm">
+                          {line.labelSnapshot}
+                          {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-gray-700">สั่งผลิตจำนวน {line.qtyPlanned}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 {hasDetail && (
                   <details className="mt-2 group">
                     <summary className="cursor-pointer list-none text-xs text-cp-navy hover:underline inline-flex items-center gap-1">
-                      <span className="group-open:hidden">ดูรายละเอียด (สั่งผลิตจำนวน/ที่มาแต่ละรายการ)</span>
+                      <span className="group-open:hidden">ดูรายละเอียด (ตัดยอดจากอะไร)</span>
                       <span className="hidden group-open:inline">ย่อรายละเอียด</span>
                       <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90">&rsaquo;</span>
                     </summary>
                     <div className="mt-1.5 pt-1.5 border-t space-y-1">
-                      {drop.lines.map((line) => (
+                      {drop.lines.filter((l) => allocationsByLine.has(l.id)).map((line) => (
                         <div key={line.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
                           <span className="min-w-0">
                             {line.labelSnapshot}
                             {line.size && <span className="text-gray-400"> (ไซส์ {line.size})</span>}
                           </span>
-                          <span className="shrink-0 text-right">
-                            สั่งผลิตจำนวน {line.qtyPlanned}
-                            {line.qtyLoaded != null && <> · ขึ้นจริง {line.qtyLoaded}</>}
-                            {allocationsByLine.has(line.id) && (
-                              <span className="block text-gray-500">
-                                {allocationsByLine.get(line.id)!.map((a) => `${ALLOC_LABEL[a.kind] ?? a.kind} ${a.qty}`).join(" · ")}
-                              </span>
-                            )}
+                          <span className="shrink-0 text-right text-gray-500">
+                            {allocationsByLine.get(line.id)!.map((a) => `${ALLOC_LABEL[a.kind] ?? a.kind} ${a.qty}`).join(" · ")}
                           </span>
                         </div>
                       ))}
