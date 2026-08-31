@@ -25,6 +25,8 @@ export function PrintPage({
   nextHref,
   nextRemaining,
   salesQuestion,
+  bodyClassName,
+  bodyStyle,
 }: {
   children: React.ReactNode;
   markPrintedAction?: (formData: FormData) => void;
@@ -56,6 +58,12 @@ export function PrintPage({
   nextRemaining?: number;
   /** R13 — ส่งต่อให้ PrintButton: คำถาม "นับเป็นยอดขายไหม" ใน Confirmation Modal (ใบกำกับภาษี) */
   salesQuestion?: string;
+  /** Owner UAT (2026-08-29) — Class/Style เพิ่มเติมเฉพาะเอกสารที่ขอ (ตอนนี้มีแค่ Invoice
+   * ตามที่ทดสอบกระดาษจริงแล้วขอฟอนต์ใหญ่ขึ้น 30% + ตัวหนาทั้งหมด) — Merge เข้ากับ
+   * print-page-fill Container เดิมโดยตรง ไม่เพิ่ม DOM Element ใหม่ กัน Flex Layout เดิม
+   * (flex-1 Spacer/mt-auto Signature) เพี้ยน — ไม่ส่ง = พฤติกรรมเดิมทุกประการ */
+  bodyClassName?: string;
+  bodyStyle?: React.CSSProperties;
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
@@ -80,8 +88,8 @@ export function PrintPage({
         <PrintProfileSelector />
       </div>
       <div
-        className="print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm flex flex-col"
-        style={cssVars as React.CSSProperties}
+        className={`print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm flex flex-col ${bodyClassName ?? ""}`}
+        style={{ ...cssVars, ...bodyStyle } as React.CSSProperties}
       >
         {children}
       </div>

@@ -54,14 +54,18 @@ export function InvoicePrintBody({
   const itemsTable = (pageItems: InvoicePrintItem[], startIndex: number) => (
     <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
       <thead>
+        {/* Owner UAT (2026-08-29) — เดิมทุกคอลัมน์ไม่มีความกว้างกำกับ (ยกเว้น No.) ตาราง
+            w-full เลยกระจายพื้นที่ว่างไปทุกคอลัมน์เท่าๆ กัน ทำให้ "รายการ"↔"ขนาด" ห่างกัน
+            เกินจำเป็น — กำหนดความกว้างคอลัมน์ที่เนื้อหาสั้น/คงที่ไว้ตรงๆ ปล่อยแต่ "รายการ"
+            (ยาวไม่แน่นอน) กินพื้นที่ที่เหลือ ทำให้คอลัมน์ถัดไปขยับเข้ามาชิดขึ้นเองอัตโนมัติ */}
         <tr className="border-b">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
           <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
-          <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
-          <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
-          <th className="text-right py-[length:var(--print-row-padding)]">ราคา/หน่วย</th>
-          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)]">ส่วนลด</th>}
-          <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
+          <th className="text-left py-[length:var(--print-row-padding)] w-20">ขนาด</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-16">จำนวน</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24">ราคา/หน่วย</th>
+          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-20">ส่วนลด</th>}
+          <th className="text-right py-[length:var(--print-row-padding)] w-24">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>
@@ -105,7 +109,11 @@ export function InvoicePrintBody({
 
   const docSummaryBlock = (
     <>
-      <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-[length:var(--print-block-gap)]">
+      {/* Owner UAT (2026-08-29) — เดิมแบ่งครึ่งเท่ากัน (grid-cols-2) ทำให้ป้าย "รวม/สุทธิ"
+          กับตัวเลขห่างกันเกินจำเป็นในคอลัมน์ขวาที่กว้างเกินตัว — ลดสัดส่วนคอลัมน์ขวาลง
+          (ยังพอมีที่ให้ตัวเลขหลักหมื่นไม่ตกบรรทัด) คืนพื้นที่ให้ฝั่งจำนวนเงินเป็นตัวหนังสือ
+          ซ้ายมากขึ้น ป้าย/ตัวเลขฝั่งขวาก็ขยับเข้าใกล้กันเองตามความกว้างคอลัมน์ที่แคบลง */}
+      <div className="border rounded p-2 grid grid-cols-[3fr_2fr] gap-4 mb-[length:var(--print-block-gap)]">
         <PrintAmountWordsRemark amountInWords={amountInWords} />
         {summaryRows({ gross: grossAmount, discount: discountAmount, net: grandTotal }, "สุทธิ / Net Amount")}
       </div>

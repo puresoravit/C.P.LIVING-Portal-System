@@ -172,7 +172,7 @@ html.cp-app-enter body {
    ตรงกับ Profile ที่เลือกไว้ (มม.) ค่า default ตรงกับ DEFAULT_PRINT_PROFILE
    (continuous 9x11) ใน src/lib/print-settings.ts */
 :root {
-  --print-content-height: 267.4mm;
+  --print-content-height: 263.4mm;
 
   /* R5 — Document Template Settings V1: Default ทุกตัวตรงกับ Hardcode เดิมของ
      Shared Print Component เป๊ะ (ดู src/lib/print-template-settings.ts) — เผื่อกรณี
@@ -191,6 +191,15 @@ html.cp-app-enter body {
    ด้านล่างที่เกี่ยวกับขนาดกระดาษจริงเท่านั้น จึงยัง Gate ไว้แค่ตอน Print */
 .print-page-fill {
   font-family: var(--print-font-family);
+}
+
+/* Owner UAT (2026-08-29) — เส้นขีดใต้หัวตาราง (border-b บน <tr>) ไม่เคยพิมพ์ออกมาเลย
+   ทั้งจอ Preview และกระดาษจริง — สาเหตุคือ border บน <tr> ไม่ทำงานตามสเปก CSS ถ้าตาราง
+   ไม่ได้ตั้ง border-collapse:collapse (Default ของ Browser คือ separate ซึ่ง border ของ
+   <tr> ถูกเพิกเฉยเสมอ ต้องอยู่ที่ <td>/<th> เท่านั้นถึงจะโชว์) — ตั้งค่านี้ที่จุดเดียว
+   แก้ปัญหาเดียวกันในเอกสารพิมพ์ทั้ง 5 ประเภทที่ใช้ class นี้ร่วมกัน (ไม่ใช่แค่ Invoice) */
+table.print-table {
+  border-collapse: collapse;
 }
 
 @media print {
