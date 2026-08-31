@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -31,26 +32,26 @@ const EMPTY_MARGIN_BOXES =
   "@bottom-left { content: '' } @bottom-center { content: '' } @bottom-right { content: '' }";
 const PORTRAIT_PAGE_STYLE = `@page { size: A4 portrait; margin: 8mm 8mm; ${EMPTY_MARGIN_BOXES} }`;
 
-/** ความสูงแถวสินค้าทุกแถวในตาราง — ค่าเดียวใช้ร่วมกันทั้ง <tr> และ TallyBoxes กันเลขลอยตัวซ้ำ */
+/** ความสูงแถวสินค้าทุกแถวในตาราง — ใช้เป็น "อย่างน้อย" (แถวยาวขึ้นได้เองถ้ารายการชื่อยาวจนตัดบรรทัด) */
 const ROW_HEIGHT = "34pt";
 /** จำนวนช่องขีดต่อแถว — CP7 round 6 (Owner): ลดจาก 6 เหลือ 5 ช่อง ให้ตรงกับนิสัยขีดจริง
     (ขีดเต็มช่อง = นับ 5 พอดี ไม่ต้องมานั่งคิดเลข 6 คูณ) */
 const TALLY_BOX_COUNT = 5;
 
-/** CP7 round 6 — บั๊กจริง: h-full (height:100%) บน div ลูกใน <td> ที่ตัว td เองไม่มี height
-    ระบุตรงๆ (แค่ "โดนยืดสายตา" จาก sibling ใน <tr>) จะคำนวณเป็น 0 เสมอ (พฤติกรรม CSS มาตรฐาน
-    — percentage height ต้องมี containing block ที่มี height แบบ definite ไม่ใช่แค่ auto ที่ถูก
-    stretch ด้วยแถวข้างเคียง) ผลคือเส้นแบ่งช่องหายไปหมดทั้งที่ logic ถูก — แก้โดยระบุความสูงตรงๆ
-    เท่ากับ ROW_HEIGHT แทนการพึ่ง h-full */
-function TallyBoxes() {
-  return (
-    <div className="grid w-full" style={{ gridTemplateColumns: `repeat(${TALLY_BOX_COUNT}, 1fr)`, height: ROW_HEIGHT }}>
-      {Array.from({ length: TALLY_BOX_COUNT }, (_, i) => (
-        <div key={i} className="border-r border-gray-400 last:border-r-0" />
-      ))}
-    </div>
-  );
-}
+/** CP7 round 6→7 — ลองมา 2 วิธีแล้วแก้ไม่หมด: (1) flex-1 สะสมเศษพิกเซลไม่เท่ากัน (2) h-full
+    (height:100%) บน div ลูกใน <td> คำนวณเป็น 0 เพราะ td ไม่มี height แบบ definite ของตัวเอง
+    (3) ให้ความสูงตายตัว 34pt ตรงกับ <tr> ก็ยังพังอีกกับแถวที่ชื่อรายการยาวจนตัดบรรทัด (แถวสูง
+    กว่า 34pt จริง เส้นเลยไม่ถึงขอบล่าง) — รากปัญหาคือพยายามให้ "ลูก" รู้ความสูงของ "พ่อ" ที่ยัง
+    ไม่นิ่งจนกว่า layout เสร็จ วิธีที่ถูกคือไม่พึ่งความสูงของลูกเลย ใช้ background-image วาดเส้น
+    ตรงบน td ตัวเอง (background วาดเต็มกล่องของ element เสมอไม่ว่าความสูงจริงจะเท่าไร ไม่มีปัญหา
+    percentage-height ให้แก้อีกจากนี้) — คำนวณตำแหน่งเส้นแบ่ง (TALLY_BOX_COUNT-1 เส้น) ครั้งเดียว */
+const TALLY_DIVIDER_COLOR = "#9ca3af"; // เทียบเท่า Tailwind gray-400 ที่ใช้เป็นเส้นตารางทั้งหน้า
+const tallyCellStyle: CSSProperties = {
+  backgroundImage: Array(TALLY_BOX_COUNT - 1).fill(`linear-gradient(${TALLY_DIVIDER_COLOR}, ${TALLY_DIVIDER_COLOR})`).join(", "),
+  backgroundSize: "1px 100%",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: Array.from({ length: TALLY_BOX_COUNT - 1 }, (_, i) => `${((i + 1) / TALLY_BOX_COUNT) * 100}% 0`).join(", "),
+};
 
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -261,9 +262,8 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                       <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.size ?? "-"}</td>
                       <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.outstanding || ""}</td>
                       <td className="px-1.5 py-1 text-center font-semibold border-r border-gray-400">{row.fresh || ""}</td>
-                      <td className="p-0 border-r border-gray-400 align-top">
-                        <TallyBoxes />
-                        {row.note && <div className="text-[10px] text-gray-600 px-1 mt-0.5">หมายเหตุ: {row.note}</div>}
+                      <td className="border-r border-gray-400 align-top" style={tallyCellStyle}>
+                        {row.note && <div className="text-[10px] text-gray-600 px-1 py-0.5">หมายเหตุ: {row.note}</div>}
                       </td>
                       <td className="px-1.5 py-1 text-center border-r border-gray-400" />
                       <td className="px-1.5 py-1 text-center" />
@@ -289,9 +289,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[4%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
-                  <td className="p-0 border-r border-gray-400 w-[40%]">
-                    <TallyBoxes />
-                  </td>
+                  <td className="border-r border-gray-400 w-[40%]" style={tallyCellStyle} />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
                   <td className="px-1.5 py-1 w-[7%]" />
                 </tr>
