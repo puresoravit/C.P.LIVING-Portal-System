@@ -17,6 +17,14 @@ const CSP = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Concurrent-session safety (2026-08-31 audit) — two Claude sessions working on this repo
+  // at once (Production vs Billing) were both building into the same .next/ while a stale
+  // `next start` process kept serving old asset hashes from a build the other session had
+  // just overwritten (MIME-type CSS errors, broken pages). Each session should now export
+  // NEXT_BUILD_DIR (and use a different -p port for `next start`) before build/start so
+  // builds/dev-servers never collide — falls back to the default ".next" if unset, so this
+  // is fully backward-compatible with the existing single-session workflow.
+  distDir: process.env.NEXT_BUILD_DIR || ".next",
   async headers() {
     return [
       {
