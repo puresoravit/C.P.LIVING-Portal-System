@@ -10,11 +10,13 @@ import {
   editConfirmedOrder,
   updateOrderApplyDiscount,
   getSuggestedOrderItemPrice,
+  changeOrderCustomer,
 } from "../actions";
 import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL, displayProductTypeCode } from "@/lib/order-preview";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { OrderEditModal } from "@/components/order-edit-modal";
+import { ChangeOrderCustomerModal } from "@/components/change-order-customer-modal";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -62,6 +64,17 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   });
   if (!order) notFound();
 
+  // Owner UAT (2026-08-31) — "เปลี่ยนบริษัท/สาขา": รายชื่อลูกค้า+สาขาสำหรับ Modal เลือกใหม่
+  // (เหมือน orders/new/page.tsx) — Query เฉพาะตอนยังยกเลิกไม่ไปกันโหลดข้อมูลทิ้งเปล่าๆ
+  const changeCustomerOptions =
+    order.status !== "CANCELLED"
+      ? await db.customer.findMany({
+          where: { active: true },
+          include: { branches: { where: { active: true }, select: { id: true, name: true } } },
+          orderBy: { companyName: "asc" },
+        })
+      : [];
+
   const isDraft = order.status === "DRAFT";
   const preview = order.items.length > 0 ? await computeOrderPreview(order.id) : null;
   const status = STATUS_LABEL[order.status];
@@ -78,6 +91,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const confirmAction = confirmOrder.bind(null, order.id);
   const cancelAction = cancelOrder.bind(null, order.id);
   const editAction = editConfirmedOrder.bind(null, order.id);
+  const changeCustomerAction = changeOrderCustomer.bind(null, order.id);
   const applyDiscountAction = updateOrderApplyDiscount.bind(null, order.id);
 
   // E3 — Edit Confirmed Order: เช็คว่าแก้ไขได้หรือไม่เฉพาะตอน Order Confirmed แล้วเท่านั้น
@@ -297,6 +311,25 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             suggestPriceAction={suggestPriceAction}
             canManageProducts={canManageProducts}
             customerId={order.customerId}
+          />
+        )}
+        {/* Owner UAT (2026-08-31) — เลือกลูกค้าผิดตั้งแต่แรก แก้ได้ทั้งตอนยังเป็นร่างและ
+            หลัง Confirm/พิมพ์แล้ว (Owner ยืนยันชัดเจนไม่ต้องรอ Draft) — ไม่ต้องรื้อรายการ
+            สินค้าที่คีย์ไว้แล้ว */}
+        {(isDraft || editGuard?.kind === "editable") && (
+          <ChangeOrderCustomerModal
+            orderNumber={order.orderNumber}
+            customers={changeCustomerOptions.map((c) => ({
+              id: c.id,
+              code: c.code,
+              companyName: c.companyName,
+              branches: c.branches,
+            }))}
+            currentCustomerId={order.customerId}
+            currentBranchId={order.branchId}
+            isConfirmed={!isDraft}
+            requiresPrintedAck={editGuard?.kind === "editable" ? editGuard.requiresPrintedAck : false}
+            action={changeCustomerAction}
           />
         )}
       </div>

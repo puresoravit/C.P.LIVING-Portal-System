@@ -819,3 +819,261 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
   revalidatePath("/pending-redelivery");
   return { success: true };
 }
+
+// Owner UAT (2026-08-31) — "เปลี่ยนบริษัท/สาขา": พนักงานเลือกลูกค้าผิดตั้งแต่แรก บาง
+// ครั้งกว่าจะรู้ตัวก็พิมพ์เอกสารออกไปแล้ว — Owner ยืนยันให้แก้ได้แม้หลัง Confirm/พิมพ์แล้ว
+// ("เดี๋ยวทำลายกระดาษเก่าทิ้งเอง") โดยไม่ต้องรื้อรายการสินค้าที่คีย์ไว้แล้วทั้งหมด — ใช้
+// Guard/Reconcile Pattern เดียวกับ editConfirmedOrder ทุกประการ (คงเลข INV เดิม, Owner
+// ปลดล็อก Downstream Reference ไปแล้วรอบ ค้างส่ง) ต่างกันแค่จุดกระตุ้นคือเปลี่ยนตัวลูกค้า
+// ไม่ใช่แก้จำนวนสินค้า — ไม่ทำ Refactor รวมกับ editConfirmedOrder เพราะฟังก์ชันนั้น Live
+// Production มาสักพักแล้ว เสี่ยงเกินไปที่จะไปแตะ Logic ที่ทดสอบผ่านแล้ว
+export async function changeOrderCustomer(orderId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "order.confirm")) throw new Error("FORBIDDEN");
+  if (!can(user.role, "invoice.cancel")) throw new Error("FORBIDDEN");
+  if (!can(user.role, "invoice.create")) throw new Error("FORBIDDEN");
+
+  const newCustomerId = String(formData.get("customerId") || "").trim();
+  const newBranchId = String(formData.get("branchId") || "").trim() || null;
+  const acknowledgePrinted = formData.get("acknowledgePrinted") === "1";
+  if (!newCustomerId) return { success: false, error: "กรุณาเลือกลูกค้า" };
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
+  if (order.status === "CANCELLED") return { success: false, error: "Order นี้ถูกยกเลิกแล้ว แก้ไขไม่ได้" };
+  if (order.customerId === newCustomerId && (order.branchId ?? null) === newBranchId) {
+    return { success: false, error: "เลือกลูกค้า/สาขาเดิม ไม่มีอะไรต้องเปลี่ยน" };
+  }
+
+  const newCustomer = await db.customer.findUnique({ where: { id: newCustomerId } });
+  if (!newCustomer) return { success: false, error: "ไม่พบลูกค้าที่เลือก" };
+  const newBranch = newBranchId ? await db.branch.findUnique({ where: { id: newBranchId } }) : null;
+  if (newBranchId && (!newBranch || newBranch.customerId !== newCustomerId)) {
+    return { success: false, error: "สาขาที่เลือกไม่ตรงกับลูกค้าที่เลือก" };
+  }
+
+  // Owner UAT (2026-08-31) — สินค้าบางตัวเปิดให้เฉพาะบางบริษัท (Catalog/Private) — เปลี่ยน
+  // ลูกค้าแล้วรายการที่คีย์ไว้เดิมอาจใช้กับลูกค้าใหม่ไม่ได้ ต้องเช็คก่อนทุกบรรทัด ไม่ปล่อย
+  // ให้เกิดสถานะผิดปกติ (Invoice ผูกกับสินค้าที่บริษัทนั้นไม่มีสิทธิ์เห็น)
+  for (const item of order.items) {
+    const err = await validateProductAllowedForCustomer(item.productId, newCustomerId);
+    if (err) return { success: false, error: `เปลี่ยนลูกค้าไม่ได้ — ${err} — กรุณาลบรายการนี้ออกก่อน หรือเลือกลูกค้าอื่น` };
+  }
+
+  // Owner UAT (2026-08-31) — Order ยังเป็น "ร่าง" (ยังไม่ Confirm ไม่มี Invoice เลย) —
+  // เปลี่ยนลูกค้าตรงๆ ได้เลย ไม่ต้องผ่าน Guard/Reconcile Invoice ใดๆ (ยังไม่มีอะไรให้กระทบ)
+  if (order.status === "DRAFT") {
+    await db.order.update({ where: { id: orderId }, data: { customerId: newCustomerId, branchId: newBranchId } });
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE",
+        module: "Order",
+        recordId: orderId,
+        oldValue: { customerId: order.customerId, branchId: order.branchId },
+        newValue: { customerId: newCustomerId, branchId: newBranchId, note: "เปลี่ยนบริษัท/สาขา (ยังเป็นร่าง)" },
+      },
+    });
+    revalidatePath(`/orders/${orderId}`);
+    revalidatePath("/orders");
+    return { success: true, message: "เปลี่ยนบริษัท/สาขาเรียบร้อย" };
+  }
+
+  const guard = await fetchOrderEditGuard(orderId);
+  if (guard.kind === "not-applicable") {
+    return { success: false, error: "Order นี้ไม่ใช่สถานะที่แก้ไขได้ (ต้องเป็นสถานะร่างหรือยืนยันแล้วเท่านั้น)" };
+  }
+  if (guard.kind === "no-active-invoices") {
+    return {
+      success: false,
+      error:
+        "Order นี้ไม่มี Invoice ที่ Active เหลืออยู่เลย (สถานะผิดปกติ) ระบบไม่สร้าง Invoice ใหม่ให้เองโดยเดา กรุณาติดต่อผู้ดูแลระบบ/เจ้าของระบบ",
+    };
+  }
+  if (guard.requiresPrintedAck && !acknowledgePrinted) {
+    return {
+      success: false,
+      error: "กรุณายืนยันว่ารับทราบว่ายอดของใบส่งของชั่วคราวที่เคยพิมพ์แล้วจะถูกแก้ไข (เลขเดิม) ก่อนดำเนินการแก้ไขต่อ",
+    };
+  }
+
+  const period = currentPeriod(order.orderDate);
+
+  try {
+    await db.$transaction(async (tx) => {
+      const freshGuard = await fetchOrderEditGuard(orderId, tx);
+      if (freshGuard.kind !== "editable") {
+        throw new Error("สถานะ Order เปลี่ยนไประหว่างดำเนินการ (อาจถูกแก้ไข/อ้างอิงโดยผู้อื่นพร้อมกัน) กรุณาลองใหม่");
+      }
+
+      await tx.order.update({ where: { id: orderId }, data: { customerId: newCustomerId, branchId: newBranchId } });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "Order",
+          recordId: orderId,
+          oldValue: { customerId: order.customerId, branchId: order.branchId },
+          newValue: { customerId: newCustomerId, branchId: newBranchId, note: "เปลี่ยนบริษัท/สาขาหลัง Confirm" },
+        },
+      });
+
+      // อ่าน Preview ใหม่หลัง Update customerId แล้ว — computeOrderPreview Self-fetch Order
+      // จาก tx เดียวกัน จะเห็น customerId ใหม่ทันที ราคา/ส่วนลดคำนวณใหม่ตามลูกค้าใหม่จริง
+      const preview = await computeOrderPreview(orderId, tx);
+      const forcedPreview = order.applyDiscount ? preview : await computeOrderPreview(orderId, tx, { forceApplyDiscount: true });
+
+      const freshOrder = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
+      const activeInvoices = freshOrder.invoices.filter((i) => i.status !== "CANCELLED");
+      // กลุ่มส่วนลด (productTypeCode) ผูกกับ Product ไม่ใช่ลูกค้า — เปลี่ยนลูกค้าเฉยๆ ปกติ
+      // กลุ่มจะเหมือนเดิมทุกใบ (updates ล้วน) แต่ยังรัน Reconcile เผื่อ Edge Case เสมอ
+      const plan = reconcileInvoiceGroups(
+        activeInvoices.map((i) => ({ id: i.id, productTypeCode: i.productTypeCode })),
+        preview.groups.map((g) => g.productTypeCode)
+      );
+      const groupByCode = new Map(preview.groups.map((g) => [g.productTypeCode, g]));
+      const invoiceById = new Map(activeInvoices.map((i) => [i.id, i]));
+
+      const buildItemsForGroup = (group: (typeof preview.groups)[number]) => {
+        const grossAmounts = group.items.map((item) => item.grossAmount);
+        const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
+        const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
+        const forcedAlloc = forcedGroup
+          ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
+          : [];
+        const statByOrderItemId = new Map((forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]]));
+
+        return group.items.map((item, idx) => {
+          const lineDiscount = allocatedDiscounts[idx];
+          const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
+          return {
+            productId: item.productId,
+            skuSnapshot: item.sku,
+            productNameSnapshot: item.productName,
+            productTypeSnapshot: item.productTypeName,
+            sizeSnapshot: item.size,
+            quantity: item.quantity,
+            unitSnapshot: item.unit,
+            unitPriceSnapshot: item.unitPrice,
+            grossAmount: item.grossAmount,
+            discountAmount: lineDiscount,
+            netAmount: lineNet,
+            vatAmount: new Decimal(0),
+            totalAmount: lineNet,
+            statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
+          };
+        });
+      };
+
+      for (const invoiceId of plan.cancels) {
+        const inv = invoiceById.get(invoiceId)!;
+        await tx.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CANCEL",
+            module: "Invoice",
+            recordId: invoiceId,
+            oldValue: { status: inv.status },
+            newValue: { status: "CANCELLED", reason: "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังเปลี่ยนบริษัท/สาขา" },
+          },
+        });
+      }
+
+      for (const { productTypeCode, invoiceId } of plan.updates) {
+        const group = groupByCode.get(productTypeCode)!;
+        const inv = invoiceById.get(invoiceId)!;
+        const wasPrinted = inv.status === "PRINTED";
+        await tx.invoiceItem.deleteMany({ where: { invoiceId } });
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            // เลขใบ/วันที่/สถานะ/printedAt คงเดิม — เปลี่ยนแค่ข้อมูลลูกค้า+ยอด/รายการที่
+            // คำนวณใหม่ตามลูกค้าใหม่
+            customerId: newCustomerId,
+            branchId: newBranchId,
+            customerNameSnapshot: newCustomer.companyName,
+            taxIdSnapshot: newCustomer.taxId,
+            branchNameSnapshot: newBranch?.name ?? null,
+            addressSnapshot: newBranch?.address ?? newCustomer.address ?? null,
+            grossAmount: group.grossAmount,
+            discountPct: group.discountPct,
+            discountAmount: group.discountAmount,
+            netBeforeVat: group.netAmount,
+            grandTotal: group.netAmount,
+            items: { create: buildItemsForGroup(group) },
+            ...(wasPrinted ? { editedAfterPrintAt: new Date() } : {}),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE",
+            module: "Invoice",
+            recordId: invoiceId,
+            oldValue: { customerNameSnapshot: inv.customerNameSnapshot, grandTotal: inv.grandTotal.toString() },
+            newValue: {
+              invoiceNumber: inv.invoiceNumber,
+              customerNameSnapshot: newCustomer.companyName,
+              grandTotal: group.netAmount.toString(),
+              note: "เปลี่ยนบริษัท/สาขาในใบเลขเดิมหลัง Confirm",
+            },
+          },
+        });
+      }
+
+      for (const productTypeCode of plan.creates) {
+        const group = groupByCode.get(productTypeCode)!;
+        const docType = `INV-${group.productTypeCode}`;
+        const seq = await getNextSeq(docType, period, tx);
+        const invoiceNumber = formatDocNumber(docType, period, seq, 4);
+
+        const invoice = await tx.invoice.create({
+          data: {
+            invoiceNumber,
+            parentOrderId: order.id,
+            invoiceDate: order.orderDate,
+            customerId: newCustomerId,
+            branchId: newBranchId,
+            productTypeCode: group.productTypeCode,
+            customerNameSnapshot: newCustomer.companyName,
+            taxIdSnapshot: newCustomer.taxId,
+            branchNameSnapshot: newBranch?.name ?? null,
+            addressSnapshot: newBranch?.address ?? newCustomer.address ?? null,
+            placeToDelivery: order.placeToDelivery,
+            grossAmount: group.grossAmount,
+            discountPct: group.discountPct,
+            discountAmount: group.discountAmount,
+            applyDiscount: order.applyDiscount,
+            netBeforeVat: group.netAmount,
+            vatPct: new Decimal(0),
+            vatAmount: new Decimal(0),
+            grandTotal: group.netAmount,
+            status: "CONFIRMED",
+            createdById: user.id,
+            items: { create: buildItemsForGroup(group) },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CREATE",
+            module: "Invoice",
+            recordId: invoice.id,
+            newValue: { invoiceNumber, parentOrderId: order.id, productTypeCode: group.productTypeCode, note: "กลุ่มส่วนลดใหม่จากการเปลี่ยนบริษัท/สาขา" },
+          },
+        });
+      }
+    });
+  } catch (err) {
+    logError("change-order-customer", err, { orderId });
+    return {
+      success: false,
+      error: "เปลี่ยนบริษัท/สาขาไม่สำเร็จ — ไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ",
+    };
+  }
+
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath("/orders");
+  revalidatePath("/invoices");
+  return { success: true, message: "เปลี่ยนบริษัท/สาขาเรียบร้อย" };
+}
