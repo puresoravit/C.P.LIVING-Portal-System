@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { getNextSeq, formatDocNumber, currentPeriod, releaseSeqIfLatest } from "@/lib/running-number";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -115,6 +115,8 @@ export async function cancelRepairReturnNote(id: string): Promise<ActionResult> 
   if (cas.count === 0) {
     return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
   }
+
+  await releaseSeqIfLatest("DEP", note.noteNumber);
 
   await db.auditLog.create({
     data: {
