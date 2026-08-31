@@ -1,4 +1,4 @@
-import { FONT_FAMILY_CSS, HEADER_ROW_UNIT_MM, type FontFamilyKey, type HeaderElementStyle } from "@/lib/print-template-settings";
+import { FONT_FAMILY_CSS, type FontFamilyKey, type HeaderElementStyle } from "@/lib/print-template-settings";
 
 // R6 Phase E.1/E.2/E.3 — Element อะตอมที่ HeaderZone (header-zone.tsx) จัดวางลง Grid ให้ —
 // แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography ของตัวเอง" เท่านั้น ไม่รู้เรื่อง Alignment/
@@ -121,43 +121,40 @@ export function HeaderTextLine({
  * ที่สุดในนั้น ไม่มีทางเกิน Anchor ขวาที่ตั้งไว้) — ปลอดภัยกว่าการเสี่ยงให้วันที่ตกขอบขวาจริง
  * ในกรณี TX/BI ถ้ายังคง Anchor อิสระต่อบรรทัดแบบรอบ 12 ไว้
  *
- * ระยะห่างแนวตั้งระหว่างสองบรรทัด คำนวณจาก rowStart จริงที่ Owner ตั้งไว้ใน Designer (ไม่
- * Hardcode) — คงพฤติกรรมเดิมเป๊ะถ้า Owner ปรับ rowStart ทีหลัง */
+ * Owner UAT (2026-09-02 รอบ 14) — ระยะห่างแนวตั้งจาก rowStart จริง (แถวห่างกัน 3 แถว ×
+ * HEADER_ROW_UNIT_MM 2mm = 6mm ≈ 22.7px) กว้างเกินไป มองแล้วเหมือนคนละ Block ไม่ใช่ Header
+ * เดียวกัน — Owner ขอ "ระยะห่างธรรมชาติ" แบบสองบรรทัดในย่อหน้าเดียวกัน ห้ามแตะ X-position/
+ * Right-anchor เลย แก้แค่ Margin — เอา rowStart-based Gap ออก ปล่อยให้สองบรรทัด Stack กัน
+ * ตรงๆ ไม่มี margin คั่น (ระยะห่างที่เห็นเป็นแค่ Line-height ของบรรทัดวันที่เอง 1.3 เท่า
+ * ปกติ) เหมือนสองบรรทัดในย่อหน้าเดียวกันจริงๆ — Invoice/TaxInvoice/เอกสารอื่นใช้ Component
+ * เดียวกันนี้ทั้งหมด จึงได้ Spacing เดียวกันอัตโนมัติทุกประเภทตามที่ Owner ขอ */
 export function HeaderDocNumberDateBlock({
   numberLabel,
   numberValue,
   numberStyle,
-  numberRowStart,
   dateLabel,
   dateValue,
   dateStyle,
-  dateRowStart,
 }: {
   numberLabel: string;
   numberValue: React.ReactNode;
   numberStyle: TextLineStyle;
-  numberRowStart: number;
   dateLabel: string;
   dateValue: React.ReactNode;
   dateStyle: TextLineStyle;
-  dateRowStart: number;
 }) {
   const numberTextStyle = applyFontFamily(
     { fontSize: `${numberStyle.fontSizePx}px`, lineHeight: numberStyle.lineHeight },
     numberStyle.fontFamily
   );
   const dateTextStyle = applyFontFamily({ fontSize: `${dateStyle.fontSizePx}px`, lineHeight: dateStyle.lineHeight }, dateStyle.fontFamily);
-  const gapMm = (dateRowStart - numberRowStart) * HEADER_ROW_UNIT_MM;
   return (
     <div style={{ position: "absolute", right: 0, display: "grid" }}>
       <div className={numberStyle.fontWeight === "bold" ? "font-semibold" : undefined} style={{ ...numberTextStyle, whiteSpace: "nowrap" }}>
         <span className="text-gray-500">{numberLabel}: </span>
         {numberValue}
       </div>
-      <div
-        className={dateStyle.fontWeight === "bold" ? "font-semibold" : undefined}
-        style={{ ...dateTextStyle, whiteSpace: "nowrap", marginTop: `${gapMm}mm` }}
-      >
+      <div className={dateStyle.fontWeight === "bold" ? "font-semibold" : undefined} style={{ ...dateTextStyle, whiteSpace: "nowrap" }}>
         <span className="text-gray-500">{dateLabel}: </span>
         {dateValue}
       </div>

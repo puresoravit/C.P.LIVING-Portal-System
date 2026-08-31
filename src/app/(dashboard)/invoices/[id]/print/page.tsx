@@ -126,11 +126,9 @@ export default async function InvoicePrintPage(props: {
               </span>
             }
             numberStyle={hl.docNumber}
-            numberRowStart={hl.docNumber.rowStart}
             dateLabel="วันที่ / Date"
             dateValue={invoice.invoiceDate.toLocaleDateString("th-TH")}
             dateStyle={hl.docDate}
-            dateRowStart={hl.docDate.rowStart}
           />
         ),
         customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={invoice.customer.code} style={hl.customerCode} />,
