@@ -58,7 +58,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
 
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: order.customer.companyName },
+          { label: "ลูกค้า / Customer", value: order.customer.companyName },
           { label: "สาขา", value: order.branch?.name ?? "-" },
         ]}
         right={[
@@ -71,7 +71,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
               </span>
             ),
           },
-          { label: "วันที่", value: order.orderDate.toLocaleDateString("th-TH") },
+          { label: "วันที่ / Date", value: order.orderDate.toLocaleDateString("th-TH") },
           ...(order.reference ? [{ label: "อ้างอิง", value: order.reference }] : []),
         ]}
         shippingAddress={order.placeToDelivery}

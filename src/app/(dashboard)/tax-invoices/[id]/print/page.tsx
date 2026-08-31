@@ -50,9 +50,9 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
     customerInfo: (
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: taxInvoice.customerNameSnapshot },
+          { label: "ลูกค้า / Customer", value: taxInvoice.customerNameSnapshot },
           { label: "เลขประจำตัวผู้เสียภาษี", value: taxInvoice.taxIdSnapshot ?? "-" },
-          { label: "ที่อยู่", value: taxInvoice.addressSnapshot ?? "-" },
+          { label: "ที่อยู่ / Address", value: taxInvoice.addressSnapshot ?? "-" },
         ]}
         right={[
           {
@@ -64,8 +64,8 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
               </span>
             ),
           },
-          { label: "วันที่", value: taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH") },
-          { label: "รหัสลูกค้า", value: taxInvoice.customer.code },
+          { label: "วันที่ / Date", value: taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH") },
+          { label: "รหัสลูกค้า / Customer Code", value: taxInvoice.customer.code },
         ]}
         shippingAddress={taxInvoice.placeToDelivery}
       />
@@ -97,11 +97,11 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
             style={hl.docNumber}
           />
         ),
-        docDate: <HeaderTextLine label="วันที่" value={taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={taxInvoice.customer.code} style={hl.customerCode} />,
-        customerName: <HeaderTextLine label="ลูกค้า" value={taxInvoice.customerNameSnapshot} style={hl.customerName} />,
+        docDate: <HeaderTextLine label="วันที่ / Date" value={taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={taxInvoice.customer.code} style={hl.customerCode} />,
+        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={taxInvoice.customerNameSnapshot} style={hl.customerName} />,
         ...(taxInvoice.addressSnapshot
-          ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={taxInvoice.addressSnapshot} style={hl.customerAddress} /> }
+          ? { customerAddress: <HeaderTextLine label="ที่อยู่ / Address" value={taxInvoice.addressSnapshot} style={hl.customerAddress} /> }
           : {}),
         customerTaxId: (
           <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={taxInvoice.taxIdSnapshot ?? "-"} style={hl.customerTaxId} />

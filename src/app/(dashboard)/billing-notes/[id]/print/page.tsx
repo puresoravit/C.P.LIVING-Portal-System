@@ -130,7 +130,7 @@ export default async function BillingNotePrintPage(props: {
     customerInfo: (
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: note.customerNameSnapshot },
+          { label: "ลูกค้า / Customer", value: note.customerNameSnapshot },
           { label: "เลขประจำตัวผู้เสียภาษี", value: note.taxIdSnapshot ?? "-" },
         ]}
         right={[
@@ -143,7 +143,7 @@ export default async function BillingNotePrintPage(props: {
               </span>
             ),
           },
-          { label: "วันที่", value: note.billingNoteDate.toLocaleDateString("th-TH") },
+          { label: "วันที่ / Date", value: note.billingNoteDate.toLocaleDateString("th-TH") },
         ]}
       />
     ),
@@ -176,8 +176,8 @@ export default async function BillingNotePrintPage(props: {
             style={hl.docNumber}
           />
         ),
-        docDate: <HeaderTextLine label="วันที่" value={note.billingNoteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerName: <HeaderTextLine label="ลูกค้า" value={note.customerNameSnapshot} style={hl.customerName} />,
+        docDate: <HeaderTextLine label="วันที่ / Date" value={note.billingNoteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={note.customerNameSnapshot} style={hl.customerName} />,
         customerTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={note.taxIdSnapshot ?? "-"} style={hl.customerTaxId} />,
       }
     : {};

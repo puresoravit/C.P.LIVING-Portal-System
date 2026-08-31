@@ -64,8 +64,8 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
     customerInfo: (
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: quotation.customerNameSnapshot },
-          { label: "ที่อยู่", value: quotation.addressSnapshot ?? "-" },
+          { label: "ลูกค้า / Customer", value: quotation.customerNameSnapshot },
+          { label: "ที่อยู่ / Address", value: quotation.addressSnapshot ?? "-" },
           ...(guestContactLine ? [{ label: "ผู้ติดต่อ", value: guestContactLine }] : []),
         ]}
         right={[
@@ -78,8 +78,8 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
               </span>
             ),
           },
-          { label: "วันที่", value: quotation.quotationDate.toLocaleDateString("th-TH") },
-          { label: "รหัสลูกค้า", value: customerCode },
+          { label: "วันที่ / Date", value: quotation.quotationDate.toLocaleDateString("th-TH") },
+          { label: "รหัสลูกค้า / Customer Code", value: customerCode },
           ...(quotation.customerTaxIdSnapshot ? [{ label: "เลขผู้เสียภาษี", value: quotation.customerTaxIdSnapshot }] : []),
         ]}
         shippingAddress={quotation.placeToDelivery}
@@ -116,9 +116,9 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
             style={hl.docNumber}
           />
         ),
-        docDate: <HeaderTextLine label="วันที่" value={quotation.quotationDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={customerCode} style={hl.customerCode} />,
-        customerName: <HeaderTextLine label="ลูกค้า" value={quotation.customerNameSnapshot} style={hl.customerName} />,
+        docDate: <HeaderTextLine label="วันที่ / Date" value={quotation.quotationDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={customerCode} style={hl.customerCode} />,
+        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={quotation.customerNameSnapshot} style={hl.customerName} />,
         // Phase H — Guest ที่กรอกผู้ติดต่อ/โทรศัพท์ไว้: ต่อท้ายบรรทัดที่อยู่ (Element
         // customerAddress เดิม — headerLayout ของ Owner ไม่มี Key ใหม่ให้จัดตำแหน่ง จึงไม่
         // เพิ่ม Element ใหม่เข้าไปใน Layout ที่ Owner จัดไว้แล้ว) — ลูกค้า Master ไม่กระทบ
@@ -127,7 +127,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
           ? {
               customerAddress: (
                 <HeaderTextLine
-                  label="ที่อยู่"
+                  label="ที่อยู่ / Address"
                   value={[quotation.addressSnapshot, guestContactLine].filter(Boolean).join(" — ")}
                   style={hl.customerAddress}
                 />
