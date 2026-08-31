@@ -62,9 +62,13 @@ export function InvoicePrintBody({
             แล้ว (globals.css) — Root Cause ที่แท้จริงคือสีของ border-b เดิมไม่ได้ระบุไว้
             เลย ตกไปใช้ Tailwind Preflight Default (gray-200 — จางมาก แทบไม่ติดหมึกบน
             เครื่องพิมพ์ Dot-matrix/รุ่นทั่วไป) ระบุสีเข้มตรงๆ ให้เห็นชัดแน่นอน */}
+        {/* Owner UAT (2026-08-31 รอบ 4) — หัวข้อ "รายการ" ชิดกับ "No." เกินไป (คอลัมน์
+            ไม่มีความกว้างกำกับ Text-align left ทำให้ป้ายไปเกาะขอบซ้ายติดกับ No. พอดี) —
+            จัดกึ่งกลางเฉพาะป้ายหัวตาราง ไม่กระทบการจัดซ้ายของเนื้อหาแต่ละแถว (ชื่อสินค้า
+            อ่านง่ายกว่าถ้าจัดซ้าย โดยเฉพาะชื่อยาว) */}
         <tr className="border-b border-gray-800">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
-          <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
+          <th className="text-center py-[length:var(--print-row-padding)]">รายการ</th>
           <th className="text-left py-[length:var(--print-row-padding)] w-20">ขนาด</th>
           <th className="text-right py-[length:var(--print-row-padding)] w-16">จำนวน</th>
           {/* Owner UAT (2026-08-31) — คอลัมน์ตัวเลข 2 คอลัมน์นี้ตกขอบขวาของกระดาษจริงกับ
