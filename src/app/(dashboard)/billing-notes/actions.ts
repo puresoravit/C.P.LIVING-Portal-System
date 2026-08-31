@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { getNextSeq, formatDocNumber, currentPeriod, releaseSeqIfLatest } from "@/lib/running-number";
+import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { roundMoney } from "@/lib/pricing";
 import { resolveBillingNoteDiscounts, type BillingNoteDiscountLine } from "@/lib/billing-note-discount";
 import { partitionInvoicesForBilling, singleBillingGroup } from "@/lib/billing-note-split";
@@ -236,7 +236,6 @@ export async function cancelBillingNote(id: string): Promise<ActionResult> {
         where: { billingNoteId: id },
         data: { billingNoteId: null },
       });
-      await releaseSeqIfLatest("BI", billingNote.billingNoteNumber, tx);
       await tx.auditLog.create({
         data: {
           userId: user.id,
