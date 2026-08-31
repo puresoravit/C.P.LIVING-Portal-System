@@ -122,7 +122,9 @@ export function InvoicePrintBody({
           กับตัวเลขห่างกันเกินจำเป็นในคอลัมน์ขวาที่กว้างเกินตัว — ลดสัดส่วนคอลัมน์ขวาลง
           (ยังพอมีที่ให้ตัวเลขหลักหมื่นไม่ตกบรรทัด) คืนพื้นที่ให้ฝั่งจำนวนเงินเป็นตัวหนังสือ
           ซ้ายมากขึ้น ป้าย/ตัวเลขฝั่งขวาก็ขยับเข้าใกล้กันเองตามความกว้างคอลัมน์ที่แคบลง */}
-      <div className="border rounded p-2 grid grid-cols-[3fr_2fr] gap-4 mb-[length:var(--print-block-gap)]">
+      {/* Owner UAT (2026-08-31) — ขอเพิ่มระยะห่างก่อนถึงข้อความรับรอง/ลายเซ็นด้านล่างอีก
+          นิดหน่อย (ให้พื้นที่เซ็นชื่อไม่อึดอัด) — เพิ่มค่าคงที่เล็กๆ ต่อจาก Block Gap เดิม */}
+      <div className="border rounded p-2 grid grid-cols-[3fr_2fr] gap-4 mb-[calc(var(--print-block-gap)+8px)]">
         <PrintAmountWordsRemark amountInWords={amountInWords} />
         {summaryRows({ gross: grossAmount, discount: discountAmount, net: grandTotal }, "สุทธิ / Net Amount")}
       </div>

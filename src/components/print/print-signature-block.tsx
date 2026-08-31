@@ -31,7 +31,9 @@ export function PrintSignatureBlock({
       >
         {labels.map((label) => (
           <div key={label}>
-            <div className="border-t border-gray-400 pt-1">{label}</div>
+            {/* Owner UAT (2026-08-31) — เส้นขีดรองรับลายเซ็นจางไม่ชัด (สาเหตุเดียวกับ
+                เส้นขีดตารางที่แก้ไปแล้ว — border-gray-400 ยังจางไปสำหรับกระดาษจริง) */}
+            <div className="border-t border-gray-800 pt-1">{label}</div>
             <div className="mt-1">วันที่ ____/____/____</div>
           </div>
         ))}

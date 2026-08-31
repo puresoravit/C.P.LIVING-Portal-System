@@ -67,7 +67,14 @@ export function PrintPage({
 }) {
   const cssVars = templateSettings ? buildPrintCssVars(templateSettings) : undefined;
   return (
-    <div className="max-w-3xl mx-auto">
+    // Owner UAT (2026-08-31) — เจอ Root Cause ที่เป็นไปได้ของปัญหาตกขอบขวาที่ยังไม่หายหลัง
+    // จูน Margin/ความกว้างคอลัมน์มา 2 รอบแล้ว: max-w-3xl (768px) ครอบเนื้อหาไว้แบบไม่มี
+    // Media Query แยกสำหรับ Print เลย — ค่านี้ตั้งใจไว้แค่จำกัดความกว้างตอน Preview บนจอ
+    // (กันหน้าจอกว้างเนื้อหายืดเกินสวยงาม) แต่ตอนพิมพ์จริงบนกระดาษ 9 นิ้ว เนื้อหาควรใช้
+    // พื้นที่เท่าที่ @page Margin ของ Print Profile กำหนดไว้เอง ไม่ใช่ถูกจำกัดด้วยเลข 768px
+    // ที่ไม่เกี่ยวข้องกับกระดาษจริงเลย — เปิดกว้างเฉพาะตอน Print (print:max-w-none) จอ
+    // Preview ยังแคบเหมือนเดิมทุกประการ
+    <div className="max-w-3xl mx-auto print:max-w-none print:mx-0">
       <style
         id="print-page-style"
         dangerouslySetInnerHTML={{ __html: `@media print { ${printPageStyleFor(DEFAULT_PRINT_PROFILE)} }` }}
