@@ -94,8 +94,13 @@ export function PrintPage({
         </div>
         <PrintProfileSelector />
       </div>
+      {/* Owner UAT (2026-08-31 รอบ 5) — p-6 (24px) เดิมกินพื้นที่พิมพ์จริงไปทั้งหมด 48px
+          ต่อความกว้าง (ซ้าย+ขวา) โดยไม่จำเป็น — ลดเหลือเฉพาะแนวนอนตอนพิมพ์จริง (px-3 =
+          12px ต่อข้าง ยังมีที่ว่างพอสมควรจากขอบ @page Margin เดิมอยู่แล้ว) คืนพื้นที่ที่ได้
+          ทั้งหมดให้คอลัมน์ตัวเลขในตารางที่เคยตกขอบ — จอ Preview (ไม่มี print:) ยังคง p-6
+          เท่าเดิมทุกประการ แนวตั้ง (บน/ล่าง) ไม่แตะเลย กัน Pagination/Signature เพี้ยน */}
       <div
-        className={`print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm flex flex-col ${bodyClassName ?? ""}`}
+        className={`print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 print:px-3 text-sm flex flex-col ${bodyClassName ?? ""}`}
         style={{ ...cssVars, ...bodyStyle } as React.CSSProperties}
       >
         {children}
