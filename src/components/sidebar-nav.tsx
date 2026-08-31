@@ -327,7 +327,7 @@ export function SidebarNav({ tree, badgeCounts }: { tree: NavNode[]; badgeCounts
     // Geometry ครบเหมือนเมนูกลางทุกประการ + ได้ระยะหายใจจาก Header ตามที่ Owner ขอ
     <nav className="flex-1 px-2 py-8 space-y-0.5 overflow-y-auto">
       {tree.map((node, i) => (
-        <NavNodeView key={`${node.type}-${i}`} node={node} activeHref={activeHref} depth={0} />
+        <NavNodeView key={`${node.type}-${i}`} node={node} activeHref={activeHref} depth={0} badgeCounts={badgeCounts} />
       ))}
     </nav>
   );

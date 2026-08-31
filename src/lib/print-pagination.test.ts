@@ -47,6 +47,20 @@ describe("estimatePageCapacity / capacityForDocument", () => {
     }
   });
 
+  // Owner UAT (2026-08-31) — Invoice Boost ฟอนต์ +30% ผ่าน CSS ล้วนๆ นอกระบบ Template
+  // Settings ปกติ — fontScaleMultiplier ต้องคำนวณความจุแถวต่อหน้าให้ลดลงตามจริง
+  it("fontScaleMultiplier: ตัวคูณมากขึ้น → ความจุต่อหน้าลดลง (Monotonic เหมือน Font ใหญ่ขึ้น)", () => {
+    const base = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
+    const boosted = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE", 1.3);
+    expect(boosted.normalPageRows).toBeLessThan(base.normalPageRows);
+  });
+
+  it("fontScaleMultiplier ไม่ส่ง = 1 = พฤติกรรมเดิมทุกประการ", () => {
+    const a = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
+    const b = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE", 1);
+    expect(b).toEqual(a);
+  });
+
   it("ความจุไม่ต่ำกว่า 1 แม้ Header/ส่วนสงวนใหญ่ผิดปกติ (เอกสารต้องพิมพ์ได้เสมอ)", () => {
     const cap = estimatePageCapacity({
       bodyFontSizePx: 13,
