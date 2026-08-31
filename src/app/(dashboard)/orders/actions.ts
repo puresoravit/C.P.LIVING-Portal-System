@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { computeOrderPreview } from "@/lib/order-preview";
 import { roundMoney, allocateProportionally, getEffectivePrice } from "@/lib/pricing";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -483,6 +484,18 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
     // R13 — Cascade: ยกเลิก Invoice ลูกที่ยัง Active ทุกใบใน Transaction เดียวกัน
     for (const inv of activeInvoices) {
       await tx.invoice.updateMany({ where: { id: inv.id, status: inv.status }, data: { status: "CANCELLED" } });
+      // Owner UAT (2026-08-31) — Invoice ลูกแต่ละใบที่ถูก Cascade ยกเลิก อาจเข้าเงื่อนไข
+      // Reclaim เลขที่ของตัวเองได้เช่นกัน (ไม่เคย PRINTED — Downstream ถูกเช็คผ่านไปแล้ว
+      // ตั้งแต่ lockedByBillingNote/lockedByTaxInvoice ด้านบนก่อนจะเข้า Cascade ได้เลย)
+      if (!inv.printedAt) {
+        const parsed = parseDocNumber(`INV-${inv.productTypeCode}`, inv.invoiceNumber);
+        if (parsed) {
+          const released = await tryReleaseSeq(`INV-${inv.productTypeCode}`, parsed.period, parsed.seq, tx);
+          if (released) {
+            await tx.invoice.updateMany({ where: { id: inv.id }, data: { numberReleased: true } });
+          }
+        }
+      }
       await tx.auditLog.create({
         data: {
           userId: user.id,
@@ -493,6 +506,19 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
           newValue: { status: "CANCELLED", reason: "ยกเลิกตาม Order ต้นทาง (Cascade)" },
         },
       });
+    }
+
+    // Owner UAT (2026-08-31) — Order เองเข้าเงื่อนไข Reclaim ได้เฉพาะตอนยกเลิกจาก DRAFT
+    // เท่านั้น (ไม่เคย Confirm — Confirm เองคือ Checkpoint ของ Order เพราะไม่มี PRINTED
+    // ของตัวเอง) กรณีนี้ activeInvoices ว่างเปล่าเสมอ (Invoice เกิดตอน Confirm เท่านั้น)
+    if (beforeStatus === "DRAFT") {
+      const parsed = parseDocNumber("ORDER", order.orderNumber);
+      if (parsed) {
+        const released = await tryReleaseSeq("ORDER", parsed.period, parsed.seq, tx);
+        if (released) {
+          await tx.order.updateMany({ where: { id: orderId }, data: { numberReleased: true } });
+        }
+      }
     }
 
     await tx.auditLog.create({

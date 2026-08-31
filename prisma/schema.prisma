@@ -467,10 +467,20 @@ enum OrderStatus {
 }
 
 model Order {
-  id           String      @id @default(cuid())
-  orderNumber  String      @unique // ORDER-YYYYMM-##### (ข้อ 22, 30)
-  customerId   String
-  customer     Customer    @relation(fields: [customerId], references: [id])
+  id              String      @id @default(cuid())
+  // Owner UAT (2026-08-31) — เลิก @unique ธรรมดา เปลี่ยนเป็น Partial Unique Index ที่
+  // DB จริงผ่าน Migration SQL มือ (WHERE NOT "numberReleased" — Prisma Schema ไม่มี Syntax
+  // แสดง Partial Unique ได้ตรงๆ) เพื่อรองรับการดึงเลขคืนใช้ใหม่ตอนยกเลิกใบล่าสุดก่อนถูกใช้
+  // งานจริง (ดู numberReleased ด้านล่าง) — แถวที่ถูกยกเลิก+ดึงเลขคืนแล้วยังเก็บเลขเดิมไว้เป๊ะ
+  // (ไม่ Rename) เพื่อไม่ต้องแก้จุดแสดงผลใดๆ เลยทั่วระบบ มีแค่แถว Active เดียว
+  // (numberReleased=false) ต่อเลขที่บังคับ Unique จริงผ่าน DB Constraint เสมอ
+  orderNumber     String      // ORDER-YYYYMM-##### (ข้อ 22, 30)
+  // Owner UAT (2026-08-31) — true = เลขที่นี้ถูกยกเลิกก่อนใช้งานจริง (ไม่เคย Confirm) และ
+  // ถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว — เอกสารแถวนี้ยังอยู่ครบ (Audit/History) แค่ไม่ใช่
+  // เจ้าของเลขที่ Active อีกต่อไป
+  numberReleased  Boolean     @default(false)
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
   // Owner UAT Fix Batch 1 — ข้อ 3: บริษัทที่ไม่มีสาขาต้องสร้างเอกสารได้ด้วย Customer
   // อย่างเดียว — Branch เป็น Optional (Additive, ไม่ลบ Architecture) แถวเดิมที่มี
   // branchId อยู่แล้วไม่กระทบ
@@ -492,6 +502,7 @@ model Order {
   items     OrderItem[]
   invoices  Invoice[]
 
+  @@index([orderNumber])
   @@map("orders")
 }
 
@@ -524,7 +535,11 @@ enum InvoiceStatus {
 // Invoice ที่แตกจาก Order ตาม Product Type (ข้อ 19, 22-27)
 model Invoice {
   id              String        @id @default(cuid())
-  invoiceNumber   String        @unique // INV-{Type}-YYYYMM-#### (ข้อ 22, 30)
+  // Owner UAT (2026-08-31) — เลิก @unique ธรรมดา เปลี่ยนเป็น Partial Unique Index ที่ DB
+  // จริง (WHERE NOT "numberReleased") ดูเหตุผลเต็มที่ Order.orderNumber (Pattern เดียวกัน
+  // ทุกประการ ใช้ร่วม 6 ประเภทเอกสาร)
+  invoiceNumber   String        // INV-{Type}-YYYYMM-#### (ข้อ 22, 30)
+  numberReleased  Boolean       @default(false)
   parentOrderId   String        // ข้อ 23: Parent Order Relation
   order           Order         @relation(fields: [parentOrderId], references: [id])
   invoiceDate     DateTime
@@ -584,6 +599,7 @@ model Invoice {
   billingNote   BillingNote? @relation(fields: [billingNoteId], references: [id])
   pendingRedeliveries InvoicePendingRedelivery[]
 
+  @@index([invoiceNumber])
   @@map("invoices")
 }
 
@@ -671,7 +687,9 @@ enum TaxInvoiceStatus {
 
 model TaxInvoice {
   id                  String            @id @default(cuid())
-  taxInvoiceNumber    String            @unique // TX-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  // Owner UAT (2026-08-31) — Partial Unique Index (ดูเหตุผลเต็มที่ Order.orderNumber)
+  taxInvoiceNumber    String            // TX-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  numberReleased      Boolean           @default(false)
   taxInvoiceDate      DateTime
   customerId          String
   customer            Customer          @relation(fields: [customerId], references: [id])
@@ -718,6 +736,7 @@ model TaxInvoice {
 
   items TaxInvoiceItem[]
 
+  @@index([taxInvoiceNumber])
   @@map("tax_invoices")
 }
 
@@ -755,7 +774,9 @@ enum BillingNoteStatus {
 
 model BillingNote {
   id                   String            @id @default(cuid())
-  billingNoteNumber    String            @unique // BI-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  // Owner UAT (2026-08-31) — Partial Unique Index (ดูเหตุผลเต็มที่ Order.orderNumber)
+  billingNoteNumber    String            // BI-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  numberReleased       Boolean           @default(false)
   billingNoteDate      DateTime
   customerId           String
   customer             Customer          @relation(fields: [customerId], references: [id])
@@ -783,6 +804,7 @@ model BillingNote {
 
   invoices Invoice[]
 
+  @@index([billingNoteNumber])
   @@map("billing_notes")
 }
 
@@ -796,7 +818,9 @@ enum RepairReturnStatus {
 
 model RepairReturnNote {
   id                   String             @id @default(cuid())
-  noteNumber           String             @unique // DEP-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  // Owner UAT (2026-08-31) — Partial Unique Index (ดูเหตุผลเต็มที่ Order.orderNumber)
+  noteNumber           String             // DEP-YYYYMM-### (ข้อ 22 pattern เดียวกัน)
+  numberReleased       Boolean            @default(false)
   noteDate             DateTime
   customerId           String
   customer             Customer           @relation(fields: [customerId], references: [id])
@@ -815,6 +839,7 @@ model RepairReturnNote {
 
   items RepairReturnNoteItem[]
 
+  @@index([noteNumber])
   @@map("repair_return_notes")
 }
 
@@ -881,9 +906,11 @@ model QuotationProspect {
 model Quotation {
   id              String   @id @default(cuid())
   // R10 — ราย (Prospect) ของ Guest QT — ตั้งเฉพาะใบที่กรอกข้อมูลเอง (customerId null)
-  prospectId String?
-  prospect   QuotationProspect? @relation(fields: [prospectId], references: [id])
-  quotationNumber String   @unique // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
+  prospectId      String?
+  prospect        QuotationProspect? @relation(fields: [prospectId], references: [id])
+  // Owner UAT (2026-08-31) — Partial Unique Index (ดูเหตุผลเต็มที่ Order.orderNumber)
+  quotationNumber String             // QT-YYYYMM-##### (5 หลัก, Sequence แยกจาก Order/Invoice)
+  numberReleased  Boolean            @default(false)
   quotationDate   DateTime
   // Fresh UAT Phase H — Guest/Manual Customer เฉพาะใบเสนอราคา: customerId เป็น null ได้
   // (ลูกค้าที่กรอกเองโดยไม่สร้าง Customer Master) — ข้อมูลลูกค้าทั้งหมดของ Guest อยู่ใน
@@ -933,6 +960,7 @@ model Quotation {
 
   items QuotationItem[]
 
+  @@index([quotationNumber])
   @@map("quotations")
 }
 

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
 import { getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -510,24 +511,46 @@ export async function cancelQuotation(quotationId: string): Promise<ActionResult
   }
 
   const beforeStatus = quotation.status;
-  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
-  const cas = await db.quotation.updateMany({
-    where: { id: quotationId, status: beforeStatus },
-    data: { status: "CANCELLED" },
-  });
-  if (cas.count === 0) {
-    return { success: false, error: "สถานะใบเสนอราคาเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+  const CHANGED = "QUOTATION_STATUS_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+      // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+      const cas = await tx.quotation.updateMany({
+        where: { id: quotationId, status: beforeStatus },
+        data: { status: "CANCELLED" },
+      });
+      if (cas.count === 0) throw new Error(CHANGED);
+
+      // Owner UAT (2026-08-31) — Quotation ไม่มี PRINTED Checkpoint ของตัวเอง เข้าเงื่อนไข
+      // Reclaim ได้เฉพาะตอนยกเลิกจาก DRAFT เท่านั้น (ไม่เคย Confirm — Confirm เองคือ
+      // Checkpoint) ไม่มี Downstream Document อื่นอ้างอิง Quotation เลย
+      if (beforeStatus === "DRAFT") {
+        const parsed = parseDocNumber("QT", quotation.quotationNumber);
+        if (parsed) {
+          const released = await tryReleaseSeq("QT", parsed.period, parsed.seq, tx);
+          if (released) {
+            await tx.quotation.updateMany({ where: { id: quotationId }, data: { numberReleased: true } });
+          }
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "Quotation",
+          recordId: quotationId,
+          oldValue: { status: beforeStatus },
+          newValue: { status: "CANCELLED" },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะใบเสนอราคาเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
   }
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "CANCEL",
-      module: "Quotation",
-      recordId: quotationId,
-      oldValue: { status: beforeStatus },
-      newValue: { status: "CANCELLED" },
-    },
-  });
 
   revalidatePath(`/quotations/${quotationId}`);
   revalidatePath("/quotations");

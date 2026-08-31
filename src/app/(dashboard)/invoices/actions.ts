@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/action-result";
+import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -46,28 +47,56 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
   }
 
   const beforeStatus = invoice.status;
-  // Final Audit — CAS แบบเดียวกับ C1/C2 (Stabilization): เงื่อนไขทั้งหมดข้างบนตัดสิน
-  // จากสถานะที่ "อ่านมาก่อนหน้า" — ถ้ามี Action อื่นเปลี่ยนสถานะแทรกกลาง (เช่น มาร์ค
-  // PRINTED พร้อมกัน) การ update ตรงๆ จะเขียนทับโดยไม่รู้ตัว → เขียนแบบมีเงื่อนไข
-  // status ต้องยังเท่าเดิม ไม่เท่า = มีคนเปลี่ยนไปแล้ว แจ้งให้รีเฟรชแทน
-  const cas = await db.invoice.updateMany({
-    where: { id: invoiceId, status: beforeStatus },
-    data: { status: "CANCELLED" },
-  });
-  if (cas.count === 0) {
-    return { success: false, error: "สถานะ Invoice เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
-  }
+  const CHANGED = "INVOICE_STATUS_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+      // Final Audit — CAS แบบเดียวกับ C1/C2 (Stabilization): เงื่อนไขทั้งหมดข้างบนตัดสิน
+      // จากสถานะที่ "อ่านมาก่อนหน้า" — ถ้ามี Action อื่นเปลี่ยนสถานะแทรกกลาง (เช่น มาร์ค
+      // PRINTED พร้อมกัน) การ update ตรงๆ จะเขียนทับโดยไม่รู้ตัว → เขียนแบบมีเงื่อนไข
+      // status ต้องยังเท่าเดิม ไม่เท่า = มีคนเปลี่ยนไปแล้ว แจ้งให้รีเฟรชแทน
+      const cas = await tx.invoice.updateMany({
+        where: { id: invoiceId, status: beforeStatus },
+        data: { status: "CANCELLED" },
+      });
+      if (cas.count === 0) throw new Error(CHANGED);
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "CANCEL",
-      module: "Invoice",
-      recordId: invoiceId,
-      oldValue: { status: beforeStatus },
-      newValue: { status: "CANCELLED" },
-    },
-  });
+      // Owner UAT (2026-08-31) — เข้าเงื่อนไข Reclaim ก็ต่อเมื่อไม่เคย PRINTED และไม่มี
+      // ใบกำกับภาษี Active อ้างอิงอยู่ (billingNoteId ถูกกันไว้แล้วตั้งแต่ Guard ด้านบน —
+      // แต่ TaxInvoice ยังไม่เคยถูกเช็คใน cancelInvoice เดี่ยวๆ นี้มาก่อน เพิ่มเช็คตรงนี้
+      // เฉพาะสำหรับเงื่อนไข Reclaim ไม่กระทบกฎการยกเลิก Invoice เดิมที่มีอยู่)
+      if (!invoice.printedAt) {
+        const activeTaxInvoice = await tx.taxInvoice.findFirst({
+          where: { referenceInvoiceId: invoiceId, status: { not: "CANCELLED" } },
+          select: { id: true },
+        });
+        if (!activeTaxInvoice) {
+          const parsed = parseDocNumber(`INV-${invoice.productTypeCode}`, invoice.invoiceNumber);
+          if (parsed) {
+            const released = await tryReleaseSeq(`INV-${invoice.productTypeCode}`, parsed.period, parsed.seq, tx);
+            if (released) {
+              await tx.invoice.updateMany({ where: { id: invoiceId }, data: { numberReleased: true } });
+            }
+          }
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "Invoice",
+          recordId: invoiceId,
+          oldValue: { status: beforeStatus },
+          newValue: { status: "CANCELLED" },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะ Invoice เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
+  }
 
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");

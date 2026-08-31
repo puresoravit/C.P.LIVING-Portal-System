@@ -107,25 +107,38 @@ export async function cancelRepairReturnNote(id: string): Promise<ActionResult> 
   if (note.status === "CANCELLED") return { success: false, error: "เอกสารนี้ถูกยกเลิกไปแล้ว" };
 
   const before = note.status;
-  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
-  const cas = await db.repairReturnNote.updateMany({
-    where: { id, status: before },
-    data: { status: "CANCELLED" },
-  });
-  if (cas.count === 0) {
-    return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
-  }
+  const CHANGED = "REPAIR_NOTE_STATUS_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+      // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+      const cas = await tx.repairReturnNote.updateMany({
+        where: { id, status: before },
+        data: { status: "CANCELLED" },
+      });
+      if (cas.count === 0) throw new Error(CHANGED);
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "CANCEL",
-      module: "RepairReturnNote",
-      recordId: id,
-      oldValue: { status: before },
-      newValue: { status: "CANCELLED" },
-    },
-  });
+      // Owner UAT (2026-08-31) — RepairReturnStatus (schema.prisma) มีแค่ CONFIRMED/
+      // CANCELLED ไม่มีขั้น Draft เลย (สร้างมาเป็น CONFIRMED ทันทีเสมอ — ยืนยันจาก Type
+      // ของ `before` เอง) เข้าเงื่อนไข "ไม่เคย Confirm" ของ Owner ไม่ได้จริงในทางปฏิบัติ —
+      // เอกสารประเภทนี้จึงไม่มีทาง Reclaim เลขที่ได้เลยตามกฎที่วางไว้ ไม่ใช่ Bug
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "RepairReturnNote",
+          recordId: id,
+          oldValue: { status: before },
+          newValue: { status: "CANCELLED" },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
+  }
 
   revalidatePath(`/repair-notes/${id}`);
   revalidatePath("/repair-notes");
