@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -37,21 +36,31 @@ const ROW_HEIGHT = "34pt";
 /** จำนวนช่องขีดต่อแถว — CP7 round 6 (Owner): ลดจาก 6 เหลือ 5 ช่อง ให้ตรงกับนิสัยขีดจริง
     (ขีดเต็มช่อง = นับ 5 พอดี ไม่ต้องมานั่งคิดเลข 6 คูณ) */
 const TALLY_BOX_COUNT = 5;
+/** สัดส่วนความกว้างรวมของกลุ่มคอลัมน์ "จำนวน" (แบ่งเท่าๆ กันเป็น TALLY_BOX_COUNT ช่องจริง) */
+const TALLY_GROUP_WIDTH_PERCENT = 40;
 
-/** CP7 round 6→7 — ลองมา 2 วิธีแล้วแก้ไม่หมด: (1) flex-1 สะสมเศษพิกเซลไม่เท่ากัน (2) h-full
-    (height:100%) บน div ลูกใน <td> คำนวณเป็น 0 เพราะ td ไม่มี height แบบ definite ของตัวเอง
-    (3) ให้ความสูงตายตัว 34pt ตรงกับ <tr> ก็ยังพังอีกกับแถวที่ชื่อรายการยาวจนตัดบรรทัด (แถวสูง
-    กว่า 34pt จริง เส้นเลยไม่ถึงขอบล่าง) — รากปัญหาคือพยายามให้ "ลูก" รู้ความสูงของ "พ่อ" ที่ยัง
-    ไม่นิ่งจนกว่า layout เสร็จ วิธีที่ถูกคือไม่พึ่งความสูงของลูกเลย ใช้ background-image วาดเส้น
-    ตรงบน td ตัวเอง (background วาดเต็มกล่องของ element เสมอไม่ว่าความสูงจริงจะเท่าไร ไม่มีปัญหา
-    percentage-height ให้แก้อีกจากนี้) — คำนวณตำแหน่งเส้นแบ่ง (TALLY_BOX_COUNT-1 เส้น) ครั้งเดียว */
-const TALLY_DIVIDER_COLOR = "#9ca3af"; // เทียบเท่า Tailwind gray-400 ที่ใช้เป็นเส้นตารางทั้งหน้า
-const tallyCellStyle: CSSProperties = {
-  backgroundImage: Array(TALLY_BOX_COUNT - 1).fill(`linear-gradient(${TALLY_DIVIDER_COLOR}, ${TALLY_DIVIDER_COLOR})`).join(", "),
-  backgroundSize: "1px 100%",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: Array.from({ length: TALLY_BOX_COUNT - 1 }, (_, i) => `${((i + 1) / TALLY_BOX_COUNT) * 100}% 0`).join(", "),
-};
+/** CP7 round 6→8 — ลองมาแล้ว 3 วิธี ล้มเหลวคนละสาเหตุ ทุกครั้ง: (1) flex-1 สะสมเศษพิกเซลไม่
+    เท่ากัน (2) h-full (height:100%) บน div ลูกใน <td> คำนวณเป็น 0 เพราะ td ไม่มี height แบบ
+    definite ของตัวเอง (3) ให้ความสูงตายตัว 34pt พังกับแถวที่ชื่อรายการยาวจนตัดบรรทัด (4)
+    background-image บน td (วาดเองไม่พึ่งความสูงลูก แก้ปัญหาความสูงได้จริง) แต่พัง "ตอนพิมพ์จริง"
+    เพราะ Chrome (และเบราว์เซอร์อื่นส่วนใหญ่) ปิดการพิมพ์ background โดย default (checkbox
+    "พิมพ์พื้นหลัง/Background graphics" ใน More settings) — พนักงานหน้างานไม่มีทางจำกดทุกครั้ง
+    ต้องพึ่งได้เอง
+
+    รากปัญหาจริงๆ คือพยายามทำให้ "1 td ที่มีลูกข้างใน" ดูเหมือนแบ่ง 5 ช่อง — ทางที่ถูกคือไม่ต้อง
+    แบ่งจำลองเลย ใช้ "td จริง 5 ใบ" แทน เพราะ td ที่อยู่ติดกันใน tr เดียวกัน เบราว์เซอร์ยืดความสูง
+    ให้เท่ากันเป็นกติกา table layout พื้นฐานอยู่แล้ว (ไม่ต้องคำนวณความสูงเองเลย) และเป็น border
+    ธรรมดา (ไม่ใช่ background) จึงพิมพ์ติดเสมอไม่ว่าตั้งค่าเครื่องพิมพ์ยังไง — ใช้ colSpan ที่หัว
+    ตารางให้ยังเห็นเป็นหัวข้อ "จำนวน" หัวเดียวตามเดิม แต่แถวข้อมูลจริงมี td 5 ใบเรียงกัน */
+function TallyCells() {
+  return (
+    <>
+      {Array.from({ length: TALLY_BOX_COUNT }, (_, i) => (
+        <td key={i} className="border-r border-gray-400 align-top" style={{ width: `${TALLY_GROUP_WIDTH_PERCENT / TALLY_BOX_COUNT}%` }} />
+      ))}
+    </>
+  );
+}
 
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -206,7 +215,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
               <th className="text-center px-1.5 py-0.5 font-medium w-[6%] border-r border-gray-400">ไซส์</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[4%] border-r border-gray-400">ค้างเดิม</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[5%] border-r border-gray-400">จำนวนผลิต</th>
-              <th className="text-center px-1.5 py-0.5 font-medium w-[40%] border-r border-gray-400">จำนวน</th>
+              <th colSpan={TALLY_BOX_COUNT} className="text-center px-1.5 py-0.5 font-medium border-r border-gray-400">จำนวน</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[7%] border-r border-gray-400">รวมขึ้น</th>
               <th className="text-center px-1.5 py-0.5 font-medium w-[7%]">ค้างส่ง</th>
             </tr>
@@ -214,7 +223,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
           <tbody>
             {trip.drops.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีจุดส่ง —</td>
+                <td colSpan={7 + TALLY_BOX_COUNT} className="px-1.5 py-1 text-gray-400 text-xs">— ไม่มีจุดส่ง —</td>
               </tr>
             )}
             {trip.drops.map((drop) => {
@@ -234,7 +243,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                         ลงจุดที่ {drop.seq}/{totalDrops}{loadHint}
                       </span>
                     </td>
-                    <td colSpan={7} className="px-1.5 py-1 text-gray-400 text-xs border-l border-gray-400">— ไม่มีรายการ —</td>
+                    <td colSpan={6 + TALLY_BOX_COUNT} className="px-1.5 py-1 text-gray-400 text-xs border-l border-gray-400">— ไม่มีรายการ —</td>
                   </tr>
                 );
               }
@@ -259,12 +268,13 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                           {group.sku && <span className="block text-[10px] text-gray-500 font-mono">{group.sku}</span>}
                         </td>
                       )}
-                      <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.size ?? "-"}</td>
+                      <td className="px-1.5 py-1 text-center border-r border-gray-400">
+                        {row.size ?? "-"}
+                        {row.note && <div className="text-[9px] text-gray-500 leading-tight mt-0.5">{row.note}</div>}
+                      </td>
                       <td className="px-1.5 py-1 text-center border-r border-gray-400">{row.outstanding || ""}</td>
                       <td className="px-1.5 py-1 text-center font-semibold border-r border-gray-400">{row.fresh || ""}</td>
-                      <td className="border-r border-gray-400 align-top" style={tallyCellStyle}>
-                        {row.note && <div className="text-[10px] text-gray-600 px-1 py-0.5">หมายเหตุ: {row.note}</div>}
-                      </td>
+                      <TallyCells />
                       <td className="px-1.5 py-1 text-center border-r border-gray-400" />
                       <td className="px-1.5 py-1 text-center" />
                     </tr>
@@ -289,7 +299,7 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[4%]" />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
-                  <td className="border-r border-gray-400 w-[40%]" style={tallyCellStyle} />
+                  <TallyCells />
                   <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
                   <td className="px-1.5 py-1 w-[7%]" />
                 </tr>
