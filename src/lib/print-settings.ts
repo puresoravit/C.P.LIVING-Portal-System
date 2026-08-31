@@ -32,12 +32,14 @@ export const PRINT_PROFILES: Record<
     // ชั้นเป็น 14mm — รอบ 3-5 ลองแก้ที่ Column Width/Table Layout/Padding แทนหลายรอบ
     // ยังไม่หาย (Physical Print ยืนยันแล้วว่า Item Table และกล่อง Total/Net Amount ถูก
     // Clip ที่แนวขวาเดียวกัน — แปลว่าปัญหาจริงอยู่ที่ระดับ Container/Margin ไม่ใช่แค่
-    // ความกว้างคอลัมน์) — รอบ 6: เพิ่ม Margin ขวาเป็น Safety Buffer จริงที่ระดับ mm (ไม่ใช่
-    // px/rem โดยประมาณที่พึ่งพา Assumption เรื่อง DPI/การแปลงหน่วยของ Browser/Driver ซึ่ง
-    // พิสูจน์แล้วว่าไม่ตรงกับพฤติกรรมเครื่องพิมพ์จริง) 14mm → 20mm (+6mm ≈ 0.24in เผื่อ
-    // เต็มที่) เป็นแนวทางหลักรอบนี้ ควบคู่กับดึงความกว้างคอลัมน์กลับมาระดับที่พอดีจริง
-    // (ไม่ใช่ขยายเพิ่มอีก) ที่ invoice-print-body.tsx/tax-invoice-print-body.tsx
-    margin: "10mm 20mm 6mm 10mm",
+    // ความกว้างคอลัมน์) — รอบ 6: เพิ่ม Margin ขวาเป็น Safety Buffer จริงที่ระดับ mm 14mm →
+    // 20mm — Physical Print ยืนยันว่าทิศถูกแล้ว (ตกขอบน้อยลง) แต่ยังไม่พอ — รอบ 7: เพิ่ม
+    // อีก +10mm (20mm → 30mm) ตามที่ Owner ระบุช่วง 8-10mm โดยเลือกปลายบนเพื่อกันพลาดซ้ำ
+    // เป็นรอบที่ 3 ติดกัน — จงใจไม่แตะ Column Width/Font Size รอบนี้ (Owner สั่งตรงๆ ว่า
+    // ให้แก้ที่ระดับ Container/Margin เท่านั้น รักษาสัดส่วน Table/Summary เดิม) — คอลัมน์
+    // Fixed-width ทั้งหมด (No/ขนาด/จำนวน/ราคา/จำนวนเงิน) เป็น px คงที่ ไม่ขยับตาม Margin
+    // ที่เปลี่ยน มีแต่ "รายการ" (Flexible) ที่แคบลงเล็กน้อยรับ Margin ที่เพิ่มแทน
+    margin: "10mm 30mm 6mm 10mm",
     contentHeightMm: 279.4 - 16, // 11in - (10mm บน + 6mm ล่าง) — ขวา/ซ้ายไม่กระทบความสูง
   },
   a4: {
