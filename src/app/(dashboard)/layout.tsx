@@ -10,6 +10,7 @@ import { InactivityLogout } from "@/components/portal/inactivity-logout";
 import { formatDisplayName } from "@/lib/user-profile";
 import { UserAvatar } from "@/components/portal/user-avatar";
 import { NavIcon } from "@/components/nav-icons";
+import { getUnresolvedPendingRedeliveryCount } from "@/lib/pending-redelivery-count";
 
 const BRAND = "C.P. LIVING Billing";
 
@@ -34,6 +35,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Phase Nav-1 — กรอง Nav Tree ด้วย can() ตัวเดียวกับทุกหน้าที่ใช้อยู่แล้ว
   // (ไม่มี Permission Logic ใหม่ ไม่ hardcode visibility ข้าม Permission Matrix เดิม)
   const visibleTree = filterNav(NAV_TREE, (perm: Permission) => can(role as any, perm));
+  // Owner UAT (2026-08-29) — Badge ตัวเลขเมนู "ค้างส่ง" กันพนักงานลืมเข้ามาเช็ค — เช็คสิทธิ์
+  // ก่อนคิว Query กันโหลดข้อมูลทิ้งเปล่าๆ สำหรับ Role ที่มองไม่เห็นเมนูนี้อยู่แล้ว
+  const pendingRedeliveryCount = can(role as any, "invoice.create") ? await getUnresolvedPendingRedeliveryCount() : 0;
+  const navBadgeCounts = { "/pending-redelivery": pendingRedeliveryCount };
 
   return (
     <div className="flex min-h-screen print:min-h-0 print:block flex-col md:flex-row">
@@ -81,7 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <NavIcon name="grid" className="w-3.5 h-3.5" />
           Application Portal
         </a>
-        <SidebarNav tree={visibleTree} />
+        <SidebarNav tree={visibleTree} badgeCounts={navBadgeCounts} />
       </SidebarShell>
       {/* Owner UAT — Billing UI Visual Polish: พื้น Content Area จากขาวล้วน → Warm
           Off-white (cp-cream, ดู tailwind.config.js) — จุดควบคุมเดียว กระทบทุกหน้าใน

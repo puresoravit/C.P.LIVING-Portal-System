@@ -7,19 +7,22 @@ import { db } from "@/lib/db";
 // ทำให้ Order ที่ถูกแก้ไขไปแล้ว 1 ครั้งแก้ไขซ้ำไม่ได้อีกเลย — Invoice ที่ CANCELLED
 // แล้วคือ Historical Record เท่านั้น ห้ามนำมาตัดสิน Inconsistent อีกต่อไป):
 //  - ต้องเป็นสถานะ CONFIRMED เท่านั้น
-//  - พิจารณาจาก Active Invoice ปัจจุบัน + downstream reference เท่านั้น — Cancelled
-//    Invoice เก่ากี่ใบก็ได้ไม่ block
+//  - พิจารณาจาก Active Invoice ปัจจุบันเท่านั้น — Cancelled Invoice เก่ากี่ใบก็ได้ไม่ block
 //  - ถ้าไม่มี Active Invoice เหลือเลย (ทั้งที่ Order ควรมี) ถือเป็น Abnormal State
 //    ต้อง Refuse/รายงาน ห้ามสร้าง Invoice ใหม่เองโดยเดา
-//  - ถ้า Active Invoice ใดถูกอ้างอิงต่อแล้ว (TaxInvoice ที่ยัง Active หรือถูกวางบิลแล้ว)
-//    ต้อง Lock พร้อมเหตุผลที่ตรงกับ downstream นั้น ให้ใช้ Copy Order แทน
-//  - ถ้า Active Invoice บาง ใบ PRINTED แต่ไม่มีการอ้างอิงต่อ ยัง Edit ได้ แต่ต้อง
-//    Acknowledge Warning ก่อน
+//  - ถ้า Active Invoice บางใบ PRINTED ยัง Edit ได้เสมอ แต่ต้อง Acknowledge Warning ก่อน
+//
+// Owner UAT (2026-08-29) — เดิม Invoice ที่มี TaxInvoice/BillingNote อ้างอิงแล้วจะ Lock
+// แก้ไขไม่ได้เลย (บังคับ Copy Order แทน) — Owner ยืนยันให้ปลดล็อกแล้ว: "ใบกำกับภาษีจะไม่มี
+// แก้ไข ไม่ต้องทำอะไรก็ได้กับใบกำกับภาษี แก้แค่ใบส่งของ เพราะใบกำกับภาษีจะมาพิมพ์ทีหลัง
+// แต่ละสิ้นเดือนอยู่แล้ว" — คือใบกำกับภาษี/ใบวางบิลที่ออกไปแล้วไม่ต้องอัปเดตตามเลย ปล่อยให้
+// รอบออกเอกสารครั้งถัดไปดึงยอดปัจจุบันของ Invoice เองตามปกติ — เอา "locked" kind ออก
+// ทั้งหมด เหลือแค่รายงาน downstreamReferences ให้ UI โชว์เป็นข้อความแจ้งเตือนเฉยๆ
+// (ไม่ Block) ว่าใบกำกับภาษี/ใบวางบิลที่ออกไปแล้วจะไม่ถูกแตะ
 export type OrderEditGuardResult =
   | { kind: "not-applicable" }
   | { kind: "no-active-invoices" }
-  | { kind: "locked"; reasons: Array<"tax-invoice" | "billing-note"> }
-  | { kind: "editable"; requiresPrintedAck: boolean };
+  | { kind: "editable"; requiresPrintedAck: boolean; downstreamReferences: Array<"tax-invoice" | "billing-note"> };
 
 export function checkOrderEditable(params: {
   orderStatus: string;
@@ -32,13 +35,12 @@ export function checkOrderEditable(params: {
   const activeStatuses = params.invoiceStatuses.filter((s) => s !== "CANCELLED");
   if (activeStatuses.length === 0) return { kind: "no-active-invoices" };
 
-  const reasons: Array<"tax-invoice" | "billing-note"> = [];
-  if (params.invoicesWithBillingNote > 0) reasons.push("billing-note");
-  if (params.hasActiveTaxInvoiceReference) reasons.push("tax-invoice");
-  if (reasons.length > 0) return { kind: "locked", reasons };
+  const downstreamReferences: Array<"tax-invoice" | "billing-note"> = [];
+  if (params.invoicesWithBillingNote > 0) downstreamReferences.push("billing-note");
+  if (params.hasActiveTaxInvoiceReference) downstreamReferences.push("tax-invoice");
 
   const requiresPrintedAck = activeStatuses.some((s) => s === "PRINTED");
-  return { kind: "editable", requiresPrintedAck };
+  return { kind: "editable", requiresPrintedAck, downstreamReferences };
 }
 
 /**

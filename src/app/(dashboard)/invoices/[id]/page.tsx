@@ -63,6 +63,15 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         {invoice.printedAt && ` · พิมพ์แล้วเมื่อ ${invoice.printedAt.toLocaleDateString("th-TH")}`}
       </p>
 
+      {/* Owner UAT (2026-08-29) — เตือนถาวรว่าใบนี้ถูกแก้ไขหลังพิมพ์แล้ว (ต่างจาก Modal
+          Acknowledge ตอนกำลังแก้ ซึ่งเป็นแค่ครั้งเดียว) — อัปเดตเวลาล่าสุดทุกครั้งที่แก้ซ้ำ */}
+      {invoice.editedAfterPrintAt && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+          ⚠ แก้ไขหลังจากส่งสินค้าแล้ว — ล่าสุดเมื่อ {invoice.editedAfterPrintAt.toLocaleDateString("th-TH")}{" "}
+          {invoice.editedAfterPrintAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
+
       {/* Billing Status Visibility — แกนแยกจาก Document Status ข้างบน มีความหมายเฉพาะ
           Invoice ที่ PRINTED เท่านั้น (ยังไม่ PRINTED ไม่มีทางมี billingNoteId อยู่แล้วตาม
           Business Rule เดิม — วางบิลได้ต้อง PRINTED ก่อน) */}

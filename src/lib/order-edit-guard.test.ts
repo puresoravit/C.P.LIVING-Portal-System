@@ -20,7 +20,7 @@ describe("checkOrderEditable", () => {
       invoicesWithBillingNote: 0,
       hasActiveTaxInvoiceReference: false,
     });
-    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: [] });
   });
 
   // เคส 2: Order เดิมแก้ครั้งที่สอง — มี Invoice เก่า Cancelled ค้างจากการแก้ครั้งแรก
@@ -32,7 +32,7 @@ describe("checkOrderEditable", () => {
       invoicesWithBillingNote: 0,
       hasActiveTaxInvoiceReference: false,
     });
-    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: [] });
   });
 
   // เคส 3: มี Cancelled Invoice เก่าหลายใบ + Active Invoice ปัจจุบัน 1 ใบ — ยัง editable
@@ -43,39 +43,40 @@ describe("checkOrderEditable", () => {
       invoicesWithBillingNote: 0,
       hasActiveTaxInvoiceReference: false,
     });
-    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: [] });
   });
 
-  // เคส 4: มี Cancelled Invoice เก่า + Active Invoice ที่อยู่ใน Billing Note แล้ว — ต้อง LOCKED
-  it("locked ด้วยเหตุผล billing-note แม้มี Cancelled Invoice เก่าปนอยู่ (ไม่ใช่ inconsistent)", () => {
+  // เคส 4/5 (Owner UAT 2026-08-29) — เดิม "locked" ห้ามแก้เลย ตอนนี้ยัง editable ได้เสมอ
+  // แค่รายงาน downstreamReferences ให้ UI แจ้งเตือนว่าใบกำกับภาษี/ใบวางบิลที่ออกไปแล้ว
+  // จะไม่ถูกแตะ (Owner ยืนยันไม่ต้องอัปเดตตาม)
+  it("editable — มี Active Invoice ที่อยู่ใน Billing Note แล้ว รายงาน downstreamReferences ['billing-note']", () => {
     const result = checkOrderEditable({
       orderStatus: "CONFIRMED",
       invoiceStatuses: ["CANCELLED", "CONFIRMED"],
       invoicesWithBillingNote: 1,
       hasActiveTaxInvoiceReference: false,
     });
-    expect(result).toEqual({ kind: "locked", reasons: ["billing-note"] });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: ["billing-note"] });
   });
 
-  // เคส 5: มี Cancelled Invoice เก่า + Active Invoice ที่มี Tax Invoice อ้างอิง — ต้อง LOCKED
-  it("locked ด้วยเหตุผล tax-invoice แม้มี Cancelled Invoice เก่าปนอยู่ (ไม่ใช่ inconsistent)", () => {
+  it("editable — มี Active Invoice ที่มี Tax Invoice อ้างอิง รายงาน downstreamReferences ['tax-invoice']", () => {
     const result = checkOrderEditable({
       orderStatus: "CONFIRMED",
       invoiceStatuses: ["CANCELLED", "CONFIRMED"],
       invoicesWithBillingNote: 0,
       hasActiveTaxInvoiceReference: true,
     });
-    expect(result).toEqual({ kind: "locked", reasons: ["tax-invoice"] });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: ["tax-invoice"] });
   });
 
-  it("locked ด้วยเหตุผลทั้งสองอย่างพร้อมกันถ้าเข้าเงื่อนไขทั้งคู่", () => {
+  it("รายงาน downstreamReferences ทั้งสองอย่างพร้อมกันถ้าเข้าเงื่อนไขทั้งคู่", () => {
     const result = checkOrderEditable({
       orderStatus: "CONFIRMED",
       invoiceStatuses: ["CONFIRMED", "CONFIRMED"],
       invoicesWithBillingNote: 1,
       hasActiveTaxInvoiceReference: true,
     });
-    expect(result).toEqual({ kind: "locked", reasons: ["billing-note", "tax-invoice"] });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: false, downstreamReferences: ["billing-note", "tax-invoice"] });
   });
 
   // เคส 6: Active Invoice เป็น PRINTED แต่ไม่มี downstream — editable + ต้อง warning
@@ -86,7 +87,17 @@ describe("checkOrderEditable", () => {
       invoicesWithBillingNote: 0,
       hasActiveTaxInvoiceReference: false,
     });
-    expect(result).toEqual({ kind: "editable", requiresPrintedAck: true });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: true, downstreamReferences: [] });
+  });
+
+  it("editable + requiresPrintedAck + downstreamReferences พร้อมกันได้ (PRINTED และมี Tax Invoice อ้างอิง)", () => {
+    const result = checkOrderEditable({
+      orderStatus: "CONFIRMED",
+      invoiceStatuses: ["PRINTED"],
+      invoicesWithBillingNote: 0,
+      hasActiveTaxInvoiceReference: true,
+    });
+    expect(result).toEqual({ kind: "editable", requiresPrintedAck: true, downstreamReferences: ["tax-invoice"] });
   });
 
   // เคส 7: ไม่มี Active Invoice เหลือเลย — Abnormal State ต้อง Refuse ไม่เดา

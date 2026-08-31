@@ -28,7 +28,7 @@ import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 import { BackLink } from "@/components/back-link";
 
-const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
+const DOWNSTREAM_REFERENCE_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
   "billing-note": "ใบวางบิล",
 };
@@ -301,10 +301,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         )}
       </div>
 
-      {editGuard?.kind === "locked" && (
-        <p className="text-xs text-gray-500 mt-2">
-          Order นี้แก้ไขไม่ได้แล้ว เนื่องจากมี{editGuard.reasons.map((r) => LOCKED_REASON_LABEL[r]).join("และ")}
-          อ้างอิงอยู่ — ใช้ &quot;คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่&quot; ด้านล่างแทน
+      {/* Owner UAT (2026-08-29) — เดิม Block แก้ไขทั้งหมดถ้ามีใบกำกับภาษี/ใบวางบิลอ้างอิง
+          แล้ว (บังคับ Copy Order แทน) — Owner ยืนยันปลดล็อกแล้ว แก้ไขได้เสมอ เหลือแค่แจ้ง
+          เตือนเฉยๆ ว่าเอกสารที่ออกไปแล้วจะไม่ถูกแก้ตาม (ดู order-edit-guard.ts) */}
+      {editGuard?.kind === "editable" && editGuard.downstreamReferences.length > 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
+          Order นี้มี{editGuard.downstreamReferences.map((r) => DOWNSTREAM_REFERENCE_LABEL[r]).join("และ")}
+          อ้างอิงอยู่แล้ว — แก้ไขได้ตามปกติ แต่จะไม่กระทบตัวเลขใน{editGuard.downstreamReferences
+            .map((r) => DOWNSTREAM_REFERENCE_LABEL[r])
+            .join("และ")}
+          ที่ออกไปแล้ว
         </p>
       )}
       {editGuard?.kind === "no-active-invoices" && (
