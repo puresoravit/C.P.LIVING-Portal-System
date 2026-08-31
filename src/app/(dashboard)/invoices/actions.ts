@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/action-result";
-import { releaseSeqIfLatest } from "@/lib/running-number";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -58,8 +57,6 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
   if (cas.count === 0) {
     return { success: false, error: "สถานะ Invoice เปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
   }
-
-  await releaseSeqIfLatest(`INV-${invoice.productTypeCode}`, invoice.invoiceNumber);
 
   await db.auditLog.create({
     data: {

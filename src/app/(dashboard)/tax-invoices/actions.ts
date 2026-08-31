@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { getNextSeq, formatDocNumber, currentPeriod, releaseSeqIfLatest } from "@/lib/running-number";
+import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { getEffectiveVatRate, extractVat, getEffectivePrice } from "@/lib/pricing";
 import { computeManualTaxInvoiceTotals } from "@/lib/tax-invoice-totals";
 import { resolveGroupDiscounts } from "@/lib/tax-invoice-group-discount";
@@ -335,8 +335,6 @@ export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResu
   if (cas.count === 0) {
     return { success: false, error: "สถานะใบกำกับภาษีเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
   }
-
-  await releaseSeqIfLatest("TX", taxInvoice.taxInvoiceNumber);
 
   await db.auditLog.create({
     data: {

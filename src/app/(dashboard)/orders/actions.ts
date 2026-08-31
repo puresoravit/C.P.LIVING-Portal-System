@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { getNextSeq, formatDocNumber, currentPeriod, releaseSeqIfLatest } from "@/lib/running-number";
+import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { computeOrderPreview } from "@/lib/order-preview";
 import { roundMoney, allocateProportionally, getEffectivePrice } from "@/lib/pricing";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -483,7 +483,6 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
     // R13 — Cascade: ยกเลิก Invoice ลูกที่ยัง Active ทุกใบใน Transaction เดียวกัน
     for (const inv of activeInvoices) {
       await tx.invoice.updateMany({ where: { id: inv.id, status: inv.status }, data: { status: "CANCELLED" } });
-      await releaseSeqIfLatest(`INV-${inv.productTypeCode}`, inv.invoiceNumber, tx);
       await tx.auditLog.create({
         data: {
           userId: user.id,
@@ -495,8 +494,6 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
         },
       });
     }
-
-    await releaseSeqIfLatest("ORDER", order.orderNumber, tx);
 
     await tx.auditLog.create({
       data: {
