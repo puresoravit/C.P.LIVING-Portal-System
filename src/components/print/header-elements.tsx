@@ -47,9 +47,12 @@ export function HeaderTextLine({ label, value, style }: { label?: string; value:
  * Hardcode เดิม (เคย Fix ไว้ว่าไทยหนา/อังกฤษไม่หนาเสมอ) — ค่าเริ่มต้นใน
  * DEFAULT_HEADER_LAYOUT ยังคง Map ให้ตรงพฤติกรรมเดิมเป๊ะ (Zero-Regression) */
 export function HeaderTitleLine({ text, style }: { text: string; style: TextLineStyle }) {
+  // Owner UAT (2026-08-31) — text-gray-700 เดิม (บรรทัดที่ไม่ตั้ง Bold) พิมพ์ออกมาจางไม่ชัด
+  // (เหตุผลเดียวกับ print-document-title.tsx) — เข้มขึ้นเป็น gray-900 เสมอไม่ว่าจะ Bold
+  // หรือไม่ — ไม่กระทบ Font-weight ที่ Owner ตั้งไว้ใน Designer เลย แค่สีเข้มขึ้น
   return (
     <div
-      className={style.fontWeight === "bold" ? "font-semibold" : "text-gray-700"}
+      className={style.fontWeight === "bold" ? "font-semibold" : "text-gray-900"}
       style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}
     >
       {text}
