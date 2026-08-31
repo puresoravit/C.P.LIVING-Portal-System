@@ -141,8 +141,12 @@ export function TaxInvoicePrintBody({
     </div>
   );
 
+  // Owner UAT (2026-09-02) — ขยับกล่องสรุป (ถ้อยคำ/หมายเหตุ/Subtotal-VAT-Net) ขึ้นเล็กน้อย
+  // เพิ่มระยะห่างจาก Signature Block ด้านล่าง (ให้พื้นที่เซ็นชื่อจริงมากขึ้น) — mb-6 (24px)
+  // แทน --print-block-gap เดิม (6px ที่ spacingDensity=normal) เฉพาะกล่องสรุปท้ายเอกสารนี้
+  // เท่านั้น (ไม่กระทบกล่อง "รวมหน้านี้" ต่อหน้าซึ่งยังใช้ Block Gap เดิม — คนละ Element)
   const docSummaryBlock = (
-    <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-[length:var(--print-block-gap)]">
+    <div className="border rounded p-2 grid grid-cols-2 gap-4 mb-6">
       <PrintAmountWordsRemark amountInWords={amountInWords} />
       {summaryRows(
         { subtotal, discount, afterDiscount: netAmount, valueAmount, vatAmount, net: netAmount },

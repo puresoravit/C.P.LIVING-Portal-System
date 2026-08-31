@@ -130,6 +130,18 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
       markPrintedAction={taxInvoice.status === "CONFIRMED" ? markTaxInvoicePrinted.bind(null, taxInvoice.id) : undefined}
       isPrinted={taxInvoice.status === "PRINTED"}
       printedAtLabel={taxInvoice.printedAt ? taxInvoice.printedAt.toLocaleString("th-TH") : undefined}
+      // Owner UAT (2026-09-02) — เทียบ Physical Print แล้วหมึกจางมาก (เหตุผลเดียวกับที่
+      // เคยแก้ Invoice ไปแล้วรอบ 3 — ดู invoices/[id]/print/page.tsx) ใช้ Pattern เดียวกัน
+      // เป๊ะ: bodyClassName="font-bold" (Inherit ลงทุก Text ที่ยังไม่ตั้ง font-weight ของ
+      // ตัวเอง) + Font Tahoma (เส้นหนา/ช่องไฟโปร่งกว่า Sarabun ที่ Font Size เล็กๆ) — เพิ่ม
+      // --print-logo-filter ใหม่ (CSS Var เดียวกับที่ HeaderLogoElement อ่าน — Default
+      // "none" ถ้าไม่ส่ง ไม่กระทบเอกสารอื่นเลย) ให้โลโก้เส้นบางเข้มขึ้นด้วย — ขอบเขตเฉพาะ
+      // ใบกำกับภาษี/ใบเสร็จเท่านั้น (เอกสารอื่นไม่ได้ร้องขอ ไม่แตะ)
+      bodyClassName="font-bold"
+      bodyStyle={{
+        ["--print-font-family" as string]: `"Tahoma", "Segoe UI", ui-sans-serif, sans-serif`,
+        ["--print-logo-filter" as string]: "contrast(1.5)",
+      }}
     >
       {/* R8 — Document Pagination: Header ซ้ำทุกหน้า + Summary ต่อหน้า (VAT ถอดด้วย
           extractVat เดิม) — เอกสารหน้าเดียว Output เดิมทุกประการ (ดู print-pagination.ts) */}

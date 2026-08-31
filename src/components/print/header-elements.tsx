@@ -19,10 +19,19 @@ function applyFontFamily(style: React.CSSProperties, fontFamily?: FontFamilyKey)
   return fontFamily ? { ...style, fontFamily: FONT_FAMILY_CSS[fontFamily] } : style;
 }
 
+// Owner UAT (2026-09-02) — ใบกำกับภาษี/ใบเสร็จขอโลโก้เส้นบางเข้มขึ้น (หมึกจางบนกระดาษจริง)
+// อ่านผ่าน CSS Var --print-logo-filter (Default "none" — พฤติกรรมเดิมทุกประการถ้าไม่มีใคร
+// ส่งมา) หน้า Print เดียวที่ตั้งค่านี้ผ่าน bodyStyle คือ tax-invoices/[id]/print/page.tsx
+// เท่านั้น — เอกสารอื่นทั้ง 4 ประเภทไม่กระทบเลย
 export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; heightMm: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Data URI จาก AppSetting หรือไฟล์ static ธรรมดา
-    <img src={logo || "/logo.jpg"} alt="" style={{ height: `${heightMm}mm`, width: "auto" }} className="object-contain" />
+    <img
+      src={logo || "/logo.jpg"}
+      alt=""
+      style={{ height: `${heightMm}mm`, width: "auto", filter: "var(--print-logo-filter, none)" }}
+      className="object-contain"
+    />
   );
 }
 
