@@ -25,7 +25,10 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
 
   const invoice = await db.invoice.findUniqueOrThrow({
     where: { id: invoiceId },
-    include: { billingNote: true },
+    include: {
+      billingNote: true,
+      taxInvoices: { where: { status: { not: "CANCELLED" } }, select: { id: true, taxInvoiceNumber: true } },
+    },
   });
   // Phase E1 — Validation Error ที่คาดไว้แล้ว (ผู้ใช้ควรเห็นเหตุผลจริง) ให้ return
   // แทนการ throw เพราะ Next.js production build redact ข้อความของ Error ที่ throw
@@ -46,6 +49,20 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
     };
   }
 
+  // Owner UAT (2026-08-31) — Smoke Test หลัง Deploy เจอว่า cancelOrder เช็คทั้ง BillingNote
+  // และ TaxInvoice Active ก่อน Cascade อยู่แล้ว แต่ cancelInvoice เดี่ยวๆ นี้เช็คแค่
+  // BillingNote — เพิ่ม Guard เดียวกันให้ตรงกัน (เดิมตั้งใจให้ TaxInvoice Active แค่กันการ
+  // Reclaim เฉยๆ ไม่ได้กันการยกเลิก แต่จริงๆ ควรกันการยกเลิกทั้งก้อนเหมือน BillingNote
+  // เพราะปล่อยให้ยกเลิก Invoice ที่มีใบกำกับภาษี Active อ้างอิงอยู่ จะเหลือใบกำกับภาษีที่
+  // ยังไม่ยกเลิกไปอ้างอิง Invoice ต้นทางที่ถูกยกเลิกแล้ว)
+  if (invoice.taxInvoices.length > 0) {
+    const numbers = invoice.taxInvoices.map((tx) => tx.taxInvoiceNumber).join(", ");
+    return {
+      success: false,
+      error: `Invoice นี้ถูกอ้างโดยใบกำกับภาษี ${numbers} แล้ว ต้องยกเลิกใบกำกับภาษีนั้นก่อนถึงจะยกเลิก Invoice ใบนี้ได้`,
+    };
+  }
+
   const beforeStatus = invoice.status;
   const CHANGED = "INVOICE_STATUS_CHANGED";
   try {
@@ -60,22 +77,16 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
       });
       if (cas.count === 0) throw new Error(CHANGED);
 
-      // Owner UAT (2026-08-31) — เข้าเงื่อนไข Reclaim ก็ต่อเมื่อไม่เคย PRINTED และไม่มี
-      // ใบกำกับภาษี Active อ้างอิงอยู่ (billingNoteId ถูกกันไว้แล้วตั้งแต่ Guard ด้านบน —
-      // แต่ TaxInvoice ยังไม่เคยถูกเช็คใน cancelInvoice เดี่ยวๆ นี้มาก่อน เพิ่มเช็คตรงนี้
-      // เฉพาะสำหรับเงื่อนไข Reclaim ไม่กระทบกฎการยกเลิก Invoice เดิมที่มีอยู่)
+      // Owner UAT (2026-08-31) — เข้าเงื่อนไข Reclaim ก็ต่อเมื่อไม่เคย PRINTED — Downstream
+      // (BillingNote/TaxInvoice Active) ถูกกันไว้แล้วทั้งคู่ตั้งแต่ Guard ด้านบนก่อนจะมาถึง
+      // จุดนี้ได้เลย (เหมือน cancelOrder ที่เช็ค Lock ก่อน Cascade ครั้งเดียว ไม่ต้องเช็คซ้ำ
+      // ในนี้อีก)
       if (!invoice.printedAt) {
-        const activeTaxInvoice = await tx.taxInvoice.findFirst({
-          where: { referenceInvoiceId: invoiceId, status: { not: "CANCELLED" } },
-          select: { id: true },
-        });
-        if (!activeTaxInvoice) {
-          const parsed = parseDocNumber(`INV-${invoice.productTypeCode}`, invoice.invoiceNumber);
-          if (parsed) {
-            const released = await tryReleaseSeq(`INV-${invoice.productTypeCode}`, parsed.period, parsed.seq, tx);
-            if (released) {
-              await tx.invoice.updateMany({ where: { id: invoiceId }, data: { numberReleased: true } });
-            }
+        const parsed = parseDocNumber(`INV-${invoice.productTypeCode}`, invoice.invoiceNumber);
+        if (parsed) {
+          const released = await tryReleaseSeq(`INV-${invoice.productTypeCode}`, parsed.period, parsed.seq, tx);
+          if (released) {
+            await tx.invoice.updateMany({ where: { id: invoiceId }, data: { numberReleased: true } });
           }
         }
       }
