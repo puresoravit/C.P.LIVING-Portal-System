@@ -66,20 +66,22 @@ export function InvoicePrintBody({
             ไม่มีความกว้างกำกับ Text-align left ทำให้ป้ายไปเกาะขอบซ้ายติดกับ No. พอดี) —
             จัดกึ่งกลางเฉพาะป้ายหัวตาราง ไม่กระทบการจัดซ้ายของเนื้อหาแต่ละแถว (ชื่อสินค้า
             อ่านง่ายกว่าถ้าจัดซ้าย โดยเฉพาะชื่อยาว) */}
-        {/* Owner UAT (2026-08-31 รอบ 5) — table-layout:fixed (รอบ 4) ทำให้ตารางไม่ล้น
-            Container อีกแล้วก็จริง แต่คอลัมน์ตัวเลข w-28 (112px) เดิมยังแคบเกินไปสำหรับ
-            กระดาษจริง (ตัวเลขโดนตัดกลางคันเพราะ nowrap ไม่ยอมตัดคำ ล้นออกนอกกรอบคอลัมน์
-            ของตัวเองไปจนถึงขอบกระดาษ) — คอลัมน์ "ขนาด"/"จำนวน" กว้างเกินความจำเป็นจริง
-            (เนื้อหาสั้นมาก) ดึงพื้นที่ส่วนเกินนั้นมาให้ 2 คอลัมน์ตัวเลขแทน รวมความกว้าง
-            ทั้งแถวเท่าเดิมทุกประการ (ไม่กระทบพื้นที่ของ "รายการ" เลย) */}
+        {/* Owner UAT (2026-08-31 รอบ 5→6) — รอบ 5 ขยายคอลัมน์ตัวเลขเป็น w-36 (144px) โดย
+            ดึงพื้นที่จาก Padding/คอลัมน์อื่น แต่ Physical Print ยืนยันว่าปัญหาไม่ได้อยู่ที่
+            ความกว้างคอลัมน์ (Item Table และกล่อง Total/Net Amount ถูก Clip ที่แนวขวา
+            เดียวกัน — จุดที่ต้องแก้จริงคือ Margin ระดับ Container ที่ print-settings.ts)
+            — ดึงความกว้างกลับมาระดับพอดีจริง (w-24=96px ยังเผื่อเยอะกว่าที่วัดจริงต้องใช้
+            ~70px สำหรับยอด 6 หลัก) คืนพื้นที่ส่วนเกินให้ "รายการ" แทนที่จะแย่งจาก Margin/
+            Padding อีก — "ขนาด"/"จำนวน" ยังคงแคบกว่าเดิม (w-16/w-12) ตามรอบ 5 เพราะเนื้อหา
+            สั้นจริง ไม่ใช่สาเหตุ */}
         <tr className="border-b border-gray-800">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
           <th className="text-center py-[length:var(--print-row-padding)]">รายการ</th>
           <th className="text-left py-[length:var(--print-row-padding)] w-16">ขนาด</th>
           <th className="text-right py-[length:var(--print-row-padding)] w-12">จำนวน</th>
-          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">ราคา/หน่วย</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24 whitespace-nowrap">ราคา/หน่วย</th>
           {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-16">ส่วนลด</th>}
-          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">จำนวนเงิน</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24 whitespace-nowrap">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>
@@ -129,9 +131,11 @@ export function InvoicePrintBody({
           กับตัวเลขห่างกันเกินจำเป็นในคอลัมน์ขวาที่กว้างเกินตัว — ลดสัดส่วนคอลัมน์ขวาลง
           (ยังพอมีที่ให้ตัวเลขหลักหมื่นไม่ตกบรรทัด) คืนพื้นที่ให้ฝั่งจำนวนเงินเป็นตัวหนังสือ
           ซ้ายมากขึ้น ป้าย/ตัวเลขฝั่งขวาก็ขยับเข้าใกล้กันเองตามความกว้างคอลัมน์ที่แคบลง */}
-      {/* Owner UAT (2026-08-31) — ขอเพิ่มระยะห่างก่อนถึงข้อความรับรอง/ลายเซ็นด้านล่างอีก
-          นิดหน่อย (ให้พื้นที่เซ็นชื่อไม่อึดอัด) — เพิ่มค่าคงที่เล็กๆ ต่อจาก Block Gap เดิม */}
-      <div className="border rounded p-2 grid grid-cols-[3fr_2fr] gap-4 mb-[calc(var(--print-block-gap)+8px)]">
+      {/* Owner UAT (2026-08-31 รอบ 6) — เอา +8px ที่เคยเติมตรงนี้ (รอบ 3) ออก กลับไปใช้
+          Block Gap เดิมเฉยๆ — ระยะห่างที่ต้องเพิ่มจริงคือ "หลัง" ข้อความรับรอง ก่อนถึง
+          ลายเซ็น (ดู mb ของ disclaimer ด้านล่าง/invoices/[id]/print/page.tsx) ไม่ใช่ก่อน
+          ข้อความรับรอง — เอาพื้นที่ตรงนี้คืนให้จุดที่ Owner ต้องการจริง */}
+      <div className="border rounded p-2 grid grid-cols-[3fr_2fr] gap-4 mb-[length:var(--print-block-gap)]">
         <PrintAmountWordsRemark amountInWords={amountInWords} />
         {summaryRows({ gross: grossAmount, discount: discountAmount, net: grandTotal }, "สุทธิ / Net Amount")}
       </div>

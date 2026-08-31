@@ -80,9 +80,9 @@ export function TaxInvoicePrintBody({
           <th className="text-center py-[length:var(--print-row-padding)]">รายการ</th>
           <th className="text-left py-[length:var(--print-row-padding)] w-16">ขนาด</th>
           <th className="text-right py-[length:var(--print-row-padding)] w-12">จำนวน</th>
-          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">ราคา/หน่วย</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24 whitespace-nowrap">ราคา/หน่วย</th>
           {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-16">ส่วนลด</th>}
-          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">จำนวนเงิน</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24 whitespace-nowrap">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>

@@ -94,13 +94,15 @@ export function PrintPage({
         </div>
         <PrintProfileSelector />
       </div>
-      {/* Owner UAT (2026-08-31 รอบ 5) — p-6 (24px) เดิมกินพื้นที่พิมพ์จริงไปทั้งหมด 48px
-          ต่อความกว้าง (ซ้าย+ขวา) โดยไม่จำเป็น — ลดเหลือเฉพาะแนวนอนตอนพิมพ์จริง (px-3 =
-          12px ต่อข้าง ยังมีที่ว่างพอสมควรจากขอบ @page Margin เดิมอยู่แล้ว) คืนพื้นที่ที่ได้
-          ทั้งหมดให้คอลัมน์ตัวเลขในตารางที่เคยตกขอบ — จอ Preview (ไม่มี print:) ยังคง p-6
-          เท่าเดิมทุกประการ แนวตั้ง (บน/ล่าง) ไม่แตะเลย กัน Pagination/Signature เพี้ยน */}
+      {/* Owner UAT (2026-08-31 รอบ 5→6) — รอบ 5 เคยลด Padding แนวนอนตอนพิมพ์ (print:px-3)
+          เพื่อ "ขโมย" พื้นที่ไปให้คอลัมน์ตัวเลข แต่ Physical Print ยืนยันว่าไม่ใช่ทางแก้ที่
+          ถูกจุด (Item Table และกล่อง Total/Net Amount ถูก Clip ที่แนวขวาเดียวกัน — ปัญหา
+          อยู่ที่ระดับ Margin/Safety Buffer ของ Container ไม่ใช่ Padding) — คืนกลับเป็น p-6
+          เท่าเดิมทุกจุด (Preview/Print เหมือนกัน) ให้ Margin ฝั่ง @page (print-settings.ts)
+          เป็นตัวจัดการ Safety Buffer แทนแต่ผู้เดียว ตรงไปตรงมากว่า ไม่ต้องพึ่งการคำนวณ
+          px/rem ซ้อนหลายชั้น */}
       <div
-        className={`print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 print:px-3 text-sm flex flex-col ${bodyClassName ?? ""}`}
+        className={`print-page-fill bg-white border print:border-0 rounded-lg print:rounded-none p-6 text-sm flex flex-col ${bodyClassName ?? ""}`}
         style={{ ...cssVars, ...bodyStyle } as React.CSSProperties}
       >
         {children}
