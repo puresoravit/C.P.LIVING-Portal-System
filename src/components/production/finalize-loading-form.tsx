@@ -58,6 +58,11 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
   );
   // แถวการตัดที่คนแก้เองแล้ว (หยุด auto-default ของรายการนั้น) — รายการที่ไม่อยู่ในนี้คำนวณสด
   const [manualAllocs, setManualAllocs] = useState<Record<string, AllocRow[]>>({});
+  // CP7 round 11 (Owner: กรอบ "ตัดยอดนี้จากอะไร" งง ต้องมานั่งเลือกเอง) — ซ่อนกล่องแก้ไข
+  // ที่มาไว้เป็นค่าเริ่มต้นเสมอ (auto-fill คำนวณเงียบๆ อยู่แล้ว) เปิดให้เห็นเฉพาะ (1) คนกด
+  // "แก้ไขที่มา" เอง หรือ (2) auto-fill หาที่มาให้ไม่ครบจริงๆ (unassigned !== 0 — ต้องให้คน
+  // ตัดสินใจ ตามกฎห้ามตัดยอดให้เอง)
+  const [expandedAlloc, setExpandedAlloc] = useState<Record<string, boolean>>({});
   const [uploadingDropId, setUploadingDropId] = useState<string | null>(null);
   const [addingAdhocDropId, setAddingAdhocDropId] = useState<string | null>(null);
   const [adhocLabel, setAdhocLabel] = useState("");
@@ -352,6 +357,10 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                   summary?.tone === "red" ? "text-red-700 bg-red-50 border-red-200"
                   : summary?.tone === "blue" ? "text-blue-700 bg-blue-50 border-blue-200"
                   : "text-amber-700 bg-amber-50 border-amber-200";
+                // unassigned !== 0 = auto-fill หาที่มาให้ไม่ครบจริง (เช่น capacity ไม่พอ) ต้อง
+                // บังคับเปิดกล่องให้คนตัดสินใจเอง ไม่ปล่อยให้ระบบเดา (กฎห้ามตัดยอดให้เอง)
+                const forceShowEditor = unassigned !== 0;
+                const showEditor = !!expandedAlloc[line.id] || forceShowEditor;
                 return (
                   <div key={line.id} className={`border rounded p-2 ${unassigned !== 0 ? "border-red-300 bg-red-50/30" : "border-gray-200"}`}>
                     <div className="flex items-center justify-between gap-2 text-sm">
@@ -359,7 +368,7 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                         {line.label}
                         {line.size && <span className="text-gray-500 font-normal"> (ไซส์ {line.size})</span>}
                         {line.sourceType === "ADHOC" && <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">หน้างาน</span>}
-                        <span className="text-xs text-gray-400 ml-1">แผน {line.qtyPlanned}</span>
+                        <span className="text-xs text-gray-400 ml-1">จำนวนตามใบผลิต {line.qtyPlanned}</span>
                         {line.sourceType === "ADHOC" && (
                           <button
                             type="button"
@@ -401,7 +410,19 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                       </p>
                     )}
 
-                    {/* แถวการตัด (auto จนกว่าจะแตะ) */}
+                    {/* แถวการตัด — auto-fill เงียบๆ อยู่เบื้องหลังเสมอ ไม่บังคับให้พนักงานเห็น/
+                        แก้ทุกรายการ (CP7 round 11) ยกเว้นตอนที่ auto-fill หาที่มาให้ไม่ครบจริง
+                        (unassigned !== 0) ซึ่งต้องให้คนตัดสินใจตามกฎห้ามตัดยอดให้เอง */}
+                    {rows.length > 0 && !showEditor && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedAlloc((prev) => ({ ...prev, [line.id]: true }))}
+                        className="text-[10px] text-gray-400 hover:text-cp-navy hover:underline mt-1"
+                      >
+                        แก้ไขที่มา (ปกติไม่ต้องกด — ระบบจัดให้อัตโนมัติแล้ว)
+                      </button>
+                    )}
+                    {showEditor && (
                     <div className="mt-1.5 space-y-1">
                       {rows.length > 0 && <p className="text-[10px] text-gray-400">ตัดยอดนี้จากอะไร (เติมให้อัตโนมัติ แก้ได้ทุกช่อง):</p>}
                       {rows.map((row, rowIdx) => (
@@ -476,6 +497,15 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                               กลับเป็นอัตโนมัติ
                             </button>
                           )}
+                          {!forceShowEditor && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedAlloc((prev) => ({ ...prev, [line.id]: false }))}
+                              className="text-xs text-gray-400 hover:underline"
+                            >
+                              ซ่อน
+                            </button>
+                          )}
                         </span>
                         {unassigned !== 0 && (
                           <span className="text-xs text-red-600 font-medium">
@@ -484,6 +514,7 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                         )}
                       </div>
                     </div>
+                    )}
                   </div>
                 );
               })}
