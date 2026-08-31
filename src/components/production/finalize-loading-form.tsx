@@ -63,6 +63,11 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
   // "แก้ไขที่มา" เอง หรือ (2) auto-fill หาที่มาให้ไม่ครบจริงๆ (unassigned !== 0 — ต้องให้คน
   // ตัดสินใจ ตามกฎห้ามตัดยอดให้เอง)
   const [expandedAlloc, setExpandedAlloc] = useState<Record<string, boolean>>({});
+  // CP7 round 14 (Owner UAT) — จอเลือกโหมดแรกเข้า "อัพโหลดรูปก่อน" vs "กรอกข้อมูลเอง": ตอนนี้
+  // ทั้งสองทางลงเอยที่ฟอร์มเดียวกันเป๊ะ (ไม่มี AI อ่านข้อมูลจริง — Owner ยืนยันชัดเจนว่าให้ทำ
+  // แค่ระดับ UI/ลำดับก่อน "อัพโหลดรูปก่อน" แค่สลับให้ส่วนแนบรูปขึ้นก่อนส่วนกรอกยอดต่อจุดส่ง
+  // — ไม่ใช่ P5 จริง ห้ามสร้างภาพลวงว่ามี AI ทำงานอยู่)
+  const [entryChoice, setEntryChoice] = useState<"upload" | "manual" | null>(null);
   const [uploadingDropId, setUploadingDropId] = useState<string | null>(null);
   const [addingAdhocDropId, setAddingAdhocDropId] = useState<string | null>(null);
   const [adhocLabel, setAdhocLabel] = useState("");
@@ -263,6 +268,36 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
     });
   }
 
+  // CP7 round 14 (Owner UAT) — จอเลือกโหมดแรกเข้า: เลือกครั้งเดียว ใช้กับทุกจุดส่งในรอบนี้
+  if (entryChoice === null) {
+    return (
+      <div className="space-y-3">
+        {!data.sheetPrinted && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2">
+            ⚠ รอบนี้ยังไม่ได้บันทึกว่าพิมพ์ใบขึ้นของ — บันทึกผลได้ แต่ปกติควรพิมพ์ใบให้หน้างานขีดนับก่อน
+          </div>
+        )}
+        <p className="text-sm text-gray-600">เริ่มบันทึกผลขึ้นของยังไง?</p>
+        <button
+          type="button"
+          onClick={() => setEntryChoice("upload")}
+          className="w-full text-left bg-white border-2 border-cp-navy/30 hover:border-cp-navy rounded-lg p-4"
+        >
+          <div className="text-sm font-semibold text-cp-navy">📷 อัพโหลดรูปก่อน</div>
+          <div className="text-xs text-gray-500 mt-0.5">แนบรูปใบขึ้นของที่ขีดนับแล้วก่อน แล้วค่อยกรอกยอด (รองรับระบบอ่านข้อมูลอัตโนมัติในอนาคต — ตอนนี้ยังกรอกยอดเองอยู่)</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setEntryChoice("manual")}
+          className="w-full text-left bg-white border-2 border-cp-navy/30 hover:border-cp-navy rounded-lg p-4"
+        >
+          <div className="text-sm font-semibold text-cp-navy">✏️ กรอกข้อมูลเอง</div>
+          <div className="text-xs text-gray-500 mt-0.5">กรอกยอดขึ้นจริงแต่ละรายการก่อน แนบรูปทีหลัง (แบบที่ใช้อยู่ปัจจุบัน)</div>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {!data.sheetPrinted && (
@@ -273,8 +308,8 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
 
       {data.drops.map((drop) => {
         const outOptions = data.outstandingOptions.filter((o) => o.customerId === drop.customerId);
-        return (
-          <div key={drop.id} className="bg-white border rounded-lg p-3">
+        const headerBlock = (
+          <>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">{drop.label}</span>
               <button
@@ -330,7 +365,10 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                 </button>
               </div>
             )}
+          </>
+        );
 
+        const linesBlock = (
             <div className="space-y-2">
               {drop.lines.map((line) => {
                 const rows = effectiveAllocs[line.id] ?? [];
@@ -520,9 +558,10 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
               })}
               {drop.lines.length === 0 && <p className="text-xs text-gray-400">จุดนี้ไม่มีรายการ — ไม่ต้องกรอก/แนบรูป</p>}
             </div>
+        );
 
-            {drop.lines.length > 0 && (
-              <div className="mt-3 border-t pt-2">
+        const photoBlock = drop.lines.length > 0 && (
+              <div className={entryChoice === "upload" ? "pb-3 border-b mb-3" : "mt-3 border-t pt-2"}>
                 <div className="text-xs font-medium text-gray-600 mb-1.5">รูปใบขึ้นของที่ขีดนับแล้ว * ({drop.photoPaths.length})</div>
                 <div className="flex flex-wrap gap-2">
                   {drop.photoPaths.map((p) => (
@@ -566,6 +605,25 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                   </label>
                 </div>
               </div>
+        );
+
+        // CP7 round 14 (Owner UAT) — entryChoice === "upload" คือทางเลือก "อัพโหลดรูปก่อน"
+        // จากหน้าเลือกโหมดแรกเข้า (ดูด้านล่าง) — สลับลำดับให้ส่วนรูปขึ้นก่อนส่วนกรอกยอด
+        // (ตอนนี้แค่ปรับ UI/ลำดับ ยังไม่มี AI อ่านข้อมูลจริง ตามที่ Owner ยืนยัน — วางโครงไว้
+        // ให้ P5 ในอนาคตต่อยอดตรงนี้ได้โดยไม่ต้องรื้อ Layout ใหม่)
+        return (
+          <div key={drop.id} className="bg-white border rounded-lg p-3">
+            {headerBlock}
+            {entryChoice === "upload" ? (
+              <>
+                {photoBlock}
+                {linesBlock}
+              </>
+            ) : (
+              <>
+                {linesBlock}
+                {photoBlock}
+              </>
             )}
           </div>
         );
