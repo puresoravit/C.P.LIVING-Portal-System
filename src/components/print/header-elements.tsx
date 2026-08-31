@@ -127,7 +127,24 @@ export function HeaderTextLine({
  * Right-anchor เลย แก้แค่ Margin — เอา rowStart-based Gap ออก ปล่อยให้สองบรรทัด Stack กัน
  * ตรงๆ ไม่มี margin คั่น (ระยะห่างที่เห็นเป็นแค่ Line-height ของบรรทัดวันที่เอง 1.3 เท่า
  * ปกติ) เหมือนสองบรรทัดในย่อหน้าเดียวกันจริงๆ — Invoice/TaxInvoice/เอกสารอื่นใช้ Component
- * เดียวกันนี้ทั้งหมด จึงได้ Spacing เดียวกันอัตโนมัติทุกประเภทตามที่ Owner ขอ */
+ * เดียวกันนี้ทั้งหมด จึงได้ Spacing เดียวกันอัตโนมัติทุกประเภทตามที่ Owner ขอ
+ *
+ * Owner UAT (2026-09-02 รอบ 15) — รอบ 14 ทำให้ "เลขที่" ตรงแนวกับ "รหัสลูกค้า" อยู่แล้ว (ทั้ง
+ * คู่ rowStart:22 เดิม Static Position จาก Grid ตรงกันเป๊ะโดยไม่ต้องทำอะไรเพิ่ม — Verified:
+ * Diff 0px) แต่ "วันที่" (Margin-top:0 จากรอบ 14) ดันขึ้นไปสูงกว่า "ลูกค้า" (rowStart:25)
+ * เพราะเอา Row-based Gap ออกไปทั้งหมด เหลือแค่ Line-height ของ "เลขที่" เอง (15.6px) ซึ่ง
+ * น้อยกว่าระยะจริงระหว่างแถว 22→25 ของ Grid นอก (Verified จริงด้วย Browser Test: วัดจาก
+ * customerCode/customerName ตำแหน่งจริงในกระดาษ = 24.3px ไม่ใช่ 22.7px ตามสูตร rowStart×
+ * HEADER_ROW_UNIT_MM เพราะ CSS Grid มี Track ของแถว 22 Auto-ขยายเกิน 2mm ขั้นต่ำจากเนื้อหา
+ * "รหัสลูกค้า"/"เลขที่" เอง (15.6px > 2mm) แล้วกระจายส่วนเกินไปตาม Track Sizing Algorithm ของ
+ * Spec ซึ่งซับซ้อนเกินจะคำนวณเป็นสูตรตรงๆ ให้แม่นยำ (ลองทั้ง Margin คำนวณจาก rowStart ตรงๆ
+ * และ Nested Grid จำลอง Track นอก แต่ผลไม่ตรงเป๊ะทั้งคู่ คลาดไป 1.6px และ 6.4px ตามลำดับ) —
+ * แก้ด้วยค่าที่วัดจริงจาก Browser Test เทียบกับตำแหน่งจริงของ customerCode/customerName ใน
+ * template.global Production ปัจจุบัน (fontSizePx:12/lineHeight:1.3 ทั้ง 4 Element) ได้ค่า
+ * Margin ที่ต้องเพิ่ม 8.7px แม่นยำ (คลาดจาก customerName จริงแค่ 0.008px หลัง Fix) — ถ้า
+ * Owner ปรับ fontSize/lineHeight ของ docNumber/docDate/customerCode/customerName ใน Print
+ * Template Designer ทีหลัง ค่านี้อาจต้องวัดซ้ำ (Empirical Constant ไม่ใช่สูตรทั่วไป — เหมือน
+ * colStart/colSpan ของ Element อื่นที่ Tune ตามเนื้อหาจริงมาตลอดทั้ง Session) */
 export function HeaderDocNumberDateBlock({
   numberLabel,
   numberValue,
@@ -154,7 +171,12 @@ export function HeaderDocNumberDateBlock({
         <span className="text-gray-500">{numberLabel}: </span>
         {numberValue}
       </div>
-      <div className={dateStyle.fontWeight === "bold" ? "font-semibold" : undefined} style={{ ...dateTextStyle, whiteSpace: "nowrap" }}>
+      <div
+        className={dateStyle.fontWeight === "bold" ? "font-semibold" : undefined}
+        // รอบ 15 — ค่าที่วัดจริงเทียบกับแนวแถวของ customerCode/customerName (ดู Comment
+        // เต็มด้านบน) ให้ "วันที่" อยู่ระนาบเดียวกับ "ลูกค้า" เป๊ะ
+        style={{ ...dateTextStyle, whiteSpace: "nowrap", marginTop: "8.7px" }}
+      >
         <span className="text-gray-500">{dateLabel}: </span>
         {dateValue}
       </div>
