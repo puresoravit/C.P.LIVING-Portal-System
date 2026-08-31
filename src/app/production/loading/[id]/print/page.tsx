@@ -296,10 +296,10 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
           <table className="w-full border border-gray-400 text-[13px]" style={{ borderCollapse: "collapse", borderSpacing: 0 }}>
             <thead>
               <tr className="border-b-2 border-gray-400">
-                <th className="text-center px-1.5 py-0.5 font-medium w-[18%] border-r border-gray-400">ร้านค้า</th>
-                <th className="text-center px-1.5 py-0.5 font-medium w-[37%] border-r border-gray-400">รายการ</th>
-                <th className="text-center px-1.5 py-0.5 font-medium w-[15%] border-r border-gray-400">จำนวน</th>
-                <th className="text-center px-1.5 py-0.5 font-medium w-[30%]">หมายเหตุ</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[30%] border-r border-gray-400">ร้านค้า</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[40%] border-r border-gray-400">รายการ</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[5%] border-r border-gray-400">จำนวน</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[25%]">หมายเหตุ</th>
               </tr>
             </thead>
             <tbody>
