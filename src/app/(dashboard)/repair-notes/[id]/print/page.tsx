@@ -93,6 +93,7 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
               </span>
             }
             style={hl.docNumber}
+            valueAlign="right"
           />
         ),
         docDate: <HeaderTextLine label="วันที่ / Date" value={note.noteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,

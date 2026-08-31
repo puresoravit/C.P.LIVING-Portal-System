@@ -27,13 +27,52 @@ export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; he
 }
 
 /** Element ข้อความทั่วไป 1 บรรทัด — ใช้กับ Element ส่วนใหญ่ (Company/Customer/Document
- * Meta ฯลฯ) — label เป็น Optional (ไม่มี Label = แสดงแค่ Value เฉยๆ เช่น ที่อยู่บริษัท) */
-export function HeaderTextLine({ label, value, style }: { label?: string; value: React.ReactNode; style: TextLineStyle }) {
+ * Meta ฯลฯ) — label เป็น Optional (ไม่มี Label = แสดงแค่ Value เฉยๆ เช่น ที่อยู่บริษัท)
+ *
+ * Owner UAT (2026-08-31) — เลขที่เอกสารต้องการพร้อมกัน 3 อย่างที่ Data-level (colStart/
+ * colSpan/align ของ HeaderZone) ทำพร้อมกันไม่ได้เลยสำหรับเนื้อหาที่ยาวไม่คงที่: (1) Label
+ * เริ่มตำแหน่งเดียวกับบรรทัดอื่น (2) Label+ค่าไหลต่อกันแบบธรรมชาติไม่มีช่องว่างประดิษฐ์ตอน
+ * เนื้อหาสั้น (3) ตัวท้ายสุดของค่าจบที่แนวคงที่ไม่ว่าเนื้อหาจะยาวแค่ไหน
+ *
+ * ลอง justify-content:space-between ก่อน (Label/Value เป็น Flex Child คนละตัว) แต่พังเพราะ
+ * Wrapper ทั้งสองชั้นใน HeaderZone (Grid Item + textAlign Wrapper) Shrink-wrap ตามเนื้อหา
+ * เสมอ ไม่ Stretch เต็ม Grid Column — Space-between เลยไม่มีพื้นที่ว่างให้กระจาย กลายเป็น
+ * ไม่ทำอะไรเลยจริง (Verified จริงด้วย Browser Test ก่อน Deploy)
+ *
+ * แก้ด้วย position:absolute แทน: HeaderZone Container ชั้นนอกสุดมี position:"relative"
+ * อยู่แล้ว (จุดเดียว ไม่ต้องเพิ่ม) — Label อยู่ใน Normal Flow ตามปกติ (ตำแหน่งซ้ายมาจาก
+ * Grid Item + align="left" เดิมทุกประการ ไม่กระทบ 14 Element อื่น) — Value ใช้
+ * position:absolute; right:0 ซึ่งจะข้าม Wrapper ที่ไม่มี position (Static) ทั้งสองชั้นไป
+ * เกาะกับ HeaderZone Container ที่ position:relative โดยตรง — เท่ากับ "ขอบขวาสุดของ Header
+ * Zone ทั้งก้อน" (ตรงกับขอบขวาคอลัมน์จำนวนเงินเป๊ะ เพราะ Header Zone กว้างเท่าตาราง) ไม่ว่า
+ * Grid Column ของ Element เองจะประกาศกว้างแค่ไหน — ยืนยันด้วย Browser Test จริง (ไม่ใช่แค่
+ * ทฤษฎี): เนื้อหาสั้น/ยาวต่างกัน 20 ตัวอักษร ปลายขวายังจบจุดเดิมเป๊ะ (703px ทั้งคู่จาก 704px
+ * Target) ไม่ทับ Label เลยทั้งสองกรณี — ไม่ส่ง valueAlign = พฤติกรรมเดิมทุกประการ (14
+ * Element อื่นไม่กระทบ) */
+export function HeaderTextLine({
+  label,
+  value,
+  style,
+  valueAlign,
+}: {
+  label?: string;
+  value: React.ReactNode;
+  style: TextLineStyle;
+  valueAlign?: "right";
+}) {
+  const textStyle = applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily);
+  if (valueAlign === "right") {
+    return (
+      <div className={style.fontWeight === "bold" ? "font-semibold" : undefined} style={textStyle}>
+        {label && <span className="text-gray-500 whitespace-nowrap">{label}:</span>}
+        <span className="whitespace-nowrap" style={{ position: "absolute", right: 0 }}>
+          {value}
+        </span>
+      </div>
+    );
+  }
   return (
-    <div
-      className={style.fontWeight === "bold" ? "font-semibold" : undefined}
-      style={applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily)}
-    >
+    <div className={style.fontWeight === "bold" ? "font-semibold" : undefined} style={textStyle}>
       {label && <span className="text-gray-500">{label}: </span>}
       {value}
     </div>

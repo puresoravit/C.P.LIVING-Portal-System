@@ -126,6 +126,7 @@ export default async function InvoicePrintPage(props: {
               </span>
             }
             style={hl.docNumber}
+            valueAlign="right"
           />
         ),
         docDate: <HeaderTextLine label="วันที่ / Date" value={invoice.invoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,

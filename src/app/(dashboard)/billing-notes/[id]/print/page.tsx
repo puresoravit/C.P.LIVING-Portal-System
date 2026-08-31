@@ -174,6 +174,7 @@ export default async function BillingNotePrintPage(props: {
               </span>
             }
             style={hl.docNumber}
+            valueAlign="right"
           />
         ),
         docDate: <HeaderTextLine label="วันที่ / Date" value={note.billingNoteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
