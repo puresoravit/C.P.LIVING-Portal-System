@@ -1,5 +1,7 @@
 node_modules/
 .next/
+# Concurrent-session builds (2026-08-31 audit) — per-session NEXT_BUILD_DIR output
+.next-*/
 # ทุกไฟล์ .env จริง (มีค่าจริง) ต้องไม่ commit เด็ดขาด — เหลือแค่ *.example
 # ที่เป็น template (ไม่มี secret จริง) ให้ commit ได้
 .env
@@ -17,3 +19,4 @@ logs/*.log
 !logs/.gitkeep
 .DS_Store
 *.tsbuildinfo
+/uploads

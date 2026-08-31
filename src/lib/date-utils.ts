@@ -3,7 +3,7 @@
 // ประเทศไทย UTC+7) จะได้วันที่ย้อนหลังไป 1 วันจากที่ตั้งใจ (เช่น เที่ยงคืนวันที่ 31
 // ตามเวลาไทย = 17:00 ของวันที่ 30 ตาม UTC) ฟังก์ชันนี้อ่านค่า year/month/date แบบ
 // local ตรงๆ ไม่ผ่าน UTC จึงไม่มีปัญหานี้
-function toDateInputValue(d: Date): string {
+export function toDateInputValue(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");

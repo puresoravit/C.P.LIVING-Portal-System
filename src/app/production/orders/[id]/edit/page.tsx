@@ -1,0 +1,94 @@
+import { db } from "@/lib/db";
+import { notFound } from "next/navigation";
+import { updateCustomerPO } from "../../actions";
+import { CustomerPOForm, type CustomerPOFormInitial } from "@/components/production/customer-po-form";
+import { BackLink } from "@/components/production/back-link";
+
+// S2 Checkpoint 2 — แก้ไข CustomerPO พร้อม Revision History + Optimistic Concurrency
+export default async function EditCustomerPOPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const [po, customers] = await Promise.all([
+    db.customerPO.findUnique({
+      where: { id: params.id },
+      include: {
+        lines: {
+          where: { active: true },
+          include: { product: { select: { name: true, productionLabel: true } } },
+          orderBy: { id: "asc" },
+        },
+      },
+    }),
+    db.customer.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        code: true,
+        companyName: true,
+        branches: { where: { active: true }, select: { id: true, name: true } },
+      },
+      orderBy: { companyName: "asc" },
+    }),
+  ]);
+  if (!po) notFound();
+  // CP0 — ออเดอร์ยกเลิกแล้ว = terminal แก้ไขไม่ได้ (server action guard ไว้อีกชั้น)
+  if (po.cancelledAt) {
+    return (
+      <div className="max-w-2xl">
+        <BackLink fallbackHref={`/production/orders/${po.id}`} />
+        <div className="mt-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2">
+          ออเดอร์นี้ถูกยกเลิกแล้ว แก้ไขไม่ได้ — ถ้าลูกค้ากลับมาสั่งใหม่ให้สร้างออเดอร์ใหม่
+        </div>
+      </div>
+    );
+  }
+
+  const initial: CustomerPOFormInitial = {
+    id: po.id,
+    version: po.version,
+    customerId: po.customerId,
+    branchId: po.branchId ?? "",
+    dateMode: po.dateMode,
+    requestedDate: po.requestedDate ? po.requestedDate.toISOString().slice(0, 10) : "",
+    urgency: po.urgency,
+    lines: po.lines.map((line) => ({
+      id: line.id,
+      lineKind: line.lineKind,
+      productId: line.productId,
+      productLabel: line.product ? (line.product.productionLabel ?? line.product.name) + (line.size ? ` (${line.size})` : "") : "",
+      rawProductText: line.rawProductText ?? "",
+      size: line.size ?? "",
+      qtyCurrent: line.qtyCurrent,
+      urgency: line.urgency,
+      requiredDate: line.requiredDate ? line.requiredDate.toISOString().slice(0, 10) : "",
+      note: line.note ?? "",
+    })),
+  };
+
+  const updateAction = updateCustomerPO.bind(null, po.id);
+
+  // CP4 — ออเดอร์นี้มีของค้างส่งเปิดอยู่: การแก้/ลดยอดไม่ตัดของค้างให้อัตโนมัติ (บัตรค้างเป็น
+  // ข้อเท็จจริงทาง operation — ตัดได้เฉพาะผู้ดูแลที่หน้าของค้างส่ง ตามกฎข้อ 7)
+  const openCards = await db.outstandingDelivery.findMany({
+    where: { customerPoLineId: { in: po.lines.map((l) => l.id) }, closedAt: null },
+    select: { qtyOriginal: true, allocations: { select: { qty: true } } },
+  });
+  const openRemaining = openCards.reduce((s, c) => s + c.qtyOriginal - c.allocations.reduce((x, a) => x + a.qty, 0), 0);
+
+  return (
+    <div className="max-w-2xl">
+      <BackLink fallbackHref={`/production/orders/${po.id}`} />
+      <h1 className="text-lg font-semibold mt-2 mb-1">แก้ไขออเดอร์</h1>
+      {openRemaining > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2 mb-3">
+          ⚠ ออเดอร์นี้มีของค้างส่งเปิดอยู่ {openRemaining} ชิ้น — การแก้/ลดยอดที่นี่<b>ไม่ตัดของค้างให้อัตโนมัติ</b>{" "}
+          ถ้าลูกค้ายกเลิกส่วนที่ค้าง ให้ผู้ดูแลระบบตัดยอดที่{" "}
+          <a href="/production/outstanding" className="underline">หน้าของค้างส่ง</a>
+        </div>
+      )}
+      <p className="text-sm text-gray-500 mb-4">
+        การแก้ไขทุกครั้งจะถูกบันทึกเป็นประวัติ (Revision) — ไม่เขียนทับข้อมูลเดิม
+      </p>
+      <CustomerPOForm customers={customers} action={updateAction} initial={initial} />
+    </div>
+  );
+}

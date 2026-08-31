@@ -21,7 +21,29 @@ export type Permission =
   | "repairNote.create" | "repairNote.cancel" | "repairNote.print"
   | "report.view" | "report.export"
   | "user.manage"
-  | "auditLog.view";
+  | "auditLog.view"
+  // ---------------------------------------------------------------
+  // Production Module (P1) — ตั้งชื่อ "customerPo"/"productionOrder" แยกจาก "order.*" เดิม
+  // (order.* เป็นของ Billing คนละเอกสาร คนละความหมาย)
+  // ---------------------------------------------------------------
+  | "customerPo.create" | "customerPo.editDraft" | "customerPo.confirm" | "customerPo.cancel"
+  | "productionOrder.create" | "productionOrder.confirm" | "productionOrder.revise" | "productionOrder.print"
+  // CP0 Cancellation (2026-08-30, doc 07 ข้อ 1 — Owner อนุมัติ boundary แล้ว):
+  // productionOrder.cancel = ยกเลิกใบสั่งผลิตแยกใบที่ยังไม่เริ่มผลิต (staff ทำได้ เหมือน
+  // customerPo.cancel เดิม) · production.cancelStarted = ต้องมี "เพิ่มเติม" เมื่อการยกเลิก
+  // (ทางไหนก็ตาม) กระทบใบที่ productionStartedAt แล้ว — สงวน OWNER_ADMIN เพราะของจริงอาจอยู่
+  // บนไลน์ผลิต · enforce ฝั่ง server ผ่าน can() เท่านั้น ห้ามเทียบชื่อ role ใน business logic
+  | "productionOrder.cancel"
+  | "production.cancelStarted"
+  // P2 CP1 — จัดการเที่ยวรถ (สร้าง/แก้แผน DRAFT) เป็นงานปฏิบัติการหน้างานเหมือน customerPo.*
+  // (การยืนยันขึ้นของ/กระทบยอด/ตัดของค้าง จะมี permission แยกตามที่ doc 07 กำหนดใน CP ถัดไป)
+  | "loadingTrip.manage"
+  // CP4 — ตัดยอดของค้าง (กฎ P1 ข้อ 7: "ตัดของค้างต้องอนุมัติ — หัวหน้า/ผู้ดูแลระบบเท่านั้น
+  // ห้าม Hard Delete") — OWNER_ADMIN เท่านั้น ตาม boundary ที่อนุมัติใน doc 07
+  | "outstanding.cancel"
+  | "productAlias.manage"
+  | "productionSetting.manage"
+  | "productionMasterSpec.manage";
 
 const MATRIX: Record<Role, Permission[]> = {
   OWNER_ADMIN: [
@@ -40,6 +62,18 @@ const MATRIX: Record<Role, Permission[]> = {
     "report.view", "report.export",
     "user.manage",
     "auditLog.view",
+    // Production Module (P1) — Admin ทำได้ทุกอย่างรวมถึง Master/Settings
+    "customerPo.create", "customerPo.editDraft", "customerPo.confirm", "customerPo.cancel",
+    "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
+    "productionOrder.cancel",
+    "production.cancelStarted", // OWNER_ADMIN เท่านั้น — ดู comment ที่ประกาศ type
+    "loadingTrip.manage",
+    "outstanding.cancel", // OWNER_ADMIN เท่านั้น — กฎข้อ 7
+    "productAlias.manage",
+    "productionSetting.manage",
+    // Master Spec (สูตรผ้า/โครงสร้างต้นแบบ) — master data นำเข้า/แก้ได้เฉพาะ Admin เช่นเดียว
+    // กับ productAlias.manage/productionSetting.manage (BILLING_STAFF ดูอย่างเดียว ไม่มีสิทธิ์นี้)
+    "productionMasterSpec.manage",
   ],
   BILLING_STAFF: [
     "customer.view",
@@ -52,6 +86,17 @@ const MATRIX: Record<Role, Permission[]> = {
     "taxInvoice.create", "taxInvoice.cancel", "taxInvoice.print",
     "billingNote.create", "billingNote.cancel", "billingNote.print",
     "repairNote.create", "repairNote.cancel", "repairNote.print",
+    // Production Module (P1) — งาน flow เอกสารทำได้เหมือน order.* เดิม แต่ Master/
+    // Settings (productAlias.manage, productionSetting.manage) สงวนไว้ที่ OWNER_ADMIN
+    // เท่านั้น ตาม convention เดิม (เทียบ productType.edit ที่ staff ก็ไม่มีเช่นกัน) —
+    // การสร้าง Product/SKU ใหม่จาก UNRESOLVED line ใช้ "product.edit" เดิม (staff ไม่มี
+    // สิทธิ์นี้อยู่แล้ว ตรงกับ decision ที่ยืนยันว่าต้องหัวหน้า/Admin เท่านั้น)
+    "customerPo.create", "customerPo.editDraft", "customerPo.confirm", "customerPo.cancel",
+    "productionOrder.create", "productionOrder.confirm", "productionOrder.revise", "productionOrder.print",
+    // ยกเลิกใบสั่งผลิตที่ยังไม่เริ่มผลิตได้ (สมมาตรกับ customerPo.cancel ที่ staff มีอยู่แล้ว) —
+    // แต่ "production.cancelStarted" ไม่มีโดยเจตนา: ใบที่เริ่มผลิตแล้วต้องแอดมินเท่านั้น
+    "productionOrder.cancel",
+    "loadingTrip.manage",
   ],
   VIEWER: [
     "customer.view", "branch.view", "product.view", "productType.view",

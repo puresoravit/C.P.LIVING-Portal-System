@@ -53,6 +53,99 @@ export const productCategorySchema = z.object({
   sortOrder: z.coerce.number().default(0),
 });
 
+// Production Module (P1) — ตระกูลสินค้า/ชื่อเรียก (ProductAlias) ผูกกับ ProductModel
+// หรือ Product เดี่ยว (XOR — resolveAliasFamilyHead ใน product-alias.ts เป็นผู้ตรวจจริง
+// เพราะ zod .refine() บอก field ที่ผิดชัดเจนน้อยกว่า) validateAliasScope ตรวจ
+// scope/customerId/branchId ให้สอดคล้องกันแยกอีกชั้นในตัว action
+// Production Module (P1/S2) — CustomerPO (รับ P.O. ลูกค้า) — คนละตารางจาก Order/OrderItem
+// ของ Billing โดยสิ้นเชิง (ดู docs/production-module/02-P1-schema-decisions.md)
+export const customerPOSchema = z.object({
+  customerId: z.string().min(1, "กรุณาเลือกลูกค้า"),
+  branchId: z.string().optional(),
+  dateMode: z.enum(["UNSET", "ESTIMATE", "EXACT"]).default("UNSET"),
+  requestedDate: z.string().optional(),
+  urgency: z.coerce.boolean().default(false),
+});
+
+// lineKind=UNRESOLVED เมื่อสินค้ายังไม่มีใน Product Master (rawProductText แทน productId) —
+// ตรงกับ OrderLineKind enum ใน schema.prisma
+export const customerPOLineInputSchema = z
+  .object({
+    lineKind: z.enum(["CATALOG", "UNRESOLVED"]),
+    productId: z.string().optional(),
+    rawProductText: z.string().optional(),
+    size: z.string().optional(),
+    qtyCurrent: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+    urgency: z.coerce.boolean().default(false),
+    requiredDate: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((d) => (d.lineKind === "CATALOG" ? !!d.productId : !!d.rawProductText?.trim()), {
+    message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
+  });
+
+// S2 Checkpoint 2 — เหมือน customerPOLineInputSchema ทุกประการ + id (ไม่ว่าง = บรรทัดเดิม
+// ที่มีอยู่แล้ว ใช้ตัดสินว่าเป็นการแก้ไข/ลบ ไม่ใช่เพิ่มใหม่ — ว่าง = บรรทัดใหม่ที่เพิ่มระหว่างแก้)
+export const customerPOLineUpdateInputSchema = z
+  .object({
+    id: z.string().optional(),
+    lineKind: z.enum(["CATALOG", "UNRESOLVED"]),
+    productId: z.string().optional(),
+    rawProductText: z.string().optional(),
+    size: z.string().optional(),
+    qtyCurrent: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+    urgency: z.coerce.boolean().default(false),
+    requiredDate: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((d) => (d.lineKind === "CATALOG" ? !!d.productId : !!d.rawProductText?.trim()), {
+    message: "กรุณาเลือกสินค้าจากระบบ หรือกรอกชื่อสินค้าที่ยังไม่มีในระบบ",
+  });
+
+// S3 CP1 — สเปกการผลิตขั้นต่ำต่อ ProductionItem (1 รายการ = 1 CustomerPOLine ที่เลือกเข้า
+// ใบสั่งผลิต) placement เป็น string อิสระ (ไม่ enum เพราะยังไม่ตายตัว — ดู schema.prisma)
+// การ validate จำนวนกุ๊นสูงสุด/จำนวนผ้าสูงสุดต่อ placement (current business validation จาก
+// production-settings.ts) ทำที่ actions.ts เพราะต้องอ่านค่าจาก DB ก่อน ไม่ใช่ zod ล้วน
+export const productionItemFabricInputSchema = z.object({
+  placement: z.string().min(1, "กรุณาระบุตำแหน่งผ้า"),
+  fabricName: z.string().min(1, "กรุณากรอกชื่อผ้า"),
+  fabricCode: z.string().optional(),
+  waddingWeight: z.string().optional(),
+  foamThickness: z.string().optional(),
+  colorNote: z.string().optional(),
+  displayOverride: z.string().optional(),
+  // Master Spec flow — carry ผ่านจากสูตร Master/snapshot เดิม (แก้ค่าได้ที่ Master UI เท่านั้น
+  // ในรอบนี้) ไม่เข้า specHash (computeSpecHash ไม่อ่าน field นี้ — มี test ยืนยัน)
+  printVisible: z.coerce.boolean().default(true),
+});
+
+export const productionItemLayerInputSchema = z.object({
+  material: z.string().min(1, "กรุณากรอกวัสดุ"),
+  spec: z.string().min(1, "กรุณากรอกรายละเอียด"),
+  displayOverride: z.string().optional(),
+  printVisible: z.coerce.boolean().default(true),
+});
+
+export const productionOrderItemInputSchema = z.object({
+  customerPoLineId: z.string().min(1),
+  qty: z.coerce.number().int().positive("จำนวนต้องมากกว่า 0"),
+  gussetCount: z.coerce.number().int().positive().optional(),
+  thickness: z.string().optional(),
+  note: z.string().optional(),
+  fabrics: z.array(productionItemFabricInputSchema).min(1, "กรุณาระบุผ้าอย่างน้อย 1 ตำแหน่ง"),
+  layers: z.array(productionItemLayerInputSchema).min(1, "กรุณาระบุโครงสร้างอย่างน้อย 1 ชั้น"),
+});
+
+export const productAliasSchema = z.object({
+  aliasText: z.string().min(1, "กรุณากรอกชื่อเรียก"),
+  lang: z.string().optional(),
+  scope: z.enum(["GLOBAL", "CUSTOMER", "BRANCH"]).default("GLOBAL"),
+  productModelId: z.string().optional(),
+  productId: z.string().optional(),
+  customerId: z.string().optional(),
+  branchId: z.string().optional(),
+});
+
 // R4 — sku ว่างได้แล้ว (Auto-generate ที่ Server Action ถ้าไม่กรอก) และ productTypeId
 // ว่างได้เช่นกัน (null = ไม่ระบุกลุ่มส่วนลด ตามที่อนุมัติ) — ทั้งคู่เปลี่ยนจาก required เดิม
 // R6 — เพิ่ม categoryId (ประเภทสินค้าเชิงคุณลักษณะ ใหม่) แยกจาก productTypeId โดยสิ้นเชิง
