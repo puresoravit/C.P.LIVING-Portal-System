@@ -22,6 +22,11 @@ export type NavLink = {
   // เมนูย่อยที่ยังไม่มี Route/Feature จริงตาม Implementation Plan — แสดงไว้ให้เห็น
   // โครงสร้างเมนูที่อนุมัติแล้ว แต่กดไม่ได้ (ห้ามสร้าง Business Logic ปลอมเพื่อให้ใช้ได้)
   disabled?: true;
+  // CP7 round 12 — บาง Route ไม่ได้ Nest อยู่ใต้ href ของเมนูนี้ตรงๆ ตาม URL Prefix ปกติ
+  // (เช่น .../[id]/finalize ที่มี dynamic id คั่นกลาง ทำให้ Prefix-match ธรรมดาหลุดไปจับ
+  // เมนูอื่นที่ Prefix ตรงกว่าแทน) แต่ตาม Business Flow แล้วควรถือเป็นส่วนหนึ่งของเมนูนี้ —
+  // ระบุ Pattern เพิ่มให้ resolveActiveHref เช็คก่อน Fallback ไป Prefix-match ปกติ
+  activeMatch?: RegExp;
 };
 export type NavSignOut = { type: "signout"; label: string; icon?: NavIconKey };
 export type NavGroup = { type: "group"; label: string; icon?: NavIconKey; items: NavNode[] };

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { NavIcon, type NavIconKey } from "@/components/nav-icons";
 import type { NavNode } from "@/lib/nav-tree";
-import { collectHrefs, resolveActiveHref, groupContainsActiveHref } from "@/lib/nav-active";
+import { collectHrefs, collectActiveAliases, resolveActiveHref, groupContainsActiveHref } from "@/lib/nav-active";
 
 // Phase Nav-1 — Sidebar ใหม่แบบ Group/Submenu รับ Tree ที่กรอง Permission มาจาก
 // Server Component แล้ว (layout.tsx) — ตัว Component นี้รับผิดชอบแค่ Active State
@@ -317,7 +317,7 @@ function NavNodeView({
 
 export function SidebarNav({ tree, badgeCounts }: { tree: NavNode[]; badgeCounts?: Record<string, number> }) {
   const pathname = usePathname();
-  const activeHref = resolveActiveHref(pathname, collectHrefs(tree));
+  const activeHref = resolveActiveHref(pathname, collectHrefs(tree), collectActiveAliases(tree));
   return (
     // R7 — Root Cause ที่ Owner เห็น "โค้งบนของ Dashboard หัก/ชน Header": <nav> เป็น
     // overflow-y-auto (Scroll Container จะ Clip ทุกอย่างที่ยื่นพ้นขอบ Padding Box) —

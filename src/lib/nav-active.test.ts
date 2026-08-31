@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveActiveHref, collectHrefs, groupContainsActiveHref } from "./nav-active";
+import { resolveActiveHref, collectHrefs, collectActiveAliases, groupContainsActiveHref } from "./nav-active";
 import type { NavNode } from "./nav-tree";
 
 describe("resolveActiveHref", () => {
@@ -24,6 +24,28 @@ describe("resolveActiveHref", () => {
 
   it("ไม่มี href ไหน match เลยคืนค่า null", () => {
     expect(resolveActiveHref("/settings/vat", hrefs)).toBeNull();
+  });
+
+  it("activeMatch alias ชนะ Prefix-match ปกติ (Route ที่มี dynamic id คั่นกลางแต่ควรนับเป็นเมนูอื่น)", () => {
+    const aliases = [{ pattern: /^\/production\/loading\/[^/]+\/finalize(\/|$)/, href: "/production/loading/results" }];
+    const productionHrefs = ["/production/loading", "/production/loading/results"];
+    expect(resolveActiveHref("/production/loading/abc123/finalize", productionHrefs, aliases)).toBe("/production/loading/results");
+    // Route อื่นใต้ /production/loading/[id]/ ที่ไม่ตรง Pattern ยังคง Prefix-match ปกติ
+    expect(resolveActiveHref("/production/loading/abc123", productionHrefs, aliases)).toBe("/production/loading");
+  });
+});
+
+describe("collectActiveAliases", () => {
+  it("รวบรวม activeMatch จากทุกระดับ (รวม Group ซ้อน) ข้ามเมนูที่ไม่มี Field นี้", () => {
+    const tree: NavNode[] = [
+      { type: "link", href: "/a", label: "A", perm: null },
+      { type: "link", href: "/b", label: "B", perm: null, activeMatch: /^\/b-alias/ },
+      { type: "group", label: "G", items: [{ type: "link", href: "/c", label: "C", perm: null, activeMatch: /^\/c-alias/ }] },
+    ];
+    expect(collectActiveAliases(tree)).toEqual([
+      { pattern: /^\/b-alias/, href: "/b" },
+      { pattern: /^\/c-alias/, href: "/c" },
+    ]);
   });
 });
 

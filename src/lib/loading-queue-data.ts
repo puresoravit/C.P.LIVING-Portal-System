@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { deliveryUrgency } from "@/lib/delivery-urgency";
+import { displayProdNo } from "@/lib/production-order-display";
 
 // CP7 round 3 (2026-08-30, Owner UAT) — แยก "บันทึกผลขึ้นของ" ออกเป็นเมนูหลักของตัวเอง (ไม่ใช่
 // แค่ section ในหน้าคิว) จึงต้อง factor query+enrich กลางไว้ที่เดียว ให้ /production/loading
@@ -8,10 +9,28 @@ import { deliveryUrgency } from "@/lib/delivery-urgency";
 
 export type LoadingQueueRow = {
   o: Awaited<ReturnType<typeof fetchOrders>>[number];
-  status: { key: string; tripId?: string; mergedCount?: number };
+  status: { key: string; tripId?: string; tripNo?: string; mergedCount?: number; reconciledAt?: Date | null };
   urgency: ReturnType<typeof deliveryUrgency>;
   itemCount: number;
   pieceCount: number;
+};
+
+// CP7 round 12 (Owner UAT) — หลังพิมพ์ใบ (PRINTED) กับหลังส่งออกแล้ว (DISPATCHED) ทั้งรอบ
+// จัดส่งคือหน่วยเดียวกัน (finalize บันทึกทุกใบผลิตในรอบพร้อมกันครั้งเดียว ไม่มี concept
+// "บันทึกผลบางใบ") — ต่างจาก queue (ก่อนพิมพ์) ที่ยังปล่อยให้ลาก/ถอดออกจากกันได้ทีละใบ จึง
+// ยังคงแสดงเป็นการ์ดแยกต่อใบผลิตตามเดิม — awaitingResult/dispatched ข้างล่างนี้จึงต้อง
+// จัดกลุ่มตาม tripId ให้เหลือ 1 การ์ดต่อ 1 รอบจัดส่งจริง (ก่อนหน้านี้โชว์ซ้ำเป็นการ์ดแยก
+// ต่อใบผลิต ทั้งที่กดการ์ดไหนก็พาไปหน้าเดียวกันเป๊ะ — สร้างความสับสนว่าทำไมมี 2 การ์ด)
+export type LoadingTripGroup = {
+  tripId: string;
+  tripNo: string;
+  urgency: ReturnType<typeof deliveryUrgency>;
+  customerLabel: string;
+  mergedCount: number;
+  prodNos: string[];
+  itemCount: number;
+  pieceCount: number;
+  reconciledAt: Date | null;
 };
 
 async function fetchOrders() {
@@ -44,10 +63,50 @@ function byUrgency(a: LoadingQueueRow, b: LoadingQueueRow) {
   return a.o.createdAt.getTime() - b.o.createdAt.getTime();
 }
 
+// จัดกลุ่มการ์ดที่มี tripId เดียวกันให้เหลือ 1 การ์ด — เลือก urgency ที่เร่งด่วนที่สุดในกลุ่ม
+// เป็นตัวแทน, รวม prodNo/จำนวนทุกใบผลิตในรอบเดียวกัน, และสร้างชื่อลูกค้าที่แสดงผลตามจริง
+// (ลูกค้าเดียวกันทุกใบ = โชว์ชื่อเดียว, ต่างกัน = โชว์ชื่อแรก + "และอีก N ราย" — Owner ยืนยัน
+// ค่อยปรับคำได้ทีหลังถ้าไม่ตรงใจ กรณีนี้ยังไม่เคยเจอในข้อมูลจริง)
+function groupByTrip(rows: LoadingQueueRow[]): LoadingTripGroup[] {
+  const byTrip = new Map<string, LoadingQueueRow[]>();
+  for (const row of rows) {
+    const tripId = row.status.tripId;
+    if (!tripId) continue;
+    const list = byTrip.get(tripId) ?? [];
+    list.push(row);
+    byTrip.set(tripId, list);
+  }
+  const groups: LoadingTripGroup[] = [];
+  for (const [tripId, groupRows] of byTrip) {
+    const first = groupRows[0];
+    const distinctCustomers = [...new Set(groupRows.map((r) => r.o.customerPo.customer.companyName))];
+    const distinctBranches = [...new Set(groupRows.map((r) => r.o.customerPo.branch?.name ?? null))];
+    let customerLabel: string;
+    if (distinctCustomers.length === 1) {
+      customerLabel = distinctBranches.length === 1 && distinctBranches[0] ? `${distinctCustomers[0]} — ${distinctBranches[0]}` : distinctCustomers[0];
+    } else {
+      customerLabel = distinctCustomers.length > 1 ? `${distinctCustomers[0]} และอีก ${distinctCustomers.length - 1} ราย` : distinctCustomers[0];
+    }
+    const mostUrgent = groupRows.reduce((a, b) => (byUrgency(a, b) <= 0 ? a : b));
+    groups.push({
+      tripId,
+      tripNo: first.status.tripNo ?? "",
+      urgency: mostUrgent.urgency,
+      customerLabel,
+      mergedCount: first.status.mergedCount ?? groupRows.length,
+      prodNos: groupRows.map((r) => displayProdNo(r.o.prodNo, r.o.currentRevNo)),
+      itemCount: groupRows.reduce((s, r) => s + r.itemCount, 0),
+      pieceCount: groupRows.reduce((s, r) => s + r.pieceCount, 0),
+      reconciledAt: first.status.reconciledAt ?? null,
+    });
+  }
+  return groups;
+}
+
 export async function getLoadingQueueData(): Promise<{
   queue: LoadingQueueRow[];
-  awaitingResult: LoadingQueueRow[];
-  dispatched: LoadingQueueRow[];
+  awaitingResult: LoadingTripGroup[];
+  dispatched: LoadingTripGroup[];
 }> {
   const orders = await fetchOrders();
 
@@ -64,7 +123,7 @@ export async function getLoadingQueueData(): Promise<{
   // ว่ารอบไหนรวมหลายใบผลิตเข้าด้วยกัน (merge indicator)
   const myDrops = await db.loadingDrop.findMany({
     where: { productionOrderId: { in: orders.map((o) => o.id) }, trip: { cancelledAt: null } },
-    select: { productionOrderId: true, tripId: true, trip: { select: { reconciledAt: true, sheetPrintedAt: true } } },
+    select: { productionOrderId: true, tripId: true, trip: { select: { tripNo: true, reconciledAt: true, sheetPrintedAt: true } } },
   });
   const dropByOrder = new Map(myDrops.map((d) => [d.productionOrderId!, d]));
   const tripIds = [...new Set(myDrops.map((d) => d.tripId))];
@@ -80,13 +139,13 @@ export async function getLoadingQueueData(): Promise<{
     }
   }
 
-  function queueStatus(o: (typeof orders)[number]): { key: string; tripId?: string; mergedCount?: number } {
+  function queueStatus(o: (typeof orders)[number]): LoadingQueueRow["status"] {
     const drop = dropByOrder.get(o.id);
     if (drop) {
-      if (drop.trip.reconciledAt) return { key: "DISPATCHED", tripId: drop.tripId };
+      if (drop.trip.reconciledAt) return { key: "DISPATCHED", tripId: drop.tripId, tripNo: drop.trip.tripNo, reconciledAt: drop.trip.reconciledAt };
       const mergedCount = mergedOrderCountByTrip.get(drop.tripId) ?? 1;
-      if (drop.trip.sheetPrintedAt) return { key: "PRINTED", tripId: drop.tripId, mergedCount };
-      return { key: "PREPARING", tripId: drop.tripId, mergedCount };
+      if (drop.trip.sheetPrintedAt) return { key: "PRINTED", tripId: drop.tripId, tripNo: drop.trip.tripNo, mergedCount };
+      return { key: "PREPARING", tripId: drop.tripId, tripNo: drop.trip.tripNo, mergedCount };
     }
     return { key: o.productionStartedAt ? "PRODUCING" : "WAITING_PRODUCTION" };
   }
@@ -102,9 +161,16 @@ export async function getLoadingQueueData(): Promise<{
     };
   });
 
+  const awaitingResultGroups = groupByTrip(enriched.filter((e) => e.status.key === "PRINTED")).sort(
+    (a, b) => URGENCY_RANK[a.urgency.level] - URGENCY_RANK[b.urgency.level] || (a.urgency.daysUntil ?? Infinity) - (b.urgency.daysUntil ?? Infinity)
+  );
+  const dispatchedGroups = groupByTrip(enriched.filter((e) => e.status.key === "DISPATCHED"))
+    .sort((a, b) => (b.reconciledAt?.getTime() ?? 0) - (a.reconciledAt?.getTime() ?? 0))
+    .slice(0, 10);
+
   return {
     queue: enriched.filter((e) => e.status.key !== "DISPATCHED" && e.status.key !== "PRINTED").sort(byUrgency),
-    awaitingResult: enriched.filter((e) => e.status.key === "PRINTED").sort(byUrgency),
-    dispatched: enriched.filter((e) => e.status.key === "DISPATCHED").slice(0, 10),
+    awaitingResult: awaitingResultGroups,
+    dispatched: dispatchedGroups,
   };
 }

@@ -19,6 +19,10 @@ import type { StatusBadgeConfig } from "@/components/status-badge";
 // CP7 round 7 (2026-08-30, Owner UAT — สั่งซ้ำเป็นครั้งที่ 2) — คิวขึ้นของลากการ์ดไปทับกันได้
 // จริงแล้ว (DraggableQueueList) ไม่ใช่แค่ปุ่ม "ส่งวันนี้แทน" (ยังคงไว้เป็นทางเลือกที่กดง่าย
 // กว่าบนมือถือ) — ลากได้เฉพาะการ์ดที่มีวันที่กำหนดแล้ว (ยังไม่กำหนด = ไม่มีวันที่ให้อ้างอิง)
+//
+// CP7 round 12 (Owner UAT) — "ส่งออกแล้วล่าสุด" ย้ายไปอยู่ที่ /production/loading/results
+// แทน (หน้านี้เหลือแค่ "ยังต้องทำอะไรต่อ" — งานที่ยังไม่พิมพ์ล้วนๆ ส่วนของที่จบงานแล้วเป็น
+// ประวัติ/บันทึกผล ไม่ใช่คิวที่ต้องขึ้นของอีกต่อไป — ตรงกับ Mental Model ที่ Owner วาง IA ไว้)
 
 const QUEUE_BADGE: StatusBadgeConfig = {
   PRODUCING: { label: "กำลังผลิต", className: "bg-green-100 text-green-700" },
@@ -27,7 +31,7 @@ const QUEUE_BADGE: StatusBadgeConfig = {
 };
 
 export default async function LoadingQueuePage() {
-  const { queue, dispatched } = await getLoadingQueueData();
+  const { queue } = await getLoadingQueueData();
 
   const draggableItems: DraggableQueueItem[] = queue.map(({ o, status, urgency, itemCount, pieceCount }) => ({
     id: o.id,
@@ -67,26 +71,6 @@ export default async function LoadingQueuePage() {
         <div className="bg-white border border-dashed rounded-lg p-6 text-sm text-gray-500 text-center">ไม่มีงานรอขึ้นของ</div>
       ) : (
         <DraggableQueueList items={draggableItems} badgeConfig={QUEUE_BADGE} />
-      )}
-
-      {dispatched.length > 0 && (
-        <>
-          <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ส่งออกแล้วล่าสุด</h2>
-          <div className="space-y-2">
-            {dispatched.map(({ o, status }) => (
-              <a key={o.id} href={`/production/loading/${status.tripId}`} className="block bg-white border rounded-lg p-3 hover:border-cp-navy opacity-70">
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span>
-                    {o.customerPo.customer.companyName}
-                    {o.customerPo.branch && <span className="text-gray-500"> — {o.customerPo.branch.name}</span>}
-                    <span className="text-xs text-gray-400 font-mono ml-2">{o.prodNo}</span>
-                  </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">สินค้าถูกส่งออกแล้ว</span>
-                </div>
-              </a>
-            ))}
-          </div>
-        </>
       )}
     </div>
   );
