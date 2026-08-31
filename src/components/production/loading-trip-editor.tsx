@@ -330,7 +330,7 @@ export function LoadingTripEditor({ data }: { data: TripEditorData }) {
                         )}
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
-                        <span className="font-semibold">แผน {line.qtyPlanned}</span>
+                        <span className="font-semibold">สั่งผลิตจำนวน {line.qtyPlanned}</span>
                         <button
                           type="button"
                           disabled={isPending}

@@ -20,25 +20,7 @@ export function matchesHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export type ActiveAlias = { pattern: RegExp; href: string };
-
-// รวบรวม activeMatch จากทุกระดับของ Tree (เหมือน collectHrefs) — ใช้แยกจาก collectHrefs
-// เพราะไม่ใช่ทุกเมนูจะมี Field นี้ (ส่วนใหญ่ไม่มีเลย เป็นทางเลือกเสริมเฉพาะกรณีจำเป็น)
-// สร้าง RegExp จาก String Source ตรงนี้ (ฝั่ง Client เสมอ เพราะไฟล์นี้ถูกเรียกจาก
-// sidebar-nav.tsx ที่เป็น "use client") — Tree ที่รับมาเป็น String ล้วน (ดู Comment ที่
-// activeMatch ใน nav-tree.ts ว่าทำไมเก็บเป็น RegExp ตรงๆ ข้าม Server→Client ไม่ได้)
-export function collectActiveAliases(nodes: NavNode[]): ActiveAlias[] {
-  const aliases: ActiveAlias[] = [];
-  for (const node of nodes) {
-    if (node.type === "link" && node.activeMatch) aliases.push({ pattern: new RegExp(node.activeMatch), href: node.href });
-    else if (node.type === "group") aliases.push(...collectActiveAliases(node.items));
-  }
-  return aliases;
-}
-
-export function resolveActiveHref(pathname: string, allHrefs: string[], aliases: ActiveAlias[] = []): string | null {
-  const alias = aliases.find((a) => a.pattern.test(pathname));
-  if (alias) return alias.href;
+export function resolveActiveHref(pathname: string, allHrefs: string[]): string | null {
   const matches = allHrefs.filter((href) => matchesHref(pathname, href));
   if (matches.length === 0) return null;
   return matches.reduce((longest, h) => (h.length > longest.length ? h : longest));

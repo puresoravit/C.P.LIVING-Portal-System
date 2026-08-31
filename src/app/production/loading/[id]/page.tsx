@@ -228,9 +228,14 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   }
   const ALLOC_LABEL: Record<string, string> = { FRESH: "ตัดออเดอร์ใหม่", OUTSTANDING: "ตัดของค้างเดิม", ADHOC: "ของหน้างาน" };
 
+  // CP7 round 13 — รอบที่ส่งออกแล้วควรย้อนกลับไปหน้า "บันทึกผลขึ้นของ" (ที่มันมาจริงๆ) ไม่ใช่
+  // คิว "การขึ้นของ" ที่ไม่มีรอบนี้อยู่แล้ว (ถูกกรองออกตั้งแต่ dispatched) — ใช้เฉพาะตอนไม่มี
+  // ประวัติ Browser ให้กดย้อนกลับปกติ (เปิดลิงก์ตรง/รีเฟรช)
+  const backFallback = trip.reconciledAt ? `/production/loading/results/${trip.id}` : "/production/loading";
+
   return (
     <div className="max-w-2xl">
-      <BackLink fallbackHref="/production/loading" />
+      <BackLink fallbackHref={backFallback} />
       <div className="flex items-center justify-between mt-2 mb-1">
         <h1 className="text-lg font-semibold">
           รอบจัดส่ง <span className="text-xs text-gray-400 font-mono font-normal">{trip.tripNo}</span>
@@ -298,58 +303,94 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
       {canManage && isDraft ? (
         <LoadingTripEditor data={editorData} />
       ) : (
-        // อ่านอย่างเดียว (LOADED/RECONCILED/CANCELLED หรือไม่มีสิทธิ์): แผน vs ขึ้นจริง + รูป
+        // อ่านอย่างเดียว (LOADED/RECONCILED/CANCELLED หรือไม่มีสิทธิ์): สั่งผลิตจำนวน vs ขึ้นจริง + รูป
+        // CP7 round 13 (Owner UAT) — ตัวเลขหลักใหญ่ขึ้น/เห็นชัดขึ้น + ที่มา/ค้างส่งละเอียด
+        // ย้ายไปซ่อนใต้ "ดูรายละเอียด" ต่อจุดส่ง (ไม่ใช่ต่อรายการ) กันไม่ให้ Scroll ยาวเวลา
+        // มีของเยอะ — แต่ละจุดส่งกาง/ย่อได้อิสระจากกัน (ดูจุดอื่นพร้อมกันได้) ด้วย <details>
+        // ล้วนๆ (Pattern เดิมของระบบ ไม่ต้องมี Client Component/JS Toggle เอง)
         <div className="space-y-2">
-          {trip.drops.map((drop, idx) => (
-            <div key={drop.id} className="bg-white border rounded-lg p-3">
-              <div className="text-sm font-medium mb-1">
-                {idx + 1}. {customerNameById.get(drop.customerId) ?? "—"}
-                {drop.branchId && <span className="text-gray-500"> — {branchNameById.get(drop.branchId) ?? ""}</span>}
-                {drop.productionOrderId && (
-                  <span className="text-xs text-gray-400 font-mono font-normal ml-1.5">{prodNoById.get(drop.productionOrderId) ?? ""}</span>
-                )}
-                {drop.note && <span className="text-xs text-gray-500 font-normal"> · {drop.note}</span>}
-              </div>
-              {drop.lines.length === 0 ? (
-                <p className="text-xs text-gray-400">ไม่มีรายการ</p>
-              ) : (
-                <div className="space-y-1">
-                  {drop.lines.map((line) => (
-                    <div key={line.id} className="flex items-center justify-between gap-2 text-sm border-b border-dashed pb-1">
-                      <span className="min-w-0">
-                        {line.labelSnapshot}
-                        {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
-                      </span>
-                      <span className="shrink-0 text-xs text-right">
-                        แผน <span className="font-semibold">{line.qtyPlanned}</span>
-                        {line.qtyLoaded != null && (
-                          <>
-                            {" · "}ขึ้นจริง{" "}
-                            <span className={`font-semibold ${line.qtyLoaded !== line.qtyPlanned ? "text-amber-700" : "text-green-700"}`}>{line.qtyLoaded}</span>
-                          </>
-                        )}
-                        {allocationsByLine.has(line.id) && (
-                          <span className="block text-gray-500">
-                            {allocationsByLine.get(line.id)!.map((a) => `${ALLOC_LABEL[a.kind] ?? a.kind} ${a.qty}`).join(" · ")}
+          {trip.drops.map((drop, idx) => {
+            const hasDetail = drop.lines.some((l) => l.qtyLoaded != null || allocationsByLine.has(l.id));
+            return (
+              <div key={drop.id} className="bg-white border rounded-lg p-3">
+                <div className="text-sm font-medium mb-1">
+                  {idx + 1}. {customerNameById.get(drop.customerId) ?? "—"}
+                  {drop.branchId && <span className="text-gray-500"> — {branchNameById.get(drop.branchId) ?? ""}</span>}
+                  {drop.productionOrderId && (
+                    <span className="text-xs text-gray-400 font-mono font-normal ml-1.5">{prodNoById.get(drop.productionOrderId) ?? ""}</span>
+                  )}
+                  {drop.note && <span className="text-xs text-gray-500 font-normal"> · {drop.note}</span>}
+                </div>
+                {drop.lines.length === 0 ? (
+                  <p className="text-xs text-gray-400">ไม่มีรายการ</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {drop.lines.map((line) => {
+                      const short = line.qtyLoaded != null ? line.qtyPlanned - line.qtyLoaded : 0;
+                      return (
+                        <div key={line.id} className="flex items-center justify-between gap-2 border-b border-dashed pb-1.5">
+                          <span className="min-w-0 text-sm">
+                            {line.labelSnapshot}
+                            {line.size && <span className="text-gray-500"> (ไซส์ {line.size})</span>}
                           </span>
-                        )}
-                      </span>
+                          <span className="shrink-0 text-right">
+                            {line.qtyLoaded != null ? (
+                              <>
+                                <span className={`text-base font-semibold ${line.qtyLoaded !== line.qtyPlanned ? "text-amber-700" : "text-green-700"}`}>
+                                  ขึ้นจริง {line.qtyLoaded}
+                                </span>
+                                {short > 0 && <span className="block text-xs font-medium text-red-600">ค้างส่ง {short}</span>}
+                              </>
+                            ) : (
+                              <span className="text-sm font-semibold text-gray-700">สั่งผลิตจำนวน {line.qtyPlanned}</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {hasDetail && (
+                  <details className="mt-2 group">
+                    <summary className="cursor-pointer list-none text-xs text-cp-navy hover:underline inline-flex items-center gap-1">
+                      <span className="group-open:hidden">ดูรายละเอียด (สั่งผลิตจำนวน/ที่มาแต่ละรายการ)</span>
+                      <span className="hidden group-open:inline">ย่อรายละเอียด</span>
+                      <span className="text-gray-400 transition-transform duration-150 group-open:rotate-90">&rsaquo;</span>
+                    </summary>
+                    <div className="mt-1.5 pt-1.5 border-t space-y-1">
+                      {drop.lines.map((line) => (
+                        <div key={line.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                          <span className="min-w-0">
+                            {line.labelSnapshot}
+                            {line.size && <span className="text-gray-400"> (ไซส์ {line.size})</span>}
+                          </span>
+                          <span className="shrink-0 text-right">
+                            สั่งผลิตจำนวน {line.qtyPlanned}
+                            {line.qtyLoaded != null && <> · ขึ้นจริง {line.qtyLoaded}</>}
+                            {allocationsByLine.has(line.id) && (
+                              <span className="block text-gray-500">
+                                {allocationsByLine.get(line.id)!.map((a) => `${ALLOC_LABEL[a.kind] ?? a.kind} ${a.qty}`).join(" · ")}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              {drop.photoPaths.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {drop.photoPaths.map((p) => (
-                    <a key={p} href={`/api/production/loading-photos/${p}`} target="_blank" rel="noreferrer">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/production/loading-photos/${p}`} alt="รูปใบขึ้นของ" className="w-16 h-16 object-cover rounded border" />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                  </details>
+                )}
+                {drop.photoPaths.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {drop.photoPaths.map((p) => (
+                      <a key={p} href={`/api/production/loading-photos/${p}`} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/production/loading-photos/${p}`} alt="รูปใบขึ้นของ" className="w-16 h-16 object-cover rounded border" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {!canManage && isDraft && (
             <p className="text-xs text-gray-400">คุณไม่มีสิทธิ์แก้ไขเที่ยวรถ — ดูข้อมูลได้อย่างเดียว</p>
           )}

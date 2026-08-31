@@ -16,11 +16,7 @@ export const PRODUCTION_NAV_TREE: NavNode[] = [
   { type: "link", href: "/production/orders", label: "ออเดอร์ลูกค้า", perm: null, icon: "documentPlus" },
   { type: "link", href: "/production/production-orders", label: "ใบสั่งผลิต", perm: null, icon: "list" },
   { type: "link", href: "/production/loading", label: "การขึ้นของและจัดส่ง", perm: null, icon: "delivery" },
-  // CP7 round 12 (Owner UAT) — หน้าฟอร์มบันทึกผลจริง (/production/loading/[id]/finalize)
-  // URL Nest อยู่ใต้ /production/loading/[id]/... (Path เดียวกับหน้ารอบจัดส่ง/เตรียมขึ้นของ)
-  // เพราะใช้ tripId ร่วมกัน — ถ้าไม่ระบุ activeMatch ตรงนี้ Prefix-match ปกติจะไปจับเมนู
-  // "การขึ้นของและจัดส่ง" แทน ทั้งที่ Flow จริงคือกดมาจาก "บันทึกผลขึ้นของ"
-  { type: "link", href: "/production/loading/results", label: "บันทึกผลขึ้นของ", perm: null, icon: "list", activeMatch: "^/production/loading/[^/]+/finalize(/|$)" },
+  { type: "link", href: "/production/loading/results", label: "บันทึกผลขึ้นของ", perm: null, icon: "list" },
   { type: "link", href: "/production/outstanding", label: "ของค้างส่ง", perm: null, icon: "list" },
   {
     type: "group",

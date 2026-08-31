@@ -9,6 +9,11 @@ import { getLoadingQueueData, type LoadingTripGroup } from "@/lib/loading-queue-
 // แล้ว ไม่ใช่ต่อใบผลิตเหมือนก่อนหน้านี้ — รอบที่ลากรวมกันมาตั้งแต่หน้าคิวจะเห็นเป็น 1 การ์ด
 // เดียวกัน ตรงกับที่กดเข้าไปแล้วเจอฟอร์มบันทึกผลใบเดียวจริงๆ (2) "ส่งออกแล้วล่าสุด" ย้ายมา
 // จากหน้าคิว มาอยู่ที่นี่แทน — ตรง Mental Model กว่า (เป็นประวัติ/ผลลัพธ์ ไม่ใช่คิวที่ต้องขึ้น)
+//
+// CP7 round 13 (Owner UAT) — Link ทั้ง 2 ส่วนข้างล่างชี้ไปที่ /production/loading/results/[id]
+// (และ .../finalize) ไม่ใช่ /production/loading/[id] ตรงๆ อีกต่อไป — Route Alias (re-export
+// component เดิมเป๊ะ ดู src/app/production/loading/results/[id]/page.tsx) ทำให้เมนู Sidebar
+// ไฮไลต์ "บันทึกผลขึ้นของ" ถูกต้องด้วย Prefix-match ธรรมดา ไม่ต้องพึ่ง Regex Alias ที่เคยพัง
 export default async function LoadingResultsPage() {
   const { awaitingResult, dispatched } = await getLoadingQueueData();
 
@@ -25,7 +30,7 @@ export default async function LoadingResultsPage() {
       ) : (
         <div className="space-y-2">
           {awaitingResult.map((trip) => (
-            <TripCard key={trip.tripId} trip={trip} href={`/production/loading/${trip.tripId}/finalize`} statusLabel="รอบันทึกผลขึ้นของ" statusClassName="bg-amber-100 text-amber-800" borderClassName="border-2 border-amber-300 hover:border-amber-500" />
+            <TripCard key={trip.tripId} trip={trip} href={`/production/loading/results/${trip.tripId}/finalize`} statusLabel="รอบันทึกผลขึ้นของ" statusClassName="bg-amber-100 text-amber-800" borderClassName="border-2 border-amber-300 hover:border-amber-500" />
           ))}
         </div>
       )}
@@ -35,7 +40,7 @@ export default async function LoadingResultsPage() {
           <h2 className="text-sm font-medium text-gray-700 mt-6 mb-2">ส่งออกแล้วล่าสุด</h2>
           <div className="space-y-2">
             {dispatched.map((trip) => (
-              <TripCard key={trip.tripId} trip={trip} href={`/production/loading/${trip.tripId}`} statusLabel="สินค้าถูกส่งออกแล้ว" statusClassName="bg-green-100 text-green-700" borderClassName="border hover:border-cp-navy opacity-70" />
+              <TripCard key={trip.tripId} trip={trip} href={`/production/loading/results/${trip.tripId}`} statusLabel="สินค้าถูกส่งออกแล้ว" statusClassName="bg-green-100 text-green-700" borderClassName="border hover:border-cp-navy opacity-70" />
             ))}
           </div>
         </>

@@ -368,7 +368,7 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                         {line.label}
                         {line.size && <span className="text-gray-500 font-normal"> (ไซส์ {line.size})</span>}
                         {line.sourceType === "ADHOC" && <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">หน้างาน</span>}
-                        <span className="text-xs text-gray-400 ml-1">จำนวนตามใบผลิต {line.qtyPlanned}</span>
+                        <span className="text-xs text-gray-400 ml-1">สั่งผลิตจำนวน {line.qtyPlanned}</span>
                         {line.sourceType === "ADHOC" && (
                           <button
                             type="button"
@@ -572,7 +572,7 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
       })}
 
       <div className="bg-white border rounded-lg p-3 text-sm flex items-center justify-between">
-        <span className="text-gray-600">รวมตามแผน {totalPlanned} ชิ้น</span>
+        <span className="text-gray-600">รวมสั่งผลิต {totalPlanned} ชิ้น</span>
         <span className="font-semibold">รวมขึ้นจริง {totalLoaded} ชิ้น</span>
       </div>
 

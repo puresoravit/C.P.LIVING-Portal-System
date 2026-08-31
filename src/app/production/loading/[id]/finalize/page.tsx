@@ -25,7 +25,10 @@ export default async function FinalizeLoadingPage(props: { params: Promise<{ id:
   if (!eligible) {
     return (
       <div className="max-w-2xl">
-        <BackLink fallbackHref={`/production/loading/${trip.id}`} />
+        {/* CP7 round 13 — ชี้ไป results/[id] (ไม่ใช่ /production/loading/[id] ตรงๆ) เพราะ
+            หน้านี้ (finalize) เข้าถึงได้จาก "บันทึกผลขึ้นของ" เท่านั้น — กัน Fallback (ตอนไม่มี
+            ประวัติ Browser ให้ย้อนกลับ เช่น เปิดลิงก์ตรง/รีเฟรช) พาไปหน้าคิวผิด Section */}
+        <BackLink fallbackHref={`/production/loading/results/${trip.id}`} />
         <div className="mt-3 bg-white border border-dashed rounded-lg p-4 text-sm text-gray-500">
           บันทึกผลขึ้นของได้เฉพาะรอบที่ยังเปิดอยู่ (ยังไม่ส่งออก/ไม่ถูกยกเลิก) — หรือคุณไม่มีสิทธิ์
         </div>
@@ -124,7 +127,7 @@ export default async function FinalizeLoadingPage(props: { params: Promise<{ id:
 
   return (
     <div className="max-w-2xl">
-      <BackLink fallbackHref={`/production/loading/${trip.id}`} />
+      <BackLink fallbackHref={`/production/loading/results/${trip.id}`} />
       <h1 className="text-lg font-semibold mt-2 mb-1">
         บันทึกผลขึ้นของ <span className="text-xs text-gray-400 font-mono font-normal">{trip.tripNo}</span>
       </h1>
