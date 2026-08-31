@@ -13,7 +13,7 @@ import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintSignatureBlock } from "@/components/print/print-signature-block";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
-import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
+import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine, HeaderDocNumberDateBlock } from "@/components/print/header-elements";
 import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
@@ -105,24 +105,20 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         titleTh: <HeaderTitleLine text="ใบเสนอราคา" style={hl.titleTh} />,
         titleEn: <HeaderTitleLine text="QUOTATION" style={hl.titleEn} />,
         docNumber: (
-          <HeaderTextLine
-            label="เลขที่"
-            value={
+          <HeaderDocNumberDateBlock
+            numberLabel="เลขที่"
+            numberValue={
               <span className="inline-flex items-center gap-1">
                 {displayNumber}
                 <CopyDocumentNumber value={displayNumber} />
               </span>
             }
-            style={hl.docNumber}
-            valueAlign="right"
-          />
-        ),
-        docDate: (
-          <HeaderTextLine
-            label="วันที่ / Date"
-            value={quotation.quotationDate.toLocaleDateString("th-TH")}
-            style={hl.docDate}
-            valueAlign="right"
+            numberStyle={hl.docNumber}
+            numberRowStart={hl.docNumber.rowStart}
+            dateLabel="วันที่ / Date"
+            dateValue={quotation.quotationDate.toLocaleDateString("th-TH")}
+            dateStyle={hl.docDate}
+            dateRowStart={hl.docDate.rowStart}
           />
         ),
         customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={customerCode} style={hl.customerCode} />,

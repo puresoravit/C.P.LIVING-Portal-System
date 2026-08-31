@@ -13,7 +13,7 @@ import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintOrderedBlocks } from "@/components/print/print-ordered-blocks";
 import { HeaderZone } from "@/components/print/header-zone";
-import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine } from "@/components/print/header-elements";
+import { HeaderLogoElement, HeaderTextLine, HeaderTitleLine, HeaderDocNumberDateBlock } from "@/components/print/header-elements";
 import { BillingNotePrintBody } from "@/components/print/billing-note-print-body";
 import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel, resolveBillingNoteDiscounts } from "@/lib/billing-note-discount";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
@@ -165,24 +165,20 @@ export default async function BillingNotePrintPage(props: {
         titleTh: <HeaderTitleLine text="ใบวางบิล" style={hl.titleTh} />,
         titleEn: <HeaderTitleLine text="BILLING NOTE" style={hl.titleEn} />,
         docNumber: (
-          <HeaderTextLine
-            label="เลขที่"
-            value={
+          <HeaderDocNumberDateBlock
+            numberLabel="เลขที่"
+            numberValue={
               <span className="inline-flex items-center gap-1">
                 {note.billingNoteNumber}
                 <CopyDocumentNumber value={note.billingNoteNumber} />
               </span>
             }
-            style={hl.docNumber}
-            valueAlign="right"
-          />
-        ),
-        docDate: (
-          <HeaderTextLine
-            label="วันที่ / Date"
-            value={note.billingNoteDate.toLocaleDateString("th-TH")}
-            style={hl.docDate}
-            valueAlign="right"
+            numberStyle={hl.docNumber}
+            numberRowStart={hl.docNumber.rowStart}
+            dateLabel="วันที่ / Date"
+            dateValue={note.billingNoteDate.toLocaleDateString("th-TH")}
+            dateStyle={hl.docDate}
+            dateRowStart={hl.docDate.rowStart}
           />
         ),
         customerName: <HeaderTextLine label="ลูกค้า / Customer" value={note.customerNameSnapshot} style={hl.customerName} />,

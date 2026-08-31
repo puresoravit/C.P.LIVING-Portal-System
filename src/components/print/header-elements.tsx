@@ -1,4 +1,4 @@
-import { FONT_FAMILY_CSS, type FontFamilyKey, type HeaderElementStyle } from "@/lib/print-template-settings";
+import { FONT_FAMILY_CSS, HEADER_ROW_UNIT_MM, type FontFamilyKey, type HeaderElementStyle } from "@/lib/print-template-settings";
 
 // R6 Phase E.1/E.2/E.3 — Element อะตอมที่ HeaderZone (header-zone.tsx) จัดวางลง Grid ให้ —
 // แต่ละตัวรับผิดชอบแค่ "เนื้อหา + Typography ของตัวเอง" เท่านั้น ไม่รู้เรื่อง Alignment/
@@ -83,6 +83,75 @@ export function HeaderTextLine({
     <div className={style.fontWeight === "bold" ? "font-semibold" : undefined} style={textStyle}>
       {label && <span className="text-gray-500">{label}: </span>}
       {value}
+    </div>
+  );
+}
+
+/** Element รวม "เลขที่" + "วันที่" เป็นก้อนเดียว — Owner UAT (2026-09-01 รอบ 13): ต้องการ
+ * ให้ Label ทั้งสองบรรทัดเริ่มตำแหน่งซ้ายตรงกันเป๊ะ ("ว" ของวันที่ ตรงกับ "เ" ของเลขที่)
+ * นอกเหนือจากที่รอบ 12 ทำไปแล้ว (Label ชิด Value ในแต่ละบรรทัด + เลขที่ Right-anchor)
+ *
+ * ทำไม่ได้ด้วย 2 Element อิสระต่อกัน (แบบรอบ 12): แต่ละบรรทัด Shrink-to-fit ตามเนื้อหา
+ * ตัวเอง แล้ว Right-anchor อิสระ — ความกว้างของสองบรรทัดไม่เท่ากัน (ตรวจแล้วว่าจริง: เลขที่
+ * เอกสารบางประเภท เช่น TX/BI ที่ Pad เลขแค่ 3 หลัก มีโอกาสแคบกว่าบรรทัดวันที่ด้วยซ้ำ ไม่ใช่
+ * แค่ INV ที่ยาวกว่าเสมอ) ทำให้ Label ซ้ายไม่มีทางตรงกันได้เอง
+ *
+ * แก้ด้วย CSS Grid บล็อกเดียว (ไม่ตั้ง grid-template-columns เอง — ปล่อย Implicit 1 คอลัมน์
+ * Auto-width ตาม Spec Grid: กว้างเท่า Max-content ของบรรทัดที่กว้างที่สุดในนั้นเสมอ) — สอง
+ * บรรทัดเป็น Grid Row ในคอลัมน์เดียวกัน จึงกว้างเท่ากันเป๊ะเสมอไม่ว่าเนื้อหาจะสั้น/ยาวแค่ไหน
+ * (Flexbox ทำแบบนี้ไม่ได้ — Flex Child แต่ละตัว Shrink-wrap อิสระ ไม่มี "อ้างอิงกว้างสุดของ
+ * พี่น้อง" ให้ใช้ แต่ Grid Track มี) — ทั้งก้อนยัง position:absolute; right:0 อิสระเหมือน
+ * รอบ 11/12 (Anchor เดิมเป๊ะ ไม่กระทบขอบขวาปลอดภัยเดิม) — บรรทัดในก้อนเป็น Flow ปกติชิดซ้าย
+ * (ไม่ Right-align ต่อบรรทัด) จึง Label ทั้งคู่เริ่มที่ขอบซ้ายกล่องเดียวกันเป๊ะเสมอ
+ *
+ * ผลที่ตามมา (Trade-off ที่ยอมรับได้): บรรทัดที่ "แคบกว่า" อีกบรรทัด จะจบสั้นกว่าขอบขวา
+ * เป้าหมายเล็กน้อย (ไม่เกิน) แทนที่จะจบเป๊ะขอบขวาเป๊ะเหมือนรอบ 12 — วัดจริงด้วย Browser Test
+ * (Font จริงของระบบ): กรณี TX/BI ที่วันที่กว้างกว่าเลขที่เอกสารเล็กน้อย (1-5px) เลขที่เอกสาร
+ * จะสั้นกว่าขอบขวาประมาณ 1-5px (ต่ำกว่า 1 มม. มองด้วยตาจริงไม่เห็น) — แลกกับการไม่มีทาง
+ * "ตกขอบขวา" ได้เลยไม่ว่ากรณีไหน (Grid Auto-width รับประกันว่ากล่องกว้างสุดแค่บรรทัดที่กว้าง
+ * ที่สุดในนั้น ไม่มีทางเกิน Anchor ขวาที่ตั้งไว้) — ปลอดภัยกว่าการเสี่ยงให้วันที่ตกขอบขวาจริง
+ * ในกรณี TX/BI ถ้ายังคง Anchor อิสระต่อบรรทัดแบบรอบ 12 ไว้
+ *
+ * ระยะห่างแนวตั้งระหว่างสองบรรทัด คำนวณจาก rowStart จริงที่ Owner ตั้งไว้ใน Designer (ไม่
+ * Hardcode) — คงพฤติกรรมเดิมเป๊ะถ้า Owner ปรับ rowStart ทีหลัง */
+export function HeaderDocNumberDateBlock({
+  numberLabel,
+  numberValue,
+  numberStyle,
+  numberRowStart,
+  dateLabel,
+  dateValue,
+  dateStyle,
+  dateRowStart,
+}: {
+  numberLabel: string;
+  numberValue: React.ReactNode;
+  numberStyle: TextLineStyle;
+  numberRowStart: number;
+  dateLabel: string;
+  dateValue: React.ReactNode;
+  dateStyle: TextLineStyle;
+  dateRowStart: number;
+}) {
+  const numberTextStyle = applyFontFamily(
+    { fontSize: `${numberStyle.fontSizePx}px`, lineHeight: numberStyle.lineHeight },
+    numberStyle.fontFamily
+  );
+  const dateTextStyle = applyFontFamily({ fontSize: `${dateStyle.fontSizePx}px`, lineHeight: dateStyle.lineHeight }, dateStyle.fontFamily);
+  const gapMm = (dateRowStart - numberRowStart) * HEADER_ROW_UNIT_MM;
+  return (
+    <div style={{ position: "absolute", right: 0, display: "grid" }}>
+      <div className={numberStyle.fontWeight === "bold" ? "font-semibold" : undefined} style={{ ...numberTextStyle, whiteSpace: "nowrap" }}>
+        <span className="text-gray-500">{numberLabel}: </span>
+        {numberValue}
+      </div>
+      <div
+        className={dateStyle.fontWeight === "bold" ? "font-semibold" : undefined}
+        style={{ ...dateTextStyle, whiteSpace: "nowrap", marginTop: `${gapMm}mm` }}
+      >
+        <span className="text-gray-500">{dateLabel}: </span>
+        {dateValue}
+      </div>
     </div>
   );
 }
