@@ -285,28 +285,34 @@ export default async function LoadingSheetPrintPage(props: { params: Promise<{ i
           </tbody>
         </table>
 
-        {/* พื้นที่เขียนมือหน้างาน — กระดาษล้วน ไม่มีความหมายในระบบจนกว่าจะบันทึกตอนบันทึกผล — หน้าสุดท้ายหน้าเดียวตามสเปก */}
+        {/* พื้นที่เขียนมือหน้างาน — กระดาษล้วน ไม่มีความหมายในระบบจนกว่าจะบันทึกตอนบันทึกผล — หน้าสุดท้ายหน้าเดียวตามสเปก
+            CP7 round 9 (Owner) — ตัดคอลัมน์ให้เหลือแค่ที่จำเป็นจริงสำหรับของกะทันหันหน้างาน
+            (ไม่ต้องแยกไซส์/ค้างเดิม/จำนวนผลิต/รวมขึ้น/ค้างส่งเหมือนตารางหลัก — คีย์เข้าระบบทีหลัง
+            ตอนบันทึกผลถึงค่อยจัดหมวดจริง): ร้านค้า | รายการ | จำนวน | หมายเหตุ */}
         <div className="mt-3 print-keep-together">
           <div className="bg-gray-100 print:bg-gray-100 border border-gray-700 border-b-0 rounded-t px-2 py-0.5 font-semibold">
             รายการเพิ่มหน้างาน (เขียนมือ — นำเข้าระบบตอนบันทึกผลขึ้นของ)
           </div>
           <table className="w-full border border-gray-400 text-[13px]" style={{ borderCollapse: "collapse", borderSpacing: 0 }}>
+            <thead>
+              <tr className="border-b-2 border-gray-400">
+                <th className="text-center px-1.5 py-0.5 font-medium w-[18%] border-r border-gray-400">ร้านค้า</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[37%] border-r border-gray-400">รายการ</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[15%] border-r border-gray-400">จำนวน</th>
+                <th className="text-center px-1.5 py-0.5 font-medium w-[30%]">หมายเหตุ</th>
+              </tr>
+            </thead>
             <tbody>
               {Array.from({ length: 4 }, (_, i) => (
-                <tr key={i} className="border-b border-gray-400" style={{ verticalAlign: "top" }}>
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[13%]" style={{ height: ROW_HEIGHT }} />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[18%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[6%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[4%]" />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[5%]" />
-                  <TallyCells />
-                  <td className="px-1.5 py-1 border-r border-gray-400 w-[7%]" />
-                  <td className="px-1.5 py-1 w-[7%]" />
+                <tr key={i} className="border-b border-gray-400" style={{ height: ROW_HEIGHT }}>
+                  <td className="border-r border-gray-400" />
+                  <td className="border-r border-gray-400" />
+                  <td className="border-r border-gray-400" />
+                  <td />
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="text-[10px] text-gray-500 mt-0.5">คอลัมน์: ร้านค้า / รายการ / ไซส์ / ค้างเดิม / จำนวนผลิต / จำนวน / รวมขึ้น / ค้างส่ง</div>
         </div>
       </div>
     </div>
