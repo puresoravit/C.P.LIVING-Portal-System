@@ -36,11 +36,11 @@ describe("resolveActiveHref", () => {
 });
 
 describe("collectActiveAliases", () => {
-  it("รวบรวม activeMatch จากทุกระดับ (รวม Group ซ้อน) ข้ามเมนูที่ไม่มี Field นี้", () => {
+  it("รวบรวม activeMatch จากทุกระดับ (รวม Group ซ้อน) ข้ามเมนูที่ไม่มี Field นี้ — เก็บเป็น string เพราะ RegExp ข้าม Server→Client Component ไม่ได้ (parse เป็น RegExp ฝั่งนี้แทน)", () => {
     const tree: NavNode[] = [
       { type: "link", href: "/a", label: "A", perm: null },
-      { type: "link", href: "/b", label: "B", perm: null, activeMatch: /^\/b-alias/ },
-      { type: "group", label: "G", items: [{ type: "link", href: "/c", label: "C", perm: null, activeMatch: /^\/c-alias/ }] },
+      { type: "link", href: "/b", label: "B", perm: null, activeMatch: "^/b-alias" },
+      { type: "group", label: "G", items: [{ type: "link", href: "/c", label: "C", perm: null, activeMatch: "^/c-alias" }] },
     ];
     expect(collectActiveAliases(tree)).toEqual([
       { pattern: /^\/b-alias/, href: "/b" },

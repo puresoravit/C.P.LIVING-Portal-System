@@ -26,7 +26,13 @@ export type NavLink = {
   // (เช่น .../[id]/finalize ที่มี dynamic id คั่นกลาง ทำให้ Prefix-match ธรรมดาหลุดไปจับ
   // เมนูอื่นที่ Prefix ตรงกว่าแทน) แต่ตาม Business Flow แล้วควรถือเป็นส่วนหนึ่งของเมนูนี้ —
   // ระบุ Pattern เพิ่มให้ resolveActiveHref เช็คก่อน Fallback ไป Prefix-match ปกติ
-  activeMatch?: RegExp;
+  //
+  // เก็บเป็น string (regex source) ไม่ใช่ RegExp object ตรงๆ — Tree นี้เดินทางจาก Server
+  // Component (layout.tsx) ข้ามไปยัง Client Component (SidebarNav) เป็น Props ซึ่ง React
+  // Server Components serialize ได้แค่ Plain Object/Array/Primitive เท่านั้น RegExp ข้าม
+  // ขอบเขตนี้ไม่ได้ (พังจริงตอน Deploy: "Only plain objects... Classes... not supported")
+  // — new RegExp() ค่อยสร้างฝั่ง Client ใน collectActiveAliases() (nav-active.ts) แทน
+  activeMatch?: string;
 };
 export type NavSignOut = { type: "signout"; label: string; icon?: NavIconKey };
 export type NavGroup = { type: "group"; label: string; icon?: NavIconKey; items: NavNode[] };
