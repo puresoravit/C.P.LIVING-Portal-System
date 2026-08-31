@@ -29,6 +29,7 @@ import { RememberDraft } from "@/components/draft-return";
 import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 import { BackLink } from "@/components/back-link";
+import { NumberReleasedBadge } from "@/components/number-released-badge";
 
 const DOWNSTREAM_REFERENCE_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -63,6 +64,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     },
   });
   if (!order) notFound();
+
+  // Owner UAT (2026-08-31) — เลขที่ถูกดึงคืนใช้ใหม่แล้ว (numberReleased=true) — หาใบ Active
+  // ที่ใช้เลขเดียวกันอยู่ตอนนี้ (ถ้ามี) เพื่อแสดงลิงก์ต่อให้ (ตาม Requirement ของ Owner)
+  const activeSiblingOrder = order.numberReleased
+    ? await db.order.findFirst({ where: { orderNumber: order.orderNumber, numberReleased: false }, select: { id: true } })
+    : null;
 
   // Owner UAT (2026-08-31) — "เปลี่ยนบริษัท/สาขา": รายชื่อลูกค้า+สาขาสำหรับ Modal เลือกใหม่
   // (เหมือน orders/new/page.tsx) — Query เฉพาะตอนยังยกเลิกไม่ไปกันโหลดข้อมูลทิ้งเปล่าๆ
@@ -138,8 +145,22 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           {order.orderNumber}
           <CopyDocumentNumber value={order.orderNumber} />
         </h1>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+          {order.numberReleased && <NumberReleasedBadge />}
+        </span>
       </div>
+      {order.numberReleased && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+          เลขที่นี้ถูกยกเลิกก่อนใช้งานจริงและถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว
+          {activeSiblingOrder && (
+            <>
+              {" "}
+              — <a href={`/orders/${activeSiblingOrder.id}`} className="underline">ดูเอกสารที่ใช้เลขนี้อยู่ตอนนี้</a>
+            </>
+          )}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         {order.customer.companyName} / {order.branch?.name ?? "ไม่มีสาขา"} · {order.orderDate.toLocaleDateString("th-TH")}
         {order.reference && <> · อ้างอิง: {order.reference}</>}

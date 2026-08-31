@@ -24,6 +24,7 @@ import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { RememberDraft } from "@/components/draft-return";
 import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { BackLink } from "@/components/back-link";
+import { NumberReleasedBadge } from "@/components/number-released-badge";
 import { displayQuotationNumber } from "@/lib/running-number";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -58,6 +59,9 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   const isDraft = quotation.status === "DRAFT";
   const isConfirmed = quotation.status === "CONFIRMED";
   const status = STATUS_LABEL[quotation.status];
+  const activeSiblingQuotation = quotation.numberReleased
+    ? await db.quotation.findFirst({ where: { quotationNumber: quotation.quotationNumber, numberReleased: false }, select: { id: true } })
+    : null;
 
   const addItemAction = addQuotationItem.bind(null, quotation.id);
   // Owner UAT Round 3 — ข้อ 3: เหมือน Order ทุกประการ
@@ -136,8 +140,22 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
           {displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo)}
           <CopyDocumentNumber value={displayQuotationNumber(quotation.quotationNumber, quotation.revisionNo)} />
         </h1>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+          {quotation.numberReleased && <NumberReleasedBadge />}
+        </span>
       </div>
+      {quotation.numberReleased && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+          เลขที่นี้ถูกยกเลิกก่อนใช้งานจริงและถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว
+          {activeSiblingQuotation && (
+            <>
+              {" "}
+              — <a href={`/quotations/${activeSiblingQuotation.id}`} className="underline">ดูเอกสารที่ใช้เลขนี้อยู่ตอนนี้</a>
+            </>
+          )}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         {/* Phase H — Guest: customer เป็น null ใช้ Snapshot ที่กรอกไว้ตอนสร้างแทน */}
         {quotation.customer ? (

@@ -8,6 +8,7 @@ import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { discountLinesByInvoiceId, liveTypeNamesByCode, resolveNoteGroupLabel } from "@/lib/billing-note-discount";
 import { BackLink } from "@/components/back-link";
+import { NumberReleasedBadge } from "@/components/number-released-badge";
 
 // R5 — Label ตรงกับหน้า List (CONFIRMED = สร้างแล้วแต่ยังไม่ยืนยันพิมพ์จริง — ดูเหตุผลเต็ม
 // ที่ billing-notes/page.tsx)
@@ -43,6 +44,9 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
   const creditDays = CREDIT_DAYS[note.creditTermSnapshot] ?? 0;
   const status = STATUS_LABEL[note.status];
   const cancelAction = cancelBillingNote.bind(null, note.id);
+  const activeSiblingNote = note.numberReleased
+    ? await db.billingNote.findFirst({ where: { billingNoteNumber: note.billingNoteNumber, numberReleased: false }, select: { id: true } })
+    : null;
 
   // Smoke Test (2026-08-25) — แจงส่วนลดต่อใบจาก Snapshot ที่เก็บตอนสร้าง (ไม่คำนวณสดซ้ำ)
   // — ใบวางบิล Legacy ที่ไม่มี discountDetail จะได้ Map ว่าง → แสดงผลเหมือนเดิมทุกประการ
@@ -67,8 +71,22 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
           {note.billingNoteNumber}
           <CopyDocumentNumber value={note.billingNoteNumber} />
         </h1>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+          {note.numberReleased && <NumberReleasedBadge />}
+        </span>
       </div>
+      {note.numberReleased && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+          เลขที่นี้ถูกยกเลิกก่อนใช้งานจริงและถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว
+          {activeSiblingNote && (
+            <>
+              {" "}
+              — <a href={`/billing-notes/${activeSiblingNote.id}`} className="underline">ดูเอกสารที่ใช้เลขนี้อยู่ตอนนี้</a>
+            </>
+          )}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         {note.customerNameSnapshot} · {note.billingNoteDate.toLocaleDateString("th-TH")}
         {groupLabel && (

@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { BackLink } from "@/components/back-link";
+import { NumberReleasedBadge } from "@/components/number-released-badge";
 
 // R13 — Label ตรงกับหน้า List (ดูเหตุผลที่ tax-invoices/page.tsx)
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -33,6 +34,9 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
 
   const status = STATUS_LABEL[taxInvoice.status];
   const cancelAction = cancelTaxInvoice.bind(null, taxInvoice.id);
+  const activeSiblingTaxInvoice = taxInvoice.numberReleased
+    ? await db.taxInvoice.findFirst({ where: { taxInvoiceNumber: taxInvoice.taxInvoiceNumber, numberReleased: false }, select: { id: true } })
+    : null;
 
   return (
     <div className="max-w-3xl">
@@ -43,8 +47,22 @@ export default async function TaxInvoiceDetailPage(props: { params: Promise<{ id
           {taxInvoice.taxInvoiceNumber}
           <CopyDocumentNumber value={taxInvoice.taxInvoiceNumber} />
         </h1>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+          {taxInvoice.numberReleased && <NumberReleasedBadge />}
+        </span>
       </div>
+      {taxInvoice.numberReleased && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+          เลขที่นี้ถูกยกเลิกก่อนใช้งานจริงและถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว
+          {activeSiblingTaxInvoice && (
+            <>
+              {" "}
+              — <a href={`/tax-invoices/${activeSiblingTaxInvoice.id}`} className="underline">ดูเอกสารที่ใช้เลขนี้อยู่ตอนนี้</a>
+            </>
+          )}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         {taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH")}
         {taxInvoice.referenceInvoice && (

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { getEffectiveVatRate, extractVat, getEffectivePrice } from "@/lib/pricing";
 import { computeManualTaxInvoiceTotals } from "@/lib/tax-invoice-totals";
 import { resolveGroupDiscounts } from "@/lib/tax-invoice-group-discount";
@@ -327,25 +328,45 @@ export async function cancelTaxInvoice(taxInvoiceId: string): Promise<ActionResu
   if (taxInvoice.status === "CANCELLED") return { success: false, error: "ใบกำกับภาษีนี้ถูกยกเลิกไปแล้ว" };
 
   const beforeStatus = taxInvoice.status;
-  // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
-  const cas = await db.taxInvoice.updateMany({
-    where: { id: taxInvoiceId, status: beforeStatus },
-    data: { status: "CANCELLED" },
-  });
-  if (cas.count === 0) {
-    return { success: false, error: "สถานะใบกำกับภาษีเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
-  }
+  const CHANGED = "TAX_INVOICE_STATUS_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+      // Final Audit — CAS กัน Concurrent Status Change (Pattern C1/C2 เดิม)
+      const cas = await tx.taxInvoice.updateMany({
+        where: { id: taxInvoiceId, status: beforeStatus },
+        data: { status: "CANCELLED" },
+      });
+      if (cas.count === 0) throw new Error(CHANGED);
 
-  await db.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "CANCEL",
-      module: "TaxInvoice",
-      recordId: taxInvoiceId,
-      oldValue: { status: beforeStatus },
-      newValue: { status: "CANCELLED" },
-    },
-  });
+      // Owner UAT (2026-08-31) — TaxInvoice ไม่มี Downstream Document อื่นอ้างอิงอยู่เลย
+      // เข้าเงื่อนไข Reclaim ได้ทันทีถ้าไม่เคย PRINTED
+      if (!taxInvoice.printedAt) {
+        const parsed = parseDocNumber("TX", taxInvoice.taxInvoiceNumber);
+        if (parsed) {
+          const released = await tryReleaseSeq("TX", parsed.period, parsed.seq, tx);
+          if (released) {
+            await tx.taxInvoice.updateMany({ where: { id: taxInvoiceId }, data: { numberReleased: true } });
+          }
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CANCEL",
+          module: "TaxInvoice",
+          recordId: taxInvoiceId,
+          oldValue: { status: beforeStatus },
+          newValue: { status: "CANCELLED" },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะใบกำกับภาษีเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
+  }
 
   revalidatePath(`/tax-invoices/${taxInvoiceId}`);
   revalidatePath("/tax-invoices");

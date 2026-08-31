@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { roundMoney } from "@/lib/pricing";
 import { resolveBillingNoteDiscounts, type BillingNoteDiscountLine } from "@/lib/billing-note-discount";
 import { partitionInvoicesForBilling, singleBillingGroup } from "@/lib/billing-note-split";
@@ -236,6 +237,19 @@ export async function cancelBillingNote(id: string): Promise<ActionResult> {
         where: { billingNoteId: id },
         data: { billingNoteId: null },
       });
+
+      // Owner UAT (2026-08-31) — BillingNote ไม่มี Downstream Document อื่นอ้างอิงอยู่เลย
+      // เข้าเงื่อนไข Reclaim ได้ทันทีถ้าไม่เคย PRINTED
+      if (!billingNote.printedAt) {
+        const parsed = parseDocNumber("BI", billingNote.billingNoteNumber);
+        if (parsed) {
+          const released = await tryReleaseSeq("BI", parsed.period, parsed.seq, tx);
+          if (released) {
+            await tx.billingNote.updateMany({ where: { id }, data: { numberReleased: true } });
+          }
+        }
+      }
+
       await tx.auditLog.create({
         data: {
           userId: user.id,

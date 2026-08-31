@@ -9,6 +9,7 @@ import { CancelButton } from "@/components/cancel-button";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { displayProductTypeCode } from "@/lib/order-preview";
 import { BackLink } from "@/components/back-link";
+import { NumberReleasedBadge } from "@/components/number-released-badge";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -42,6 +43,9 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const status = STATUS_LABEL[invoice.status];
   const cancelAction = cancelInvoice.bind(null, invoice.id);
   const existingTaxInvoice = invoice.taxInvoices[0] ?? null;
+  const activeSiblingInvoice = invoice.numberReleased
+    ? await db.invoice.findFirst({ where: { invoiceNumber: invoice.invoiceNumber, numberReleased: false }, select: { id: true } })
+    : null;
 
   return (
     <div className="max-w-3xl">
@@ -52,8 +56,22 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           {invoice.invoiceNumber}
           <CopyDocumentNumber value={invoice.invoiceNumber} />
         </h1>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${status.className}`}>{status.label}</span>
+          {invoice.numberReleased && <NumberReleasedBadge />}
+        </span>
       </div>
+      {invoice.numberReleased && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+          เลขที่นี้ถูกยกเลิกก่อนใช้งานจริงและถูกปล่อยคืนให้เอกสารถัดไปใช้ต่อแล้ว
+          {activeSiblingInvoice && (
+            <>
+              {" "}
+              — <a href={`/invoices/${activeSiblingInvoice.id}`} className="underline">ดูเอกสารที่ใช้เลขนี้อยู่ตอนนี้</a>
+            </>
+          )}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-4">
         จาก Order:{" "}
         <a href={`/orders/${invoice.order.id}`} className="text-blue-600 hover:underline font-mono">
