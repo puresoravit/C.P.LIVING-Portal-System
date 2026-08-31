@@ -353,6 +353,26 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
                         </div>
                       );
                     })}
+                    {/* CP7 round 16 (Owner UAT) — แถวรวมต่อจุดส่ง (ต่อบริษัท) กวาดสายตาเห็นยอด
+                        รวมได้ทันทีตอนจุดส่งมีหลายรายการ ไม่ต้องบวกเอง */}
+                    <div className="flex items-center gap-2 pt-0.5 font-semibold">
+                      <span className="min-w-0 flex-1 text-xs text-gray-500">รวม</span>
+                      <span className="w-16 text-right shrink-0 text-sm text-blue-700">
+                        {(() => {
+                          const sum = drop.lines.reduce((s, l) => s + (l.qtyLoaded != null ? Math.max(0, l.qtyLoaded - l.qtyPlanned) : 0), 0);
+                          return sum > 0 ? sum : "";
+                        })()}
+                      </span>
+                      <span className="w-14 text-right shrink-0 text-sm text-red-600">
+                        {(() => {
+                          const sum = drop.lines.reduce((s, l) => s + (l.qtyLoaded != null ? Math.max(0, l.qtyPlanned - l.qtyLoaded) : 0), 0);
+                          return sum > 0 ? sum : "";
+                        })()}
+                      </span>
+                      <span className="w-14 text-right shrink-0 text-base text-gray-800">
+                        {drop.lines.some((l) => l.qtyLoaded != null) ? drop.lines.reduce((s, l) => s + (l.qtyLoaded ?? 0), 0) : "-"}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
