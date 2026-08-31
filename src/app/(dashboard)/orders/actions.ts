@@ -17,6 +17,7 @@ import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
 import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
+import { computeRedeliveryLines } from "@/lib/invoice-pending-redelivery";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -527,12 +528,7 @@ const editItemSchema = z.object({
 });
 const editItemsSchema = z.array(editItemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการสินค้า");
 
-const LOCKED_REASON_LABEL: Record<"tax-invoice" | "billing-note", string> = {
-  "tax-invoice": "ใบกำกับภาษี",
-  "billing-note": "ใบวางบิล",
-};
-
-// E3 — แก้ไข Order ที่ Confirmed ไปแล้ว (Case A เท่านั้น: ยังไม่มีเอกสารอ้างอิงต่อ)
+// E3 — แก้ไข Order ที่ Confirmed ไปแล้ว
 // R11 ข้อ 5 (Owner): เดิมยกเลิกทุกใบแล้วออกเลขใหม่หมด → เปลี่ยนเป็น Reconcile รายกลุ่ม
 // ส่วนลด "ใช้เลขเดิม": กลุ่มที่ยังอยู่แก้ยอดในใบเดิม (เลข/สถานะ/printedAt คงเดิม — ใบที่
 // พิมพ์แล้วนับยอดขายต่อด้วยยอดใหม่), กลุ่มที่รายการหายหมดถูกยกเลิก (คง CANCELLED ห้าม
@@ -560,13 +556,6 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       success: false,
       error:
         "Order นี้ไม่มี Invoice ที่ Active เหลืออยู่เลย (สถานะผิดปกติ) ระบบไม่สร้าง Invoice ใหม่ให้เองโดยเดา กรุณาติดต่อผู้ดูแลระบบ/เจ้าของระบบ",
-    };
-  }
-  if (guard.kind === "locked") {
-    const reasonText = guard.reasons.map((r) => LOCKED_REASON_LABEL[r]).join("และ");
-    return {
-      success: false,
-      error: `ไม่สามารถแก้ไข Order นี้ได้ เนื่องจากมี${reasonText}อ้างอิงอยู่แล้ว — กรุณาใช้ "คัดลอกออเดอร์นี้เป็นออเดอร์ใหม่" แทน`,
     };
   }
   if (guard.requiresPrintedAck && !acknowledgePrinted) {
@@ -693,6 +682,10 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       for (const { productTypeCode, invoiceId } of plan.updates) {
         const group = groupByCode.get(productTypeCode)!;
         const inv = invoiceById.get(invoiceId)!;
+        const wasPrinted = inv.status === "PRINTED";
+        // Owner UAT (2026-08-29) — ต้องอ่านรายการเดิมไว้ก่อนลบ เพื่อคำนวณว่า "อะไรค้างส่ง"
+        // (ลดลงจากเดิมเท่าไร) ถ้าใบนี้เคยพิมพ์แล้ว — ดู src/lib/invoice-pending-redelivery.ts
+        const oldInvoiceItems = wasPrinted ? await tx.invoiceItem.findMany({ where: { invoiceId } }) : [];
         await tx.invoiceItem.deleteMany({ where: { invoiceId } });
         await tx.invoice.update({
           where: { id: invoiceId },
@@ -705,8 +698,41 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
             netBeforeVat: group.netAmount,
             grandTotal: group.netAmount,
             items: { create: buildItemsForGroup(group) },
+            // Owner UAT (2026-08-29) — ใบนี้เคยพิมพ์แล้วแล้วเพิ่งถูกแก้ไขซ้ำ — Flag ถาวร
+            // ไว้เตือนบนหน้าเอกสาร (อัปเดตทุกครั้งที่แก้ซ้ำ ไม่ใช่ Write-once)
+            ...(wasPrinted ? { editedAfterPrintAt: new Date() } : {}),
           },
         });
+        // Owner UAT (2026-08-29) — เข้าหมวด "ค้างส่ง" เฉพาะตอนยอดลดลงของใบที่เคยพิมพ์แล้ว
+        // เท่านั้น (Owner ยืนยันชัดเจน) — ไม่แตะเอกสารอื่นใดๆ เป็นแค่ Checklist ติดตามงาน
+        if (wasPrinted && group.netAmount.lt(inv.grandTotal)) {
+          const redeliveryLines = computeRedeliveryLines(
+            oldInvoiceItems.map((it) => ({
+              productId: it.productId,
+              productNameSnapshot: it.productNameSnapshot,
+              sizeSnapshot: it.sizeSnapshot,
+              unitSnapshot: it.unitSnapshot,
+              quantity: it.quantity,
+            })),
+            group.items.map((it) => ({
+              productId: it.productId,
+              productNameSnapshot: it.productName,
+              sizeSnapshot: it.size,
+              unitSnapshot: it.unit,
+              quantity: it.quantity,
+            }))
+          );
+          if (redeliveryLines.length > 0) {
+            await tx.invoicePendingRedelivery.create({
+              data: {
+                invoiceId,
+                reducedAmount: inv.grandTotal.sub(group.netAmount),
+                items: redeliveryLines,
+                createdById: user.id,
+              },
+            });
+          }
+        }
         await tx.auditLog.create({
           data: {
             userId: user.id,
@@ -790,5 +816,6 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
   revalidatePath("/invoices");
+  revalidatePath("/pending-redelivery");
   return { success: true };
 }

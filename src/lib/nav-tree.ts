@@ -111,6 +111,11 @@ export const NAV_TREE: NavNode[] = [
       { type: "link", href: "/repair-notes", label: "เอกสารใบส่งคืนสินค้าฝากซ่อม", perm: "repairNote.create", icon: "repair" },
     ],
   },
+  // Owner UAT (2026-08-29) — "หมวดค้างส่ง": Invoice ที่พิมพ์แล้วถูกแก้ไขให้ยอดลดลง (เช่น
+  // สินค้าถูกตีกลับ) — วางไว้ก่อนรายงานยอดขายตามตำแหน่งที่ Owner ระบุตรงๆ — Badge ตัวเลข
+  // (จำนวนรายการค้างอยู่) ฉีดจาก layout.tsx ผ่าน SidebarNav ไม่ใช่ค่า Static ในนี้ (ดู
+  // sidebar-nav.tsx เรื่อง badgeCounts)
+  { type: "link", href: "/pending-redelivery", label: "ค้างส่ง", perm: "invoice.create", icon: "delivery" },
   { type: "link", href: "/reports", label: "รายงานยอดขาย / Sales Report", perm: "report.view", icon: "chart" },
   {
     type: "group",

@@ -599,12 +599,52 @@ model Invoice {
   printedAt   DateTime?
   printedById String?
 
+  // Owner UAT (2026-08-29) — เดิม Invoice ที่มี TaxInvoice/BillingNote อ้างอิงแล้วแก้ไข
+  // ไม่ได้เลย (Order Edit Guard บล็อก) — Owner ยืนยันให้ปลดล็อก แก้ไขได้เสมอไม่ว่าจะมี
+  // เอกสารอ้างอิงต่อหรือไม่ (ใบกำกับภาษี/ใบวางบิลที่ออกไปแล้วไม่ต้องแก้ตาม — พิมพ์ใหม่
+  // ทีหลังตามรอบบัญชีเอง) — Field นี้เป็น Flag ถาวรว่า "เอกสารนี้เคยถูกแก้ไขหลังพิมพ์แล้ว"
+  // อย่างน้อย 1 ครั้ง (อัปเดตเป็นเวลาล่าสุดทุกครั้งที่แก้ซ้ำ ไม่ใช่ Write-once แบบ printedAt)
+  // ใช้แสดงเตือนถาวรบนหน้าเอกสาร ต่างจาก Modal Acknowledge ตอนกด Confirm ซึ่งเป็นแค่
+  // ครั้งเดียวตอนกำลังแก้
+  editedAfterPrintAt DateTime?
+
   items         InvoiceItem[]
   taxInvoices   TaxInvoice[]
   billingNoteId String? // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล
   billingNote   BillingNote?  @relation(fields: [billingNoteId], references: [id])
+  pendingRedeliveries InvoicePendingRedelivery[]
 
   @@map("invoices")
+}
+
+// ==========================================================================
+// Owner UAT (2026-08-29) — "หมวดค้างส่ง": ตอนแก้ไข Invoice ที่พิมพ์แล้วให้ "ยอดลดลง"
+// (เช่น ลูกค้าตีกลับสินค้าบางส่วน) ต้องมีรายการติดตามแยกว่ายังค้างส่งอะไรอยู่ พนักงานกด
+// "ยืนยันว่าส่งของค้างไปแล้ว" เพื่อปิดรายการ — เป็นแค่ Checklist ติดตามงาน ไม่กระทบตัวเลข
+// เอกสารใดๆ ทั้งสิ้น (Owner ยืนยันชัดเจน "แค่ปิดรายการ ไม่แตะตัวเลข")
+//
+// ตั้งชื่อ "InvoicePendingRedelivery" ไม่ใช้ "OutstandingDelivery" เพราะชื่อนั้นมีอยู่แล้ว
+// ในโมดูล Production (คนละความหมาย: Production ผูกกับ CustomerPOLine ติดตามของที่ยังโหลด
+// ขึ้นรถไม่ครบ — ไม่เกี่ยวกับ Invoice ฝั่ง Billing เลย) — ดู CLAUDE.md กฎชื่อโมเดลชนกัน
+// ==========================================================================
+model InvoicePendingRedelivery {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id])
+  // ยอดที่ลดลงจากการแก้ไขครั้งนี้ (grandTotal เดิม - grandTotal ใหม่)
+  reducedAmount Decimal   @db.Decimal(14, 2)
+  // Snapshot รายการที่ถูกลดออกไป ณ ตอนแก้ไข (ไม่ผูก Live Query กับ InvoiceItem เพราะ
+  // แถวเดิมถูกลบ/แทนที่ไปแล้วตาม Pattern เดิมของ editConfirmedOrder) —
+  // [{ productNameSnapshot, sizeSnapshot, unitSnapshot, quantity }]
+  items         Json
+  createdAt     DateTime  @default(now())
+  createdById   String
+  // Write-once เหมือน printedAt — ปิดแล้วปิดเลย ไม่มีเปิดกลับ (ต้องการเปิดใหม่ต้อง
+  // ให้พนักงานแก้ไขซ้ำสร้างแถวใหม่ตามธรรมชาติของ Flow นี้)
+  resolvedAt    DateTime?
+  resolvedById  String?
+
+  @@map("invoice_pending_redeliveries")
 }
 
 model InvoiceItem {

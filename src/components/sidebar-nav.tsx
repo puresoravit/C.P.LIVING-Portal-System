@@ -205,14 +205,29 @@ function IconSlot({ name, active, depth }: { name: NavIconKey | undefined; activ
   return <NavIcon name={name} className={`w-[15px] h-[15px] shrink-0 ${active ? "text-cp-navy" : "text-white/50"}`} />;
 }
 
+// Owner UAT (2026-08-29) — Badge ตัวเลขแบบ Notification มือถือ สำหรับเมนู "ค้างส่ง"
+// (จำนวนรายการที่ยังไม่ปิด) — เป็นค่า Dynamic จาก DB จึงส่งเป็น Prop แยกจาก NAV_TREE
+// Static แทนการฝังใน nav-tree.ts (Data ล้วน/Test ได้ตรงๆ เดิม) — คีย์ตาม href, ไม่มี =
+// ไม่โชว์ Badge (พฤติกรรมเดิมทุกเมนูอื่นทุกประการ)
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 function NavGroupView({
   group,
   activeHref,
   depth,
+  badgeCounts,
 }: {
   group: Extract<NavNode, { type: "group" }>;
   activeHref: string | null;
   depth: number;
+  badgeCounts?: Record<string, number>;
 }) {
   const [open, setOpen] = useState(() => groupContainsActiveHref(group.items, activeHref));
   return (
@@ -228,14 +243,24 @@ function NavGroupView({
       </summary>
       <div className="pl-3 space-y-0.5 mt-0.5 border-l border-white/10 ml-3">
         {group.items.map((child, i) => (
-          <NavNodeView key={`${child.type}-${i}`} node={child} activeHref={activeHref} depth={depth + 1} />
+          <NavNodeView key={`${child.type}-${i}`} node={child} activeHref={activeHref} depth={depth + 1} badgeCounts={badgeCounts} />
         ))}
       </div>
     </details>
   );
 }
 
-function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: string | null; depth: number }) {
+function NavNodeView({
+  node,
+  activeHref,
+  depth,
+  badgeCounts,
+}: {
+  node: NavNode;
+  activeHref: string | null;
+  depth: number;
+  badgeCounts?: Record<string, number>;
+}) {
   if (node.type === "signout") {
     return (
       <SignOutButton
@@ -247,7 +272,7 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
   }
 
   if (node.type === "group") {
-    return <NavGroupView group={node} activeHref={activeHref} depth={depth} />;
+    return <NavGroupView group={node} activeHref={activeHref} depth={depth} badgeCounts={badgeCounts} />;
   }
 
   if (node.disabled) {
@@ -261,6 +286,7 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
       </span>
     );
   }
+  const badgeCount = badgeCounts?.[node.href] ?? 0;
   const active = node.href === activeHref;
   if (active) {
     // R6 — ชั้นเดียว: <a> = Tab ครีมล้วน (สีเดียวกับ Content) + Fillet โค้งบน/ล่าง —
@@ -272,9 +298,10 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
         <ActiveFillet edge="bottom" />
         {/* Wrapper แยกสำหรับ rise-in — Transform อยู่ที่เนื้อในเท่านั้น ตัว Tab/Fillet
             ไม่ขยับ (เรขาคณิตรอยต่อคงที่ 100%) */}
-        <span className="flex items-center gap-2.5 min-w-0 cp-nav-rise-in">
+        <span className="flex items-center gap-2.5 min-w-0 flex-1 cp-nav-rise-in">
           <IconSlot name={node.icon} active depth={depth} />
           <span className="min-w-0 truncate">{node.label}</span>
+          <NavBadge count={badgeCount} />
         </span>
       </a>
     );
@@ -283,11 +310,12 @@ function NavNodeView({ node, activeHref, depth }: { node: NavNode; activeHref: s
     <a href={node.href} className={`${LINK_CLASS} ${INACTIVE_CLASS}`} title={node.tooltip}>
       <IconSlot name={node.icon} active={false} depth={depth} />
       {node.label}
+      <NavBadge count={badgeCount} />
     </a>
   );
 }
 
-export function SidebarNav({ tree }: { tree: NavNode[] }) {
+export function SidebarNav({ tree, badgeCounts }: { tree: NavNode[]; badgeCounts?: Record<string, number> }) {
   const pathname = usePathname();
   const activeHref = resolveActiveHref(pathname, collectHrefs(tree));
   return (
