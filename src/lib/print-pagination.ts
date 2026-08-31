@@ -89,14 +89,20 @@ export function estimatePageCapacity(opts: {
 /** ทางลัดจาก Template Settings ที่ Resolve แล้ว (จุดเดียวที่หน้า Print ทุกประเภทเรียก) */
 export function capacityForDocument(
   template: Pick<OverridableTemplateSettings, "bodyFontSize" | "spacingDensity" | "contentPadding" | "headerLayout">,
-  kind: PrintDocKind
+  kind: PrintDocKind,
+  // Owner UAT (2026-08-31) — ใบส่งของขยายฟอนต์ตัวเอกสาร +30% ผ่าน CSS ล้วนๆ ที่ Container
+  // (ดู invoices/[id]/print/page.tsx bodyStyle) จุดคำนวณความจุแถวต่อหน้านี้ไม่รู้เรื่องด้วย
+  // เลยเพราะอ่านแค่ Enum bodyFontSize ที่ Resolve จาก Template Settings ปกติ (ยังเป็น 12px
+  // เดิม) ทำให้ประมาณแถวต่อหน้าเกินจริงสำหรับเอกสารยาวหลายหน้า — Parameter นี้ให้เอกสารที่
+  // มี Boost แบบนี้ส่งตัวคูณเข้ามาคำนวณร่วมด้วยได้ (ไม่ส่ง = 1 = พฤติกรรมเดิมทุกประการ)
+  fontScaleMultiplier = 1
 ): PageCapacity {
   const headerHeightMm = template.headerLayout
     ? estimateHeaderHeightMm(template.headerLayout)
     : CLASSIC_HEADER_ESTIMATE_MM;
   const reserve = DOC_PAGE_RESERVES_MM[kind];
   return estimatePageCapacity({
-    bodyFontSizePx: BODY_FONT_SIZE_PX[template.bodyFontSize],
+    bodyFontSizePx: BODY_FONT_SIZE_PX[template.bodyFontSize] * fontScaleMultiplier,
     rowPaddingPx: ROW_PADDING_PX[template.spacingDensity],
     contentPaddingMm: CONTENT_PADDING_MM[template.contentPadding],
     headerHeightMm,
