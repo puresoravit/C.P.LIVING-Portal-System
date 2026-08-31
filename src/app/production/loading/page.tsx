@@ -1,5 +1,6 @@
 import { getLoadingQueueData } from "@/lib/loading-queue-data";
 import { toDateInputValue } from "@/lib/date-utils";
+import { displayProdNo } from "@/lib/production-order-display";
 import { DraggableQueueList, type DraggableQueueItem } from "@/components/production/draggable-queue-list";
 import type { StatusBadgeConfig } from "@/components/status-badge";
 
@@ -42,7 +43,7 @@ export default async function LoadingQueuePage() {
     mergedCount: status.mergedCount,
     itemCount,
     pieceCount,
-    prodNo: o.prodNo,
+    prodNo: displayProdNo(o.prodNo, o.currentRevNo),
     requestedDateLabel: o.customerPo.requestedDate ? o.customerPo.requestedDate.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "ยังไม่กำหนด",
     requestedDateIso: o.customerPo.requestedDate ? toDateInputValue(o.customerPo.requestedDate) : null,
     showPullForward: urgency.level !== "TODAY" && urgency.level !== "OVERDUE",

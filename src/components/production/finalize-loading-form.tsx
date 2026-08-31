@@ -90,7 +90,13 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
     }
     const qtyNum = Number(qty[line.id]) || 0;
     const rows: AllocRow[] = [];
-    let unassigned = qtyNum;
+    // CP7 round 10 (Owner) — ถ้าขึ้นจริงเกินแผนของรายการนี้ ส่วนที่เกินคือของที่ไม่ได้อยู่ใน
+    // แผนอยู่แล้วโดยนิยาม (ไม่มีที่มาอื่นให้เลือกจริงๆ) — ตัดเป็น "ของหน้างาน" ให้อัตโนมัติ
+    // ทันที ไม่ต้องให้คนกดปุ่มเพิ่มแหล่งเองสำหรับส่วนนี้ (ยังแก้เป็นแหล่งอื่นเองได้ถ้าต้องการ
+    // ผ่านปุ่ม "แยกที่มาเพิ่ม" — auto-fill นี้เป็นแค่ค่าตั้งต้น)
+    const excess = Math.max(0, qtyNum - line.qtyPlanned);
+    if (excess > 0) rows.push({ key: -1, kind: "ADHOC", outstandingId: "", qty: String(excess) });
+    let unassigned = qtyNum - excess;
     if (line.sourceType === "ADHOC") {
       if (unassigned > 0) rows.push({ key: -1, kind: "ADHOC", outstandingId: "", qty: String(unassigned) });
       unassigned = 0;
@@ -326,6 +332,26 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                 const isManual = !!manualAllocs[line.id];
                 const unassigned = unassignedByLine.get(line.id) ?? 0;
                 const cap = line.customerPoLineId ? data.capacityByPoLine[line.customerPoLineId] : null;
+                // CP7 round 10 (Owner: "ลองวิเคราะห์การแสดงผลในหน้านี้ใหม่ดู เอาให้เข้าใจง่าย")
+                // — สรุปเป็นประโยคเดียวต่อรายการ ไม่ต้องเดาจากช่องตัดที่อาจว่างเปล่า (เช่น
+                // ขึ้นจริง 0 = แถวตัดว่างเพราะไม่มีอะไรให้ตัด ไม่ใช่ข้อมูลหาย)
+                const qtyNum = Number(qty[line.id]) || 0;
+                const lineExcess = Math.max(0, qtyNum - line.qtyPlanned);
+                const lineShort = Math.max(0, line.qtyPlanned - qtyNum);
+                let summary: { text: string; tone: "green" | "amber" | "red" | "blue" } | null = null;
+                if (qtyNum === line.qtyPlanned) {
+                  summary = null; // ตรงตามแผนเป๊ะ ไม่ต้องมีข้อความพิเศษ
+                } else if (qtyNum === 0 && line.qtyPlanned > 0) {
+                  summary = { text: `ยังไม่ได้ขึ้นเลย → ค้างส่งทั้งหมด ${line.qtyPlanned} ชิ้น`, tone: "red" };
+                } else if (lineExcess > 0 && lineShort === 0) {
+                  summary = { text: `เกินแผน ${lineExcess} ชิ้น → นับเป็น "ของหน้างาน" เพิ่มให้อัตโนมัติ`, tone: "blue" };
+                } else if (lineShort > 0) {
+                  summary = { text: `ขึ้นได้ ${qtyNum}/${line.qtyPlanned} → เหลือค้างส่ง ${lineShort} ชิ้น`, tone: "amber" };
+                }
+                const summaryClass =
+                  summary?.tone === "red" ? "text-red-700 bg-red-50 border-red-200"
+                  : summary?.tone === "blue" ? "text-blue-700 bg-blue-50 border-blue-200"
+                  : "text-amber-700 bg-amber-50 border-amber-200";
                 return (
                   <div key={line.id} className={`border rounded p-2 ${unassigned !== 0 ? "border-red-300 bg-red-50/30" : "border-gray-200"}`}>
                     <div className="flex items-center justify-between gap-2 text-sm">
@@ -365,6 +391,10 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                       </span>
                     </div>
 
+                    {summary && (
+                      <p className={`text-xs rounded px-2 py-1 mt-1 border ${summaryClass}`}>{summary.text}</p>
+                    )}
+
                     {cap && cap.productionQty != null && cap.productionQty !== cap.qtyCurrent && (
                       <p className="text-xs text-amber-700 mt-0.5">
                         ⚠ ยอดออเดอร์ปัจจุบัน {cap.qtyCurrent} ≠ ยอดสั่งผลิตล่าสุด {cap.productionQty} — ของค้างคิดจากยอดออเดอร์เสมอ
@@ -373,6 +403,7 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
 
                     {/* แถวการตัด (auto จนกว่าจะแตะ) */}
                     <div className="mt-1.5 space-y-1">
+                      {rows.length > 0 && <p className="text-[10px] text-gray-400">ตัดยอดนี้จากอะไร (เติมให้อัตโนมัติ แก้ได้ทุกช่อง):</p>}
                       {rows.map((row, rowIdx) => (
                         <div key={row.key === -1 ? `auto-${rowIdx}` : row.key} className="flex items-center gap-1.5 text-sm">
                           <select
@@ -436,8 +467,9 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                               patchRows(line.id, [...m, { key: nextKey(), kind: line.customerPoLineId ? "FRESH" : "ADHOC", outstandingId: "", qty: String(Math.max(unassigned, 0) || "") }]);
                             }}
                             className="text-xs text-cp-navy hover:underline"
+                            title="ใช้เมื่อของขึ้นจริงชิ้นเดียวกันมาจากมากกว่า 1 ที่ เช่น 3 ชิ้นจากออเดอร์ใหม่ + 2 ชิ้นจากของค้างเดิม"
                           >
-                            + เพิ่มแหล่งที่ตัด
+                            + แยกที่มาเพิ่ม
                           </button>
                           {isManual && (
                             <button type="button" onClick={() => resetLine(line.id)} className="text-xs text-gray-400 hover:underline">
@@ -485,10 +517,13 @@ export function FinalizeLoadingForm({ data }: { data: FinalizeData }) {
                   ))}
                   <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center text-xs text-gray-400 cursor-pointer hover:border-cp-navy hover:text-cp-navy">
                     {uploadingDropId === drop.id ? "..." : "+ รูป"}
+                    {/* CP7 round 10 (Owner) — ตัด capture="environment" ออก: attribute นี้บังคับเปิด
+                        กล้องตรงๆ บนมือถือบางรุ่น ทำให้เลือกรูปจากอัลบั้มไม่ได้เลย — ไม่ใส่
+                        attribute นี้จะให้ระบบมือถือเปิด picker ปกติที่มีทั้ง "ถ่ายรูป" และ
+                        "เลือกจากอัลบั้ม" ให้เลือกเอง (พฤติกรรมมาตรฐานของ input type=file) */}
                     <input
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       className="hidden"
                       disabled={uploadingDropId !== null}
                       onChange={(e) => {

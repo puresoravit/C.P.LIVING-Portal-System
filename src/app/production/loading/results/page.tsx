@@ -1,4 +1,5 @@
 import { getLoadingQueueData } from "@/lib/loading-queue-data";
+import { displayProdNo } from "@/lib/production-order-display";
 
 // CP7 round 3 (2026-08-30, Owner UAT) — "บันทึกผลขึ้นของ" เป็นเมนูหลักแยกต่างหาก (ไม่ใช่
 // section ในหน้าคิว) ตรงตาม mental model: พิมพ์ใบขึ้นของแล้วออเดอร์ย้ายมาอยู่หมวดนี้ กดเข้า
@@ -38,7 +39,7 @@ export default async function LoadingResultsPage() {
               </div>
               <div className="text-xs text-gray-500 mt-0.5">
                 {itemCount} รายการ · {pieceCount} ชิ้น
-                <span className="text-gray-400 font-mono ml-2">{o.prodNo}</span>
+                <span className="text-gray-400 font-mono ml-2">{displayProdNo(o.prodNo, o.currentRevNo)}</span>
               </div>
             </a>
           ))}

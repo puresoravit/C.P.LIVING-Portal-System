@@ -10,6 +10,7 @@ import { CancelDocumentButton } from "@/components/production/cancel-document-bu
 import { LoadingTripEditor, type TripEditorData } from "@/components/production/loading-trip-editor";
 import { cancelLoadingTrip } from "../actions";
 import { getProductionSettings } from "@/lib/production-settings";
+import { displayProdNo } from "@/lib/production-order-display";
 
 // P2 CP1/CP2 — หน้า detail เที่ยวรถ: ช่วง DRAFT = editor เต็ม (จุดส่ง/รายการ + FRESH picker
 // ที่กรองออเดอร์ยกเลิก + default กรองตรงสาขา + โชว์ยอดที่ถูกแผนไว้เที่ยวอื่น กัน accidental
@@ -77,9 +78,9 @@ export default async function LoadingTripDetailPage(props: { params: Promise<{ i
   // CP6 — ใบสั่งผลิตต้นทางของแต่ละจุดส่ง (งานสต็อกไม่มี)
   const jobOrderIds = trip.drops.map((d) => d.productionOrderId).filter((v): v is string => !!v);
   const jobOrders = jobOrderIds.length
-    ? await db.productionOrder.findMany({ where: { id: { in: jobOrderIds } }, select: { id: true, prodNo: true } })
+    ? await db.productionOrder.findMany({ where: { id: { in: jobOrderIds } }, select: { id: true, prodNo: true, currentRevNo: true } })
     : [];
-  const prodNoById = new Map(jobOrders.map((o) => [o.id, o.prodNo]));
+  const prodNoById = new Map(jobOrders.map((o) => [o.id, displayProdNo(o.prodNo, o.currentRevNo)]));
 
   const actorIds = [trip.loadedById, trip.cancelledById].filter((v): v is string => !!v);
   const actors = actorIds.length

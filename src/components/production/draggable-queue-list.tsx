@@ -73,7 +73,10 @@ export function DraggableQueueList({ items, badgeConfig }: { items: DraggableQue
   }
 
   function handlePointerDown(e: React.PointerEvent, item: DraggableQueueItem) {
-    if (!item.requestedDateIso) return; // ยังไม่กำหนดวันส่ง — ไม่มีวันที่ให้ลากอ้างอิง
+    // CP7 round 10 (Owner: "กล่องสุดท้ายลากไม่ได้") — บั๊กจริง: เดิมเช็ค requestedDateIso
+    // ของ "ต้นทาง" ด้วย ทั้งที่ค่านี้ไม่มีความหมายเลยตอนลาก (เราจะเขียนทับด้วยวันที่ของ
+    // ปลายทางอยู่แล้ว) การ์ดที่ "ยังไม่กำหนดวันส่ง" ก็ควรลากไปทับใบอื่นเพื่อรับวันที่ได้
+    // ปกติ — เช็ค requestedDateIso เฉพาะฝั่ง "ปลายทาง" ตอนจะ commit เท่านั้น (ดูล่างๆ)
     (e.target as Element).setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startY = e.clientY;
@@ -105,7 +108,9 @@ export function DraggableQueueList({ items, badgeConfig }: { items: DraggableQue
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const cardEl = el?.closest("[data-queue-card-id]");
     const id = cardEl?.getAttribute("data-queue-card-id") ?? null;
-    setOverId(id && id !== st.item.id ? id : null);
+    // ไฮไลต์เฉพาะเป้าหมายที่วางแล้วเกิดผลจริง (มีวันที่ให้รับ) กันเข้าใจผิดว่าวางตรงไหนก็ได้
+    const target = id ? items.find((i) => i.id === id) : null;
+    setOverId(id && id !== st.item.id && target?.requestedDateIso ? id : null);
   }
 
   function handlePointerUp(e: React.PointerEvent, item: DraggableQueueItem) {

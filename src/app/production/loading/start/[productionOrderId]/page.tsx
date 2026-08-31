@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { BackLink } from "@/components/production/back-link";
 import { StartLoadingJobForm } from "@/components/production/start-loading-job-form";
+import { displayProdNo } from "@/lib/production-order-display";
 import { startLoadingJob } from "../../actions";
 
 // CP6 — หน้าเริ่มขึ้นของจากคิว: ทวนรายการใน Rev ปัจจุบันของใบสั่งผลิตให้ตรวจก่อน แล้วถาม
@@ -69,7 +70,7 @@ export default async function StartLoadingJobPage(props: { params: Promise<{ pro
         เริ่มขึ้นของ — {order.customerPo.customer.companyName}
         {order.customerPo.branch && <span className="text-gray-500 font-normal"> — {order.customerPo.branch.name}</span>}
       </h1>
-      <p className="text-xs text-gray-400 font-mono mb-3">{order.prodNo}</p>
+      <p className="text-xs text-gray-400 font-mono mb-3">{displayProdNo(order.prodNo, order.currentRevNo)}</p>
 
       {cancelled ? (
         <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-3 py-2">
