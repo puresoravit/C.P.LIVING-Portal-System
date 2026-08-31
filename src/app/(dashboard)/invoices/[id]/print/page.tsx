@@ -166,6 +166,16 @@ export default async function InvoicePrintPage(props: {
       backHref={backHref}
       nextHref={nextHref}
       nextRemaining={queueIds.length}
+      // Owner UAT (2026-08-29) — ทดสอบพิมพ์กระดาษ 9×11 จริงแล้วขอฟอนต์ใหญ่ขึ้น 30%
+      // + ตัวหนาทั้งหมด (อ่านยากเกินไปตอนนี้) — ขยายผ่าน CSS var เดิม (คูณค่าที่ Resolve
+      // มาแล้วจาก Template Settings อีกทีที่ Container นี้) แทนการเปลี่ยน Default ของ
+      // ระบบ Template กลาง เพราะยังไม่มีการยืนยันว่าเอกสารอื่น (ใบเสนอราคา/ใบกำกับภาษี/
+      // ใบวางบิล/ใบซ่อม) ต้องการแบบเดียวกัน — ขอบเขตเฉพาะใบส่งของชั่วคราวเท่านั้น
+      bodyClassName="font-bold"
+      bodyStyle={{
+        ["--print-body-size" as string]: "calc(var(--print-body-size) * 1.3)",
+        ["--print-heading-size" as string]: "calc(var(--print-heading-size) * 1.3)",
+      }}
     >
       <RememberPrintSession
         docKey="invoice"
@@ -184,10 +194,17 @@ export default async function InvoicePrintPage(props: {
         amountInWords={toThaiBahtText(invoice.grandTotal)}
         applyDiscount={invoice.applyDiscount}
         disclaimer={
-          <div className="text-[10px] text-gray-600 mb-2">
-            ได้รับสินค้าครบถ้วนตามรายการ ตรวจสอบแล้วอยู่ในสภาพสมบูรณ์ ไม่มีความเสียหายใดๆ
-            หากเกิดความเสียหายหรือชำรุดภายหลังจากวันรับมอบ จะไม่ถือเป็นความรับผิดชอบของผู้ขาย
-            <span className="float-right">ทะเบียนรถยนต์ ____________________</span>
+          // Owner UAT (2026-08-29) — ตัดมาสองบรรทัดได้ตามที่อนุญาต (ไม่บังคับบรรทัดเดียว
+          // อีกต่อไป) — เอาป้าย float-right ออกเพราะเป็นสาเหตุที่ทำให้ข้อความชนกันจนดู
+          // เหมือนตกขอบ ย้ายไปเป็นบรรทัดแยกด้านล่างแทน อ่านง่ายกว่าเดิมทั้งจอ Preview และ
+          // กระดาษจริง — ขนาดตัวอักษรคูณสัดส่วนเดียวกับตัวเอกสาร (0.83 เท่าของ Body เดิม)
+          // เพื่อให้โตขึ้นตามการขยาย 30% ข้างบนไปด้วยโดยอัตโนมัติ
+          <div className="text-[length:calc(var(--print-body-size)*0.83)] text-gray-600 mb-2">
+            <div>
+              ได้รับสินค้าครบถ้วนตามรายการ ตรวจสอบแล้วอยู่ในสภาพสมบูรณ์ ไม่มีความเสียหายใดๆ
+              หากเกิดความเสียหายหรือชำรุดภายหลังจากวันรับมอบ จะไม่ถือเป็นความรับผิดชอบของผู้ขาย
+            </div>
+            <div>ทะเบียนรถยนต์ ____________________</div>
           </div>
         }
         pagination={{

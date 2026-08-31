@@ -30,9 +30,11 @@ import {
 export const PX_TO_MM = 25.4 / 96;
 
 // พื้นที่พิมพ์แนวตั้งที่ใช้วางแผนแบ่งหน้า — ใช้ค่าต่ำสุดของทั้ง 2 Print Profile
-// (continuous 9×11 = 267.4mm / A4 = 275mm — ดู print-settings.ts) เพื่อให้แผนแบ่งหน้า
+// (continuous 9×11 = 263.4mm / A4 = 275mm — ดู print-settings.ts) เพื่อให้แผนแบ่งหน้า
 // เดียวกันใช้ได้ทั้งคู่ (Profile ถูกเลือกฝั่ง Client ผ่าน localStorage — Server ไม่รู้)
-export const PRINT_USABLE_HEIGHT_MM = 267.4;
+// Owner UAT (2026-08-29) — continuous Margin บน 6→10mm ตามที่ทดสอบกระดาษจริง (ดู
+// print-settings.ts) ทำให้พื้นที่ใช้ได้ลดจาก 267.4 เป็น 263.4mm
+export const PRINT_USABLE_HEIGHT_MM = 263.4;
 
 // ความสูงประมาณของ Header โหมด Classic (3 Block: โลโก้บริษัท + ชื่อเอกสาร + ข้อมูลลูกค้า)
 // — โหมด Custom Layout คำนวณจริงจาก estimateHeaderHeightMm ได้เลย
