@@ -66,17 +66,20 @@ export function InvoicePrintBody({
             ไม่มีความกว้างกำกับ Text-align left ทำให้ป้ายไปเกาะขอบซ้ายติดกับ No. พอดี) —
             จัดกึ่งกลางเฉพาะป้ายหัวตาราง ไม่กระทบการจัดซ้ายของเนื้อหาแต่ละแถว (ชื่อสินค้า
             อ่านง่ายกว่าถ้าจัดซ้าย โดยเฉพาะชื่อยาว) */}
+        {/* Owner UAT (2026-08-31 รอบ 5) — table-layout:fixed (รอบ 4) ทำให้ตารางไม่ล้น
+            Container อีกแล้วก็จริง แต่คอลัมน์ตัวเลข w-28 (112px) เดิมยังแคบเกินไปสำหรับ
+            กระดาษจริง (ตัวเลขโดนตัดกลางคันเพราะ nowrap ไม่ยอมตัดคำ ล้นออกนอกกรอบคอลัมน์
+            ของตัวเองไปจนถึงขอบกระดาษ) — คอลัมน์ "ขนาด"/"จำนวน" กว้างเกินความจำเป็นจริง
+            (เนื้อหาสั้นมาก) ดึงพื้นที่ส่วนเกินนั้นมาให้ 2 คอลัมน์ตัวเลขแทน รวมความกว้าง
+            ทั้งแถวเท่าเดิมทุกประการ (ไม่กระทบพื้นที่ของ "รายการ" เลย) */}
         <tr className="border-b border-gray-800">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
           <th className="text-center py-[length:var(--print-row-padding)]">รายการ</th>
-          <th className="text-left py-[length:var(--print-row-padding)] w-20">ขนาด</th>
-          <th className="text-right py-[length:var(--print-row-padding)] w-16">จำนวน</th>
-          {/* Owner UAT (2026-08-31) — คอลัมน์ตัวเลข 2 คอลัมน์นี้ตกขอบขวาของกระดาษจริงกับ
-              ฟอนต์ +30% (w-24=96px เดิมคำนวณไว้สำหรับฟอนต์ปกติ 12px ไม่พอสำหรับ 15.6px
-              ตัวหนา) ขยายเป็น w-28 (112px) + บังคับ nowrap กันเลขถูกตัดกลางคัน */}
-          <th className="text-right py-[length:var(--print-row-padding)] w-28 whitespace-nowrap">ราคา/หน่วย</th>
-          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-20">ส่วนลด</th>}
-          <th className="text-right py-[length:var(--print-row-padding)] w-28 whitespace-nowrap">จำนวนเงิน</th>
+          <th className="text-left py-[length:var(--print-row-padding)] w-16">ขนาด</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-12">จำนวน</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">ราคา/หน่วย</th>
+          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-16">ส่วนลด</th>}
+          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>

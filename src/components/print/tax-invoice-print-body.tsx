@@ -65,33 +65,40 @@ export function TaxInvoicePrintBody({
   // ทุกค่าเหมือนเดิมเป๊ะ (เอกสารมีส่วนลดยังแสดงครบทุกแถวตามเดิม)
   const showDiscount = Number(discount) > 0;
 
+  // Owner UAT (2026-08-31 รอบ 5) — ใบกำกับภาษีไม่เคยได้รับการแก้ตามใบส่งของชั่วคราวเลย
+  // (Component คนละไฟล์ แต่เป็นปัญหาโครงสร้างเดียวกัน — Owner ขอให้เช็คผลกระทบเอกสารที่
+  // เกี่ยวข้องด้วย): (1) ไม่มีความกว้างคอลัมน์กำกับเลยสักคอลัมน์ — table-layout:fixed
+  // (globals.css) ที่บังคับทุกตารางแล้วจะหารพื้นที่เท่าๆ กันทุกคอลัมน์เมื่อไม่ระบุ ทำให้
+  // "รายการ"/"จำนวนเงิน" แคบเกินไปพอๆ กับ "No." (2) ไม่มี whitespace-nowrap บนคอลัมน์
+  // ตัวเลข ตัวเลขตัดกลางคันได้ (3) border-b ไม่ระบุสี ตกไปใช้ Tailwind Preflight Default
+  // (gray-200 จางมาก ไม่ติดหมึกจริง) — แก้ให้ตรงกับ invoice-print-body.tsx ทุกจุด
   const itemsTable = (pageItems: TaxInvoicePrintItem[], startIndex: number) => (
     <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
       <thead>
-        <tr className="border-b">
+        <tr className="border-b border-gray-800">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
-          <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
-          <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
-          <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
-          <th className="text-right py-[length:var(--print-row-padding)]">ราคา/หน่วย</th>
-          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)]">ส่วนลด</th>}
-          <th className="text-right py-[length:var(--print-row-padding)]">จำนวนเงิน</th>
+          <th className="text-center py-[length:var(--print-row-padding)]">รายการ</th>
+          <th className="text-left py-[length:var(--print-row-padding)] w-16">ขนาด</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-12">จำนวน</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">ราคา/หน่วย</th>
+          {showDiscount && <th className="text-right py-[length:var(--print-row-padding)] w-16">ส่วนลด</th>}
+          <th className="text-right py-[length:var(--print-row-padding)] w-36 whitespace-nowrap">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>
         {pageItems.map((item, i) => (
-          <tr key={item.id} className="border-b border-dashed">
+          <tr key={item.id} className="border-b border-dashed border-gray-500">
             <td className="py-[length:var(--print-row-padding)]">{startIndex + i + 1}</td>
             <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
             <td className="py-[length:var(--print-row-padding)]">{item.size ?? ""}</td>
             <td className="text-right py-[length:var(--print-row-padding)]">
               {Number(item.quantity)} {item.unit}
             </td>
-            <td className="text-right py-[length:var(--print-row-padding)]">{money(item.unitPrice)}</td>
+            <td className="text-right py-[length:var(--print-row-padding)] whitespace-nowrap">{money(item.unitPrice)}</td>
             {showDiscount && (
               <td className="text-right py-[length:var(--print-row-padding)]">{money(item.discountAmount)}</td>
             )}
-            <td className="text-right py-[length:var(--print-row-padding)]">{money(item.amount)}</td>
+            <td className="text-right py-[length:var(--print-row-padding)] whitespace-nowrap">{money(item.amount)}</td>
           </tr>
         ))}
       </tbody>
@@ -103,33 +110,33 @@ export function TaxInvoicePrintBody({
     netLabel: string
   ) => (
     <div className="text-[length:var(--print-body-size)] space-y-1">
-      <div className="flex justify-between">
+      <div className="flex justify-between gap-2">
         <span>รวมเป็นเงิน / Subtotal</span>
-        <span>{money(vals.subtotal)}</span>
+        <span className="whitespace-nowrap">{money(vals.subtotal)}</span>
       </div>
       {showDiscount && (
         <>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-2">
             <span>หักส่วนลด / Discount</span>
-            <span>{money(vals.discount)}</span>
+            <span className="whitespace-nowrap">{money(vals.discount)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-2">
             <span>ยอดรวมหลังหักส่วนลด / After Discount</span>
-            <span>{money(vals.afterDiscount)}</span>
+            <span className="whitespace-nowrap">{money(vals.afterDiscount)}</span>
           </div>
         </>
       )}
-      <div className="flex justify-between">
+      <div className="flex justify-between gap-2">
         <span>มูลค่าสินค้าก่อน VAT / Value Amount</span>
-        <span>{money(vals.valueAmount)}</span>
+        <span className="whitespace-nowrap">{money(vals.valueAmount)}</span>
       </div>
-      <div className="flex justify-between">
+      <div className="flex justify-between gap-2">
         <span>ภาษีมูลค่าเพิ่ม / VAT {Number(vatPct)}%</span>
-        <span>{money(vals.vatAmount)}</span>
+        <span className="whitespace-nowrap">{money(vals.vatAmount)}</span>
       </div>
-      <div className="flex justify-between font-semibold border-t pt-1">
+      <div className="flex justify-between gap-2 font-semibold border-t border-gray-800 pt-1">
         <span>{netLabel}</span>
-        <span>{money(vals.net)}</span>
+        <span className="whitespace-nowrap">{money(vals.net)}</span>
       </div>
     </div>
   );
