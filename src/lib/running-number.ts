@@ -37,6 +37,47 @@ export function formatDocNumber(docType: string, period: string, seq: number, di
   return `${docType}-${period}-${String(seq).padStart(digits, "0")}`;
 }
 
+/**
+ * แยก period/seq กลับจากเลขที่เอกสารที่ formatDocNumber ผลิตออกมา — ตัด prefix
+ * `${docType}-` ออกก่อนแล้วค่อยหา "-" ตัวสุดท้ายที่เหลือ (กัน docType ที่มี "-" ปนอยู่เอง
+ * เช่น "INV-A" ไม่ทำให้ parse period ผิด) คืน null ถ้ารูปแบบไม่ตรง docType ที่ให้มา
+ */
+export function parseDocNumber(docType: string, formatted: string): { period: string; seq: number } | null {
+  const prefix = `${docType}-`;
+  if (!formatted.startsWith(prefix)) return null;
+  const rest = formatted.slice(prefix.length);
+  const lastDash = rest.lastIndexOf("-");
+  if (lastDash === -1) return null;
+  const period = rest.slice(0, lastDash);
+  const seq = Number(rest.slice(lastDash + 1));
+  if (!Number.isFinite(seq)) return null;
+  return { period, seq };
+}
+
+/**
+ * Owner UAT (2026-08-31) — ยกเลิกเอกสารแล้วเลขที่หายไปเฉยๆ (Gap) ทำให้ดูเหมือนเลขกระโดด
+ * Owner ต้องการดึงเลขกลับมาใช้ต่อ แต่เฉพาะกรณี "ยกเลิกใบล่าสุด" เท่านั้น — เพราะการยกเลิก
+ * ไม่มีเงื่อนไขบังคับว่าต้องเป็นใบล่าสุดเสมอ (ยกเลิกใบเก่าขณะมีใบใหม่กว่า Active อยู่ได้)
+ * ถ้าดึงคืนแบบไม่มีเงื่อนไขจะทำให้ใบที่สร้างทีหลังมีเลขน้อยกว่าใบที่สร้างก่อนหน้า (ลำดับ
+ * เลขไม่ตรงลำดับเวลาสร้างอีกต่อไป เสี่ยงสับสนตอนไล่เอกสารย้อนหลัง) — เช็คผ่าน CAS แบบ
+ * เดียวกับ getNextSeq เป๊ะ: ลด lastSeq ก็ต่อเมื่อยังเท่ากับ seq ของใบที่กำลังยกเลิกอยู่จริง
+ * (แปลว่ายังไม่มีใครออกเลขถัดไปอีกหลังจากนี้) ถ้าไม่ตรง (มีใบใหม่กว่าออกไปแล้ว) จะไม่ทำ
+ * อะไรเลย เลขเก่ายัง "เผา" ทิ้งเหมือนพฤติกรรมเดิม — ใช้ร่วมกันได้ทุกประเภทเอกสาร
+ */
+export async function releaseSeqIfLatest(
+  docType: string,
+  formattedNumber: string,
+  tx: Prisma.TransactionClient | typeof db = db
+): Promise<boolean> {
+  const parsed = parseDocNumber(docType, formattedNumber);
+  if (!parsed) return false;
+  const result = await tx.documentSequence.updateMany({
+    where: { docType, period: parsed.period, lastSeq: parsed.seq },
+    data: { lastSeq: { decrement: 1 } },
+  });
+  return result.count > 0;
+}
+
 // Owner UAT Fix Batch — ข้อ 3 (Quotation Revision UX): "Rev. N" สื่อความหมายกำกวมกับ
 // Owner (เอกสารกระดาษคนละใบ แต่เลขที่เหมือนกันเป๊ะ ต่างกันแค่ Label เล็กๆ ข้างเลข) —
 // Audit แล้วพบว่า Quotation.revisionNo เป็นแค่ Counter เพิ่มใน Row เดิม (ไม่มี Table

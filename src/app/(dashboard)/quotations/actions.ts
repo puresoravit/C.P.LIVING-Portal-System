@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
+import { getNextSeq, formatDocNumber, currentPeriod, releaseSeqIfLatest } from "@/lib/running-number";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
 import { getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -518,6 +518,9 @@ export async function cancelQuotation(quotationId: string): Promise<ActionResult
   if (cas.count === 0) {
     return { success: false, error: "สถานะใบเสนอราคาเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
   }
+
+  await releaseSeqIfLatest("QT", quotation.quotationNumber);
+
   await db.auditLog.create({
     data: {
       userId: user.id,
