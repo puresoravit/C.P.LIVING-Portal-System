@@ -82,8 +82,8 @@ export default async function InvoicePrintPage(props: {
     customerInfo: (
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: invoice.customerNameSnapshot },
-          { label: "ที่อยู่", value: invoice.addressSnapshot ?? "-" },
+          { label: "ลูกค้า / Customer", value: invoice.customerNameSnapshot },
+          { label: "ที่อยู่ / Address", value: invoice.addressSnapshot ?? "-" },
         ]}
         right={[
           {
@@ -95,8 +95,8 @@ export default async function InvoicePrintPage(props: {
               </span>
             ),
           },
-          { label: "วันที่", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
-          { label: "รหัสลูกค้า", value: invoice.customer.code },
+          { label: "วันที่ / Date", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
+          { label: "รหัสลูกค้า / Customer Code", value: invoice.customer.code },
         ]}
         shippingAddress={invoice.placeToDelivery}
       />
@@ -128,11 +128,11 @@ export default async function InvoicePrintPage(props: {
             style={hl.docNumber}
           />
         ),
-        docDate: <HeaderTextLine label="วันที่" value={invoice.invoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={invoice.customer.code} style={hl.customerCode} />,
-        customerName: <HeaderTextLine label="ลูกค้า" value={invoice.customerNameSnapshot} style={hl.customerName} />,
+        docDate: <HeaderTextLine label="วันที่ / Date" value={invoice.invoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={invoice.customer.code} style={hl.customerCode} />,
+        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={invoice.customerNameSnapshot} style={hl.customerName} />,
         ...(invoice.addressSnapshot
-          ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={invoice.addressSnapshot} style={hl.customerAddress} /> }
+          ? { customerAddress: <HeaderTextLine label="ที่อยู่ / Address" value={invoice.addressSnapshot} style={hl.customerAddress} /> }
           : {}),
         ...(invoice.placeToDelivery
           ? {

@@ -47,8 +47,8 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
     customerInfo: (
       <PrintCustomerInfo
         left={[
-          { label: "ลูกค้า", value: note.customerNameSnapshot },
-          { label: "ที่อยู่", value: note.addressSnapshot ?? "-" },
+          { label: "ลูกค้า / Customer", value: note.customerNameSnapshot },
+          { label: "ที่อยู่ / Address", value: note.addressSnapshot ?? "-" },
         ]}
         right={[
           {
@@ -60,8 +60,8 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
               </span>
             ),
           },
-          { label: "วันที่", value: note.noteDate.toLocaleDateString("th-TH") },
-          { label: "รหัสลูกค้า", value: note.customer.code },
+          { label: "วันที่ / Date", value: note.noteDate.toLocaleDateString("th-TH") },
+          { label: "รหัสลูกค้า / Customer Code", value: note.customer.code },
           ...(note.reference ? [{ label: "อ้างถึง", value: note.reference }] : []),
         ]}
         shippingAddress={note.placeToDelivery}
@@ -95,12 +95,12 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
             style={hl.docNumber}
           />
         ),
-        docDate: <HeaderTextLine label="วันที่" value={note.noteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
-        customerCode: <HeaderTextLine label="รหัสลูกค้า" value={note.customer.code} style={hl.customerCode} />,
+        docDate: <HeaderTextLine label="วันที่ / Date" value={note.noteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={note.customer.code} style={hl.customerCode} />,
         ...(note.reference ? { reference: <HeaderTextLine label="อ้างถึง" value={note.reference} style={hl.reference} /> } : {}),
-        customerName: <HeaderTextLine label="ลูกค้า" value={note.customerNameSnapshot} style={hl.customerName} />,
+        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={note.customerNameSnapshot} style={hl.customerName} />,
         ...(note.addressSnapshot
-          ? { customerAddress: <HeaderTextLine label="ที่อยู่" value={note.addressSnapshot} style={hl.customerAddress} /> }
+          ? { customerAddress: <HeaderTextLine label="ที่อยู่ / Address" value={note.addressSnapshot} style={hl.customerAddress} /> }
           : {}),
         ...(note.placeToDelivery
           ? {
