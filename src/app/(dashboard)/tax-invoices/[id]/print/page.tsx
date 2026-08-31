@@ -98,7 +98,14 @@ export default async function TaxInvoicePrintPage(props: { params: Promise<{ id:
             valueAlign="right"
           />
         ),
-        docDate: <HeaderTextLine label="วันที่ / Date" value={taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        docDate: (
+          <HeaderTextLine
+            label="วันที่ / Date"
+            value={taxInvoice.taxInvoiceDate.toLocaleDateString("th-TH")}
+            style={hl.docDate}
+            valueAlign="right"
+          />
+        ),
         customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={taxInvoice.customer.code} style={hl.customerCode} />,
         customerName: <HeaderTextLine label="ลูกค้า / Customer" value={taxInvoice.customerNameSnapshot} style={hl.customerName} />,
         ...(taxInvoice.addressSnapshot

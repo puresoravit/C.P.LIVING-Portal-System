@@ -177,7 +177,14 @@ export default async function BillingNotePrintPage(props: {
             valueAlign="right"
           />
         ),
-        docDate: <HeaderTextLine label="วันที่ / Date" value={note.billingNoteDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        docDate: (
+          <HeaderTextLine
+            label="วันที่ / Date"
+            value={note.billingNoteDate.toLocaleDateString("th-TH")}
+            style={hl.docDate}
+            valueAlign="right"
+          />
+        ),
         customerName: <HeaderTextLine label="ลูกค้า / Customer" value={note.customerNameSnapshot} style={hl.customerName} />,
         customerTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={note.taxIdSnapshot ?? "-"} style={hl.customerTaxId} />,
       }

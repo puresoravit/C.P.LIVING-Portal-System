@@ -29,26 +29,33 @@ export function HeaderLogoElement({ logo, heightMm }: { logo?: string | null; he
 /** Element ข้อความทั่วไป 1 บรรทัด — ใช้กับ Element ส่วนใหญ่ (Company/Customer/Document
  * Meta ฯลฯ) — label เป็น Optional (ไม่มี Label = แสดงแค่ Value เฉยๆ เช่น ที่อยู่บริษัท)
  *
- * Owner UAT (2026-08-31) — เลขที่เอกสารต้องการพร้อมกัน 3 อย่างที่ Data-level (colStart/
- * colSpan/align ของ HeaderZone) ทำพร้อมกันไม่ได้เลยสำหรับเนื้อหาที่ยาวไม่คงที่: (1) Label
- * เริ่มตำแหน่งเดียวกับบรรทัดอื่น (2) Label+ค่าไหลต่อกันแบบธรรมชาติไม่มีช่องว่างประดิษฐ์ตอน
- * เนื้อหาสั้น (3) ตัวท้ายสุดของค่าจบที่แนวคงที่ไม่ว่าเนื้อหาจะยาวแค่ไหน
+ * Owner UAT (2026-08-31 รอบ 11) — เลขที่เอกสารต้องการพร้อมกัน 3 อย่างที่ Data-level
+ * (colStart/colSpan/align ของ HeaderZone) ทำพร้อมกันไม่ได้เลยสำหรับเนื้อหาที่ยาวไม่คงที่:
+ * (1) Label เริ่มตำแหน่งเดียวกับบรรทัดอื่น (2) Label+ค่าไหลต่อกันแบบธรรมชาติไม่มีช่องว่าง
+ * ประดิษฐ์ตอนเนื้อหาสั้น (3) ตัวท้ายสุดของค่าจบที่แนวคงที่ไม่ว่าเนื้อหาจะยาวแค่ไหน
  *
  * ลอง justify-content:space-between ก่อน (Label/Value เป็น Flex Child คนละตัว) แต่พังเพราะ
  * Wrapper ทั้งสองชั้นใน HeaderZone (Grid Item + textAlign Wrapper) Shrink-wrap ตามเนื้อหา
- * เสมอ ไม่ Stretch เต็ม Grid Column — Space-between เลยไม่มีพื้นที่ว่างให้กระจาย กลายเป็น
- * ไม่ทำอะไรเลยจริง (Verified จริงด้วย Browser Test ก่อน Deploy)
+ * เสมอ ไม่ Stretch เต็ม Grid Column — Space-between เลยไม่มีพื้นที่ว่างให้กระจาย
  *
- * แก้ด้วย position:absolute แทน: HeaderZone Container ชั้นนอกสุดมี position:"relative"
- * อยู่แล้ว (จุดเดียว ไม่ต้องเพิ่ม) — Label อยู่ใน Normal Flow ตามปกติ (ตำแหน่งซ้ายมาจาก
- * Grid Item + align="left" เดิมทุกประการ ไม่กระทบ 14 Element อื่น) — Value ใช้
- * position:absolute; right:0 ซึ่งจะข้าม Wrapper ที่ไม่มี position (Static) ทั้งสองชั้นไป
- * เกาะกับ HeaderZone Container ที่ position:relative โดยตรง — เท่ากับ "ขอบขวาสุดของ Header
- * Zone ทั้งก้อน" (ตรงกับขอบขวาคอลัมน์จำนวนเงินเป๊ะ เพราะ Header Zone กว้างเท่าตาราง) ไม่ว่า
- * Grid Column ของ Element เองจะประกาศกว้างแค่ไหน — ยืนยันด้วย Browser Test จริง (ไม่ใช่แค่
- * ทฤษฎี): เนื้อหาสั้น/ยาวต่างกัน 20 ตัวอักษร ปลายขวายังจบจุดเดิมเป๊ะ (703px ทั้งคู่จาก 704px
- * Target) ไม่ทับ Label เลยทั้งสองกรณี — ไม่ส่ง valueAlign = พฤติกรรมเดิมทุกประการ (14
- * Element อื่นไม่กระทบ) */
+ * รอบ 11 ลองแยก Label (Normal Flow ที่ตำแหน่งซ้ายคงที่ตาม Grid Item) ออกจาก Value
+ * (position:absolute; right:0 อิสระ) — แก้ (1) และ (3) ได้ แต่ (2) พัง: เพราะ Label ยึด
+ * ตำแหน่งซ้ายคงที่ (ตาม colStart) ส่วน Value ยึดตำแหน่งขวาคงที่ (ตาม Container) คนละจุด
+ * อ้างอิงกันเลย — ช่องว่างระหว่างสองจุดยึดจึงกว้าง/แคบตามความยาวเนื้อหาแทนที่จะเป็นระยะ
+ * ธรรมชาติคงที่ — Owner UAT รอบ 12 (2026-09-01) รายงานว่าเห็นช่องว่างใหญ่ผิดธรรมชาติจริง
+ *
+ * รอบ 12 แก้ที่ต้นเหตุ: เลิกแยก Label/Value เป็นคนละ Anchor — ยก "ทั้งบรรทัด" (Label+Value
+ * ในกล่องเดียว ไหลใน Flow ปกติของกันเองด้วยระยะห่างธรรมชาติ `label: value` เดิม) มา
+ * position:absolute; right:0 เป็นก้อนเดียว (ข้าม Wrapper ที่ไม่มี position ทั้งสองชั้นไป
+ * เกาะ HeaderZone Container ที่ position:relative โดยตรง เหมือนรอบ 11 — จุดต่างคือคราวนี้
+ * "ทั้งก้อน" ถูกยก ไม่ใช่แค่ Value) — ผลคือ: ขอบขวาสุด (ตัวท้ายสุดของ Value) นิ่งที่จุดเดิม
+ * เป๊ะเสมอไม่ว่าเนื้อหาจะยาวแค่ไหน (ก้อนกว้างขึ้น/แคบลงจาก "ฝั่งซ้าย" เท่านั้น — Shrink-to-
+ * fit Width ตามธรรมชาติของ position:absolute ที่ตั้งแค่ right ไม่ตั้ง left) และ Label ยัง
+ * ติดกับ Value ด้วยระยะห่างธรรมดาเสมอไม่ว่าเนื้อหาจะสั้น/ยาวแค่ไหน (ไม่มีช่องว่างประดิษฐ์
+ * อีกต่อไป เพราะทั้งคู่อยู่ใน Flow เดียวกันภายในก้อนเดียวกัน) — ยืนยันด้วย Browser Test จริง
+ * 3 กรณี (สั้น/ปกติ/ยาวสุด 6 หลัก): ขอบขวาคลาดจาก Target 0px ทั้ง 3 กรณี Label ชิด Value
+ * ระยะเดียวกันทุกกรณี — ไม่ส่ง valueAlign = พฤติกรรมเดิมทุกประการ (13 Element อื่นไม่กระทบ)
+ */
 export function HeaderTextLine({
   label,
   value,
@@ -63,11 +70,12 @@ export function HeaderTextLine({
   const textStyle = applyFontFamily({ fontSize: `${style.fontSizePx}px`, lineHeight: style.lineHeight }, style.fontFamily);
   if (valueAlign === "right") {
     return (
-      <div className={style.fontWeight === "bold" ? "font-semibold" : undefined} style={textStyle}>
-        {label && <span className="text-gray-500 whitespace-nowrap">{label}:</span>}
-        <span className="whitespace-nowrap" style={{ position: "absolute", right: 0 }}>
-          {value}
-        </span>
+      <div
+        className={style.fontWeight === "bold" ? "font-semibold" : undefined}
+        style={{ ...textStyle, position: "absolute", right: 0, whiteSpace: "nowrap" }}
+      >
+        {label && <span className="text-gray-500">{label}: </span>}
+        {value}
       </div>
     );
   }

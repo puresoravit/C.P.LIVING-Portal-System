@@ -129,7 +129,14 @@ export default async function InvoicePrintPage(props: {
             valueAlign="right"
           />
         ),
-        docDate: <HeaderTextLine label="วันที่ / Date" value={invoice.invoiceDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        docDate: (
+          <HeaderTextLine
+            label="วันที่ / Date"
+            value={invoice.invoiceDate.toLocaleDateString("th-TH")}
+            style={hl.docDate}
+            valueAlign="right"
+          />
+        ),
         customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={invoice.customer.code} style={hl.customerCode} />,
         customerName: <HeaderTextLine label="ลูกค้า / Customer" value={invoice.customerNameSnapshot} style={hl.customerName} />,
         ...(invoice.addressSnapshot

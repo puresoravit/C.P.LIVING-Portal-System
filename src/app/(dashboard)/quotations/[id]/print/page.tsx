@@ -117,7 +117,14 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
             valueAlign="right"
           />
         ),
-        docDate: <HeaderTextLine label="วันที่ / Date" value={quotation.quotationDate.toLocaleDateString("th-TH")} style={hl.docDate} />,
+        docDate: (
+          <HeaderTextLine
+            label="วันที่ / Date"
+            value={quotation.quotationDate.toLocaleDateString("th-TH")}
+            style={hl.docDate}
+            valueAlign="right"
+          />
+        ),
         customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={customerCode} style={hl.customerCode} />,
         customerName: <HeaderTextLine label="ลูกค้า / Customer" value={quotation.customerNameSnapshot} style={hl.customerName} />,
         // Phase H — Guest ที่กรอกผู้ติดต่อ/โทรศัพท์ไว้: ต่อท้ายบรรทัดที่อยู่ (Element
