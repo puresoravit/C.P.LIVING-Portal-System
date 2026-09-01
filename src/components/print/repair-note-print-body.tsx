@@ -82,7 +82,16 @@ export function RepairNotePrintBody({
             <PrintPageLabel pageNo={idx + 1} pageCount={pageCount} />
             {itemsTable(page.items, startIndex)}
             <div className="flex-1" />
-            {isLast && closingBlock}
+            {/* Owner UAT (2026-09-02) — Signature ทุก Physical Sheet แผ่นละ 1 ชุด: หน้า
+                สุดท้ายใช้ closingBlock เดิม (หมายเหตุ + Signature) หน้าอื่นได้ Signature
+                ชุดเดียวกันโดยไม่มีหมายเหตุ */}
+            {isLast ? (
+              closingBlock
+            ) : (
+              <div className="print-keep-together">
+                <PrintSignatureBlock footerNote={footerNote} />
+              </div>
+            )}
           </section>
         );
       })}

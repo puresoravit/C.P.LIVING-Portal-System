@@ -166,7 +166,17 @@ export function BillingNotePrintBody({
             {intro}
             {invoicesTable(page.items, tfootRows)}
             <div className="flex-1" />
-            {isLast && closingBlock}
+            {/* Owner UAT (2026-09-02) — Signature ทุก Physical Sheet แผ่นละ 1 ชุด: หน้า
+                สุดท้ายใช้ closingBlock เดิม (คำอ่าน + Signature) หน้าอื่น Render Signature
+                ชุดเดียวกัน (Label ผู้รับ/ผู้ส่งวางบิลเดิม) โดยไม่มีคำอ่าน — ไม่มีแผ่นไหน
+                ได้ Signature ซ้ำสองชุด */}
+            {isLast ? (
+              closingBlock
+            ) : (
+              <div className="print-keep-together">
+                <PrintSignatureBlock fields={["ผู้รับวางบิล / Received By", "ผู้ส่งวางบิล / Delivery By"]} footerNote={footerNote} />
+              </div>
+            )}
           </section>
         );
       })}

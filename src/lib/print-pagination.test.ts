@@ -18,7 +18,7 @@ import { DEFAULT_GLOBAL_TEMPLATE_SETTINGS } from "./print-template-settings";
 // (รายการน้อย = หน้าเดียว Output โครงเดิม) และผลรวม Summary ทุกหน้า = ยอดเอกสารเสมอ
 
 describe("estimatePageCapacity / capacityForDocument", () => {
-  it("ค่า Default Template (12px/4px) ได้ความจุสมเหตุสมผล และ last ≤ normal เสมอ", () => {
+  it("ค่า Default Template (12px/4px) ได้ความจุสมเหตุสมผล และ finalOfMulti ≤ normal เสมอ", () => {
     for (const kind of Object.keys(DOC_PAGE_RESERVES_MM) as (keyof typeof DOC_PAGE_RESERVES_MM)[]) {
       const cap = estimatePageCapacity({
         bodyFontSizePx: 12,
@@ -28,13 +28,23 @@ describe("estimatePageCapacity / capacityForDocument", () => {
         ...DOC_PAGE_RESERVES_MM[kind],
       });
       expect(cap.normalPageRows).toBeGreaterThanOrEqual(10); // 9×11 ควรจุเกิน 10 แถวเสมอ
-      expect(cap.lastPageRows).toBeGreaterThanOrEqual(1);
-      expect(cap.lastPageRows).toBeLessThanOrEqual(cap.normalPageRows);
+      expect(cap.finalAloneRows).toBeGreaterThanOrEqual(1);
+      expect(cap.finalOfMultiRows).toBeGreaterThanOrEqual(1);
+      expect(cap.finalOfMultiRows).toBeLessThanOrEqual(cap.normalPageRows);
+      // finalAlone ไม่มีกล่องรวมหน้านี้ จึงต้อง ≥ finalOfMulti เสมอ
+      expect(cap.finalAloneRows).toBeGreaterThanOrEqual(cap.finalOfMultiRows);
     }
   });
 
   it("Header สูงขึ้น = ความจุลดลง (Monotonic)", () => {
-    const base = { bodyFontSizePx: 12, rowPaddingPx: 4, contentPaddingMm: 0, pageSummaryMm: 24, lastPageExtraMm: 50 };
+    const base = {
+      bodyFontSizePx: 12,
+      rowPaddingPx: 4,
+      contentPaddingMm: 0,
+      pageSummaryMm: 24,
+      finalFooterMm: 50,
+      signatureEverySheetMm: 25,
+    };
     const small = estimatePageCapacity({ ...base, headerHeightMm: 40 });
     const big = estimatePageCapacity({ ...base, headerHeightMm: 90 });
     expect(big.normalPageRows).toBeLessThan(small.normalPageRows);
@@ -47,12 +57,19 @@ describe("estimatePageCapacity / capacityForDocument", () => {
     }
   });
 
+  // Owner Approve (2026-09-02) — Invoice ใช้ความจุที่ Owner เคาะจาก Physical Print ตรงๆ
+  it("INVOICE ใช้ค่า Owner-approved (17/14/14) ไม่ใช่สูตรประมาณ", () => {
+    const cap = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
+    expect(cap).toEqual({ normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 });
+  });
+
   // Owner UAT (2026-08-31) — Invoice Boost ฟอนต์ +30% ผ่าน CSS ล้วนๆ นอกระบบ Template
-  // Settings ปกติ — fontScaleMultiplier ต้องคำนวณความจุแถวต่อหน้าให้ลดลงตามจริง
-  it("fontScaleMultiplier: ตัวคูณมากขึ้น → ความจุต่อหน้าลดลง (Monotonic เหมือน Font ใหญ่ขึ้น)", () => {
-    const base = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
+  // Settings ปกติ — fontScaleMultiplier ≠ 1 ทำให้ค่าที่วัดไว้ใช้ไม่ได้ ต้อง Fallback ไป
+  // สูตรประมาณ (และความจุลดลงตามฟอนต์ที่ใหญ่ขึ้น)
+  it("fontScaleMultiplier ≠ 1: Fallback ไปสูตรประมาณ และความจุลดลงตามฟอนต์", () => {
+    const approved = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
     const boosted = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE", 1.3);
-    expect(boosted.normalPageRows).toBeLessThan(base.normalPageRows);
+    expect(boosted.normalPageRows).toBeLessThan(approved.normalPageRows);
   });
 
   it("fontScaleMultiplier ไม่ส่ง = 1 = พฤติกรรมเดิมทุกประการ", () => {
@@ -68,10 +85,12 @@ describe("estimatePageCapacity / capacityForDocument", () => {
       contentPaddingMm: 4,
       headerHeightMm: 240,
       pageSummaryMm: 40,
-      lastPageExtraMm: 80,
+      finalFooterMm: 80,
+      signatureEverySheetMm: 25,
     });
     expect(cap.normalPageRows).toBeGreaterThanOrEqual(1);
-    expect(cap.lastPageRows).toBeGreaterThanOrEqual(1);
+    expect(cap.finalAloneRows).toBeGreaterThanOrEqual(1);
+    expect(cap.finalOfMultiRows).toBeGreaterThanOrEqual(1);
   });
 
   it("estimateRowHeightMm: Font/Padding ใหญ่ขึ้น = แถวสูงขึ้น", () => {
@@ -80,49 +99,86 @@ describe("estimatePageCapacity / capacityForDocument", () => {
 });
 
 describe("paginateRows", () => {
-  const cap: PageCapacity = { normalPageRows: 10, lastPageRows: 6 };
+  const cap: PageCapacity = { normalPageRows: 10, finalAloneRows: 8, finalOfMultiRows: 6 };
   const rows = (n: number) => Array.from({ length: n }, (_, i) => i);
 
   it("เอกสารไม่มีรายการ = หน้าเดียวว่าง (โครงหน้าจอเดิม)", () => {
     expect(paginateRows([], cap)).toEqual([[]]);
   });
 
-  it("รายการ ≤ ความจุหน้าสุดท้าย = หน้าเดียว (Zero Regression)", () => {
+  it("รายการ ≤ finalAloneRows = หน้าเดียวเสมอ (Full Footer ไม่มีกล่องรวมหน้านี้)", () => {
     expect(paginateRows(rows(6), cap)).toEqual([rows(6)]);
+    expect(paginateRows(rows(8), cap)).toEqual([rows(8)]);
   });
 
-  it("เกินความจุหน้าสุดท้าย 1 แถว = แตกเป็น 2 หน้า", () => {
-    const pages = paginateRows(rows(7), cap);
+  it("เกิน finalAloneRows 1 แถว = แตกเป็น 2 หน้า (หน้าสุดท้าย ≤ finalOfMultiRows)", () => {
+    const pages = paginateRows(rows(9), cap);
     expect(pages.length).toBe(2);
     expect(pages[0].length).toBeLessThanOrEqual(cap.normalPageRows);
-    expect(pages[1].length).toBeLessThanOrEqual(cap.lastPageRows);
+    expect(pages[1].length).toBeLessThanOrEqual(cap.finalOfMultiRows);
     expect(pages[1].length).toBeGreaterThan(0);
   });
 
   it("ครบทุกแถว เรียงลำดับเดิม ไม่ซ้ำไม่หาย (หลายขนาด)", () => {
-    for (const n of [1, 6, 7, 10, 16, 17, 25, 40, 100]) {
+    for (const n of [1, 6, 8, 9, 10, 16, 17, 25, 40, 100]) {
       const pages = paginateRows(rows(n), cap);
       expect(pages.flat()).toEqual(rows(n));
-      // ทุกหน้าที่ไม่ใช่หน้าสุดท้าย ≤ normal, หน้าสุดท้าย ≤ last และไม่ว่าง
-      for (let i = 0; i < pages.length - 1; i++) expect(pages[i].length).toBeLessThanOrEqual(cap.normalPageRows);
-      expect(pages[pages.length - 1].length).toBeLessThanOrEqual(cap.lastPageRows);
-      expect(pages[pages.length - 1].length).toBeGreaterThan(0);
+      if (pages.length === 1) {
+        expect(pages[0].length).toBeLessThanOrEqual(cap.finalAloneRows);
+      } else {
+        for (let i = 0; i < pages.length - 1; i++) expect(pages[i].length).toBeLessThanOrEqual(cap.normalPageRows);
+        expect(pages[pages.length - 1].length).toBeLessThanOrEqual(cap.finalOfMultiRows);
+        expect(pages[pages.length - 1].length).toBeGreaterThan(0);
+      }
     }
   });
 
-  it("กรณีพอดีเป๊ะกับหน้าปกติ: หน้าสุดท้ายยังมีแถวเสมอ", () => {
-    // 10 แถว: เกิน last(6) → ต้องแบ่ง โดยหน้าสุดท้ายไม่ว่าง
-    const pages = paginateRows(rows(10), cap);
-    expect(pages.length).toBe(2);
-    expect(pages[0].length).toBe(9); // เหลือ 1 แถวให้หน้าสุดท้ายตามกติกา
-    expect(pages[1].length).toBe(1);
+  it("finalAlone > normal ได้โดยชอบ (หน้าเดียวไม่มีกล่องรวมหน้านี้) — n ≤ finalAlone ยังหน้าเดียว", () => {
+    const wide: PageCapacity = { normalPageRows: 12, finalAloneRows: 13, finalOfMultiRows: 10 };
+    expect(paginateRows(rows(13), wide).length).toBe(1);
   });
 
-  it("normal = last (ส่วนสงวนเท่ากัน) ยังแบ่งถูกต้อง", () => {
-    const eq: PageCapacity = { normalPageRows: 5, lastPageRows: 5 };
+  it("normal = finalOfMulti (ส่วนสงวนเท่ากัน) ยังแบ่งถูกต้อง", () => {
+    const eq: PageCapacity = { normalPageRows: 5, finalAloneRows: 5, finalOfMultiRows: 5 };
     const pages = paginateRows(rows(12), eq);
     expect(pages.flat()).toEqual(rows(12));
     expect(pages.map((p) => p.length)).toEqual([5, 5, 2]);
+  });
+});
+
+// Owner Approve (2026-09-02) — Pagination Matrix ของ Invoice ที่ Owner สั่งให้พิสูจน์ตรงๆ
+// (ความจุ 17/14/14): 1–14 = หน้าเดียว Full Footer / 15 ขึ้นไป = Multi-sheet ห้ามยัด 15
+// ในหน้าเดียวด้วยการขยับ Footer / หน้าแรก-กลางใช้พื้นที่ได้ ~17 แถว / หน้าสุดท้ายเหลือ
+// พื้นที่ Full Footer ตำแหน่ง LOCK เสมอ
+describe("paginateRows — Owner-approved Invoice matrix (17/14/14)", () => {
+  const invoiceCap: PageCapacity = { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 };
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => i);
+  const shape = (n: number) => paginateRows(rows(n), invoiceCap).map((p) => p.length);
+
+  it("1–14 รายการ = Single-page Invoice เสมอ", () => {
+    for (let n = 1; n <= 14; n++) expect(shape(n)).toEqual([n]);
+  });
+
+  it("15 รายการ = Multi-sheet (ห้ามยัดหน้าเดียว)", () => {
+    expect(shape(15)).toEqual([14, 1]);
+  });
+
+  it("Matrix ตามที่ Owner สั่งพิสูจน์: 17/18/20/28/35", () => {
+    expect(shape(17)).toEqual([16, 1]);
+    expect(shape(18)).toEqual([17, 1]);
+    expect(shape(20)).toEqual([17, 3]);
+    expect(shape(28)).toEqual([17, 11]);
+    expect(shape(35)).toEqual([17, 17, 1]);
+  });
+
+  it("หน้าสุดท้ายไม่เกิน finalOfMulti(14) และหน้าแรก/กลางไม่เกิน 17 เสมอ (กวาด 15–60)", () => {
+    for (let n = 15; n <= 60; n++) {
+      const pages = shape(n);
+      expect(pages.reduce((a, b) => a + b, 0)).toBe(n);
+      for (let i = 0; i < pages.length - 1; i++) expect(pages[i]).toBeLessThanOrEqual(17);
+      expect(pages[pages.length - 1]).toBeLessThanOrEqual(14);
+      expect(pages[pages.length - 1]).toBeGreaterThan(0);
+    }
   });
 });
 

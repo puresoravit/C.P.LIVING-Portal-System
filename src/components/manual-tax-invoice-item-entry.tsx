@@ -236,6 +236,12 @@ export function ManualTaxInvoiceItemEntry({
     setItems((prev) => prev.map((i, iIdx) => (iIdx === idx ? { ...i, discountAmount: value } : i)));
   }
 
+  // Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมได้ตรงๆ (Pattern เดียวกับ setItemDiscount
+  // ข้างบน — State ฝั่ง Client ล้วนๆ ยอด/VAT คำนวณใหม่ผ่าน itemAmounts/totals เดิมทันที)
+  function setItemQuantity(idx: number, value: number) {
+    setItems((prev) => prev.map((i, iIdx) => (iIdx === idx ? { ...i, quantity: value } : i)));
+  }
+
   function addItem() {
     if (!draft.description.trim()) {
       setErr("กรอกรายการก่อน");
@@ -277,6 +283,9 @@ export function ManualTaxInvoiceItemEntry({
   const grandPreview = vatCalcMode === "ADD_ON" ? round2(net + vatAmount) : net;
   const discountInvalid =
     discountTotal < 0 || net < 0 || items.some((i, idx) => i.discountAmount < 0 || round2(i.discountAmount) > itemAmounts[idx]);
+  // Owner UAT (2026-09-02) — จำนวนที่แก้ Inline ในแถวต้อง > 0 ก่อน Submit เสมอ (Server
+  // Validate ซ้ำอีกชั้นตาม Schema เดิม — นี่แค่กันกดส่งทั้งที่เห็นกรอบแดงอยู่)
+  const quantityInvalid = items.some((i) => !(i.quantity > 0));
 
   return (
     <div>
@@ -489,7 +498,17 @@ export function ManualTaxInvoiceItemEntry({
               <tr key={idx} className="border-t">
                 <td className="px-4 py-2">{item.description}</td>
                 <td className="px-4 py-2">{item.size}</td>
-                <td className="px-4 py-2 text-right">{item.quantity}</td>
+                <td className="px-4 py-2 text-right">
+                  {/* Owner UAT (2026-09-02) — แก้จำนวนตรงในแถวได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={item.quantity}
+                    onChange={(e) => setItemQuantity(idx, Number(e.target.value))}
+                    className={`border rounded px-2 py-1 w-16 text-right text-sm ${item.quantity <= 0 ? "border-red-500" : ""}`}
+                  />
+                </td>
                 <td className="px-4 py-2">{item.unit}</td>
                 <td className="px-4 py-2 text-right">{fmt(item.unitPrice)}</td>
                 {showDiscountColumn && (
@@ -600,7 +619,7 @@ export function ManualTaxInvoiceItemEntry({
         <input type="hidden" name="vatCalcMode" value={vatCalcMode} />
         <button
           type="submit"
-          disabled={items.length === 0 || discountInvalid}
+          disabled={items.length === 0 || discountInvalid || quantityInvalid}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
         >
           ✓ สร้างใบกำกับภาษี

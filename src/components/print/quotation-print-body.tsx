@@ -191,7 +191,9 @@ export function QuotationPrintBody({
                 </div>
               )}
               {isLast && docSummaryBlock}
-              {isLast && pagination.signature}
+              {/* Owner UAT (2026-09-02) — Signature ทุก Physical Sheet แผ่นละ 1 ชุด (ดู
+                  invoice-print-body.tsx สำหรับเหตุผลเต็ม) */}
+              {pagination.signature}
             </div>
           </section>
         );

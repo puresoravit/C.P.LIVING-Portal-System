@@ -152,7 +152,19 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
               <tr key={idx} className="border-t">
                 <td className="px-4 py-2">{item.description}</td>
                 <td className="px-4 py-2">{item.size}</td>
-                <td className="px-4 py-2 text-right">{item.quantity}</td>
+                <td className="px-4 py-2 text-right">
+                  {/* Owner UAT (2026-09-02) — แก้จำนวนตรงในแถวได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={item.quantity}
+                    onChange={(e) =>
+                      setItems((prev) => prev.map((it, iIdx) => (iIdx === idx ? { ...it, quantity: Number(e.target.value) } : it)))
+                    }
+                    className={`border rounded px-2 py-1 w-16 text-right text-sm ${item.quantity <= 0 ? "border-red-500" : ""}`}
+                  />
+                </td>
                 <td className="px-4 py-2">{item.unit}</td>
                 <td className="px-4 py-2 text-right">
                   <button type="button" onClick={() => removeItem(idx)} className="text-xs text-gray-500 hover:text-red-600">
@@ -177,7 +189,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
         <input type="hidden" name="itemsJson" value={JSON.stringify(items)} />
         <button
           type="submit"
-          disabled={items.length === 0}
+          disabled={items.length === 0 || items.some((i) => !(i.quantity > 0))}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2"
         >
           ✓ สร้างใบส่งคืนสินค้าฝากซ่อม

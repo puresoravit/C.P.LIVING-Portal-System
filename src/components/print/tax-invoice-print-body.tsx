@@ -202,7 +202,9 @@ export function TaxInvoicePrintBody({
                 </div>
               )}
               {isLast && docSummaryBlock}
-              {isLast && <PrintSignatureBlock footerNote={footerNote} />}
+              {/* Owner UAT (2026-09-02) — Signature ทุก Physical Sheet แผ่นละ 1 ชุด (ดู
+                  invoice-print-body.tsx สำหรับเหตุผลเต็ม) */}
+              <PrintSignatureBlock footerNote={footerNote} />
             </div>
           </section>
         );
