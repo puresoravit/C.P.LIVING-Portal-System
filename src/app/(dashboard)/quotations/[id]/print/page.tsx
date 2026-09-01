@@ -195,6 +195,8 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
             <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
           ),
           signature: <PrintSignatureBlock footerNote={template.footerNote} />,
+          // Owner UAT (2026-09-02) — หน้าไม่จบ: Signature ครบชุดแต่ไม่มีข้อความขอบคุณ
+          signatureNonFinal: <PrintSignatureBlock footerNote={template.footerNote} showFooterNote={false} />,
         }}
       />
     </PrintPage>

@@ -89,7 +89,8 @@ export function RepairNotePrintBody({
               closingBlock
             ) : (
               <div className="print-keep-together">
-                <PrintSignatureBlock footerNote={footerNote} />
+                {/* Owner UAT (2026-09-02) — หน้าไม่จบไม่มีข้อความขอบคุณ (กฎเดียวกับ Invoice) */}
+                <PrintSignatureBlock footerNote={footerNote} showFooterNote={false} />
               </div>
             )}
           </section>

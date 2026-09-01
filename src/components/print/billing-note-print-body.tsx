@@ -174,7 +174,12 @@ export function BillingNotePrintBody({
               closingBlock
             ) : (
               <div className="print-keep-together">
-                <PrintSignatureBlock fields={["ผู้รับวางบิล / Received By", "ผู้ส่งวางบิล / Delivery By"]} footerNote={footerNote} />
+                {/* Owner UAT (2026-09-02) — หน้าไม่จบไม่มีข้อความขอบคุณ (กฎเดียวกับ Invoice) */}
+                <PrintSignatureBlock
+                  fields={["ผู้รับวางบิล / Received By", "ผู้ส่งวางบิล / Delivery By"]}
+                  footerNote={footerNote}
+                  showFooterNote={false}
+                />
               </div>
             )}
           </section>
