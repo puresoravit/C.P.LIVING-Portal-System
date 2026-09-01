@@ -52,7 +52,14 @@ const SAFETY_MM = 8;
 //                      Certification + Signature) — "ไม่มี" กล่องรวมหน้านี้ (Render เฉพาะ
 //                      pageCount > 1 เท่านั้น) จึงจุได้มากกว่า last เดิมที่เหมาเข่งหักทั้งคู่
 //   finalOfMultiRows = หน้าสุดท้ายของเอกสารหลายหน้า: ตาราง + รวมหน้านี้ + Full Footer
-export type PageCapacity = { normalPageRows: number; finalAloneRows: number; finalOfMultiRows: number };
+export type PageCapacity = {
+  normalPageRows: number;
+  finalAloneRows: number;
+  finalOfMultiRows: number;
+  /** Owner (2026-09-02 รอบ 2) — เอกสารหลายแผ่น: แผ่นสุดท้ายต้องมีอย่างน้อยกี่แถว (กัน
+   * แผ่นจบโหรงเหรง 1-2 รายการ — ยืมแถวจากแผ่นก่อนหน้ามาเติม) — ไม่ตั้ง = 1 (พฤติกรรมเดิม) */
+  minFinalOfMultiRows?: number;
+};
 
 /** ความสูงประมาณของแถวตารางรายการ 1 แถว (มม.) จากค่า Template จริง */
 export function estimateRowHeightMm(bodyFontSizePx: number, rowPaddingPx: number): number {
@@ -100,8 +107,11 @@ export const DOC_PAGE_RESERVES_MM: Record<
 // ใช้ได้เฉพาะกับ Print Layout ปัจจุบันที่ Owner LOCK แล้วทั้งชุด (Margin/Header/Font/
 // Footer) — ถ้า Layout เปลี่ยนเมื่อไรต้องวัดใหม่ — เอกสารประเภทอื่นยังใช้สูตรประมาณเดิม
 // (บวก Signature ทุกแผ่นแล้ว) จนกว่า Owner จะเคาะตัวเลขของประเภทนั้นเอง
+// Owner (2026-09-02 รอบ 2) — เพิ่ม minFinalOfMultiRows: 3 — ห้ามมีแผ่นจบที่มีแค่ 1-2
+// รายการโดยไม่จำเป็น (เช่น 15 รายการ = [12,3] ไม่ใช่ [14,1] / 35 = [17,15,3] ไม่ใช่
+// [17,17,1]) — ยืมแถวจากแผ่นก่อนหน้า ไม่แตะ Footer/Signature/Layout ใดๆ
 export const DOC_CAPACITY_APPROVED: Partial<Record<PrintDocKind, PageCapacity>> = {
-  INVOICE: { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 },
+  INVOICE: { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14, minFinalOfMultiRows: 3 },
 };
 
 /** คำนวณความจุแถว/หน้า จากพื้นที่จริงหลังหักส่วนสงวนทั้งหมด — Pure Function */
@@ -161,28 +171,50 @@ export function capacityForDocument(
  *   - รายการ ≤ finalAloneRows = หน้าเดียว (Full Footer ครบชุด ไม่มีกล่องรวมหน้านี้)
  *   - เกินนั้น: หน้าไม่สุดท้ายจุสูงสุด normalPageRows (มี รวมหน้านี้ + Signature) และ
  *     หน้าสุดท้ายจุสูงสุด finalOfMultiRows (มี รวมหน้านี้ + Full Footer)
+ *   - รอบ 2: หน้าสุดท้ายของเอกสารหลายแผ่นต้องมี ≥ minFinalOfMultiRows แถว (ยืมจากแผ่น
+ *     ก่อนหน้า — กันแผ่นจบโหรงเหรง 1-2 รายการ เช่น 15 = [12,3] ไม่ใช่ [14,1])
  *   - ห้ามขยับตำแหน่ง Footer เพื่อยัดรายการเพิ่มเด็ดขาด (Footer LOCK — ความจุคือความจุ)
  * Invariant ที่ Test ยืนยัน:
  *   1. เรียงลำดับเดิม ครบทุกแถว ไม่ซ้ำไม่หาย
- *   2. หน้าที่ไม่ใช่หน้าสุดท้าย ≤ normalPageRows / หน้าสุดท้าย ≤ finalOfMultiRows (เมื่อ
- *      หลายหน้า) หรือ ≤ finalAloneRows (เมื่อหน้าเดียว)
+ *   2. หน้าที่ไม่ใช่หน้าสุดท้าย ≤ normalPageRows / หน้าสุดท้าย ≤ finalOfMultiRows และ
+ *      ≥ minFinalOfMultiRows (เมื่อหลายหน้า) หรือ ≤ finalAloneRows (เมื่อหน้าเดียว)
  *   3. รายการ ≤ finalAloneRows = หน้าเดียวเสมอ
  *   4. ไม่มีหน้าว่าง (ยกเว้นเอกสารไม่มีรายการเลย = หน้าเดียวว่าง ตามหน้าจอเดิม) */
 export function paginateRows<T>(rows: T[], cap: PageCapacity): T[][] {
   const normal = Math.max(1, Math.floor(cap.normalPageRows));
   const finalAlone = Math.max(1, Math.floor(cap.finalAloneRows));
   const finalOfMulti = Math.max(1, Math.min(Math.floor(cap.finalOfMultiRows), normal));
+  const minFinal = Math.max(1, Math.floor(cap.minFinalOfMultiRows ?? 1));
   if (rows.length <= finalAlone) return [rows];
+
+  // คำนวณ "ขนาดต่อหน้า" เป็นตัวเลขก่อน แล้วค่อยหั่น Array จริงทีเดียวตอนจบ — กฎยืมแถว
+  // (Owner รอบ 2) ทำงานบนตัวเลขล้วนๆ อ่านง่ายและไม่เสี่ยงหั่นเหลื่อม
+  const sizes: number[] = [];
+  let remaining = rows.length;
+  while (remaining > finalOfMulti) {
+    // เหลือแถวไว้ให้หน้าสุดท้ายอย่างน้อย 1 แถวเสมอ (ไม่มีหน้าสุดท้ายว่างเปล่า)
+    const take = Math.min(normal, remaining - 1);
+    sizes.push(take);
+    remaining -= take;
+  }
+  sizes.push(remaining);
+
+  // Owner (2026-09-02 รอบ 2) — แผ่นจบของเอกสารหลายแผ่นต้องมี ≥ minFinal แถว: ยืมส่วนที่
+  // ขาดจากแผ่นก่อนหน้า (แผ่นก่อนแผ่นจบมี ≥ finalOfMulti แถวเสมอโดยโครงสร้างของ Loop ข้างบน
+  // จึงยืม 1-2 แถวได้ปลอดภัย — Min กันไว้อีกชั้นเผื่อค่าคอนฟิกแปลกๆ ในอนาคต ไม่ให้แผ่นก่อน
+  // หน้าเหลือ 0)
+  if (sizes.length >= 2 && sizes[sizes.length - 1] < minFinal) {
+    const need = Math.min(minFinal - sizes[sizes.length - 1], sizes[sizes.length - 2] - 1);
+    sizes[sizes.length - 2] -= need;
+    sizes[sizes.length - 1] += need;
+  }
 
   const pages: T[][] = [];
   let start = 0;
-  while (rows.length - start > finalOfMulti) {
-    // เหลือแถวไว้ให้หน้าสุดท้ายอย่างน้อย 1 แถวเสมอ (ไม่มีหน้าสุดท้ายว่างเปล่า)
-    const take = Math.min(normal, rows.length - start - 1);
-    pages.push(rows.slice(start, start + take));
-    start += take;
+  for (const size of sizes) {
+    pages.push(rows.slice(start, start + size));
+    start += size;
   }
-  pages.push(rows.slice(start));
   return pages;
 }
 

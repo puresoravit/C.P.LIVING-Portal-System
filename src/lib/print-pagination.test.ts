@@ -58,9 +58,9 @@ describe("estimatePageCapacity / capacityForDocument", () => {
   });
 
   // Owner Approve (2026-09-02) — Invoice ใช้ความจุที่ Owner เคาะจาก Physical Print ตรงๆ
-  it("INVOICE ใช้ค่า Owner-approved (17/14/14) ไม่ใช่สูตรประมาณ", () => {
+  it("INVOICE ใช้ค่า Owner-approved (17/14/14 + แผ่นจบ ≥3) ไม่ใช่สูตรประมาณ", () => {
     const cap = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
-    expect(cap).toEqual({ normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 });
+    expect(cap).toEqual({ normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14, minFinalOfMultiRows: 3 });
   });
 
   // Owner UAT (2026-08-31) — Invoice Boost ฟอนต์ +30% ผ่าน CSS ล้วนๆ นอกระบบ Template
@@ -146,12 +146,17 @@ describe("paginateRows", () => {
   });
 });
 
-// Owner Approve (2026-09-02) — Pagination Matrix ของ Invoice ที่ Owner สั่งให้พิสูจน์ตรงๆ
-// (ความจุ 17/14/14): 1–14 = หน้าเดียว Full Footer / 15 ขึ้นไป = Multi-sheet ห้ามยัด 15
-// ในหน้าเดียวด้วยการขยับ Footer / หน้าแรก-กลางใช้พื้นที่ได้ ~17 แถว / หน้าสุดท้ายเหลือ
-// พื้นที่ Full Footer ตำแหน่ง LOCK เสมอ
-describe("paginateRows — Owner-approved Invoice matrix (17/14/14)", () => {
-  const invoiceCap: PageCapacity = { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 };
+// Owner Approve (2026-09-02 รอบ 2) — Pagination Matrix ของ Invoice ที่ Owner สั่งให้พิสูจน์
+// ตรงๆ (ความจุ 17/14/14 + แผ่นจบ ≥3): 1–14 = หน้าเดียว Full Footer / 15 ขึ้นไป =
+// Multi-sheet ห้ามยัด 15 ในหน้าเดียวด้วยการขยับ Footer / แผ่นจบห้ามโหรงเหรง 1-2 รายการ
+// (ยืมจากแผ่นก่อนหน้า) / Full Footer ตำแหน่ง LOCK เสมอ
+describe("paginateRows — Owner-approved Invoice matrix (17/14/14, final ≥3)", () => {
+  const invoiceCap: PageCapacity = {
+    normalPageRows: 17,
+    finalAloneRows: 14,
+    finalOfMultiRows: 14,
+    minFinalOfMultiRows: 3,
+  };
   const rows = (n: number) => Array.from({ length: n }, (_, i) => i);
   const shape = (n: number) => paginateRows(rows(n), invoiceCap).map((p) => p.length);
 
@@ -159,26 +164,31 @@ describe("paginateRows — Owner-approved Invoice matrix (17/14/14)", () => {
     for (let n = 1; n <= 14; n++) expect(shape(n)).toEqual([n]);
   });
 
-  it("15 รายการ = Multi-sheet (ห้ามยัดหน้าเดียว)", () => {
-    expect(shape(15)).toEqual([14, 1]);
-  });
-
-  it("Matrix ตามที่ Owner สั่งพิสูจน์: 17/18/20/28/35", () => {
-    expect(shape(17)).toEqual([16, 1]);
-    expect(shape(18)).toEqual([17, 1]);
+  it("Matrix ตามที่ Owner สั่งพิสูจน์: 15/17/18/20/28/34/35", () => {
+    expect(shape(15)).toEqual([12, 3]);
+    expect(shape(17)).toEqual([14, 3]);
+    expect(shape(18)).toEqual([15, 3]);
     expect(shape(20)).toEqual([17, 3]);
     expect(shape(28)).toEqual([17, 11]);
-    expect(shape(35)).toEqual([17, 17, 1]);
+    expect(shape(34)).toEqual([17, 14, 3]);
+    expect(shape(35)).toEqual([17, 15, 3]);
   });
 
-  it("หน้าสุดท้ายไม่เกิน finalOfMulti(14) และหน้าแรก/กลางไม่เกิน 17 เสมอ (กวาด 15–60)", () => {
-    for (let n = 15; n <= 60; n++) {
-      const pages = shape(n);
-      expect(pages.reduce((a, b) => a + b, 0)).toBe(n);
-      for (let i = 0; i < pages.length - 1; i++) expect(pages[i]).toBeLessThanOrEqual(17);
-      expect(pages[pages.length - 1]).toBeLessThanOrEqual(14);
-      expect(pages[pages.length - 1]).toBeGreaterThan(0);
+  it("Invariant กวาด 15–80: ครบทุกแถวเรียงเดิม / หน้าแรก-กลาง ≤17 / แผ่นจบ 3–14 เสมอ", () => {
+    for (let n = 15; n <= 80; n++) {
+      const pages = paginateRows(rows(n), invoiceCap);
+      expect(pages.flat()).toEqual(rows(n)); // ลำดับ/ครบถ้วน (lineNo ต่อเนื่องตามนี้)
+      const sizes = pages.map((p) => p.length);
+      for (let i = 0; i < sizes.length - 1; i++) expect(sizes[i]).toBeLessThanOrEqual(17);
+      expect(sizes[sizes.length - 1]).toBeLessThanOrEqual(14);
+      expect(sizes[sizes.length - 1]).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it("ไม่ตั้ง minFinalOfMultiRows = พฤติกรรมเดิมทุกประการ (เอกสารอื่นไม่กระทบ)", () => {
+    const noMin: PageCapacity = { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14 };
+    expect(paginateRows(rows(15), noMin).map((p) => p.length)).toEqual([14, 1]);
+    expect(paginateRows(rows(35), noMin).map((p) => p.length)).toEqual([17, 17, 1]);
   });
 });
 
