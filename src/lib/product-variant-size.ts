@@ -4,19 +4,13 @@ import { db } from "@/lib/db";
 import { roundMoney } from "@/lib/pricing";
 import { generateNextSku } from "@/lib/sku-sequence";
 
-// R6 Phase B — ตารางค่าคงที่ Standard Size สำหรับ Category usesSize=true (เช่นฟูกที่นอน)
-// เป็น Single Source of Truth ตัวเดียวของทั้งระบบ (ProductModel Form ตอนสร้าง Variant
-// และ /api/products/search ตอนแสดง Size ที่คีย์เอกสารได้ ใช้ตารางนี้ร่วมกัน) ค่าตัวเลข
-// (value) ใช้คำนวณราคาเท่านั้น — ไม่เคย Parse จาก String ที่ไหนเลยตามที่อนุมัติ
-export const STANDARD_MATTRESS_SIZES: { label: string; value: number }[] = [
-  { label: "3 ฟุต", value: 3 },
-  { label: "3.5 ฟุต", value: 3.5 },
-  { label: "4 ฟุต", value: 4 },
-  { label: "5 ฟุต", value: 5 },
-  { label: "6 ฟุต", value: 6 },
-];
+// Owner UAT (2026-09-02) — STANDARD_MATTRESS_SIZES/CUSTOM_SIZE_LABEL ย้ายไป
+// standard-sizes.ts (Client-safe — ไม่ Import db) เพราะ Stable Product Ordering
+// (product-line-sort.ts) ต้องใช้จาก Client Component ด้วย — Re-export ที่นี่ให้ผู้ใช้เดิม
+// ทุกจุด Import จากที่เดิมได้เหมือนเดิมทุกประการ
+import { STANDARD_MATTRESS_SIZES, CUSTOM_SIZE_LABEL } from "@/lib/standard-sizes";
 
-export const CUSTOM_SIZE_LABEL = "ขนาดพิเศษ/ระบุเอง";
+export { STANDARD_MATTRESS_SIZES, CUSTOM_SIZE_LABEL };
 
 export function computeStandardVariantPrice(pricePerFoot: Decimal, value: number): Decimal {
   return roundMoney(pricePerFoot.mul(value));

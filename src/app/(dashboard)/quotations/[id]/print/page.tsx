@@ -18,6 +18,7 @@ import { QuotationPrintBody } from "@/components/print/quotation-print-body";
 import { getPrintTemplateSettings, type PrintBlockKey, type HeaderElementKey, logoHeightMm } from "@/lib/print-template-settings";
 import { displayQuotationNumber } from "@/lib/running-number";
 import { capacityForDocument, paginateRows, computeQuotationPageSummary } from "@/lib/print-pagination";
+import { sortProductLines } from "@/lib/product-line-sort";
 
 // ใบเสนอราคา — Adapt Layout จากใบส่งของชั่วคราว (Phase D) ใช้ Shared Print Components
 // เดิมทั้งหมด ไม่มี VAT โดย Default (vatMode=NONE) แต่รองรับ vatMode=STANDARD ได้ —
@@ -28,12 +29,29 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
   if (!can((session?.user as any)?.role, "quotation.print")) redirect("/");
 
   const [quotation, company, template] = await Promise.all([
-    db.quotation.findUnique({ where: { id: params.id }, include: { items: true, customer: true } }),
+    db.quotation.findUnique({
+      where: { id: params.id },
+      include: {
+        // Owner UAT (2026-09-02) — Stable Product Ordering: โหลด Product แค่ Field ที่ใช้
+        // เป็นกุญแจ Sort เท่านั้น (เนื้อหาที่พิมพ์ยังอ่านจาก Snapshot บนแถวล้วนๆ ตาม
+        // Document Snapshot Principle เหมือนเดิมทุกประการ — Ordering ไม่ใช่ Content)
+        items: { include: { product: { select: { name: true, size: true, model: { select: { sortOrder: true } } } } } },
+        customer: true,
+      },
+    }),
     getCompanySettings(),
     getPrintTemplateSettings("QUOTATION"),
   ]);
   if (!quotation) notFound();
   if (quotation.status === "DRAFT") redirect(`/quotations/${quotation.id}`);
+
+  // กุญแจเดียวกับหน้า Detail (quotations/[id]/page.tsx) เป๊ะ — ใบพิมพ์เรียงตรงกับหน้าจอเสมอ
+  const sortedItems = sortProductLines(quotation.items, (item) => ({
+    familyName: item.product.name,
+    size: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
+    id: item.id,
+  }));
 
   // Owner UAT Fix Batch — ข้อ 3: ห้ามแสดง "Rev. N" ใน Print/Preview — ใช้เลขที่เอกสาร
   // ต่อท้ายด้วย -N แทน (ดู displayQuotationNumber สำหรับเหตุผลเต็มว่าทำไมปลอดภัย)
@@ -155,7 +173,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
           VAT ต่อหน้า (โหมด STANDARD) ถอดจากยอดสุทธิของหน้าด้วย extractVat เดิม (ดู
           computeQuotationPageSummary) — เอกสารหน้าเดียว Output เดิมทุกประการ */}
       <QuotationPrintBody
-        items={quotation.items}
+        items={sortedItems}
         note={quotation.note}
         amountInWords={toThaiBahtText(quotation.grandTotal ?? 0)}
         grossAmount={quotation.grossAmount}
@@ -167,7 +185,7 @@ export default async function QuotationPrintPage(props: { params: Promise<{ id: 
         vatAmount={quotation.vatAmount}
         grandTotal={quotation.grandTotal}
         pagination={{
-          pages: paginateRows(quotation.items, capacityForDocument(template, "QUOTATION")).map((pageItems) => ({
+          pages: paginateRows(sortedItems, capacityForDocument(template, "QUOTATION")).map((pageItems) => ({
             items: pageItems,
             summary: computeQuotationPageSummary(pageItems, quotation.vatRateSnapshot ?? 0, quotation.vatMode as "NONE" | "STANDARD" | "ADD_ON"),
           })),

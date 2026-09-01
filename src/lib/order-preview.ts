@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, roundMoney } from "@/lib/pricing";
+import { sortProductLines } from "@/lib/product-line-sort";
 
 // ==========================================================================
 // ORDER PREVIEW ENGINE (ข้อ 19-21)
@@ -71,11 +72,26 @@ export async function buildPreviewLineItems(
 ): Promise<PreviewLineItem[]> {
   const order = await client.order.findUniqueOrThrow({
     where: { id: orderId },
-    include: { items: { include: { product: { include: { productType: true } } } } },
+    include: {
+      items: {
+        include: { product: { include: { productType: true, model: { select: { sortOrder: true } } } } },
+      },
+    },
   });
 
+  // Owner UAT (2026-09-02) — Stable Product Ordering: จัดกลุ่มตาม Family + Size Natural
+  // (ดูเหตุผลเต็มที่ product-line-sort.ts) ที่จุดเดียวนี้ ทำให้ Preview/Confirm/Invoice
+  // Item ที่สร้างจาก Preview เรียงถูกตั้งแต่เกิดโดยอัตโนมัติ — ตัวเลขทุกค่าคำนวณต่อบรรทัด
+  // อิสระจากลำดับ (ยอดรวม/ส่วนลดต่อกลุ่มเท่าเดิมเป๊ะไม่ว่าเรียงแบบไหน)
+  const sortedItems = sortProductLines(order.items, (item) => ({
+    familyName: item.product.name,
+    size: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
+    id: item.id,
+  }));
+
   const lines: PreviewLineItem[] = [];
-  for (const item of order.items) {
+  for (const item of sortedItems) {
     // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": unitPriceOverride ที่กรอกเองตอนคีย์เอกสาร ต้อง
     // ใช้แทน Pricing Engine ทั้งหมด (ห้ามระบบเดาราคาตามที่อนุมัติ) — ยังคงเรียก
     // getEffectivePrice ตามปกติสำหรับ Standard Size (ไม่มี Override) เพื่อไม่ให้ Pricing

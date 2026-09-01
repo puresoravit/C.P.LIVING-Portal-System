@@ -239,6 +239,41 @@ export async function removeOrderItem(orderId: string, itemId: string): Promise<
   return { success: true };
 }
 
+// Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมได้ตรงๆ (เดิมต้องลบแล้วเพิ่มใหม่ทั้งบรรทัด)
+// Guard ชุดเดียวกับ addOrderItem/removeOrderItem เป๊ะ (Permission order.editDraft + DRAFT
+// เท่านั้น — เอกสาร Confirmed ยังต้องผ่าน Edit Modal + editConfirmedOrder ตามกฎเดิม) —
+// แตะเฉพาะ quantity ฟิลด์เดียว: Product identity/Override อื่นของบรรทัดไม่เปลี่ยนเลย และ
+// ยอด/ส่วนลดคำนวณสดผ่าน computeOrderPreview ตอนแสดงผล/Confirm เหมือนเดิมทุกประการ
+// (ไม่มี Snapshot ที่ระดับ OrderItem ให้ต้อง Sync)
+const updateQuantitySchema = z.object({
+  quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
+});
+
+export async function updateOrderItemQuantity(orderId: string, itemId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "order.editDraft")) throw new Error("FORBIDDEN");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Order สถานะ Draft เท่านั้น" };
+  }
+
+  const rawParse = updateQuantitySchema.safeParse({ quantity: formData.get("quantity") });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบจำนวนที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+
+  // ยืนยันว่าบรรทัดนี้เป็นของเอกสารนี้จริงก่อนแก้ (กัน itemId ข้ามเอกสาร)
+  const item = await db.orderItem.findUnique({ where: { id: itemId }, select: { orderId: true } });
+  if (!item || item.orderId !== orderId) {
+    return { success: false, error: "ไม่พบรายการนี้ในเอกสาร" };
+  }
+
+  await db.orderItem.update({ where: { id: itemId }, data: { quantity: rawParse.data.quantity } });
+  revalidatePath(`/orders/${orderId}`);
+  return { success: true };
+}
+
 // R3 — เปลี่ยนการใช้ส่วนลด (Calculation Toggle จริง) ได้เฉพาะตอน DRAFT เท่านั้น
 // (mirror ของ updateQuotationVatMode) — หลัง Confirm ต้องใช้ E3 Edit แทนเพื่อให้
 // Invoice เก่า/ใหม่ยังคงหลักการ Cancel-then-Reissue เดิม

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   addOrderItem,
   removeOrderItem,
+  updateOrderItemQuantity,
   confirmOrder,
   cancelOrder,
   duplicateOrder,
@@ -13,6 +14,8 @@ import {
   changeOrderCustomer,
 } from "../actions";
 import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL, displayProductTypeCode } from "@/lib/order-preview";
+import { sortProductLines } from "@/lib/product-line-sort";
+import { InlineQuantityEditor } from "@/components/inline-quantity-editor";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { OrderEditModal } from "@/components/order-edit-modal";
@@ -59,11 +62,21 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     include: {
       customer: true,
       branch: true,
-      items: { include: { product: { include: { productType: true } } } },
+      items: { include: { product: { include: { productType: true, model: { select: { sortOrder: true } } } } } },
       invoices: true,
     },
   });
   if (!order) notFound();
+
+  // Owner UAT (2026-09-02) — Stable Product Ordering: Helper กลางตัวเดียวกับ Preview
+  // Engine/Print/Modal (ดู product-line-sort.ts) — ลบแล้วเพิ่มใหม่ รายการกลับเข้ากลุ่ม
+  // Family เดิมเสมอ ไม่ต่อท้ายสุดตามลำดับเวลา
+  const sortedItems = sortProductLines(order.items, (item) => ({
+    familyName: item.product.name,
+    size: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
+    id: item.id,
+  }));
 
   // Owner UAT (2026-08-31) — เลขที่ถูกดึงคืนใช้ใหม่แล้ว (numberReleased=true) — หาใบ Active
   // ที่ใช้เลขเดียวกันอยู่ตอนนี้ (ถ้ามี) เพื่อแสดงลิงก์ต่อให้ (ตาม Requirement ของ Owner)
@@ -104,7 +117,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   // E3 — Edit Confirmed Order: เช็คว่าแก้ไขได้หรือไม่เฉพาะตอน Order Confirmed แล้วเท่านั้น
   const editGuard = order.status === "CONFIRMED" ? await fetchOrderEditGuard(order.id) : null;
   const activeInvoiceCount = order.invoices.filter((inv) => inv.status !== "CANCELLED").length;
-  const initialEditItems = order.items.map((item) => ({
+  const initialEditItems = sortedItems.map((item) => ({
     key: item.id,
     productId: item.productId,
     sku: item.product.sku,
@@ -114,6 +127,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
+    // Owner UAT (2026-09-02) — ข้อมูลสำหรับ Stable Ordering ใน Modal (ดู product-line-sort.ts)
+    familyName: item.product.name,
+    rawSize: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
     // Owner UAT — ข้อ 4: เหมือน Quotation Edit ทุกประการ — Field แสดงผลอย่างเดียว แยกจาก
     // sizeOverride ที่ใช้ตอน Submit จริง (ห้ามปนกัน ดูเหตุผลเต็มที่ quotations/[id]/page.tsx)
     // — รายการ Size มาตรฐานไม่มีค่าใน sizeOverride เลย ต้อง Fallback ไปอ่าน product.size
@@ -214,7 +231,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item) => {
+            {sortedItems.map((item) => {
               const line = previewByItemId.get(item.id);
               return (
                 <tr key={item.id} className="border-t">
@@ -222,7 +239,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
                   <td className="px-4 py-2">{item.sizeOverride || item.product.size || "-"}</td>
                   <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
-                  <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
+                  <td className="px-4 py-2 text-right">
+                    {isDraft ? (
+                      <InlineQuantityEditor
+                        value={Number(item.quantity)}
+                        action={updateOrderItemQuantity.bind(null, order.id, item.id)}
+                      />
+                    ) : (
+                      Number(item.quantity)
+                    )}
+                  </td>
                   <td className="px-4 py-2">{item.product.unit}</td>
                   <td className="px-4 py-2 text-right">{line ? money(line.unitPrice) : "-"}</td>
                   <td className="px-4 py-2 text-right">{line ? money(line.grossAmount) : "-"}</td>

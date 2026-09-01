@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   addQuotationItem,
   removeQuotationItem,
+  updateQuotationItemQuantity,
   updateQuotationDraftSettings,
   confirmQuotation,
   cancelQuotation,
@@ -11,6 +12,8 @@ import {
 } from "../actions";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
 import { UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
+import { sortProductLines } from "@/lib/product-line-sort";
+import { InlineQuantityEditor } from "@/components/inline-quantity-editor";
 import { OrderItemEntryForm } from "@/components/order-item-entry-form";
 import { QuotationEditModal } from "@/components/quotation-edit-modal";
 import { getServerSession } from "next-auth";
@@ -51,10 +54,21 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     include: {
       customer: true,
       branch: true,
-      items: { include: { product: { include: { productType: true } } } },
+      items: { include: { product: { include: { productType: true, model: { select: { sortOrder: true } } } } } },
     },
   });
   if (!quotation) notFound();
+
+  // Owner UAT (2026-09-02) — Stable Product Ordering (ดู product-line-sort.ts) — สำคัญ:
+  // Sort "ก่อน" คำนวณ Preview ด้านล่างเสมอ เพราะตารางรายการจับคู่ preview.items[idx] กับ
+  // รายการแถวเดียวกันด้วย Index (Pattern เดิมของ confirmQuotation) — ทั้งคู่อ่านจาก Array
+  // เดียวกันนี้จึงเรียงตรงกันเป๊ะโดยอัตโนมัติ
+  const sortedItems = sortProductLines(quotation.items, (item) => ({
+    familyName: item.product.name,
+    size: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
+    id: item.id,
+  }));
 
   const isDraft = quotation.status === "DRAFT";
   const isConfirmed = quotation.status === "CONFIRMED";
@@ -79,9 +93,9 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
   // DRAFT — Preview สดผ่าน Pricing Engine เดิม (ยังไม่ Persist), CONFIRMED/CANCELLED —
   // อ่านจาก Snapshot fields เท่านั้น ห้ามคำนวณสดอีก (Document Snapshot Principle)
   const preview =
-    isDraft && quotation.items.length > 0
+    isDraft && sortedItems.length > 0
       ? await computeQuotationCalc(
-          quotation.items.map((i) => ({
+          sortedItems.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
             descriptionOverride: i.descriptionOverride,
@@ -98,7 +112,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
         )
       : null;
 
-  const initialEditItems = quotation.items.map((item) => ({
+  const initialEditItems = sortedItems.map((item) => ({
     key: item.id,
     productId: item.productId,
     sku: item.product.sku,
@@ -108,6 +122,10 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
     sizeOverride: item.sizeOverride ?? "",
+    // Owner UAT (2026-09-02) — ข้อมูลสำหรับ Stable Ordering ใน Modal (ดู product-line-sort.ts)
+    familyName: item.product.name,
+    rawSize: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
     // Owner UAT — ข้อ 4: Field แสดงผลอย่างเดียว แยกจาก sizeOverride ที่ใช้ตอน Submit จริง
     // (ห้ามปนกัน — ถ้าเอา sizeSnapshot ไปยัด sizeOverride ตรงๆ จะทำให้
     // descriptionOverride ถูก Force ทับด้วย i.name โดยไม่ตั้งใจตอน Submit ใน
@@ -249,10 +267,10 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             </tr>
           </thead>
           <tbody>
-            {quotation.items.map((item, idx) => {
+            {sortedItems.map((item, idx) => {
               // Owner UAT — ราคาต้องเห็นในตารางรายการทันที ไม่ใช่แค่สรุปด้านล่าง —
-              // DRAFT อ่านจาก preview สด (Index เดียวกับ quotation.items เป๊ะ ตาม
-              // Pattern เดียวกับ confirmQuotation), CONFIRMED/CANCELLED อ่านจาก
+              // DRAFT อ่านจาก preview สด (Index เดียวกับ sortedItems เป๊ะ — preview
+              // คำนวณจาก Array เดียวกันนี้ด้านบน), CONFIRMED/CANCELLED อ่านจาก
               // Snapshot บนแถวเอง (Document Snapshot Principle ห้ามคำนวณสดซ้ำ)
               const draftLine = isDraft ? preview?.items[idx] : null;
               const unitPrice = draftLine ? draftLine.unitPriceSnapshot : item.unitPriceSnapshot;
@@ -264,7 +282,16 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
                   <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
                   <td className="px-4 py-2">{size || "-"}</td>
                   <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
-                  <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
+                  <td className="px-4 py-2 text-right">
+                    {isDraft ? (
+                      <InlineQuantityEditor
+                        value={Number(item.quantity)}
+                        action={updateQuotationItemQuantity.bind(null, quotation.id, item.id)}
+                      />
+                    ) : (
+                      Number(item.quantity)
+                    )}
+                  </td>
                   <td className="px-4 py-2">{item.product.unit}</td>
                   <td className="px-4 py-2 text-right">{unitPrice != null ? money(unitPrice) : "-"}</td>
                   <td className="px-4 py-2 text-right">{amount != null ? money(amount) : "-"}</td>

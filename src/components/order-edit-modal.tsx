@@ -6,6 +6,7 @@ import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
+import { sortProductLines } from "@/lib/product-line-sort";
 
 type EditItem = {
   key: string;
@@ -28,6 +29,13 @@ type EditItem = {
   // ตอนเพิ่ม หรือราคา Override) — ไม่ได้ส่งไป Server เลย (editConfirmedOrder ยังคำนวณสด
   // ผ่าน computeOrderPreview ตอน Submit เหมือนเดิมทุกประการ ค่านี้ไว้โชว์ให้เห็นเฉยๆ)
   displayPrice: number | null;
+  // Owner UAT (2026-09-02) — Stable Product Ordering ใน Modal (ดู product-line-sort.ts):
+  // familyName = Product.name จริง (ไม่ใช่ descriptionOverride), rawSize = ขนาดที่มีผลจริง,
+  // familySortOrder = ProductModel.sortOrder (null = ไม่รู้ เช่นรายการที่เพิ่มใหม่จาก Picker
+  // — กลุ่มจะใช้ Rank ที่ดีที่สุดจากบรรทัดอื่นใน Family เดียวกันแทน)
+  familyName: string;
+  rawSize: string | null;
+  familySortOrder: number | null;
 };
 
 // E3 — Proper Modal สำหรับแก้ไข Order ที่ Confirmed แล้ว (Case A) แทน window.confirm()
@@ -165,6 +173,9 @@ export function OrderEditModal({
           sizeDisplay: selected.size || standaloneSize.trim(),
           unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
           displayPrice: priceInput !== "" ? Number(priceInput) : null,
+          familyName: selected.name,
+          rawSize: selected.size || standaloneSize.trim() || null,
+          familySortOrder: null,
         },
       ]);
     } else if (overrideReady && unresolvedInfo) {
@@ -185,6 +196,9 @@ export function OrderEditModal({
           sizeDisplay: overrideSize.trim(),
           unitPriceOverride: Number(overridePrice),
           displayPrice: Number(overridePrice),
+          familyName: unresolvedInfo.modelName,
+          rawSize: overrideSize.trim() || null,
+          familySortOrder: null,
         },
       ]);
     } else {
@@ -198,7 +212,26 @@ export function OrderEditModal({
     setItems((prev) => prev.filter((i) => i.key !== key));
   }
 
-  const canSubmit = items.length > 0 && (!requiresPrintedAck || acknowledgePrinted) && !isPending;
+  // Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมของ Modal ได้ตรงๆ (State ฝั่ง Client
+  // ล้วนๆ — Submit ทั้งชุดผ่าน editConfirmedOrder เหมือนเดิมทุกประการ Validation/Guard/
+  // Recalculation ฝั่ง Server ไม่เปลี่ยนเลย)
+  function updateItemQuantity(key: string, quantity: number) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, quantity } : i)));
+  }
+
+  // Owner UAT (2026-09-02) — Stable Product Ordering: มุมมอง + ลำดับที่ Submit ใช้ Array
+  // ที่ Sort แล้วตัวเดียวกัน (Helper กลางเดียวกับหน้า Detail/Preview Engine — ดู
+  // product-line-sort.ts) — editConfirmedOrder เขียนแถวใหม่ตามลำดับนี้ (createMany) เอกสาร
+  // ที่แก้แล้วจึงเรียงถูกถาวรใน DB ด้วย
+  const sortedItems = sortProductLines(items, (i) => ({
+    familyName: i.familyName,
+    size: i.rawSize,
+    familySortOrder: i.familySortOrder,
+    id: i.key,
+  }));
+
+  const canSubmit =
+    items.length > 0 && items.every((i) => i.quantity > 0) && (!requiresPrintedAck || acknowledgePrinted) && !isPending;
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -206,7 +239,7 @@ export function OrderEditModal({
     formData.set(
       "itemsJson",
       JSON.stringify(
-        items.map((i) => ({
+        sortedItems.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
           // R6 Phase B — รายการ Override (มี sizeOverride) ต้อง Default ชื่อที่แสดงเป็น
@@ -300,12 +333,22 @@ export function OrderEditModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item) => (
+                    {sortedItems.map((item) => (
                       <tr key={item.key} className="border-t">
                         <td className="px-3 py-2 font-mono">{item.sku}</td>
                         <td className="px-3 py-2">{item.name}</td>
                         <td className="px-3 py-2">{item.sizeDisplay || "-"}</td>
-                        <td className="px-3 py-2 text-right">{item.quantity}</td>
+                        <td className="px-3 py-2 text-right">
+                          {/* Owner UAT (2026-09-02) — แก้จำนวนตรงในแถวได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItemQuantity(item.key, Number(e.target.value))}
+                            className="w-16 border rounded px-1.5 py-0.5 text-right text-sm"
+                          />
+                        </td>
                         <td className="px-3 py-2">{item.unit}</td>
                         <td className="px-3 py-2 text-right">{item.displayPrice != null ? money(item.displayPrice) : "-"}</td>
                         <td className="px-3 py-2 text-right">

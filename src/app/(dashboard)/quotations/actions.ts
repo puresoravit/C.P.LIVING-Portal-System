@@ -234,6 +234,44 @@ export async function removeQuotationItem(quotationId: string, itemId: string): 
   return { success: true };
 }
 
+// Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมได้ตรงๆ (Mirror ของ updateOrderItemQuantity
+// ใน orders/actions.ts ทุกประการ — Guard ชุดเดียวกับ addQuotationItem/removeQuotationItem:
+// Permission quotation.edit + DRAFT เท่านั้น เอกสาร Confirmed ยังต้องผ่าน Edit Modal +
+// editConfirmedQuotation ตามกฎเดิม) — DRAFT ยังไม่มี Snapshot ใดๆ (เติมตอน Confirm เท่านั้น)
+// ยอด/ส่วนลด/VAT คำนวณสดผ่าน computeQuotationCalc ตอนแสดงผลเหมือนเดิมทุกประการ
+const updateQuantitySchema = z.object({
+  quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
+});
+
+export async function updateQuotationItemQuantity(
+  quotationId: string,
+  itemId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "quotation.edit")) throw new Error("FORBIDDEN");
+
+  const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "แก้ไขรายการได้เฉพาะ Quotation สถานะร่างเท่านั้น" };
+  }
+
+  const rawParse = updateQuantitySchema.safeParse({ quantity: formData.get("quantity") });
+  if (!rawParse.success) {
+    return { success: false, error: "กรุณาตรวจสอบจำนวนที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
+  }
+
+  // ยืนยันว่าบรรทัดนี้เป็นของเอกสารนี้จริงก่อนแก้ (กัน itemId ข้ามเอกสาร)
+  const item = await db.quotationItem.findUnique({ where: { id: itemId }, select: { quotationId: true } });
+  if (!item || item.quotationId !== quotationId) {
+    return { success: false, error: "ไม่พบรายการนี้ในเอกสาร" };
+  }
+
+  await db.quotationItem.update({ where: { id: itemId }, data: { quantity: rawParse.data.quantity } });
+  revalidatePath(`/quotations/${quotationId}`);
+  return { success: true };
+}
+
 // R3 — รวม VAT Mode + applyDiscount เป็น Action เดียว/ปุ่มเดียว (แทน updateQuotationVatMode
 // เดิมที่มีแค่ VAT) เพื่อให้ UI หน้า Draft สะอาด ไม่ต้องมี 2 แถว 2 ปุ่มแยกกัน — Semantic ของ
 // vatMode เดิมไม่เปลี่ยนเลย (NONE/STANDARD, ราคาสินค้า VAT-inclusive เหมือนเดิมทุกประการ)

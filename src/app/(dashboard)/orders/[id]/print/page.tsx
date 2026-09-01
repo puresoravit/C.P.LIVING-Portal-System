@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { computeOrderPreview, UNSPECIFIED_TYPE_LABEL } from "@/lib/order-preview";
+import { sortProductLines } from "@/lib/product-line-sort";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -28,11 +29,24 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
   const [order, company] = await Promise.all([
     db.order.findUnique({
       where: { id: params.id },
-      include: { customer: true, branch: true, items: { include: { product: { include: { productType: true } } } } },
+      include: {
+        customer: true,
+        branch: true,
+        items: { include: { product: { include: { productType: true, model: { select: { sortOrder: true } } } } } },
+      },
     }),
     getCompanySettings(),
   ]);
   if (!order) notFound();
+
+  // Owner UAT (2026-09-02) — Stable Product Ordering: Helper กลางตัวเดียวกับหน้า Detail/
+  // Preview Engine (ดู product-line-sort.ts) — ใบพิมพ์ต้องเรียงตรงกับหน้าจอเสมอ
+  const sortedItems = sortProductLines(order.items, (item) => ({
+    familyName: item.product.name,
+    size: item.sizeOverride || item.product.size,
+    familySortOrder: item.product.model?.sortOrder ?? null,
+    id: item.id,
+  }));
 
   const preview = order.items.length > 0 ? await computeOrderPreview(order.id) : null;
 
@@ -48,7 +62,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
     headerHeightMm: CLASSIC_HEADER_ESTIMATE_MM,
     ...DOC_PAGE_RESERVES_MM.SALES_ORDER,
   });
-  const pages = paginateRows(order.items, capacity);
+  const pages = paginateRows(sortedItems, capacity);
   const pageCount = pages.length;
 
   const headerNode = (

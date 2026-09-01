@@ -6,6 +6,7 @@ import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
+import { sortProductLines } from "@/lib/product-line-sort";
 
 type EditItem = {
   key: string;
@@ -26,6 +27,11 @@ type EditItem = {
   unitPriceOverride: number | null;
   // Owner UAT Round 3 — ข้อ 3: เหมือน OrderEditModal ทุกประการ — โชว์อย่างเดียว ไม่ส่งไป Server
   displayPrice: number | null;
+  // Owner UAT (2026-09-02) — Stable Product Ordering ใน Modal (เหมือน OrderEditModal ทุก
+  // ประการ — ดู product-line-sort.ts)
+  familyName: string;
+  rawSize: string | null;
+  familySortOrder: number | null;
 };
 
 // แก้ไข Quotation ที่ CONFIRMED แล้ว — Re-snapshot ใบเดิม (เลขที่เดิม, revisionNo+1)
@@ -166,6 +172,9 @@ export function QuotationEditModal({
           sizeDisplay: selected.size || standaloneSize.trim(),
           unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
           displayPrice: priceInput !== "" ? Number(priceInput) : null,
+          familyName: selected.name,
+          rawSize: selected.size || standaloneSize.trim() || null,
+          familySortOrder: null,
         },
       ]);
     } else if (overrideReady && unresolvedInfo) {
@@ -186,6 +195,9 @@ export function QuotationEditModal({
           sizeDisplay: overrideSize.trim(),
           unitPriceOverride: Number(overridePrice),
           displayPrice: Number(overridePrice),
+          familyName: unresolvedInfo.modelName,
+          rawSize: overrideSize.trim() || null,
+          familySortOrder: null,
         },
       ]);
     } else {
@@ -199,7 +211,20 @@ export function QuotationEditModal({
     setItems((prev) => prev.filter((i) => i.key !== key));
   }
 
-  const canSubmit = items.length > 0 && !isPending;
+  // Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมของ Modal ได้ตรงๆ + Stable Product
+  // Ordering (เหมือน OrderEditModal ทุกประการ — ดู Comment ที่นั่น)
+  function updateItemQuantity(key: string, quantity: number) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, quantity } : i)));
+  }
+
+  const sortedItems = sortProductLines(items, (i) => ({
+    familyName: i.familyName,
+    size: i.rawSize,
+    familySortOrder: i.familySortOrder,
+    id: i.key,
+  }));
+
+  const canSubmit = items.length > 0 && items.every((i) => i.quantity > 0) && !isPending;
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -207,7 +232,7 @@ export function QuotationEditModal({
     formData.set(
       "itemsJson",
       JSON.stringify(
-        items.map((i) => ({
+        sortedItems.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
           descriptionOverride: i.descriptionOverride || (i.sizeOverride ? i.name : undefined),
@@ -288,12 +313,22 @@ export function QuotationEditModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item) => (
+                    {sortedItems.map((item) => (
                       <tr key={item.key} className="border-t">
                         <td className="px-3 py-2 font-mono">{item.sku}</td>
                         <td className="px-3 py-2">{item.name}</td>
                         <td className="px-3 py-2">{item.sizeDisplay || "-"}</td>
-                        <td className="px-3 py-2 text-right">{item.quantity}</td>
+                        <td className="px-3 py-2 text-right">
+                          {/* Owner UAT (2026-09-02) — แก้จำนวนตรงในแถวได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItemQuantity(item.key, Number(e.target.value))}
+                            className="w-16 border rounded px-1.5 py-0.5 text-right text-sm"
+                          />
+                        </td>
                         <td className="px-3 py-2">{item.unit}</td>
                         <td className="px-3 py-2 text-right">{item.displayPrice != null ? money(item.displayPrice) : "-"}</td>
                         <td className="px-3 py-2 text-right">
