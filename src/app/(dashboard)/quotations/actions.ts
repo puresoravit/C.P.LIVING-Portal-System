@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
+import { deleteDraftQuotationCore, DRAFT_DELETE_CHANGED } from "@/lib/draft-delete";
 import { computeQuotationCalc, type QuotationVatModeValue } from "@/lib/quotation-pricing";
 import { getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -537,6 +538,32 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
   revalidatePath(`/quotations/${quotationId}`);
   revalidatePath("/quotations");
   return { success: true };
+}
+
+// Owner (2026-09-02) — "ลบร่าง" (Mirror ของ deleteDraftOrder ทุกประการ — ดู
+// src/lib/draft-delete.ts): Draft ที่ไม่เคย Confirm ลบจริง / CONFIRMED ใช้ cancelQuotation เดิม
+export async function deleteDraftQuotation(quotationId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "quotation.cancel")) throw new Error("FORBIDDEN");
+
+  const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId } });
+  if (quotation.status !== "DRAFT") {
+    return { success: false, error: "ลบได้เฉพาะเอกสารร่างที่ยังไม่เคยยืนยันเท่านั้น — เอกสารที่ยืนยันแล้วให้ใช้การยกเลิก (เก็บประวัติ)" };
+  }
+
+  try {
+    await db.$transaction((tx) =>
+      deleteDraftQuotationCore(tx, { id: quotation.id, quotationNumber: quotation.quotationNumber }, user.id)
+    );
+  } catch (err) {
+    if (err instanceof Error && err.message === DRAFT_DELETE_CHANGED) {
+      return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วตรวจสอบอีกครั้ง" };
+    }
+    throw err;
+  }
+
+  revalidatePath("/quotations");
+  redirect("/quotations");
 }
 
 export async function cancelQuotation(quotationId: string): Promise<ActionResult> {

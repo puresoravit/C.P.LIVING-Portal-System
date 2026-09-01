@@ -19,6 +19,7 @@ import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
 import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
 import { syncInvoiceSheets, releaseInvoiceNumbersOnCancel, PRINTED_SHEET_BLOCK } from "@/lib/invoice-sheets";
+import { deleteDraftOrderCore, DRAFT_DELETE_CHANGED, DRAFT_DELETE_BLOCKED } from "@/lib/draft-delete";
 import { computeRedeliveryLines } from "@/lib/invoice-pending-redelivery";
 
 async function requireUser() {
@@ -459,6 +460,40 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
   revalidatePath("/orders");
   revalidatePath("/invoices");
   return { success: true };
+}
+
+// Owner (2026-09-02) — "ลบร่าง": Draft ที่ไม่เคย Confirm ลบจริงทั้งใบ (ไม่สร้าง CANCELLED
+// ไม่โผล่ใน Documents อีก) — CONFIRMED ยังใช้ cancelOrder เดิมทุกประการ — Core Logic +
+// กติกาเลข อยู่ที่ src/lib/draft-delete.ts (Reuse Reclaim เดิมทั้งชุด)
+export async function deleteDraftOrder(orderId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "order.cancel")) throw new Error("FORBIDDEN");
+
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { _count: { select: { invoices: true } } },
+  });
+  if (order.status !== "DRAFT") {
+    return { success: false, error: "ลบได้เฉพาะเอกสารร่างที่ยังไม่เคยยืนยันเท่านั้น — เอกสารที่ยืนยันแล้วให้ใช้การยกเลิก (เก็บประวัติ)" };
+  }
+  if (order._count.invoices > 0) {
+    return { success: false, error: "ร่างนี้มี Invoice ผูกอยู่ (สถานะผิดปกติ) — ห้ามลบ กรุณาแจ้งผู้ดูแลระบบ" };
+  }
+
+  try {
+    await db.$transaction((tx) => deleteDraftOrderCore(tx, { id: order.id, orderNumber: order.orderNumber }, user.id));
+  } catch (err) {
+    if (err instanceof Error && err.message === DRAFT_DELETE_CHANGED) {
+      return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ (อาจเพิ่งถูกยืนยัน) — กรุณารีเฟรชหน้าแล้วตรวจสอบอีกครั้ง" };
+    }
+    if (err instanceof Error && err.message === DRAFT_DELETE_BLOCKED) {
+      return { success: false, error: "ร่างนี้มีเอกสารอื่นผูกอยู่ (สถานะผิดปกติ) — ห้ามลบ กรุณาแจ้งผู้ดูแลระบบ" };
+    }
+    throw err;
+  }
+
+  revalidatePath("/orders");
+  redirect("/orders");
 }
 
 // Smoke Test R13 (2026-08-25) — Owner สั่งเปลี่ยนกติกา Clarification #11 เดิม (เคย Block

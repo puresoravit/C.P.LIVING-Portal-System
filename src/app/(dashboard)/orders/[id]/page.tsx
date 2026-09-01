@@ -5,6 +5,7 @@ import {
   addOrderItem,
   removeOrderItem,
   updateOrderItemQuantity,
+  deleteDraftOrder,
   confirmOrder,
   cancelOrder,
   duplicateOrder,
@@ -339,13 +340,26 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2"
           />
         )}
-        {order.status !== "CANCELLED" && (
-          <CancelButton
-            action={cancelAction}
-            confirmMessage="ยืนยันยกเลิกออเดอร์นี้?"
-            label="ยกเลิกออเดอร์"
-            successMessage="ยกเลิกออเดอร์สำเร็จ"
+        {/* Owner (2026-09-02) — DRAFT = "ลบร่าง" (ลบจริง ไม่เก็บเป็นยกเลิก) / CONFIRMED =
+            "ยกเลิก" เดิม (เก็บประวัติ) — แยกความหมายชัดตาม Business Rule ใหม่ */}
+        {isDraft ? (
+          <ActionButton
+            action={deleteDraftOrder.bind(null, order.id)}
+            confirmMessage="ลบร่างนี้ถาวรหรือไม่? เอกสารยังไม่เคยยืนยัน — ลบแล้วจะไม่แสดงในระบบอีก"
+            label="ลบร่าง"
+            pendingLabel="กำลังลบ..."
+            successMessage="ลบร่างสำเร็จ"
+            className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2"
           />
+        ) : (
+          order.status !== "CANCELLED" && (
+            <CancelButton
+              action={cancelAction}
+              confirmMessage="ยืนยันยกเลิกออเดอร์นี้?"
+              label="ยกเลิกออเดอร์"
+              successMessage="ยกเลิกออเดอร์สำเร็จ"
+            />
+          )
         )}
         {editGuard?.kind === "editable" && (
           <OrderEditModal

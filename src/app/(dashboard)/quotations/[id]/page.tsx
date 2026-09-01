@@ -4,6 +4,7 @@ import {
   addQuotationItem,
   removeQuotationItem,
   updateQuotationItemQuantity,
+  deleteDraftQuotation,
   updateQuotationDraftSettings,
   confirmQuotation,
   cancelQuotation,
@@ -369,13 +370,25 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2"
           />
         )}
-        {quotation.status !== "CANCELLED" && (
-          <CancelButton
-            action={cancelAction}
-            confirmMessage="ยืนยันยกเลิกใบเสนอราคานี้?"
-            label="ยกเลิกใบเสนอราคา"
-            successMessage="ยกเลิกใบเสนอราคาสำเร็จ"
+        {/* Owner (2026-09-02) — DRAFT = "ลบร่าง" (ลบจริง) / CONFIRMED = "ยกเลิก" เดิม */}
+        {isDraft ? (
+          <ActionButton
+            action={deleteDraftQuotation.bind(null, quotation.id)}
+            confirmMessage="ลบร่างนี้ถาวรหรือไม่? เอกสารยังไม่เคยยืนยัน — ลบแล้วจะไม่แสดงในระบบอีก"
+            label="ลบร่าง"
+            pendingLabel="กำลังลบ..."
+            successMessage="ลบร่างสำเร็จ"
+            className="text-sm text-gray-600 hover:text-red-600 border rounded px-4 py-2"
           />
+        ) : (
+          quotation.status !== "CANCELLED" && (
+            <CancelButton
+              action={cancelAction}
+              confirmMessage="ยืนยันยกเลิกใบเสนอราคานี้?"
+              label="ยกเลิกใบเสนอราคา"
+              successMessage="ยกเลิกใบเสนอราคาสำเร็จ"
+            />
+          )
         )}
         {isConfirmed && (
           <QuotationEditModal
