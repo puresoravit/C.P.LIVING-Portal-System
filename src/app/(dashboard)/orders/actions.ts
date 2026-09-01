@@ -18,7 +18,7 @@ import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
 import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
-import { syncInvoiceSheets, releaseInvoiceNumbersOnCancel } from "@/lib/invoice-sheets";
+import { syncInvoiceSheets, releaseInvoiceNumbersOnCancel, PRINTED_SHEET_BLOCK } from "@/lib/invoice-sheets";
 import { computeRedeliveryLines } from "@/lib/invoice-pending-redelivery";
 
 async function requireUser() {
@@ -752,7 +752,8 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
         // Owner UAT (2026-08-29) — ต้องอ่านรายการเดิมไว้ก่อนลบ เพื่อคำนวณว่า "อะไรค้างส่ง"
         // (ลดลงจากเดิมเท่าไร) ถ้าใบนี้เคยพิมพ์แล้ว — ดู src/lib/invoice-pending-redelivery.ts
         const oldInvoiceItems = wasPrinted ? await tx.invoiceItem.findMany({ where: { invoiceId } }) : [];
-        await tx.invoiceItem.deleteMany({ where: { invoiceId } });
+        // Owner Final Guard (2026-09-02) — ห้าม deleteMany ทั้งชุดอีกต่อไป: syncInvoiceSheets
+        // เป็นคนลบเองแบบเลือกลบ (แถวของแผ่นที่พิมพ์แล้วต้องคงเดิมทั้ง id/lineNo/เนื้อหา)
         await tx.invoice.update({
           where: { id: invoiceId },
           data: {
@@ -896,6 +897,11 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       }
     });
   } catch (err) {
+    // Owner Final Guard (2026-09-02) — Block ที่ตั้งใจ (แก้กระทบแผ่นพิมพ์แล้ว) คืนเหตุผล
+    // จริงให้ผู้ใช้ ไม่ใช่ Error ทั่วไป — Transaction Rollback แล้วทั้งก้อน ไม่มีอะไรถูกเขียน
+    if (err instanceof Error && err.message.startsWith(PRINTED_SHEET_BLOCK)) {
+      return { success: false, error: err.message.slice(PRINTED_SHEET_BLOCK.length + 1) };
+    }
     logError("edit-confirmed-order", err, { orderId });
     return {
       success: false,
@@ -1074,7 +1080,7 @@ export async function changeOrderCustomer(orderId: string, formData: FormData): 
         const group = groupByCode.get(productTypeCode)!;
         const inv = invoiceById.get(invoiceId)!;
         const wasPrinted = inv.status === "PRINTED";
-        await tx.invoiceItem.deleteMany({ where: { invoiceId } });
+        // Owner Final Guard (2026-09-02) — syncInvoiceSheets ลบแบบเลือกลบเอง (ดู editConfirmedOrder)
         await tx.invoice.update({
           where: { id: invoiceId },
           data: {
@@ -1169,6 +1175,10 @@ export async function changeOrderCustomer(orderId: string, formData: FormData): 
       }
     });
   } catch (err) {
+    // Owner Final Guard (2026-09-02) — เหมือน editConfirmedOrder
+    if (err instanceof Error && err.message.startsWith(PRINTED_SHEET_BLOCK)) {
+      return { success: false, error: err.message.slice(PRINTED_SHEET_BLOCK.length + 1) };
+    }
     logError("change-order-customer", err, { orderId });
     return {
       success: false,

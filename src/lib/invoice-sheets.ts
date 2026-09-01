@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { paginateRows, DOC_CAPACITY_APPROVED, type PageCapacity } from "@/lib/print-pagination";
@@ -34,9 +35,51 @@ export type SheetSyncResult = {
 
 type InvoiceItemPayload = Omit<Prisma.InvoiceItemCreateManyInput, "id" | "invoiceId" | "sheetId" | "lineNo">;
 
+/** Owner Final Guard (2026-09-02) — Error Prefix ของการ Block แก้ไขที่กระทบแผ่นพิมพ์แล้ว
+ * — Caller (editConfirmedOrder/changeOrderCustomer) จับ Prefix นี้เพื่อคืนข้อความจริงให้
+ * ผู้ใช้แทน Error ทั่วไป (Transaction Rollback ทั้งก้อน ไม่มีอะไรถูกเขียนเลย) */
+export const PRINTED_SHEET_BLOCK = "PRINTED_SHEET_IMMUTABLE";
+
+const D = (v: unknown) => new Decimal(v as Decimal.Value);
+
+/** เทียบ Payload บรรทัดใหม่กับแถวจริงใน DB — ทุกฟิลด์ที่ปรากฏ/มีผลบนกระดาษ (สินค้า/ชื่อ/
+ * ขนาด/จำนวน/หน่วย/ราคา/ส่วนลดที่จัดสรรแล้ว/ยอดสุทธิ) — จงใจ "ไม่" เทียบ statDiscountAmount
+ * (ค่าวิเคราะห์ภายใน ไม่เคยพิมพ์บนกระดาษ — แผ่น Freeze คงค่าเดิมไว้ตามหลัก Immutable) */
+export function invoiceItemPayloadMatches(
+  payload: InvoiceItemPayload,
+  item: {
+    productId: string;
+    skuSnapshot: string;
+    productNameSnapshot: string;
+    productTypeSnapshot: string;
+    sizeSnapshot: string | null;
+    quantity: unknown;
+    unitSnapshot: string;
+    unitPriceSnapshot: unknown;
+    grossAmount: unknown;
+    discountAmount: unknown;
+    netAmount: unknown;
+  }
+): boolean {
+  return (
+    payload.productId === item.productId &&
+    payload.skuSnapshot === item.skuSnapshot &&
+    payload.productNameSnapshot === item.productNameSnapshot &&
+    payload.productTypeSnapshot === item.productTypeSnapshot &&
+    (payload.sizeSnapshot ?? null) === item.sizeSnapshot &&
+    payload.unitSnapshot === item.unitSnapshot &&
+    D(payload.quantity).equals(D(item.quantity)) &&
+    D(payload.unitPriceSnapshot).equals(D(item.unitPriceSnapshot)) &&
+    D(payload.grossAmount).equals(D(item.grossAmount)) &&
+    D(payload.discountAmount).equals(D(item.discountAmount)) &&
+    D(payload.netAmount).equals(D(item.netAmount))
+  );
+}
+
 /**
- * Sync แผ่นของ Invoice ให้ตรงกับรายการชุดใหม่ (Caller ต้องลบ InvoiceItem เดิมก่อนเสมอ
- * ถ้าเป็นการแก้ไข — ฟังก์ชันนี้เป็นคนสร้าง InvoiceItem ชุดใหม่เองพร้อม sheetId/lineNo):
+ * Sync แผ่นของ Invoice ให้ตรงกับรายการชุดใหม่ — ฟังก์ชันนี้เป็นเจ้าของการลบ/สร้าง
+ * InvoiceItem เองทั้งหมด (Owner Final Guard 2026-09-02: ห้าม Caller deleteMany ก่อน —
+ * แถวของแผ่นที่พิมพ์แล้วต้องรอด id/lineNo/เนื้อหาเดิมครบ ลบเฉพาะส่วนหลัง Prefix ที่ Freeze):
  *
  * - สร้างใหม่ (ยังไม่มีแผ่น): แผ่น 1 = เลขใบหลักเอง, แผ่นถัดไปดึงเลขใหม่จาก Sequence
  *   เดิมของ docType+period ของใบหลัก (Parse จากเลขใบหลักตรงๆ — เลขแผ่นอยู่ Block
@@ -58,12 +101,89 @@ export async function syncInvoiceSheets(
   // Fallback เป็นงวดปัจจุบันเพื่อไม่ Block งาน (เลขแผ่นใหม่จะไปอยู่งวดปัจจุบันแทน)
   const period = parseDocNumber(docType, invoice.invoiceNumber)?.period ?? currentPeriod(new Date());
 
-  const pages = planSheetSplit(itemsData);
   const existing = await tx.invoiceSheet.findMany({
     where: { invoiceId: invoice.id, voidedAt: null, numberReleased: false },
     orderBy: { sheetNo: "asc" },
   });
   const anyPrintedSheet = existing.some((s) => s.printedAt != null);
+
+  // ==========================================================================
+  // Owner Final Guard (2026-09-02) — PRINTED Physical Sheet = Immutable Historical
+  // Document: กระดาษที่พิมพ์ออกไปแล้วต้องตรงกับข้อมูลในระบบตลอดไป — Freeze ครอบคลุม
+  // "เลข + เนื้อหา + ยอด + lineNo + บทบาท Final/Non-final" ไม่ใช่แค่เลข
+  //
+  // กติกา: ให้ k = ตำแหน่งแผ่นพิมพ์แล้วที่ "ลึกที่สุด" — ขอบเขตแผ่น 1..k ถูก "ตรึงตาม
+  // ของจริงใน DB" (ห้ามวางแผนแบ่งใหม่ทั้งเอกสาร — Global Re-plan จะเลื่อนขอบแผ่นกลางที่
+  // พิมพ์แล้วทันทีเมื่อจำนวนรายการเปลี่ยน) — รายการชุดใหม่ต้องมีส่วนหัวที่ตรงกับเนื้อหา
+  // แผ่น 1..k "ทุกฟิลด์ทุกบรรทัดตามลำดับเดิมเป๊ะ" (รวมแผ่นยังไม่พิมพ์ที่ประกบก่อน k ด้วย
+  // เพราะ lineNo ของแผ่นพิมพ์แล้วห้ามเลื่อน) — ส่วนที่เหลือ (หาง) ถูกวางแผนแบ่งแยกต่างหาก
+  // ด้วยกติกาความจุเดิม แล้ว Reconcile เฉพาะหาง — ไม่ตรง = BLOCK ทั้ง Transaction พร้อม
+  // เหตุผล (ห้ามแก้เงียบๆ แม้จะรักษาเลขไว้ได้)
+  //
+  // บทบาทแผ่นพิมพ์แล้วห้ามเปลี่ยนทั้งสองทิศ:
+  //   - แผ่นจบพิมพ์แล้ว (กระดาษมี Grand Total/Full Footer) → ห้ามมีหางเพิ่ม (จะกลายเป็น
+  //     แผ่นกลางย้อนหลัง)
+  //   - แผ่นกลางพิมพ์แล้ว (กระดาษมีแค่รวมหน้านี้+Signature) → ห้ามกลายเป็นแผ่นจบ (หาง
+  //     ต้องเหลืออย่างน้อย 1 แผ่นเสมอ)
+  // ==========================================================================
+  let pages: InvoiceItemPayload[][];
+  let frozenPrefixPages = 0;
+  if (!anyPrintedSheet) {
+    pages = planSheetSplit(itemsData);
+  } else {
+    const deepestPrinted = Math.max(...existing.filter((s) => s.printedAt != null).map((s) => s.sheetNo));
+    const deepestPrintedIsFinal = deepestPrinted === existing.length;
+
+    const existingItems = await tx.invoiceItem.findMany({
+      where: { invoiceId: invoice.id },
+      orderBy: { lineNo: "asc" },
+    });
+
+    // ตรึงขอบแผ่น Prefix ตามของจริง แล้วเทียบเนื้อหาทีละแผ่นทีละบรรทัด
+    const prefixChunks: InvoiceItemPayload[][] = [];
+    let cursor = 0;
+    for (let i = 0; i < deepestPrinted; i++) {
+      const sheetItems = existingItems.filter((it) => it.sheetId === existing[i].id);
+      const chunk = itemsData.slice(cursor, cursor + sheetItems.length);
+      const mismatch =
+        chunk.length !== sheetItems.length ||
+        sheetItems.some((it, idx) => !invoiceItemPayloadMatches(chunk[idx], it));
+      if (mismatch) {
+        throw new Error(
+          `${PRINTED_SHEET_BLOCK}:แก้ไขไม่ได้ — การแก้นี้กระทบเนื้อหา/ยอด/ลำดับบรรทัดของแผ่นที่พิมพ์แล้ว ${existing[i].sheetNumber}${existing[i].printedAt ? "" : " (แผ่นนี้อยู่ก่อนแผ่นที่พิมพ์แล้ว — แก้แล้วลำดับบรรทัดของแผ่นพิมพ์แล้วจะเลื่อน)"} — แก้ได้เฉพาะส่วนที่อยู่หลังแผ่นที่พิมพ์แล้วเท่านั้น หรือยกเลิกเอกสารแล้วออกใหม่`
+        );
+      }
+      prefixChunks.push(chunk);
+      cursor += sheetItems.length;
+    }
+
+    const tailItems = itemsData.slice(cursor);
+    if (deepestPrintedIsFinal && tailItems.length > 0) {
+      throw new Error(
+        `${PRINTED_SHEET_BLOCK}:แก้ไขไม่ได้ — แผ่นจบ ${existing[existing.length - 1].sheetNumber} ถูกยืนยันพิมพ์แล้ว (มี Grand Total/Full Footer บนกระดาษ) การเพิ่มรายการจะเปลี่ยนบทบาทแผ่นจบย้อนหลัง — ต้องยกเลิกเอกสารแล้วออกใหม่แทน`
+      );
+    }
+    if (!deepestPrintedIsFinal && tailItems.length === 0) {
+      throw new Error(
+        `${PRINTED_SHEET_BLOCK}:แก้ไขไม่ได้ — แผ่นกลางที่พิมพ์แล้ว ${existing[deepestPrinted - 1].sheetNumber} จะกลายเป็นแผ่นจบย้อนหลัง (กระดาษที่พิมพ์ไว้ไม่มี Grand Total) — ต้องเหลือรายการหลังแผ่นนั้นอย่างน้อย 1 แผ่น หรือยกเลิกเอกสารแล้วออกใหม่`
+      );
+    }
+
+    // หางวางแผนแบ่งแยกต่างหากด้วยความจุเดิม (min-final ≥3 ยืมได้เฉพาะภายในหางด้วยกันเอง —
+    // ห้ามยืมจากแผ่นพิมพ์แล้ว จึงอาจมีแผ่นจบสั้นกว่ากติกาปกติได้ในกรณีบีบบังคับนี้)
+    pages = tailItems.length > 0 ? [...prefixChunks, ...paginateRows(tailItems, INVOICE_SHEET_CAPACITY)] : prefixChunks;
+    frozenPrefixPages = deepestPrinted;
+  }
+
+  // (0) ลบเฉพาะรายการที่ต้องสร้างใหม่ — Prefix ที่ Freeze ไว้ไม่ถูกแตะเลย (แถวเดิม id เดิม
+  // lineNo เดิม) — ไม่มีแผ่นพิมพ์แล้ว = ลบทั้งชุดแล้วสร้างใหม่ (พฤติกรรมเดิม)
+  const frozenSheetIds = existing.slice(0, frozenPrefixPages).map((s) => s.id);
+  await tx.invoiceItem.deleteMany({
+    where:
+      frozenPrefixPages > 0
+        ? { invoiceId: invoice.id, OR: [{ sheetId: { notIn: frozenSheetIds } }, { sheetId: null }] }
+        : { invoiceId: invoice.id },
+  });
 
   // (1) แผ่นตามตำแหน่ง: Reuse เลขเดิม / สร้างใหม่ต่อท้าย
   const sheetIds: string[] = [];
@@ -87,9 +207,10 @@ export async function syncInvoiceSheets(
     }
   }
 
-  // (2) สร้าง InvoiceItem ชุดใหม่พร้อม sheetId + lineNo ถาวร (Caller ลบชุดเก่าแล้ว)
-  let lineNo = 1;
-  for (let i = 0; i < pages.length; i++) {
+  // (2) สร้าง InvoiceItem เฉพาะส่วนหลัง Prefix ที่ Freeze — lineNo ต่อเนื่องจากของเดิมเป๊ะ
+  // (Prefix ถือ lineNo 1..N ของตัวเองอยู่แล้วเพราะเนื้อหาตรงกันทุกบรรทัดตามที่ตรวจข้างบน)
+  let lineNo = pages.slice(0, frozenPrefixPages).reduce((s, p) => s + p.length, 0) + 1;
+  for (let i = frozenPrefixPages; i < pages.length; i++) {
     await tx.invoiceItem.createMany({
       data: pages[i].map((d) => ({ ...d, invoiceId: invoice.id, sheetId: sheetIds[i], lineNo: lineNo++ })),
     });
