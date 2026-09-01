@@ -37,7 +37,19 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
 
   const note = await db.billingNote.findUnique({
     where: { id: params.id },
-    include: { invoices: { orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }] } },
+    include: {
+      invoices: {
+        orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }],
+        // Owner Approve (2026-09-02) — Physical Sheet: โชว์เลขแผ่นใต้เลขใบหลัก
+        include: {
+          sheets: {
+            where: { voidedAt: null, numberReleased: false },
+            orderBy: { sheetNo: "asc" },
+            select: { sheetNumber: true },
+          },
+        },
+      },
+    },
   });
   if (!note) notFound();
 
@@ -121,6 +133,11 @@ export default async function BillingNoteDetailPage(props: { params: Promise<{ i
                     <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
                       {inv.invoiceNumber}
                     </a>
+                    {inv.sheets.length > 1 && (
+                      <div className="text-xs text-gray-500 font-mono">
+                        {inv.sheets.map((s) => s.sheetNumber).join(" · ")}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
                   <td className="px-4 py-2">{addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH")}</td>

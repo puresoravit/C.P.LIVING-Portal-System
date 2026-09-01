@@ -57,6 +57,9 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
       ? {
           OR: [
             { invoiceNumber: { contains: q, mode: "insensitive" as const } },
+            // Owner Approve (2026-09-02) — Physical Sheet: ค้นด้วยเลขแผ่นแล้วเจอใบหลักด้วย
+            // (ทุกเลขแผ่นต้อง Search/Open ได้จริงตาม Requirement)
+            { sheets: { some: { sheetNumber: { contains: q, mode: "insensitive" as const } } } },
             { customerNameSnapshot: { contains: q, mode: "insensitive" as const } },
             { customer: { code: { contains: q, mode: "insensitive" as const } } },
             { order: { orderNumber: { contains: q, mode: "insensitive" as const } } },
@@ -82,7 +85,15 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
         status && status in BILLING_STATUS_WHERE
           ? { ...baseWhere, ...BILLING_STATUS_WHERE[status] }
           : { ...baseWhere, ...(status ? { status: status as any } : {}) },
-      include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
+      include: {
+        billingNote: { select: { id: true, billingNoteNumber: true } },
+        // Owner Approve (2026-09-02) — Physical Sheet: โชว์เลขแผ่น + สถานะพิมพ์บางแผ่น
+        sheets: {
+          where: { voidedAt: null, numberReleased: false },
+          orderBy: { sheetNo: "asc" },
+          select: { id: true, sheetNumber: true, printedAt: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -173,6 +184,13 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
                   <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
                     {inv.invoiceNumber}
                   </a>
+                  {/* Owner Approve (2026-09-02) — Physical Sheet: ใบหลายแผ่นโชว์ช่วงเลขแผ่น
+                      ให้เห็นตรงนี้เลยว่า Refer เลขไหนได้บ้าง */}
+                  {inv.sheets.length > 1 && (
+                    <div className="text-xs text-gray-500 font-mono">
+                      {inv.sheets.length} แผ่น: {inv.sheets[0].sheetNumber} – {inv.sheets[inv.sheets.length - 1].sheetNumber}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-2">{inv.invoiceDate.toLocaleDateString("th-TH")}</td>
                 <td className="px-4 py-2">{inv.customerNameSnapshot}</td>
@@ -180,6 +198,14 @@ export default async function InvoicesPage(props: { searchParams: Promise<Search
                 <td className="px-4 py-2 text-right">{money(inv.grandTotal)}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={inv.status} config={STATUS_LABEL} />
+                  {/* PARTIAL — พิมพ์แล้วบางแผ่น (ใบหลักยัง CONFIRMED จนกว่าจะครบทุกแผ่น) */}
+                  {inv.status === "CONFIRMED" &&
+                    inv.sheets.length > 0 &&
+                    inv.sheets.some((s) => s.printedAt != null) && (
+                      <div className="text-xs text-amber-600 whitespace-nowrap">
+                        พิมพ์แล้ว {inv.sheets.filter((s) => s.printedAt != null).length}/{inv.sheets.length} แผ่น
+                      </div>
+                    )}
                 </td>
                 {/* Billing Status Visibility — แกนแยกจาก Document Status ข้างบน แสดงเฉพาะ
                     Invoice ที่ PRINTED เท่านั้น (แกนนี้ไม่มีความหมายกับสถานะอื่น) — ถ้าวาง

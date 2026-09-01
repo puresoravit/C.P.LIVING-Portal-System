@@ -598,9 +598,53 @@ model Invoice {
   billingNoteId String?      // ข้อ 19: ใบวางบิลรวมหลาย Invoice — null = ยังไม่เคยถูกวางบิล
   billingNote   BillingNote? @relation(fields: [billingNoteId], references: [id])
   pendingRedeliveries InvoicePendingRedelivery[]
+  sheets InvoiceSheet[]
 
   @@index([invoiceNumber])
   @@map("invoices")
+}
+
+// ==========================================================================
+// Owner Approve (2026-09-02) — Physical Sheet ต่อใบส่งของ (Option B ที่ Owner เคาะ):
+// Invoice เดิม = Business/Logical Invoice (Identity/Order Relation/Discount Group/
+// Snapshot/Grand Total/Downstream ทุกอย่างคงเดิม 100%) — InvoiceSheet = กระดาษจริงแต่ละ
+// แผ่นที่มี "เลข INV ของตัวเอง" จาก Sequence เดิม เพื่อ Refer รายแผ่นได้ทันที เช่น
+// INV-B-0003 (แผ่น 1 = เลขเดียวกับใบหลักเสมอ) / INV-B-0004 (แผ่น 2) / INV-B-0005 (แผ่นจบ)
+//
+// กติกาเลขที่ Owner เคาะ:
+// - แผ่น 1 ใช้เลขของใบหลักเอง — ไม่กินเลขเพิ่ม / แผ่นถัดไปดึงเลขใหม่จาก getNextSeq เดิม
+// - เลขทุกเลขต้อง ค้นหา/เปิด/ดูประวัติ/พิมพ์/อ้างอิง ได้จริง — ห้ามเป็นเลขบนกระดาษเฉยๆ
+// - แก้ Order แล้วจำนวนแผ่นเปลี่ยน: ยังไม่มีแผ่นไหน PRINTED → จัดใหม่ได้ รักษาเลขเดิมตาม
+//   ลำดับ แผ่นท้ายที่เกิน Reclaim ได้เฉพาะเข้าเงื่อนไขเดิม (เลขล่าสุด+ไม่เคยใช้จริง —
+//   tryReleaseSeq CAS เดิม) ห้ามดึงเลขกลางกลับ / มีแผ่น PRINTED แล้ว → Freeze เลขทั้งชุด
+//   ห้าม renumber/reclaim ต้องเพิ่มแผ่นให้รันเลขใหม่ต่อท้ายเท่านั้น
+// - แผ่นที่ถูกยุบจากการแก้ไข: เก็บแถวไว้เสมอ (voidedAt) ห้ามลบ — เลขยังค้นเจอ+เปิดดู
+//   ประวัติได้ (numberReleased=true เพิ่มเมื่อ Reclaim สำเร็จจริงเท่านั้น)
+// - PRINTED Checkpoint เป็นระดับแผ่น (กระดาษคนละใบพิมพ์คนละเวลาได้) — ใบหลัก Derive:
+//   UNPRINTED/PARTIAL/PRINTED โดยใบหลักเปลี่ยนเป็นสถานะ PRINTED เมื่อพิมพ์ครบทุกแผ่น
+//   เท่านั้น (Sales SOT เดิม "นับเมื่อ PRINTED" จึงคงความหมาย = เอกสารพิมพ์จริงครบชุด)
+// - แผ่นเป็น "เลขอ้างอิงของกระดาษ" ไม่ใช่ยอดขายอิสระ — ยอดต่อแผ่น Derive จาก Σ InvoiceItem
+//   ของแผ่น (ไม่เก็บเงินซ้ำบนแถวแผ่น กัน Drift) — Σ ทุกแผ่น = ยอดใบหลักเสมอโดยเอกลักษณ์
+//   ของ allocateProportionally เดิม
+// - Partial Unique Index ที่ DB จริง (WHERE NOT "numberReleased") แบบเดียวกับ 6 เอกสารหลัก
+// ==========================================================================
+model InvoiceSheet {
+  id             String    @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id])
+  sheetNo        Int       // ลำดับแผ่นในชุด (1-based) — เฉพาะแผ่น Active; แผ่น Voided คงค่าเดิมเชิงประวัติ
+  sheetNumber    String    // INV-{Type}-YYYYMM-#### จาก Sequence เดียวกับใบหลัก
+  numberReleased Boolean   @default(false)
+  printedAt      DateTime? // PRINTED Checkpoint ระดับแผ่น — Write-once เหมือน Invoice.printedAt
+  printedById    String?
+  voidedAt       DateTime? // แผ่นถูกยุบจากการแก้ไข Order (จำนวนแผ่นลดลง) — เก็บแถวไว้เป็นประวัติเสมอ
+  createdAt      DateTime  @default(now())
+
+  items InvoiceItem[]
+
+  @@index([invoiceId])
+  @@index([sheetNumber])
+  @@map("invoice_sheets")
 }
 
 // ==========================================================================
@@ -637,6 +681,12 @@ model InvoiceItem {
   id                  String   @id @default(cuid())
   invoiceId           String
   invoice             Invoice  @relation(fields: [invoiceId], references: [id])
+  // Owner Approve (2026-09-02) — Physical Sheet: บรรทัดนี้อยู่แผ่นไหน (null = ใบเก่าก่อน
+  // Feature นี้ ซึ่ง Render แบบ Runtime Pagination เดิม) + ลำดับบรรทัดถาวรในเอกสาร (แก้
+  // ความเปราะที่เดิมพึ่ง Insertion Order ของ DB ล้วนๆ) — ดู Comment ใหญ่ที่ InvoiceSheet
+  sheetId             String?
+  sheet               InvoiceSheet? @relation(fields: [sheetId], references: [id])
+  lineNo              Int?
   productId           String
   product              Product @relation(fields: [productId], references: [id])
   skuSnapshot         String

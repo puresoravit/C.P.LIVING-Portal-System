@@ -468,7 +468,13 @@ export type PrintedInvoiceRow = {
   grandTotal: number;
 };
 
-/** 8.1 — รายการใบส่งของชั่วคราวที่พิมพ์แล้ว เรียงตามวันที่/เลขที่ (ไม่แยกบริษัท) */
+/** 8.1 — รายการใบส่งของชั่วคราวที่พิมพ์แล้ว เรียงตามวันที่/เลขที่ (ไม่แยกบริษัท)
+ *
+ * Owner Approve (2026-09-02) — Physical Sheet: ใบหลายแผ่นแตกเป็นแถวละแผ่น (เลขแผ่นจริง —
+ * เลขในรายงานไม่กระโดด) ยอดต่อแถว = Σ Item ของแผ่นนั้น (gross/discount/net) — Σ ทุกแผ่น
+ * = ยอดใบหลักเสมอ ไม่มี Double-count (ไม่มีแถวใบหลักซ้อน) — Gate การนับยังเป็นระดับใบหลัก
+ * status=PRINTED ตาม Sales SOT เดิม (= พิมพ์ครบทุกแผ่นแล้วเท่านั้น) — ใบเก่าไม่มีแผ่น =
+ * แถวเดียวเหมือนเดิมทุกประการ */
 export async function fetchPrintedInvoiceList(filters: ReportFilters): Promise<PrintedInvoiceRow[]> {
   const rows = await db.invoice.findMany({
     where: {
@@ -485,18 +491,42 @@ export async function fetchPrintedInvoiceList(filters: ReportFilters): Promise<P
       grossAmount: true,
       discountAmount: true,
       grandTotal: true,
+      sheets: {
+        where: { voidedAt: null, numberReleased: false },
+        orderBy: { sheetNo: "asc" },
+        select: { id: true, sheetNumber: true },
+      },
+      items: { select: { sheetId: true, grossAmount: true, discountAmount: true, netAmount: true } },
     },
     orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }],
   });
-  return rows.map((r) => ({
-    id: r.id,
-    invoiceNumber: r.invoiceNumber,
-    invoiceDate: r.invoiceDate,
-    customerName: r.customerNameSnapshot,
-    gross: Number(r.grossAmount),
-    discount: Number(r.discountAmount),
-    grandTotal: Number(r.grandTotal),
-  }));
+  return rows.flatMap((r) => {
+    if (r.sheets.length === 0) {
+      return [
+        {
+          id: r.id,
+          invoiceNumber: r.invoiceNumber,
+          invoiceDate: r.invoiceDate,
+          customerName: r.customerNameSnapshot,
+          gross: Number(r.grossAmount),
+          discount: Number(r.discountAmount),
+          grandTotal: Number(r.grandTotal),
+        },
+      ];
+    }
+    return r.sheets.map((sheet) => {
+      const sheetItems = r.items.filter((it) => it.sheetId === sheet.id);
+      return {
+        id: `${r.id}:${sheet.id}`,
+        invoiceNumber: sheet.sheetNumber,
+        invoiceDate: r.invoiceDate,
+        customerName: r.customerNameSnapshot,
+        gross: sheetItems.reduce((s, it) => s + Number(it.grossAmount), 0),
+        discount: sheetItems.reduce((s, it) => s + Number(it.discountAmount), 0),
+        grandTotal: sheetItems.reduce((s, it) => s + Number(it.netAmount), 0),
+      };
+    });
+  });
 }
 
 export type PrintedTaxInvoiceRow = {

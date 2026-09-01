@@ -69,6 +69,14 @@ export default async function NewBillingNotePage(props: {
             invoiceDate: invoiceDateFilter,
             billingNoteId: null,
           },
+          // Owner Approve (2026-09-02) — Physical Sheet: โชว์เลขแผ่นในรายการเลือกวางบิล
+          include: {
+            sheets: {
+              where: { voidedAt: null, numberReleased: false },
+              orderBy: { sheetNo: "asc" },
+              select: { sheetNumber: true },
+            },
+          },
           orderBy: { invoiceDate: "asc" },
         }),
         db.invoice.findMany({
@@ -233,7 +241,11 @@ export default async function NewBillingNotePage(props: {
             const preview = previewByInvoiceId.get(inv.id);
             return {
               id: inv.id,
-              invoiceNumber: inv.invoiceNumber,
+              // Owner Approve (2026-09-02) — ใบหลายแผ่นโชว์ช่วงเลขแผ่นต่อท้าย (Refer ได้ทันที)
+              invoiceNumber:
+                inv.sheets.length > 1
+                  ? `${inv.invoiceNumber} (${inv.sheets.length} แผ่น ถึง ${inv.sheets[inv.sheets.length - 1].sheetNumber})`
+                  : inv.invoiceNumber,
               invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
               amount: Number(inv.grandTotal),
               groupLabel: liveGroupNames.get(inv.productTypeCode) ?? "ไม่ระบุกลุ่มส่วนลด",

@@ -57,7 +57,24 @@ export default async function BillingNotePrintPage(props: {
   }
 
   const [note, company, template] = await Promise.all([
-    db.billingNote.findUnique({ where: { id: params.id }, include: { invoices: { orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }] } } }),
+    db.billingNote.findUnique({
+      where: { id: params.id },
+      include: {
+        invoices: {
+          orderBy: [{ invoiceDate: "asc" }, { invoiceNumber: "asc" }],
+          // Owner Approve (2026-09-02) — Physical Sheet: ใบวางบิลต้องเห็นเลขแผ่นจริงทุกแผ่น
+          // (เลขในรายงาน/ใบวางบิลไม่กระโดด) — ยอดต่อแผ่น Derive จาก Σ item ของแผ่น
+          include: {
+            sheets: {
+              where: { voidedAt: null, numberReleased: false },
+              orderBy: { sheetNo: "asc" },
+              select: { id: true, sheetNo: true, sheetNumber: true },
+            },
+            items: { select: { sheetId: true, netAmount: true } },
+          },
+        },
+      },
+    }),
     getCompanySettings(),
     getPrintTemplateSettings("BILLING_NOTE"),
   ]);
@@ -224,19 +241,38 @@ export default async function BillingNotePrintPage(props: {
           "รวมหน้านี้" ต่อหน้า + หน้าสุดท้ายมีแถวรวมทั้งเอกสาร (ดู print-pagination.ts) —
           จำนวนเงินต่อหน้าคำนวณจากแถวจริงของหน้านั้นตามโหมดส่วนลดที่เลือกแสดงอยู่ */}
       {(() => {
-        const rows = note.invoices.map((inv) => {
+        // Owner Approve (2026-09-02) — Physical Sheet: ใบที่มีหลายแผ่นแตกเป็นแถวละแผ่น
+        // (เลขแผ่นจริง + ยอด Σ item ของแผ่นนั้น — Σ ทุกแผ่น = grandTotal ใบหลักเสมอโดย
+        // เอกลักษณ์ allocateProportionally) — ส่วนลด/กลุ่มของใบใส่เฉพาะแถวแผ่นแรก กัน
+        // Double-count (computeBillingNotePageSummary รวมต่อแถวตรงๆ) — ใบเก่าไม่มีแผ่น =
+        // แถวเดียวเหมือนเดิมทุกประการ
+        const rows = note.invoices.flatMap((inv) => {
           const line = discountByInvoice.get(inv.id);
-          return {
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
+          const base = {
             invoiceDateLabel: inv.invoiceDate.toLocaleDateString("th-TH"),
             dueDateLabel: addDays(inv.invoiceDate, creditDays).toLocaleDateString("th-TH"),
-            grandTotal: inv.grandTotal,
+          };
+          const discountFields = {
             discountAmount: line?.amount,
             discountPct: line?.pct,
             alreadyDiscounted: line?.alreadyDiscounted,
             typeName: liveNames.get(inv.productTypeCode) ?? line?.typeName,
           };
+          if (inv.sheets.length === 0) {
+            return [{ id: inv.id, invoiceNumber: inv.invoiceNumber, grandTotal: Number(inv.grandTotal), ...base, ...discountFields }];
+          }
+          return inv.sheets.map((sheet, idx) => {
+            const sheetTotal = inv.items
+              .filter((it) => it.sheetId === sheet.id)
+              .reduce((s, it) => s + Number(it.netAmount), 0);
+            return {
+              id: `${inv.id}:${sheet.id}`,
+              invoiceNumber: sheet.sheetNumber,
+              grandTotal: sheetTotal,
+              ...base,
+              ...(idx === 0 ? discountFields : { discountAmount: undefined, discountPct: undefined, alreadyDiscounted: undefined, typeName: undefined }),
+            };
+          });
         });
         return (
           <BillingNotePrintBody

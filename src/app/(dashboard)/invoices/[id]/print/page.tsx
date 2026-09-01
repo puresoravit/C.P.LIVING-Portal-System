@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getCompanySettings } from "@/lib/company-settings";
 import { toThaiBahtText } from "@/lib/thai-baht-text";
-import { markInvoicePrinted } from "../../actions";
+import { markInvoicePrinted, markInvoiceSheetPrinted } from "../../actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -25,7 +25,7 @@ import { capacityForDocument, paginateRows, computeItemsPageSummary } from "@/li
 // เปลี่ยนเฉพาะ Presentation — ห้ามเพิ่ม VAT ให้เอกสารประเภทนี้เด็ดขาด
 export default async function InvoicePrintPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; queue?: string }>;
+  searchParams: Promise<{ back?: string; queue?: string; sheet?: string }>;
 }) {
   const params = await props.params;
   const searchParams = await props.searchParams;
@@ -33,11 +33,25 @@ export default async function InvoicePrintPage(props: {
   if (!can((session?.user as any)?.role, "invoice.create")) redirect("/");
 
   const [invoice, company, template] = await Promise.all([
-    db.invoice.findUnique({ where: { id: params.id }, include: { items: true, customer: true } }),
+    db.invoice.findUnique({
+      where: { id: params.id },
+      include: {
+        // Owner Approve (2026-09-02) — Physical Sheet: ลำดับบรรทัดอ่านจาก lineNo ที่
+        // Persist ตอนสร้าง (ใบเก่า lineNo เป็น null → ต่อท้ายตาม Insertion Order เดิม)
+        items: { orderBy: { lineNo: { sort: "asc", nulls: "last" } } },
+        customer: true,
+        sheets: { where: { voidedAt: null, numberReleased: false }, orderBy: { sheetNo: "asc" } },
+      },
+    }),
     getCompanySettings(),
     getPrintTemplateSettings("INVOICE"),
   ]);
   if (!invoice) notFound();
+
+  // Owner Approve (2026-09-02) — พิมพ์เฉพาะแผ่น: ?sheet=<sheetNo> (เลขแผ่นในชุด 1-based)
+  const sheetParam = Number(searchParams.sheet) || null;
+  const activeSheets = invoice.sheets;
+  const scopedSheet = sheetParam ? activeSheets.find((s) => s.sheetNo === sheetParam) ?? null : null;
 
   // Owner UAT Fix — Multi-Invoice Print Queue จากหน้า Order Detail:
   // - back: ปลายทางปุ่ม "← กลับ" (เช่น /orders/{id}) — Validate เป็น Internal Path เท่านั้น
@@ -61,13 +75,41 @@ export default async function InvoicePrintPage(props: {
     nextHref = `/invoices/${nextId}/print?${nextParams.toString()}`;
   }
 
-  const markPrintedAction = invoice.status === "CANCELLED" ? undefined : markInvoicePrinted.bind(null, invoice.id);
-  const isPrinted = invoice.status === "PRINTED";
-  const printedAtLabel = invoice.printedAt
-    ? invoice.printedAt.toLocaleDateString("th-TH") + " " + invoice.printedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
-    : undefined;
+  // Owner Approve (2026-09-02) — Physical Sheet: PRINTED Checkpoint ระดับแผ่น —
+  // โหมดพิมพ์ทั้งชุด = มาร์คทุกแผ่นที่ยังไม่พิมพ์ / โหมดพิมพ์เฉพาะแผ่น (?sheet=) = มาร์ค
+  // แผ่นนั้นแผ่นเดียว — ใบเก่าไม่มีแผ่น = พฤติกรรมเดิมทุกประการ (ดู markInvoicePrinted)
+  const fmtPrintedAt = (d: Date) =>
+    d.toLocaleDateString("th-TH") + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  const markPrintedAction =
+    invoice.status === "CANCELLED"
+      ? undefined
+      : scopedSheet
+        ? markInvoiceSheetPrinted.bind(null, invoice.id, scopedSheet.id)
+        : markInvoicePrinted.bind(null, invoice.id);
+  const isPrinted = scopedSheet
+    ? scopedSheet.printedAt != null
+    : activeSheets.length > 0
+      ? activeSheets.every((s) => s.printedAt != null)
+      : invoice.status === "PRINTED";
+  const printedAtLabel = scopedSheet
+    ? scopedSheet.printedAt
+      ? fmtPrintedAt(scopedSheet.printedAt)
+      : undefined
+    : invoice.printedAt
+      ? fmtPrintedAt(invoice.printedAt)
+      : undefined;
 
-  const blocks: Record<PrintBlockKey, React.ReactNode> = {
+  // Owner Approve (2026-09-02) — Physical Sheet: Header ทั้งก้อนกลายเป็นฟังก์ชันของ
+  // "เลขเอกสารที่จะโชว์" — แต่ละแผ่นเรียกด้วยเลขแผ่นของตัวเอง (ใบเก่าไม่มีแผ่นเรียกด้วย
+  // เลขใบหลักครั้งเดียว = ผลลัพธ์เดิมเป๊ะ) — เนื้อหา/Layout อื่นทุกส่วนเหมือนเดิมทุกประการ
+  const numberNode = (docNumber: string) => (
+    <span className="inline-flex items-center gap-1">
+      {docNumber}
+      <CopyDocumentNumber value={docNumber} />
+    </span>
+  );
+
+  const buildBlocks = (docNumber: string): Record<PrintBlockKey, React.ReactNode> => ({
     header: (
       <PrintDocumentHeader
         company={company}
@@ -86,65 +128,60 @@ export default async function InvoicePrintPage(props: {
           { label: "ที่อยู่ / Address", value: invoice.addressSnapshot ?? "-" },
         ]}
         right={[
-          {
-            label: "เลขที่",
-            value: (
-              <span className="inline-flex items-center gap-1">
-                {invoice.invoiceNumber}
-                <CopyDocumentNumber value={invoice.invoiceNumber} />
-              </span>
-            ),
-          },
+          { label: "เลขที่", value: numberNode(docNumber) },
           { label: "วันที่ / Date", value: invoice.invoiceDate.toLocaleDateString("th-TH") },
           { label: "รหัสลูกค้า / Customer Code", value: invoice.customer.code },
         ]}
         shippingAddress={invoice.placeToDelivery}
       />
     ),
-  };
+  });
 
   // R6 Phase E.3 — ดู quotations/[id]/print/page.tsx สำหรับคำอธิบายเต็มของ Pattern นี้
   const hl = template.headerLayout;
-  const headerElements: Partial<Record<HeaderElementKey, React.ReactNode>> = hl
-    ? {
-        logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
-        companyName: <HeaderTitleLine text={company.name} style={hl.companyName} />,
-        ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
-        ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
-        ...(company.taxId
-          ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
-          : {}),
-        titleTh: <HeaderTitleLine text="ใบส่งของชั่วคราว" style={hl.titleTh} />,
-        titleEn: <HeaderTitleLine text="INVOICE" style={hl.titleEn} />,
-        docNumber: (
-          <HeaderDocNumberDateBlock
-            numberLabel="เลขที่"
-            numberValue={
-              <span className="inline-flex items-center gap-1">
-                {invoice.invoiceNumber}
-                <CopyDocumentNumber value={invoice.invoiceNumber} />
-              </span>
-            }
-            numberStyle={hl.docNumber}
-            dateLabel="วันที่ / Date"
-            dateValue={invoice.invoiceDate.toLocaleDateString("th-TH")}
-            dateStyle={hl.docDate}
-          />
-        ),
-        customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={invoice.customer.code} style={hl.customerCode} />,
-        customerName: <HeaderTextLine label="ลูกค้า / Customer" value={invoice.customerNameSnapshot} style={hl.customerName} />,
-        ...(invoice.addressSnapshot
-          ? { customerAddress: <HeaderTextLine label="ที่อยู่ / Address" value={invoice.addressSnapshot} style={hl.customerAddress} /> }
-          : {}),
-        ...(invoice.placeToDelivery
-          ? {
-              shippingAddress: (
-                <HeaderTextLine label="สถานที่ส่งสินค้า / Shipping Address" value={invoice.placeToDelivery} style={hl.shippingAddress} />
-              ),
-            }
-          : {}),
-      }
-    : {};
+  const buildHeaderElements = (docNumber: string): Partial<Record<HeaderElementKey, React.ReactNode>> =>
+    hl
+      ? {
+          logo: <HeaderLogoElement logo={template.logo} heightMm={logoHeightMm(hl.logo)} />,
+          companyName: <HeaderTitleLine text={company.name} style={hl.companyName} />,
+          ...(company.address ? { companyAddress: <HeaderTextLine value={company.address} style={hl.companyAddress} /> } : {}),
+          ...(company.phone ? { companyPhone: <HeaderTextLine label="โทร" value={company.phone} style={hl.companyPhone} /> } : {}),
+          ...(company.taxId
+            ? { companyTaxId: <HeaderTextLine label="เลขประจำตัวผู้เสียภาษี" value={company.taxId} style={hl.companyTaxId} /> }
+            : {}),
+          titleTh: <HeaderTitleLine text="ใบส่งของชั่วคราว" style={hl.titleTh} />,
+          titleEn: <HeaderTitleLine text="INVOICE" style={hl.titleEn} />,
+          docNumber: (
+            <HeaderDocNumberDateBlock
+              numberLabel="เลขที่"
+              numberValue={numberNode(docNumber)}
+              numberStyle={hl.docNumber}
+              dateLabel="วันที่ / Date"
+              dateValue={invoice.invoiceDate.toLocaleDateString("th-TH")}
+              dateStyle={hl.docDate}
+            />
+          ),
+          customerCode: <HeaderTextLine label="รหัสลูกค้า / Customer Code" value={invoice.customer.code} style={hl.customerCode} />,
+          customerName: <HeaderTextLine label="ลูกค้า / Customer" value={invoice.customerNameSnapshot} style={hl.customerName} />,
+          ...(invoice.addressSnapshot
+            ? { customerAddress: <HeaderTextLine label="ที่อยู่ / Address" value={invoice.addressSnapshot} style={hl.customerAddress} /> }
+            : {}),
+          ...(invoice.placeToDelivery
+            ? {
+                shippingAddress: (
+                  <HeaderTextLine label="สถานที่ส่งสินค้า / Shipping Address" value={invoice.placeToDelivery} style={hl.shippingAddress} />
+                ),
+              }
+            : {}),
+        }
+      : {};
+
+  const buildHeader = (docNumber: string) =>
+    template.headerLayout ? (
+      <HeaderZone layout={template.headerLayout} elements={buildHeaderElements(docNumber)} />
+    ) : (
+      <PrintOrderedBlocks order={template.blockOrder} blocks={buildBlocks(docNumber)} />
+    );
 
   // Smoke Test R14 (2026-08-25) — จำหน้าพิมพ์นี้ (รวมคิวที่เหลือ) ให้กลับมาต่อได้จากเมนู
   // "สร้างเอกสาร → ใบส่งของชั่วคราว" — ยัง Active ตราบใดที่ใบปัจจุบันยังไม่ยืนยันพิมพ์
@@ -203,6 +240,29 @@ export default async function InvoicePrintPage(props: {
         url={printSessionUrl}
         remaining={printSessionRemaining}
       />
+      {/* Owner Approve (2026-09-02) — Physical Sheet: แถบเลือกแผ่น (Screen-only) เมื่อใบนี้
+          มีหลายแผ่น — พิมพ์ทั้งชุด หรือเจาะพิมพ์/พิมพ์ซ้ำเฉพาะแผ่นด้วยเลขแผ่นจริง */}
+      {activeSheets.length > 1 && (
+        <div className="print:hidden mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-600">แผ่นเอกสาร:</span>
+          <a
+            href={`/invoices/${invoice.id}/print${printSessionQuery ? `?${printSessionQuery}` : ""}`}
+            className={`rounded px-3 py-1 border ${!scopedSheet ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+          >
+            ทั้งชุด ({activeSheets.length} แผ่น)
+          </a>
+          {activeSheets.map((s) => (
+            <a
+              key={s.id}
+              href={`/invoices/${invoice.id}/print?${new URLSearchParams({ ...(printSessionQuery ? Object.fromEntries(printSessionParams) : {}), sheet: String(s.sheetNo) }).toString()}`}
+              className={`rounded px-3 py-1 border font-mono ${scopedSheet?.id === s.id ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+            >
+              {s.sheetNumber}
+              {s.printedAt ? " ✓" : ""}
+            </a>
+          ))}
+        </div>
+      )}
       {/* R8 — Document Pagination: Header เต็มถูกส่งเข้า Body ผ่าน pagination.header เพื่อ
           เรนเดอร์ซ้ำทุกหน้า (เอกสารหน้าเดียว Output เดิมทุกประการ) — การแบ่งหน้า/Summary
           ต่อหน้า ดู src/lib/print-pagination.ts */}
@@ -234,18 +294,29 @@ export default async function InvoicePrintPage(props: {
           </div>
         }
         pagination={{
-          // Owner UAT (2026-08-31 รอบ 4) — เลิกส่งตัวคูณ 1.3 แล้ว (เอาการขยายฟอนต์ 30%
-          // ออกทั้งชุด — ดู bodyStyle ด้านบนสำหรับเหตุผลเต็ม) กลับไปประมาณความจุแถวต่อหน้า
-          // จากฟอนต์ปกติเหมือนเอกสารประเภทอื่นทุกประการ
-          pages: paginateRows(invoice.items, capacityForDocument(template, "INVOICE")).map((pageItems) => ({
-            items: pageItems,
-            summary: computeItemsPageSummary(pageItems),
-          })),
-          header: template.headerLayout ? (
-            <HeaderZone layout={template.headerLayout} elements={headerElements} />
-          ) : (
-            <PrintOrderedBlocks order={template.blockOrder} blocks={blocks} />
-          ),
+          // Owner Approve (2026-09-02) — Physical Sheet: ใบที่มีแผ่น Persist ไว้แล้ว (ใบใหม่
+          // ทุกใบตั้งแต่ Feature นี้) เรนเดอร์ตามแผ่นจริงตรงๆ — แต่ละแผ่นมี Header ของตัวเอง
+          // (เลขที่ = เลขแผ่น) + ป้ายหน้า/บทบาทตามตำแหน่งจริงในชุดแม้พิมพ์เฉพาะแผ่น
+          // (?sheet=) — ใบเก่าไม่มีแผ่น = Runtime Pagination เดิมทุกประการ
+          pages:
+            activeSheets.length > 0
+              ? (scopedSheet ? [scopedSheet] : activeSheets).map((sheet) => {
+                  const sheetItems = invoice.items.filter((it) => it.sheetId === sheet.id);
+                  return {
+                    items: sheetItems,
+                    summary: computeItemsPageSummary(sheetItems),
+                    header: buildHeader(sheet.sheetNumber),
+                    label: { pageNo: sheet.sheetNo, pageCount: activeSheets.length },
+                    isFinalSheet: sheet.sheetNo === activeSheets.length,
+                    showPageSummary: activeSheets.length > 1,
+                    startIndex: (sheetItems[0]?.lineNo ?? 1) - 1,
+                  };
+                })
+              : paginateRows(invoice.items, capacityForDocument(template, "INVOICE")).map((pageItems) => ({
+                  items: pageItems,
+                  summary: computeItemsPageSummary(pageItems),
+                })),
+          header: buildHeader(invoice.invoiceNumber),
           // Owner UAT (2026-08-31 รอบ 4) — เลิกขยาย Signature Block ตาม (เหตุผลเดียวกับ
           // bodyStyle ด้านบน — เมื่อไม่มีการขยายเอกสารส่วนอื่นแล้ว การคงขยาย Signature ไว้
           // อย่างเดียวจะกลับกลายเป็นใหญ่ไม่สมมาตรแทน) กลับไปใช้ค่าเริ่มต้นเหมือนเอกสาร

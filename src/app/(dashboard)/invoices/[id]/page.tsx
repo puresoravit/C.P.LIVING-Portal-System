@@ -30,7 +30,10 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const invoice = await db.invoice.findUnique({
     where: { id: params.id },
     include: {
-      items: true,
+      items: { orderBy: { lineNo: { sort: "asc", nulls: "last" } } },
+      // Owner Approve (2026-09-02) — Physical Sheet: โชว์แผ่นทั้งหมด (รวมแผ่นที่ถูกยุบ
+      // เป็นประวัติ) — ทุกเลขต้องเปิดดู/อ้างอิงได้จริงจากหน้านี้
+      sheets: { orderBy: [{ voidedAt: "asc" }, { sheetNo: "asc" }] },
       order: true,
       billingNote: { select: { id: true, billingNoteNumber: true } },
       // Stabilization — ใช้กฎเดียวกับหน้า /tax-invoices/from-invoice: Invoice ที่มีใบกำกับภาษี
@@ -88,6 +91,57 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           ⚠ แก้ไขหลังจากส่งสินค้าแล้ว — ล่าสุดเมื่อ {invoice.editedAfterPrintAt.toLocaleDateString("th-TH")}{" "}
           {invoice.editedAfterPrintAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
         </p>
+      )}
+
+      {/* Owner Approve (2026-09-02) — Physical Sheet: เลขอ้างอิงรายแผ่น + สถานะพิมพ์ต่อแผ่น
+          (PRINTED Checkpoint ระดับแผ่น — ใบหลักเป็น PRINTED เมื่อครบทุกแผ่น) — แผ่นที่ถูก
+          ยุบจากการแก้ไขยังแสดงเป็นประวัติเสมอ ทุกเลขค้น/อ้างอิงได้จริง */}
+      {invoice.sheets.length > 0 && (
+        <div className="bg-white border rounded-lg overflow-hidden mb-4">
+          <div className="px-4 py-2 bg-gray-50 text-sm font-medium text-gray-600">
+            แผ่นเอกสาร (Physical Sheets) — {invoice.sheets.filter((s) => s.voidedAt == null).length} แผ่น
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {invoice.sheets.map((sheet) => {
+                const sheetItemCount = invoice.items.filter((it) => it.sheetId === sheet.id).length;
+                const voided = sheet.voidedAt != null;
+                return (
+                  <tr key={sheet.id} className={`border-t ${voided ? "text-gray-400" : ""}`}>
+                    <td className="px-4 py-2 font-mono">
+                      {voided ? (
+                        sheet.sheetNumber
+                      ) : (
+                        <a
+                          href={`/invoices/${invoice.id}/print?sheet=${sheet.sheetNo}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {sheet.sheetNumber}
+                        </a>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">{voided ? "แผ่นถูกยุบจากการแก้ไข" : `แผ่นที่ ${sheet.sheetNo} · ${sheetItemCount} รายการ`}</td>
+                    <td className="px-4 py-2">
+                      {voided ? (
+                        sheet.numberReleased ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">คืนเลขแล้ว</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">เลขถูกยึดถาวร</span>
+                        )
+                      ) : sheet.printedAt ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          พิมพ์แล้ว {sheet.printedAt.toLocaleDateString("th-TH")}
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">ยังไม่พิมพ์</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Billing Status Visibility — แกนแยกจาก Document Status ข้างบน มีความหมายเฉพาะ

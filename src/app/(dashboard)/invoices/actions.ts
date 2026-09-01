@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/action-result";
-import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
+import { releaseInvoiceNumbersOnCancel } from "@/lib/invoice-sheets";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -81,15 +81,15 @@ export async function cancelInvoice(invoiceId: string): Promise<ActionResult> {
       // (BillingNote/TaxInvoice Active) ถูกกันไว้แล้วทั้งคู่ตั้งแต่ Guard ด้านบนก่อนจะมาถึง
       // จุดนี้ได้เลย (เหมือน cancelOrder ที่เช็ค Lock ก่อน Cascade ครั้งเดียว ไม่ต้องเช็คซ้ำ
       // ในนี้อีก)
-      if (!invoice.printedAt) {
-        const parsed = parseDocNumber(`INV-${invoice.productTypeCode}`, invoice.invoiceNumber);
-        if (parsed) {
-          const released = await tryReleaseSeq(`INV-${invoice.productTypeCode}`, parsed.period, parsed.seq, tx);
-          if (released) {
-            await tx.invoice.updateMany({ where: { id: invoiceId }, data: { numberReleased: true } });
-          }
-        }
-      }
+      // Owner Approve (2026-09-02) — Physical Sheet: ปล่อยทุกเลขที่ใบนี้ถือ (แผ่นท้ายก่อน
+      // ปิดท้ายเลขใบหลัก) ตามเงื่อนไขเดิม — มีแผ่นไหน PRINTED = ไม่ปล่อยอะไรเลยทั้งชุด
+      // (ดู releaseInvoiceNumbersOnCancel ใน src/lib/invoice-sheets.ts)
+      await releaseInvoiceNumbersOnCancel(tx, {
+        id: invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        productTypeCode: invoice.productTypeCode,
+        printedAt: invoice.printedAt,
+      });
 
       await tx.auditLog.create({
         data: {
@@ -126,33 +126,93 @@ export async function markInvoicePrinted(invoiceId: string, formData: FormData) 
   if (!can(user.role, "invoice.print")) throw new Error("FORBIDDEN");
 
   const printProfile = String(formData.get("printProfile") || "");
+  // Owner Approve (2026-09-02) — Physical Sheet: PRINTED Checkpoint เป็น "ระดับแผ่น"
+  // (กระดาษคนละใบพิมพ์คนละเวลาได้) — Flow พิมพ์ทั้งชุด (ไม่ส่ง sheetId) = มาร์คทุกแผ่น
+  // ที่ยังไม่พิมพ์พร้อมกัน / Flow พิมพ์แผ่นเดียว (?sheet=) ส่ง sheetId มา = มาร์คเฉพาะ
+  // แผ่นนั้น — ใบหลักเปลี่ยนเป็น PRINTED เมื่อครบทุกแผ่น Active เท่านั้น (Sales SOT เดิม
+  // "นับเมื่อ PRINTED" = พิมพ์จริงครบชุด ไม่ Double-count) — ใบเก่าไม่มีแผ่น = พฤติกรรม
+  // เดิมทุกประการ (มาร์คใบหลักตรงๆ)
+  const scopeSheetId = String(formData.get("sheetId") || "") || null;
 
-  const invoice = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  const invoice = await db.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: { sheets: { where: { voidedAt: null, numberReleased: false } } },
+  });
   if (invoice.status === "CANCELLED") throw new Error("Invoice นี้ถูกยกเลิกแล้ว พิมพ์ไม่ได้");
   if (invoice.status === "CONFIRMED" && printProfile === "continuous") {
     const printedAt = new Date();
-    // Stabilization — Concurrency Hardening (Pattern เดียวกับ confirmOrder): CAS ด้วย
-    // WHERE status='CONFIRMED' ให้ Transition CONFIRMED→PRINTED เกิดได้ครั้งเดียวเป๊ะ —
-    // กัน Request ซ้อน (Double-click "มาร์คว่าพิมพ์แล้ว") เขียนทับ printedAt/printedById
-    // ของครั้งแรก + Audit Log ซ้ำ 2 แถว — ถ้าแพ้ CAS (count=0) = มีคน Mark ไปก่อนแล้ว
-    // ออกเงียบๆ เหมือนกรณี status≠CONFIRMED เดิม (ไม่ Throw เพราะผลลัพธ์ปลายทางถูกต้อง
-    // อยู่แล้ว คือใบนี้เป็น PRINTED) — Sales SOT ไม่เคย Double-count อยู่แล้ว (นับจาก
-    // status ไม่ใช่จำนวนครั้งที่ Mark) จุดนี้ปกป้อง printedAt/printedBy + Audit เท่านั้น
-    const cas = await db.invoice.updateMany({
-      where: { id: invoiceId, status: "CONFIRMED" },
-      data: { status: "PRINTED", printedAt, printedById: user.id },
-    });
-    if (cas.count === 1) await db.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "UPDATE",
-        module: "Invoice",
-        recordId: invoiceId,
-        oldValue: { status: "CONFIRMED" },
-        newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile },
-      },
-    });
+    if (invoice.sheets.length === 0) {
+      // ใบเก่าก่อน Physical Sheet — Flow เดิมทุกประการ
+      // Stabilization — Concurrency Hardening (Pattern เดียวกับ confirmOrder): CAS ด้วย
+      // WHERE status='CONFIRMED' ให้ Transition CONFIRMED→PRINTED เกิดได้ครั้งเดียวเป๊ะ —
+      // กัน Request ซ้อน (Double-click) เขียนทับ printedAt/printedById + Audit ซ้ำ
+      const cas = await db.invoice.updateMany({
+        where: { id: invoiceId, status: "CONFIRMED" },
+        data: { status: "PRINTED", printedAt, printedById: user.id },
+      });
+      if (cas.count === 1) await db.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "Invoice",
+          recordId: invoiceId,
+          oldValue: { status: "CONFIRMED" },
+          newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile },
+        },
+      });
+    } else {
+      const targets = invoice.sheets.filter((s) => s.printedAt == null && (!scopeSheetId || s.id === scopeSheetId));
+      await db.$transaction(async (tx) => {
+        const marked: string[] = [];
+        for (const sheet of targets) {
+          // CAS ต่อแผ่น (printedAt ยังว่าง) — Write-once เหมือน printedAt ของใบหลักเดิม
+          const cas = await tx.invoiceSheet.updateMany({
+            where: { id: sheet.id, printedAt: null },
+            data: { printedAt, printedById: user.id },
+          });
+          if (cas.count === 1) marked.push(sheet.sheetNumber);
+        }
+        if (marked.length > 0) {
+          await tx.auditLog.create({
+            data: {
+              userId: user.id,
+              action: "UPDATE",
+              module: "Invoice",
+              recordId: invoiceId,
+              newValue: { printedSheets: marked, printedAt: printedAt.toISOString(), printProfile },
+            },
+          });
+        }
+        // ใบหลัก → PRINTED เมื่อครบทุกแผ่น Active (เช็คจากสถานะจริงใน tx หลังมาร์ค)
+        const remaining = await tx.invoiceSheet.count({
+          where: { invoiceId, voidedAt: null, numberReleased: false, printedAt: null },
+        });
+        if (remaining === 0) {
+          const cas = await tx.invoice.updateMany({
+            where: { id: invoiceId, status: "CONFIRMED" },
+            data: { status: "PRINTED", printedAt, printedById: user.id },
+          });
+          if (cas.count === 1) await tx.auditLog.create({
+            data: {
+              userId: user.id,
+              action: "UPDATE",
+              module: "Invoice",
+              recordId: invoiceId,
+              oldValue: { status: "CONFIRMED" },
+              newValue: { status: "PRINTED", printedAt: printedAt.toISOString(), printProfile, note: "พิมพ์ครบทุกแผ่นแล้ว" },
+            },
+          });
+        }
+      });
+    }
   }
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
+}
+
+/** Owner Approve (2026-09-02) — พิมพ์เฉพาะแผ่น (?sheet=N): Bind sheetId เข้า FormData แล้ว
+ * ใช้กติกาเดียวกับ markInvoicePrinted ทุกประการ */
+export async function markInvoiceSheetPrinted(invoiceId: string, sheetId: string, formData: FormData) {
+  formData.set("sheetId", sheetId);
+  await markInvoicePrinted(invoiceId, formData);
 }

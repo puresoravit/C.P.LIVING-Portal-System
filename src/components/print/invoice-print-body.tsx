@@ -158,25 +158,31 @@ export function InvoicePrintBody({
   return (
     <>
       {pagination.pages.map((page, idx) => {
-        const startIndex = cursor;
-        cursor += page.items.length;
-        const isLast = idx === pageCount - 1;
+        const startIndex = page.startIndex ?? cursor;
+        cursor = startIndex + page.items.length;
+        // Owner Approve (2026-09-02) — Physical Sheet: พิมพ์เฉพาะแผ่น (?sheet=) ส่งบทบาท
+        // จริงของแผ่นมากับ Page เอง (แผ่นกลางที่พิมพ์เดี่ยวๆ ห้ามได้ Full Footer และยังต้อง
+        // โชว์กล่องรวมหน้านี้) — ไม่ส่ง = พฤติกรรมเดิมจากตำแหน่งใน Array
+        const isFinalSheet = page.isFinalSheet ?? idx === pageCount - 1;
+        const showPageSummary = page.showPageSummary ?? pageCount > 1;
+        const label = page.label ?? { pageNo: idx + 1, pageCount };
         return (
           <section key={idx} className="print-doc-page">
-            {pagination.header}
-            <PrintPageLabel pageNo={idx + 1} pageCount={pageCount} />
+            {/* Physical Sheet: หน้านี้มี Header ของตัวเอง (เลขที่ = เลขแผ่น) ใช้ก่อนเสมอ */}
+            {page.header ?? pagination.header}
+            <PrintPageLabel pageNo={label.pageNo} pageCount={label.pageCount} />
             {itemsTable(page.items, startIndex)}
             <div className="flex-1" />
             <div className="print-keep-together">
-              {pageCount > 1 && (
+              {showPageSummary && (
                 <div className="border rounded p-2 mb-[length:var(--print-block-gap)]">
                   <div className="text-[length:var(--print-body-size)] text-gray-600 mb-1">
-                    รวมหน้านี้ (หน้า {idx + 1}/{pageCount})
+                    รวมหน้านี้ (หน้า {label.pageNo}/{label.pageCount})
                   </div>
                   {summaryRows(page.summary, "สุทธิหน้านี้")}
                 </div>
               )}
-              {isLast && docSummaryBlock}
+              {isFinalSheet && docSummaryBlock}
               {/* Owner UAT (2026-09-02) — Signature ต้องมีทุก Physical Sheet (หน้าแรก/กลาง/
                   สุดท้าย แผ่นละ 1 ชุดเสมอ พร้อมเส้นเซ็น) — เดิม Render เฉพาะ isLast — ความจุ
                   แถวต่อหน้าเผื่อพื้นที่ Signature ทุกแผ่นแล้ว (ดู DOC_CAPACITY_APPROVED/
