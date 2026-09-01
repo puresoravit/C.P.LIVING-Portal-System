@@ -12,9 +12,15 @@ export function PrintSignatureBlock({
   fields,
   footerNote,
   fontScale = 1,
+  showFooterNote = true,
 }: {
   fields?: string[];
   footerNote?: string;
+  /** Owner UAT (2026-09-02) — Invoice หลายแผ่น: แผ่นที่ไม่ใช่แผ่นจบไม่ต้องมีข้อความขอบคุณ
+   * ("Thank you for your trust and support.") — เส้นเซ็น/Label/วันที่ครบเหมือนเดิมทุกอย่าง
+   * ตัดเฉพาะบรรทัด Footer ล่างสุดเพื่อคืนพื้นที่ให้ 17 รายการ + รวมหน้านี้ ไม่ตกขอบล่าง —
+   * ไม่ส่ง = true = พฤติกรรมเดิมทุกประการ (เอกสารประเภทอื่นทุกจุดเรียกไม่กระทบเลย) */
+  showFooterNote?: boolean;
   /** Owner UAT (2026-08-29/31) — ใบส่งของขยายฟอนต์รวม 30% แต่ Section นี้ตรึงขนาดคงที่
    * ไว้โดยเจตนา (เหตุผลเดิมข้างบน — R5) ทำให้เมื่อเทียบกับส่วนอื่นที่ขยายแล้วดูเล็กไม่
    * สมมาตร — เปิดเป็น Prop ให้เอกสารที่ต้องการปรับเรียกเองได้ (ไม่ส่ง = 1 = พฤติกรรม
@@ -38,12 +44,14 @@ export function PrintSignatureBlock({
           </div>
         ))}
       </div>
-      <div
-        className="text-center text-[9px] text-gray-500 mt-3"
-        style={{ whiteSpace: "pre-line", fontSize: `${9 * fontScale}px` }}
-      >
-        {footerNote || "ขอขอบคุณลูกค้าที่ไว้วางใจเรา\nThank you for your trust and support."}
-      </div>
+      {showFooterNote && (
+        <div
+          className="text-center text-[9px] text-gray-500 mt-3"
+          style={{ whiteSpace: "pre-line", fontSize: `${9 * fontScale}px` }}
+        >
+          {footerNote || "ขอขอบคุณลูกค้าที่ไว้วางใจเรา\nThank you for your trust and support."}
+        </div>
+      )}
     </div>
   );
 }

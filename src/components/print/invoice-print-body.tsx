@@ -184,10 +184,10 @@ export function InvoicePrintBody({
               )}
               {isFinalSheet && docSummaryBlock}
               {/* Owner UAT (2026-09-02) — Signature ต้องมีทุก Physical Sheet (หน้าแรก/กลาง/
-                  สุดท้าย แผ่นละ 1 ชุดเสมอ พร้อมเส้นเซ็น) — เดิม Render เฉพาะ isLast — ความจุ
-                  แถวต่อหน้าเผื่อพื้นที่ Signature ทุกแผ่นแล้ว (ดู DOC_CAPACITY_APPROVED/
-                  signatureEverySheetMm ใน print-pagination.ts) */}
-              {pagination.signature}
+                  สุดท้าย แผ่นละ 1 ชุดเสมอ พร้อมเส้นเซ็น) — แผ่นไม่จบใช้เวอร์ชันไม่มีข้อความ
+                  ขอบคุณ (signatureNonFinal — คืนพื้นที่ให้ 17 รายการ + รวมหน้านี้ ไม่ตกขอบ
+                  ล่าง) แผ่นจบใช้ชุดเต็มเดิม */}
+              {isFinalSheet ? pagination.signature : (pagination.signatureNonFinal ?? pagination.signature)}
             </div>
           </section>
         );

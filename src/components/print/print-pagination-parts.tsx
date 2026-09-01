@@ -28,6 +28,10 @@ export type PrintBodyPagination<TItem, TSummary> = {
   header: React.ReactNode;
   /** Signature Block — เรนเดอร์ทุก Physical Sheet (Owner 2026-09-02) */
   signature?: React.ReactNode;
+  /** Owner UAT (2026-09-02) — Signature เวอร์ชันแผ่นไม่จบ (Invoice: ตัดข้อความขอบคุณออก
+   * คืนพื้นที่ให้ 17 รายการ + รวมหน้านี้ ไม่ตกขอบล่าง) — ไม่ส่ง = ใช้ `signature` ทุกแผ่น
+   * เหมือนเดิม (เอกสารประเภทอื่นไม่กระทบ) */
+  signatureNonFinal?: React.ReactNode;
 };
 
 /** ป้าย "หน้า X/Y" มุมขวาเหนือตาราง — แสดงเฉพาะเอกสารหลายหน้า */

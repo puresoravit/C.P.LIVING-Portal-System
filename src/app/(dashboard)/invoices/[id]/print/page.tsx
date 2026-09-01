@@ -322,6 +322,9 @@ export default async function InvoicePrintPage(props: {
           // อย่างเดียวจะกลับกลายเป็นใหญ่ไม่สมมาตรแทน) กลับไปใช้ค่าเริ่มต้นเหมือนเอกสาร
           // ประเภทอื่นทุกประการ
           signature: <PrintSignatureBlock footerNote={template.footerNote} />,
+          // Owner UAT (2026-09-02) — แผ่นไม่จบ: Signature ครบชุดแต่ไม่มีข้อความขอบคุณ
+          // (ข้อความอยู่เฉพาะแผ่นจบ — ดู print-signature-block.tsx)
+          signatureNonFinal: <PrintSignatureBlock footerNote={template.footerNote} showFooterNote={false} />,
         }}
       />
     </PrintPage>
