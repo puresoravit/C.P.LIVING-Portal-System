@@ -105,13 +105,19 @@ export function OrderInvoicePrintPanel({ orderId, invoices }: { orderId: string;
                 disabled={cancelled}
                 aria-label={`เลือก ${inv.invoiceNumber}`}
               />
-              <a href={`/invoices/${inv.id}`} className={`font-mono hover:underline ${cancelled ? "text-gray-400" : "text-blue-600"}`}>
-                {inv.invoiceNumber}
+              {/* Owner UAT (2026-09-02) — ตัวอักษรประเภท (A/B/C) ต้องติดเลขที่เหมือนเดิม —
+                  ช่วงเลขแผ่นเป็นบรรทัดย่อยใต้เลข ไม่ดันตำแหน่งเพื่อนร่วมแถว */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <a href={`/invoices/${inv.id}`} className={`font-mono hover:underline ${cancelled ? "text-gray-400" : "text-blue-600"}`}>
+                    {inv.invoiceNumber}
+                  </a>
+                  <span className="text-gray-500 text-xs">{inv.typeLabel}</span>
+                </div>
                 {inv.sheetRangeLabel && (
-                  <span className="block text-xs text-gray-500 font-mono font-normal">{inv.sheetRangeLabel}</span>
+                  <div className="text-xs text-gray-500 font-mono">{inv.sheetRangeLabel}</div>
                 )}
-              </a>
-              <span className="text-gray-500 text-xs">{inv.typeLabel}</span>
+              </div>
               <span className={`ml-auto text-right ${cancelled ? "text-gray-400" : ""}`}>{inv.amountLabel} บาท</span>
               <span
                 className={`text-[11px] border rounded-full px-2 py-0.5 whitespace-nowrap ${badge.className}`}

@@ -72,7 +72,16 @@ export function PrintResumeBanner({ docKey, label }: { docKey: string; label: st
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(printKeyFor(docKey));
-      if (raw) setSession(JSON.parse(raw));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { url: string; remaining: number };
+      // Owner UAT (2026-09-02) — เหมือน DraftResumeBanner: เอกสารในคิวถูกลบไปแล้ว (404)
+      // ให้ล้างคิวค้างทิ้งเงียบๆ แทนที่จะพาไปหน้า 404
+      fetch(parsed.url, { method: "HEAD" })
+        .then((r) => {
+          if (r.status === 404) sessionStorage.removeItem(printKeyFor(docKey));
+          else setSession(parsed);
+        })
+        .catch(() => setSession(parsed));
     } catch {
       // ไม่มี sessionStorage → ไม่โชว์แถบ
     }
@@ -108,7 +117,17 @@ export function DraftResumeBanner({ docKey, label }: { docKey: string; label: st
 
   useEffect(() => {
     try {
-      setDraftUrl(sessionStorage.getItem(keyFor(docKey)));
+      const url = sessionStorage.getItem(keyFor(docKey));
+      if (!url) return;
+      // Owner UAT (2026-09-02) — "ลบร่าง" ลบเอกสารจริงแล้ว แต่ URL ยังค้างใน sessionStorage
+      // (หน้า [id] ไม่มีโอกาส Mount มาล้างตัวเองเพราะกลายเป็น 404 ไปแล้ว) — ตรวจ HEAD ก่อน
+      // เสนอ: 404 = ล้างทิ้งเงียบๆ ไม่โชว์แถบ / เช็คไม่ได้ (Network ล่ม) = โชว์ตามเดิม
+      fetch(url, { method: "HEAD" })
+        .then((r) => {
+          if (r.status === 404) sessionStorage.removeItem(keyFor(docKey));
+          else setDraftUrl(url);
+        })
+        .catch(() => setDraftUrl(url));
     } catch {
       // ไม่มี sessionStorage → ไม่โชว์แถบ พฤติกรรมเดิมทุกอย่าง
     }
