@@ -7,7 +7,8 @@ import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils
 import { toQueryObject } from "@/lib/search-params";
 import { buildStatusTabCounts } from "@/lib/status-tab-counts";
 import { CancelButton } from "@/components/cancel-button";
-import { cancelOrder } from "./actions";
+import { ActionButton } from "@/components/action-button";
+import { cancelOrder, deleteDraftOrder } from "./actions";
 import { sumActiveInvoiceTotal, deriveOrderPrintState } from "@/lib/order-doc-center";
 import { displayProductTypeCode } from "@/lib/order-preview";
 import { StatusTabs } from "@/components/status-tabs";
@@ -246,7 +247,19 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                         (Cascade ยกเลิก Invoice ลูกอัตโนมัติ — Dashboard/ใบวางบิลตัดยอด/รายการ
                         ให้เองเพราะกรองเฉพาะ PRINTED) — Guard ใบวางบิล/ใบกำกับที่เกาะอยู่แจ้ง
                         ผ่าน Toast จาก Action */}
-                    {canCancel && order.status !== "CANCELLED" ? (
+                    {/* Owner UAT (2026-09-02) — จุดที่หลุดจากรอบแรก: หน้า List นี้มีปุ่มยกเลิก
+                        ของตัวเอง (Owner กดจากตรงนี้แล้วได้ CANCELLED แทนการลบร่าง) — DRAFT
+                        ต้องเป็น "ลบร่าง" (ลบจริง) เหมือนหน้า Detail ทุกประการ */}
+                    {canCancel && order.status === "DRAFT" ? (
+                      <ActionButton
+                        action={deleteDraftOrder.bind(null, order.id)}
+                        confirmMessage={`ลบร่าง ${order.orderNumber} ถาวรหรือไม่? เอกสารยังไม่เคยยืนยัน — ลบแล้วจะไม่แสดงในระบบอีก`}
+                        label="ลบร่าง"
+                        pendingLabel="กำลังลบ..."
+                        successMessage="ลบร่างสำเร็จ"
+                        className="text-xs text-gray-500 hover:text-red-600 border rounded px-2 py-1 whitespace-nowrap"
+                      />
+                    ) : canCancel && order.status !== "CANCELLED" ? (
                       <CancelButton
                         action={cancelOrder.bind(null, order.id)}
                         confirmMessage={`ยืนยันยกเลิก ${order.orderNumber}? Invoice ในออเดอร์นี้จะถูกยกเลิกทั้งหมด และยอดขายที่นับไว้จะถูกหักออกจาก Dashboard`}
