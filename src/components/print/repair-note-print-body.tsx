@@ -2,6 +2,7 @@ import { PrintSignatureBlock } from "./print-signature-block";
 import { PrintPageLabel, type PrintBodyPagination } from "./print-pagination-parts";
 
 type RepairNotePrintItem = {
+  note?: string | null;
   id: string;
   description: string;
   size: string | null;
@@ -29,20 +30,28 @@ export function RepairNotePrintBody({
   const itemsTable = (pageItems: RepairNotePrintItem[], startIndex: number) => (
     <table className="print-table w-full mb-[length:var(--print-block-gap)] text-[length:var(--print-body-size)]">
       <thead>
-        <tr className="border-b">
+        {/* Owner UAT (2026-09-02) — Physical Print จางเหมือนที่เคยแก้ Invoice/ใบกำกับ:
+            เส้นหัวตาราง/เส้นคั่นแถวต้องระบุสีเข้มเอง (Default gray-200 ไม่ติดหมึก) +
+            กำหนดความกว้างคอลัมน์ให้ "รายการ" ได้พื้นที่จริง (table-layout:fixed หารเท่า
+            ถ้าไม่ระบุ) — Pattern เดียวกับ tax-invoice-print-body รอบ 2026-08-31 เป๊ะ */}
+        <tr className="border-b border-gray-800">
           <th className="text-left py-[length:var(--print-row-padding)] w-8">No.</th>
           <th className="text-left py-[length:var(--print-row-padding)]">รายการ</th>
-          <th className="text-left py-[length:var(--print-row-padding)]">ขนาด</th>
-          <th className="text-right py-[length:var(--print-row-padding)]">จำนวน</th>
+          <th className="text-left py-[length:var(--print-row-padding)] w-16">ขนาด</th>
+          <th className="text-right py-[length:var(--print-row-padding)] w-24 whitespace-nowrap">จำนวน</th>
         </tr>
       </thead>
       <tbody>
         {pageItems.map((item, i) => (
-          <tr key={item.id} className="border-b border-dashed">
+          <tr key={item.id} className="border-b border-dashed border-gray-500">
             <td className="py-[length:var(--print-row-padding)]">{startIndex + i + 1}</td>
-            <td className="py-[length:var(--print-row-padding)]">{item.description}</td>
+            <td className="py-[length:var(--print-row-padding)]">
+              {item.description}
+              {/* Owner (2026-09-02) — หมายเหตุต่อรายการ (เช่นอ้างอิงเลข INV) ใต้ชื่อรายการ */}
+              {item.note && <div className="text-[length:var(--print-body-size)]">หมายเหตุ: {item.note}</div>}
+            </td>
             <td className="py-[length:var(--print-row-padding)]">{item.size ?? "-"}</td>
-            <td className="text-right py-[length:var(--print-row-padding)]">
+            <td className="text-right py-[length:var(--print-row-padding)] whitespace-nowrap">
               {Number(item.quantity)} {item.unit}
             </td>
           </tr>

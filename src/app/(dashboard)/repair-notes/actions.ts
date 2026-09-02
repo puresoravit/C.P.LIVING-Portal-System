@@ -26,6 +26,8 @@ const itemSchema = z.object({
   size: z.string().optional(),
   quantity: z.coerce.number().positive(),
   unit: z.string().min(1),
+  // Owner (2026-09-02) — หมายเหตุต่อรายการ (เช่นอ้างอิงเลข INV) — ข้อความอิสระ คีย์เอง
+  note: z.string().optional(),
 });
 
 const createSchema = z.object({
@@ -95,6 +97,72 @@ export async function createRepairReturnNote(formData: FormData) {
 
   revalidatePath("/repair-notes");
   redirect(`/repair-notes/${note.id}`);
+}
+
+// Owner (2026-09-02) — แก้ไขรายการของเอกสารที่ยืนยันแล้ว (เช่นลืมใส่หมายเหตุต่อรายการ
+// ตอนคีย์ครั้งแรก) — เอกสารนี้ไม่มีเงิน/ไม่มี Downstream Document ใดๆ (ไม่ใช่การขาย) การ
+// แทนที่รายการทั้งชุดจึงปลอดภัยแบบเดียวกับ editConfirmedQuotation (ดูข้อยกเว้นใน CLAUDE.md
+// — ยอมรับได้เฉพาะเอกสารไร้ Downstream) + เก็บรายการชุดเดิมลง AuditLog เต็มๆ เพื่อสอบย้อน
+export async function updateRepairReturnNoteItems(noteId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!can(user.role, "repairNote.create")) throw new Error("FORBIDDEN");
+
+  const itemsRaw = JSON.parse(String(formData.get("itemsJson") || "[]"));
+  const parsedItems = z.array(itemSchema).min(1, "ต้องมีอย่างน้อย 1 รายการ").safeParse(itemsRaw);
+  if (!parsedItems.success) {
+    return { success: false, error: "กรุณาตรวจสอบรายการสินค้า (ทุกแถวต้องมีรายการ/จำนวน/หน่วยครบ)" };
+  }
+
+  const note = await db.repairReturnNote.findUniqueOrThrow({ where: { id: noteId }, include: { items: true } });
+  if (note.status === "CANCELLED") {
+    return { success: false, error: "เอกสารนี้ถูกยกเลิกแล้ว แก้ไขไม่ได้" };
+  }
+
+  const CHANGED = "REPAIR_NOTE_CHANGED";
+  try {
+    await db.$transaction(async (tx) => {
+      // CAS กันสถานะเปลี่ยนกลางคัน (Pattern C1/C2 เดิม) — updatedAt ขยับด้วยในตัว
+      const cas = await tx.repairReturnNote.updateMany({
+        where: { id: noteId, status: note.status },
+        data: { updatedAt: new Date() },
+      });
+      if (cas.count !== 1) throw new Error(CHANGED);
+      await tx.repairReturnNoteItem.deleteMany({ where: { repairReturnNoteId: noteId } });
+      await tx.repairReturnNoteItem.createMany({
+        data: parsedItems.data.map((it) => ({
+          repairReturnNoteId: noteId,
+          description: it.description,
+          size: it.size || null,
+          quantity: it.quantity,
+          unit: it.unit,
+          note: it.note || null,
+        })),
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          module: "RepairReturnNote",
+          recordId: noteId,
+          oldValue: {
+            items: note.items.map((it) => ({
+              description: it.description, size: it.size, quantity: it.quantity.toString(), unit: it.unit, note: it.note,
+            })),
+          },
+          newValue: { noteNumber: note.noteNumber, items: parsedItems.data },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED) {
+      return { success: false, error: "สถานะเอกสารเปลี่ยนไปแล้วระหว่างดำเนินการ — กรุณารีเฟรชหน้าแล้วลองใหม่" };
+    }
+    throw err;
+  }
+
+  revalidatePath(`/repair-notes/${noteId}`);
+  revalidatePath("/repair-notes");
+  return { success: true };
 }
 
 export async function cancelRepairReturnNote(id: string): Promise<ActionResult> {

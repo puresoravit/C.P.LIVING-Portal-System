@@ -904,6 +904,9 @@ model RepairReturnNoteItem {
   size               String?
   quantity           Decimal          @db.Decimal(12, 2)
   unit               String
+  // Owner (2026-09-02) — หมายเหตุต่อรายการ (เช่นอ้างอิงเลข INV ที่สินค้าชิ้นนี้ส่งคืนมา)
+  // ข้อความอิสระ คีย์เอง — Additive Nullable ไม่กระทบเอกสารเดิม
+  note               String?
 
   @@map("repair_return_note_items")
 }

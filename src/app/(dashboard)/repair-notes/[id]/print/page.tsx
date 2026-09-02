@@ -115,7 +115,19 @@ export default async function RepairNotePrintPage(props: { params: Promise<{ id:
     : {};
 
   return (
-    <PrintPage templateSettings={template} docType="REPAIR_NOTE" canEditTemplate={can((session?.user as any)?.role, "user.manage")} backHref={`/repair-notes/${note.id}`}>
+    <PrintPage
+      templateSettings={template}
+      docType="REPAIR_NOTE"
+      canEditTemplate={can((session?.user as any)?.role, "user.manage")}
+      backHref={`/repair-notes/${note.id}`}
+      // Owner UAT (2026-09-02) — Physical Print จาง/ฟอนต์บางเหมือนที่แก้ Invoice/ใบกำกับ
+      // ไปแล้ว — ใช้ Pattern เดียวกันเป๊ะ (ดู tax-invoices/[id]/print/page.tsx)
+      bodyClassName="font-bold"
+      bodyStyle={{
+        ["--print-font-family" as string]: `"Tahoma", "Segoe UI", ui-sans-serif, sans-serif`,
+        ["--print-logo-filter" as string]: "contrast(1.5)",
+      }}
+    >
       {/* R8 — Document Pagination: เอกสารนี้ไม่มีจำนวนเงิน — แบ่งหน้า + Header ซ้ำทุกหน้า
           หมายเหตุ/Signature หน้าสุดท้าย (ดู print-pagination.ts) */}
       <RepairNotePrintBody

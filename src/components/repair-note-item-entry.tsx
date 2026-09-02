@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ProductSearchPicker, useCustomerSelectValue, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 
-type Item = { description: string; size: string; quantity: number; unit: string };
+// Owner (2026-09-02) — note = หมายเหตุต่อรายการ (เช่นอ้างอิงเลข INV ของสินค้าที่ส่งคืน)
+type Item = { description: string; size: string; quantity: number; unit: string; note: string };
 
 // Owner UAT Fix Batch 1 — ข้อ 5: เชื่อม Product Master เข้ากับเอกสารนี้ตาม Pattern
 // เดียวกับเอกสารอื่น (สินค้า/รุ่น | ขนาด | จำนวน | หน่วย | รายละเอียด) — ProductSearchPicker
@@ -13,7 +14,7 @@ type Item = { description: string; size: string; quantity: number; unit: string 
 // ทุกประการ (Free-text Snapshot) ทุก Field ที่ Autofill มายังแก้ไขเองต่อได้เสมอ
 export function RepairNoteItemEntry({ createAction }: { createAction: (formData: FormData) => void }) {
   const [items, setItems] = useState<Item[]>([]);
-  const [draft, setDraft] = useState<Item>({ description: "", size: "", quantity: 1, unit: "หลัง" });
+  const [draft, setDraft] = useState<Item>({ description: "", size: "", quantity: 1, unit: "หลัง", note: "" });
   const [err, setErr] = useState("");
   const [pickerResetToken, setPickerResetToken] = useState(0);
   // R8 — กรองสินค้าตามบริษัทลูกค้าที่เลือกในฟอร์มหัวเอกสาร (Server-rendered #customerSelect)
@@ -55,7 +56,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
     }
     setErr("");
     setItems((prev) => [...prev, draft]);
-    setDraft({ description: "", size: "", quantity: 1, unit: "หลัง" });
+    setDraft({ description: "", size: "", quantity: 1, unit: "หลัง", note: "" });
     setPickerResetToken((t) => t + 1);
   }
 
@@ -132,6 +133,15 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             </button>
           </div>
         </div>
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุรายการ (เช่น อ้างอิง INV-B-202609-0003) — ไม่บังคับ</label>
+          <input
+            value={draft.note}
+            onChange={(e) => setDraft({ ...draft, note: e.target.value })}
+            placeholder="คีย์หมายเหตุของสินค้าชิ้นนี้..."
+            className="w-full border rounded px-3 py-1.5 text-sm"
+          />
+        </div>
         {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
       </div>
 
@@ -144,6 +154,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
               <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
+              <th className="px-4 py-2 font-medium">หมายเหตุ</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -166,6 +177,17 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
                   />
                 </td>
                 <td className="px-4 py-2">{item.unit}</td>
+                <td className="px-4 py-2">
+                  {/* Owner (2026-09-02) — แก้หมายเหตุตรงในแถวได้เหมือนช่องจำนวน */}
+                  <input
+                    value={item.note}
+                    onChange={(e) =>
+                      setItems((prev) => prev.map((it, iIdx) => (iIdx === idx ? { ...it, note: e.target.value } : it)))
+                    }
+                    placeholder="เช่น อ้างอิง INV..."
+                    className="border rounded px-2 py-1 w-44 text-sm"
+                  />
+                </td>
                 <td className="px-4 py-2 text-right">
                   <button type="button" onClick={() => removeItem(idx)} className="text-xs text-gray-500 hover:text-red-600">
                     ลบ
@@ -175,7 +197,7 @@ export function RepairNoteItemEntry({ createAction }: { createAction: (formData:
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
                   ยังไม่มีรายการ
                 </td>
               </tr>

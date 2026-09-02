@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
-import { cancelRepairReturnNote } from "../actions";
+import { cancelRepairReturnNote, updateRepairReturnNoteItems } from "../actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { CancelButton } from "@/components/cancel-button";
+import { RepairNoteEditModal } from "@/components/repair-note-edit-modal";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { BackLink } from "@/components/back-link";
 
@@ -49,6 +50,7 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
               <th className="px-4 py-2 font-medium">ขนาด</th>
               <th className="px-4 py-2 font-medium text-right">จำนวน</th>
               <th className="px-4 py-2 font-medium">หน่วย</th>
+              <th className="px-4 py-2 font-medium">หมายเหตุ</th>
             </tr>
           </thead>
           <tbody>
@@ -58,6 +60,7 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
                 <td className="px-4 py-2">{item.size ?? "-"}</td>
                 <td className="px-4 py-2 text-right">{Number(item.quantity)}</td>
                 <td className="px-4 py-2">{item.unit}</td>
+                <td className="px-4 py-2 text-gray-600">{item.note ?? "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -74,6 +77,19 @@ export default async function RepairNoteDetailPage(props: { params: Promise<{ id
         >
           พิมพ์เอกสาร
         </a>
+        {note.status !== "CANCELLED" && (
+          <RepairNoteEditModal
+            action={updateRepairReturnNoteItems.bind(null, note.id)}
+            initialItems={note.items.map((item) => ({
+              key: item.id,
+              description: item.description,
+              size: item.size ?? "",
+              quantity: Number(item.quantity),
+              unit: item.unit,
+              note: item.note ?? "",
+            }))}
+          />
+        )}
         {note.status !== "CANCELLED" && (
           <CancelButton
             action={cancelAction}
