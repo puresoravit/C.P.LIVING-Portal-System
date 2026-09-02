@@ -58,9 +58,10 @@ describe("estimatePageCapacity / capacityForDocument", () => {
   });
 
   // Owner Approve (2026-09-02) — Invoice ใช้ความจุที่ Owner เคาะจาก Physical Print ตรงๆ
-  it("INVOICE ใช้ค่า Owner-approved (17/14/14 + แผ่นจบ ≥3) ไม่ใช่สูตรประมาณ", () => {
+  it("INVOICE ใช้ค่า Owner-approved (17/14/9 + แผ่นจบ ≥3) ไม่ใช่สูตรประมาณ", () => {
     const cap = capacityForDocument(DEFAULT_GLOBAL_TEMPLATE_SETTINGS, "INVOICE");
-    expect(cap).toEqual({ normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14, minFinalOfMultiRows: 3 });
+    // Owner รอบ 3 (2026-09-02): finalOfMulti = 9 จาก Pagination Study (14 ล้นหน้าจริง)
+    expect(cap).toEqual({ normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 9, minFinalOfMultiRows: 3 });
   });
 
   // Owner UAT (2026-08-31) — Invoice Boost ฟอนต์ +30% ผ่าน CSS ล้วนๆ นอกระบบ Template
@@ -150,11 +151,11 @@ describe("paginateRows", () => {
 // ตรงๆ (ความจุ 17/14/14 + แผ่นจบ ≥3): 1–14 = หน้าเดียว Full Footer / 15 ขึ้นไป =
 // Multi-sheet ห้ามยัด 15 ในหน้าเดียวด้วยการขยับ Footer / แผ่นจบห้ามโหรงเหรง 1-2 รายการ
 // (ยืมจากแผ่นก่อนหน้า) / Full Footer ตำแหน่ง LOCK เสมอ
-describe("paginateRows — Owner-approved Invoice matrix (17/14/14, final ≥3)", () => {
+describe("paginateRows — Owner-approved Invoice matrix (17/14/9, final ≥3)", () => {
   const invoiceCap: PageCapacity = {
     normalPageRows: 17,
     finalAloneRows: 14,
-    finalOfMultiRows: 14,
+    finalOfMultiRows: 9,
     minFinalOfMultiRows: 3,
   };
   const rows = (n: number) => Array.from({ length: n }, (_, i) => i);
@@ -164,23 +165,25 @@ describe("paginateRows — Owner-approved Invoice matrix (17/14/14, final ≥3)"
     for (let n = 1; n <= 14; n++) expect(shape(n)).toEqual([n]);
   });
 
-  it("Matrix ตามที่ Owner สั่งพิสูจน์: 15/17/18/20/28/34/35", () => {
+  it("Matrix ตามที่ Owner สั่งพิสูจน์ (fm=9): 15/17/18/20/22/26/28/34/35", () => {
     expect(shape(15)).toEqual([12, 3]);
     expect(shape(17)).toEqual([14, 3]);
     expect(shape(18)).toEqual([15, 3]);
     expect(shape(20)).toEqual([17, 3]);
-    expect(shape(28)).toEqual([17, 11]);
+    expect(shape(22)).toEqual([17, 5]); // เคสจริง INV-B-202609-0003 ของ Owner
+    expect(shape(26)).toEqual([17, 9]); // แผ่นจบเต็มความจุใหม่พอดี
+    expect(shape(28)).toEqual([17, 8, 3]); // เดิม [17,11] — 11 > 9 แล้ว ต้องแตก 3 แผ่น
     expect(shape(34)).toEqual([17, 14, 3]);
     expect(shape(35)).toEqual([17, 15, 3]);
   });
 
-  it("Invariant กวาด 15–80: ครบทุกแถวเรียงเดิม / หน้าแรก-กลาง ≤17 / แผ่นจบ 3–14 เสมอ", () => {
+  it("Invariant กวาด 15–80: ครบทุกแถวเรียงเดิม / หน้าแรก-กลาง ≤17 / แผ่นจบ 3–9 เสมอ", () => {
     for (let n = 15; n <= 80; n++) {
       const pages = paginateRows(rows(n), invoiceCap);
       expect(pages.flat()).toEqual(rows(n)); // ลำดับ/ครบถ้วน (lineNo ต่อเนื่องตามนี้)
       const sizes = pages.map((p) => p.length);
       for (let i = 0; i < sizes.length - 1; i++) expect(sizes[i]).toBeLessThanOrEqual(17);
-      expect(sizes[sizes.length - 1]).toBeLessThanOrEqual(14);
+      expect(sizes[sizes.length - 1]).toBeLessThanOrEqual(9);
       expect(sizes[sizes.length - 1]).toBeGreaterThanOrEqual(3);
     }
   });

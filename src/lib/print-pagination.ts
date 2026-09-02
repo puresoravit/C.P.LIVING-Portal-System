@@ -110,8 +110,16 @@ export const DOC_PAGE_RESERVES_MM: Record<
 // Owner (2026-09-02 รอบ 2) — เพิ่ม minFinalOfMultiRows: 3 — ห้ามมีแผ่นจบที่มีแค่ 1-2
 // รายการโดยไม่จำเป็น (เช่น 15 รายการ = [12,3] ไม่ใช่ [14,1] / 35 = [17,15,3] ไม่ใช่
 // [17,17,1]) — ยืมแถวจากแผ่นก่อนหน้า ไม่แตะ Footer/Signature/Layout ใดๆ
+//
+// Owner Approve (2026-09-02 รอบ 3 — จาก Local Pagination Study): finalOfMulti 14 → 9
+// เพราะ Harness ที่ Calibrate กับ Physical Print จริง (17 แถว non-final = fit ตรงกระดาษ
+// จริง) วัดได้ว่าแผ่นจบของชุดหลายแผ่นที่ 14 แถว "ล้นหน้าจริง −21.7mm" (รวมหน้านี้ + Full
+// Footer + Signature ซ้อนกัน) — 9 แถวเหลือ Gap 14mm (10 แถว = 6.9mm) เลือก 9 เผื่อ
+// ข้อความ Wrap — ต้องแก้ "ก่อน" Backfill/สร้างใบหลายแผ่นจริง เพราะ Allocation ถูก
+// Persist ถาวร (ตัวเลขนี้เป็นจุดเดียวที่ Print Planner + Sheet Engine + Backfill ใช้ร่วมกัน
+// ผ่าน INVOICE_SHEET_CAPACITY = DOC_CAPACITY_APPROVED.INVOICE)
 export const DOC_CAPACITY_APPROVED: Partial<Record<PrintDocKind, PageCapacity>> = {
-  INVOICE: { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 14, minFinalOfMultiRows: 3 },
+  INVOICE: { normalPageRows: 17, finalAloneRows: 14, finalOfMultiRows: 9, minFinalOfMultiRows: 3 },
 };
 
 /** คำนวณความจุแถว/หน้า จากพื้นที่จริงหลังหักส่วนสงวนทั้งหมด — Pure Function */
