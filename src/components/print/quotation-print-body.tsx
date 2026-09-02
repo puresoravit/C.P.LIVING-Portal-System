@@ -184,7 +184,7 @@ export function QuotationPrintBody({
             <div className="print-keep-together">
               {pageCount > 1 && (
                 <div className="border rounded p-2 mb-[length:var(--print-block-gap)]">
-                  <div className="text-[length:var(--print-body-size)] text-gray-600 mb-1">
+                  <div className="text-[length:var(--print-body-size)] text-gray-900 mb-1">
                     รวมหน้านี้ (หน้า {idx + 1}/{pageCount})
                   </div>
                   {summaryRows(page.summary, hasVat ? "รวมหน้านี้ (รวม VAT)" : "สุทธิหน้านี้")}

@@ -176,7 +176,7 @@ export function InvoicePrintBody({
             <div className="print-keep-together">
               {showPageSummary && (
                 <div className="border rounded p-2 mb-[length:var(--print-block-gap)]">
-                  <div className="text-[length:var(--print-body-size)] text-gray-600 mb-1">
+                  <div className="text-[length:var(--print-body-size)] text-gray-900 mb-1">
                     รวมหน้านี้ (หน้า {label.pageNo}/{label.pageCount})
                   </div>
                   {summaryRows(page.summary, "สุทธิหน้านี้")}
