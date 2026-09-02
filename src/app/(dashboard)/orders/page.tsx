@@ -118,7 +118,15 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
         _count: { select: { items: true } },
         invoices: {
           orderBy: { createdAt: "asc" },
-          include: { billingNote: { select: { id: true, billingNoteNumber: true } } },
+          include: {
+            billingNote: { select: { id: true, billingNoteNumber: true } },
+            // Owner (2026-09-02) — Physical Sheet: ช่วงเลขแผ่นใน Drill-down
+            sheets: {
+              where: { voidedAt: null, numberReleased: false },
+              orderBy: { sheetNo: "asc" },
+              select: { sheetNumber: true },
+            },
+          },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -289,6 +297,11 @@ export default async function OrdersPage(props: { searchParams: Promise<SearchPa
                       >
                         <a href={`/invoices/${inv.id}`} className="font-mono text-blue-600 hover:underline">
                           {inv.invoiceNumber}
+                          {inv.sheets.length > 1 && (
+                            <span className="block text-xs text-gray-400 font-mono">
+                              {inv.sheets.length} แผ่น: {inv.sheets[0].sheetNumber} – {inv.sheets[inv.sheets.length - 1].sheetNumber}
+                            </span>
+                          )}
                         </a>
                         <div className="flex items-center justify-between sm:justify-end sm:gap-4 text-xs sm:text-sm">
                           <span className="text-gray-500">{displayProductTypeCode(inv.productTypeCode)}</span>

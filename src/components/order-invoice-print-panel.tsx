@@ -20,6 +20,8 @@ import { useRouter } from "next/navigation";
 export type PrintableInvoiceRow = {
   id: string;
   invoiceNumber: string;
+  // Owner (2026-09-02) — Physical Sheet: ป้ายช่วงเลขแผ่นเมื่อใบมีหลายแผ่น (null = ใบเดียว/แผ่นเดียว)
+  sheetRangeLabel?: string | null;
   /** ป้ายกลุ่มส่วนลด (displayProductTypeCode ฝั่ง Server) */
   typeLabel: string;
   /** ยอดเงิน Format แล้วจาก Server (เลี่ยงส่ง Decimal ข้าม Boundary) */
@@ -105,6 +107,9 @@ export function OrderInvoicePrintPanel({ orderId, invoices }: { orderId: string;
               />
               <a href={`/invoices/${inv.id}`} className={`font-mono hover:underline ${cancelled ? "text-gray-400" : "text-blue-600"}`}>
                 {inv.invoiceNumber}
+                {inv.sheetRangeLabel && (
+                  <span className="block text-xs text-gray-500 font-mono font-normal">{inv.sheetRangeLabel}</span>
+                )}
               </a>
               <span className="text-gray-500 text-xs">{inv.typeLabel}</span>
               <span className={`ml-auto text-right ${cancelled ? "text-gray-400" : ""}`}>{inv.amountLabel} บาท</span>

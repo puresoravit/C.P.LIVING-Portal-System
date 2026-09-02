@@ -248,6 +248,74 @@ export function deriveSheetPrintState(sheets: { printedAt: Date | null; voidedAt
 }
 
 /**
+ * Owner (2026-09-02) — Backfill แผ่นให้ Legacy Invoice (ใบที่ Confirm ก่อน Physical Sheet
+ * Engine ถูก Deploy จึงไม่มีแถวแผ่นเลย และหน้า Print เข้า Fallback เลขเดิมทุกหน้า):
+ *
+ * เข้าเงื่อนไขเฉพาะใบที่ "แก้ได้โดยชอบ" เท่านั้น — CONFIRMED + ไม่เคย PRINTED + ไม่อยู่ใน
+ * ใบวางบิล + ไม่ถูกใบกำกับภาษี Active อ้างอิง + ยังไม่มีแผ่น — ใบ PRINTED/มี Downstream
+ * ห้ามแตะเด็ดขาด (กระดาษ/เอกสารการเงินออกไปแล้ว — คงสภาพ Legacy ตลอดไป ตามกติกา
+ * ห้าม Rewrite เงียบๆ) — คืน { skipped } พร้อมเหตุผลแทนการ Throw เพื่อให้ Script ไล่ทีละใบ
+ * รายงานได้ครบ
+ *
+ * วิธี Backfill ต่างจาก syncInvoiceSheets ตรงที่ "ไม่ลบ/สร้าง Item ใหม่เลย" — แค่สร้างแถว
+ * แผ่น (แผ่น 1 = เลขใบหลักเอง แผ่นถัดไปดึงเลขใหม่จาก Sequence เดิม) แล้วประทับ
+ * sheetId + lineNo ให้ Item เดิมตามลำดับเดิม (orderBy id — cuid เรียงตามเวลาสร้างโดย
+ * ประมาณ ตรงกับลำดับที่ Fallback Path แสดงอยู่แล้ว) — ยอด/Snapshot ไม่ขยับแม้แต่ค่าเดียว
+ */
+export async function backfillLegacyInvoiceSheets(
+  tx: Prisma.TransactionClient,
+  invoiceId: string,
+  userId: string
+): Promise<{ sheetNumbers: string[] } | { skipped: string }> {
+  const invoice = await tx.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: {
+      sheets: { where: { voidedAt: null, numberReleased: false }, select: { id: true } },
+      taxInvoices: { where: { status: { not: "CANCELLED" } }, select: { id: true } },
+      items: { orderBy: { id: "asc" }, select: { id: true } },
+    },
+  });
+  if (invoice.sheets.length > 0) return { skipped: "มีแผ่นอยู่แล้ว" };
+  if (invoice.status !== "CONFIRMED") return { skipped: `สถานะ ${invoice.status} — Backfill ได้เฉพาะ CONFIRMED` };
+  if (invoice.printedAt != null) return { skipped: "พิมพ์แล้ว — คงสภาพ Legacy (ห้าม Rewrite)" };
+  if (invoice.billingNoteId != null) return { skipped: "อยู่ในใบวางบิลแล้ว — คงสภาพ Legacy" };
+  if (invoice.taxInvoices.length > 0) return { skipped: "มีใบกำกับภาษี Active อ้างอิง — คงสภาพ Legacy" };
+  if (invoice.items.length === 0) return { skipped: "ไม่มีรายการ" };
+
+  const docType = `INV-${invoice.productTypeCode}`;
+  const period = parseDocNumber(docType, invoice.invoiceNumber)?.period ?? currentPeriod(new Date());
+  const pages = planSheetSplit(invoice.items);
+
+  const sheetNumbers: string[] = [];
+  let lineNo = 1;
+  for (let i = 0; i < pages.length; i++) {
+    const sheetNumber =
+      i === 0 ? invoice.invoiceNumber : formatDocNumber(docType, period, await getNextSeq(docType, period, tx), 4);
+    const sheet = await tx.invoiceSheet.create({
+      data: { invoiceId: invoice.id, sheetNo: i + 1, sheetNumber },
+    });
+    for (const item of pages[i]) {
+      await tx.invoiceItem.update({ where: { id: item.id }, data: { sheetId: sheet.id, lineNo: lineNo++ } });
+    }
+    sheetNumbers.push(sheetNumber);
+  }
+
+  await tx.auditLog.create({
+    data: {
+      userId,
+      action: "UPDATE",
+      module: "Invoice",
+      recordId: invoice.id,
+      newValue: {
+        note: "Backfill Physical Sheets ให้ใบ Legacy (สร้างก่อน Sheet Engine — Owner Approve 2026-09-02)",
+        sheetNumbers,
+      },
+    },
+  });
+  return { sheetNumbers };
+}
+
+/**
  * ปล่อยเลขทั้งหมดของ Invoice ตอนยกเลิก (ใบหลัก + ทุกแผ่น) ตามกติกา Reclaim เดิมเป๊ะ:
  * เข้าเงื่อนไขเฉพาะ "ไม่เคยมีแผ่นไหน/ใบหลัก PRINTED เลย" (Downstream ถูก Guard ที่ Caller
  * ก่อนถึงจุดนี้แล้วเสมอ — เหมือน cancelInvoice/cancelOrder เดิม) — ไล่ปล่อยจากเลขมาก

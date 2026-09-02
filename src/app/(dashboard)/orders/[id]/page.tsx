@@ -64,7 +64,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       customer: true,
       branch: true,
       items: { include: { product: { include: { productType: true, model: { select: { sortOrder: true } } } } } },
-      invoices: true,
+      // Owner (2026-09-02) — Physical Sheet: เลขแผ่นโชว์ใน Panel พิมพ์ (ช่วงเลขจริงของใบหลายแผ่น)
+      invoices: {
+        include: {
+          sheets: {
+            where: { voidedAt: null, numberReleased: false },
+            orderBy: { sheetNo: "asc" },
+            select: { sheetNumber: true },
+          },
+        },
+      },
     },
   });
   if (!order) notFound();
@@ -421,6 +430,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           invoices={order.invoices.map((inv) => ({
             id: inv.id,
             invoiceNumber: inv.invoiceNumber,
+            // ใบหลายแผ่น: โชว์ช่วงเลขแผ่นจริง (Requirement: ห้ามโชว์เลขใบหลักตัวเดียวจน
+            // เข้าใจผิดว่าไม่มี Sheet Split)
+            sheetRangeLabel:
+              inv.sheets.length > 1
+                ? `${inv.sheets.length} แผ่น: ${inv.sheets[0].sheetNumber} – ${inv.sheets[inv.sheets.length - 1].sheetNumber}`
+                : null,
             typeLabel: displayProductTypeCode(inv.productTypeCode),
             amountLabel: money(inv.grandTotal),
             status: inv.status,
