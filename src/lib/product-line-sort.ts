@@ -53,18 +53,32 @@ export function sortProductLines<T>(lines: readonly T[], info: (line: T) => Prod
   // Pass 1 — จัดกลุ่มตาม familyName แล้วหา Rank ของกลุ่ม = ค่า sortOrder ต่ำสุดที่มีจริง
   // ในกลุ่ม (บรรทัดในกลุ่มเดียวกันอาจมีทั้งที่รู้และไม่รู้ sortOrder เช่นรายการ Custom Size
   // ที่เพิ่งเพิ่มจาก Modal ฝั่ง Client ซึ่งไม่มีข้อมูลรุ่น — ใช้ค่าที่ดีที่สุดที่กลุ่มมี)
+  //
+  // Owner UAT (2026-09-02 — Physical Print INV-A-202609-0001): กลุ่ม "อุปกรณ์เสริม"
+  // (ขาตั้ง/ตะขอ/ล้อเบรค ฯลฯ) เคยแทรกขึ้นบนสุดเพราะตกไปเรียงตามชื่อ ก-ฮ ปนกับที่นอน —
+  // เพิ่ม Bucket ชั้นนอกสุด: Family ไปอยู่ "ท้ายเอกสาร" เมื่อไม่มีทั้ง Catalog sortOrder
+  // และไม่มีขนาดเลยสักบรรทัด (สินค้าไม่มี Size = ไม่ใช่ที่นอน/บล็อค = อุปกรณ์เสริม —
+  // เกณฑ์เชิงโครงสร้างข้อมูล ไม่ Hardcode ชื่อ/หน่วยธุรกิจ) — การจัดกลุ่มตาม Family
+  // ภายในแต่ละ Bucket ยังเหมือนเดิมทุกประการ
   const familyRank = new Map<string, number>();
+  const familyHasSize = new Map<string, boolean>();
   for (const line of lines) {
-    const { familyName, familySortOrder } = info(line);
+    const { familyName, familySortOrder, size } = info(line);
     const current = familyRank.get(familyName);
     const rank = familySortOrder ?? Number.MAX_SAFE_INTEGER;
     if (current == null || rank < current) familyRank.set(familyName, rank);
+    if (size) familyHasSize.set(familyName, true);
+    else if (!familyHasSize.has(familyName)) familyHasSize.set(familyName, false);
   }
+  const familyBucket = (name: string) =>
+    familyRank.get(name)! !== Number.MAX_SAFE_INTEGER || familyHasSize.get(name)! ? 0 : 1;
 
-  // Pass 2 — Sort ด้วยกุญแจ (familyRank, familyName, sizeRank, sizeText, id)
+  // Pass 2 — Sort ด้วยกุญแจ (bucket, familyRank, familyName, sizeRank, sizeText, id)
   return [...lines].sort((a, b) => {
     const ia = info(a);
     const ib = info(b);
+    const bucketDiff = familyBucket(ia.familyName) - familyBucket(ib.familyName);
+    if (bucketDiff !== 0) return bucketDiff;
     const rankDiff = familyRank.get(ia.familyName)! - familyRank.get(ib.familyName)!;
     if (rankDiff !== 0) return rankDiff;
     const nameDiff = ia.familyName.localeCompare(ib.familyName, "th");

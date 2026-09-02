@@ -77,4 +77,32 @@ describe("sortProductLines", () => {
     expect(sorted.map((l) => l.id)).toEqual(["a", "z"]);
     expect(lines.map((l) => l.id)).toEqual(["z", "a"]);
   });
+
+  // Owner UAT (2026-09-02 — Physical Print INV-A-202609-0001 จริง): อุปกรณ์เสริม
+  // (ไม่มีขนาด ไม่มีรุ่น) ต้องไปอยู่ท้ายเอกสารเสมอ ไม่แทรกตามชื่อ ก-ฮ ปนกับที่นอน
+  it("อุปกรณ์เสริม (Family ไม่มีขนาด+ไม่มีรุ่น) ไปท้ายเอกสาร — เคสจริงของ Owner", () => {
+    const lines = [
+      { id: "1", familyName: "ขาตั้งเหล็กดำ", size: null, familySortOrder: null },
+      { id: "2", familyName: "ตะขอสับ", size: null, familySortOrder: null },
+      { id: "3", familyName: "ที่นอนสปริง Mary", size: "3.5 ฟุต", familySortOrder: null },
+      { id: "4", familyName: "ที่นอนสปริง Mary", size: "5 ฟุต", familySortOrder: null },
+      { id: "5", familyName: "ที่นอนสปริง Mary", size: "6 ฟุต", familySortOrder: null },
+      { id: "6", familyName: "บล็อคไม้", size: "6 ฟุต", familySortOrder: null },
+      { id: "7", familyName: "บล็อคไม้", size: "5 ฟุต", familySortOrder: null },
+      { id: "8", familyName: "ล้อเบรค+บล็อคสปริง", size: null, familySortOrder: null },
+    ];
+    const out = sortProductLines(lines, (l) => l).map((l) => l.id);
+    // สินค้ามีขนาดมาก่อน (เรียงชื่อ/ไซส์ตามกติกาเดิม) — อุปกรณ์เสริมต่อท้ายเรียงตามชื่อ
+    expect(out).toEqual(["3", "4", "5", "7", "6", "1", "2", "8"]);
+  });
+
+  it("Family มีรุ่น (Catalog sortOrder) แม้ไม่มีขนาด ก็ยังอยู่กลุ่มหลักตามลำดับ Catalog", () => {
+    const lines = [
+      { id: "a", familyName: "อุปกรณ์พิเศษมีรุ่น", size: null, familySortOrder: 1 },
+      { id: "b", familyName: "ที่นอน X", size: "5 ฟุต", familySortOrder: 2 },
+      { id: "c", familyName: "ตะขอ", size: null, familySortOrder: null },
+    ];
+    const out = sortProductLines(lines, (l) => l).map((l) => l.id);
+    expect(out).toEqual(["a", "b", "c"]);
+  });
 });
