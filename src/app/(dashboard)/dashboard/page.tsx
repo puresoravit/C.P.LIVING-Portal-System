@@ -214,11 +214,21 @@ export default async function HomePage(
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="flex items-center gap-1.5 font-medium text-sm mb-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-sky-50 text-sky-600 shrink-0">
-              <NavIcon name="users" className="w-3.5 h-3.5" />
-            </span>
-            Top 10 ลูกค้า
+          {/* Owner (2026-09-02) — หัวข้อกดเข้าไปดูอันดับเต็ม (11, 12, 13 ...) ได้ — คง
+              Visual เดิมทุกอย่าง เพิ่มแค่ hover/chevron ให้รู้ว่ากดได้ + ส่งช่วงวันที่เดิมต่อ */}
+          <h2 className="mb-2">
+            <a
+              href={`/dashboard/ranking?type=customer&dateFrom=${dateFrom}&dateTo=${dateTo}`}
+              className="group flex items-center gap-1.5 font-medium text-sm hover:text-blue-600"
+            >
+              <span className="flex items-center justify-center w-6 h-6 rounded-md bg-sky-50 text-sky-600 shrink-0">
+                <NavIcon name="users" className="w-3.5 h-3.5" />
+              </span>
+              Top 10 ลูกค้า
+              <span className="text-gray-400 group-hover:text-blue-600 transition-transform duration-150 group-hover:translate-x-0.5">
+                ›
+              </span>
+            </a>
           </h2>
           <ul className="text-sm space-y-1">
             {topCustomers.map((c, i) => (
@@ -243,11 +253,19 @@ export default async function HomePage(
           </ul>
         </div>
         <div className="bg-white border rounded-lg p-4">
-          <h2 className="flex items-center gap-1.5 font-medium text-sm mb-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-50 text-amber-600 shrink-0">
-              <NavIcon name="box" className="w-3.5 h-3.5" />
-            </span>
-            Top 10 สินค้า
+          <h2 className="mb-2">
+            <a
+              href={`/dashboard/ranking?type=product&dateFrom=${dateFrom}&dateTo=${dateTo}`}
+              className="group flex items-center gap-1.5 font-medium text-sm hover:text-blue-600"
+            >
+              <span className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-50 text-amber-600 shrink-0">
+                <NavIcon name="box" className="w-3.5 h-3.5" />
+              </span>
+              Top 10 สินค้า
+              <span className="text-gray-400 group-hover:text-blue-600 transition-transform duration-150 group-hover:translate-x-0.5">
+                ›
+              </span>
+            </a>
           </h2>
           <ul className="text-sm space-y-1">
             {topProducts.map((p, i) => (

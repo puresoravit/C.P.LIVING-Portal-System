@@ -453,6 +453,26 @@ export async function getDashboard(filters: ReportFilters) {
 }
 
 // ==========================================================================
+// Owner (2026-09-02) — หน้า Ranking เต็มจาก Dashboard ("Top 10 ลูกค้า/สินค้า" กดเข้าไป
+// ดูอันดับ 11, 12, 13 ... ต่อได้): ห้ามมีวิธีคำนวณยอดขายชุดที่สอง — 2 ฟังก์ชันนี้เรียก
+// getSalesByGroup(..., "customer") / getTopProductModels ตัวเดียวกับที่ getDashboard ใช้
+// เป๊ะ (Sales SOT เดิม: นับเฉพาะ Invoice ที่ PRINTED) ต่างกันแค่ "ไม่ Cap 10" และตัด
+// รายการยอด 0 ออกตาม Requirement — อันดับบน Dashboard กับหน้านี้จึงตรงกันโดยโครงสร้าง
+// ==========================================================================
+
+/** ลูกค้าทุกรายที่มียอดขายจริง > 0 เรียงมาก→น้อย (Superset ของ topCustomers บน Dashboard) */
+export async function getCustomerRanking(filters: ReportFilters): Promise<GroupResult[]> {
+  const byCustomer = await getSalesByGroup(filters, "customer");
+  return [...byCustomer].sort((a, b) => b.metrics.net - a.metrics.net).filter((g) => g.metrics.net > 0);
+}
+
+/** สินค้า (ระดับ Model/Family เดียวกับ Dashboard) ทุกตัวที่มียอดขายจริง > 0 เรียงมาก→น้อย */
+export async function getProductRanking(filters: ReportFilters): Promise<ProductModelGroupResult[]> {
+  const all = await getTopProductModels(filters, Number.MAX_SAFE_INTEGER);
+  return all.filter((g) => g.metrics.net > 0);
+}
+
+// ==========================================================================
 // R11 (2026-08-27) — รายงานแบบเรียงรายใบ (Flat List) + ยอดฝั่งใบกำกับภาษี
 // SOT เดียวกับระบบเสมอ: นับเฉพาะเอกสารที่ผ่าน PRINTED Checkpoint (พิมพ์กระดาษ 9×11
 // ยืนยันแล้ว) — Owner เคาะชัดว่าใบกำกับภาษีก็ใช้เกณฑ์เดียวกัน
