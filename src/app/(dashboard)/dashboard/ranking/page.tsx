@@ -64,6 +64,15 @@ export default async function DashboardRankingPage(props: { searchParams: Promis
   const offset = (page - 1) * PAGE_SIZE;
   const pageRows = rows.slice(offset, offset + PAGE_SIZE);
 
+  // Owner (2026-09-04) — ยอดรวมท้ายตาราง แสดง "ทุกหน้า" (ไม่ต้องกดไปหน้าสุดท้ายเพื่อดูรวม)
+  // + รวมเฉพาะหน้านี้เมื่อมีหลายหน้า — รวมทั้งหมดต้องเท่ากับการ์ด "จำนวนสินค้าที่ขาย"/
+  // "ยอดสุทธิ (Net)" บน Dashboard เสมอ เพราะมาจากบรรทัด InvoiceItem ชุดเดียวกัน แค่จัดกลุ่ม
+  // คนละแบบ (รายการยอด 0 ที่ถูกกรองออก มีจำนวน = 0 อยู่แล้วตามกฎ soldQuantity)
+  const sumOf = (list: typeof rows) =>
+    list.reduce((acc, r) => ({ quantity: acc.quantity + r.metrics.quantity, net: acc.net + r.metrics.net }), { quantity: 0, net: 0 });
+  const grandTotal = sumOf(rows);
+  const pageTotal = sumOf(pageRows);
+
   const dashboardHref = `/dashboard?dateFrom=${dateFrom}&dateTo=${dateTo}`;
   const title = kind === "customer" ? "อันดับลูกค้าตามยอดขาย" : "อันดับสินค้าตามยอดขาย";
   const otherHref = `/dashboard/ranking?type=${kind === "customer" ? "product" : "customer"}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
@@ -97,18 +106,18 @@ export default async function DashboardRankingPage(props: { searchParams: Promis
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-left">
               <tr>
-                <th className="px-4 py-2 font-medium w-16">อันดับ</th>
-                <th className="px-4 py-2 font-medium">{kind === "customer" ? "ลูกค้า" : "สินค้า"}</th>
-                <th className="px-4 py-2 font-medium text-right w-28">จำนวนหน่วย</th>
-                <th className="px-4 py-2 font-medium text-right w-36">ยอดขาย</th>
+                <th className="px-2 sm:px-4 py-2 font-medium w-10 sm:w-16">อันดับ</th>
+                <th className="px-2 sm:px-4 py-2 font-medium">{kind === "customer" ? "ลูกค้า" : "สินค้า"}</th>
+                <th className="px-2 sm:px-4 py-2 font-medium text-right w-14 sm:w-28 whitespace-nowrap">จำนวน</th>
+                <th className="px-2 sm:px-4 py-2 font-medium text-right w-24 sm:w-36 whitespace-nowrap">ยอดขาย</th>
               </tr>
             </thead>
             <tbody>
               {pageRows.map((row, i) => (
                 <tr key={row.key} className="border-t hover:bg-gray-50">
                   {/* อันดับต่อเนื่องจริงข้ามหน้า (หน้า 2 เริ่มที่ 21) */}
-                  <td className="px-4 py-2 text-gray-500">{offset + i + 1}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-2 sm:px-4 py-2 text-gray-500">{offset + i + 1}</td>
+                  <td className="px-2 sm:px-4 py-2">
                     {row.href ? (
                       <a href={row.href} className="text-blue-600 hover:underline">
                         {row.label}
@@ -117,8 +126,8 @@ export default async function DashboardRankingPage(props: { searchParams: Promis
                       row.label
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right text-gray-600">{row.metrics.quantity.toLocaleString("th-TH")}</td>
-                  <td className="px-4 py-2 text-right">{money(row.metrics.net)}</td>
+                  <td className="px-2 sm:px-4 py-2 text-right text-gray-600">{row.metrics.quantity.toLocaleString("th-TH")}</td>
+                  <td className="px-2 sm:px-4 py-2 text-right whitespace-nowrap">{money(row.metrics.net)}</td>
                 </tr>
               ))}
               {pageRows.length === 0 && (
@@ -129,6 +138,26 @@ export default async function DashboardRankingPage(props: { searchParams: Promis
                 </tr>
               )}
             </tbody>
+            {rows.length > 0 && (
+              <tfoot className="bg-gray-50">
+                {totalPages > 1 && (
+                  <tr className="border-t text-gray-600">
+                    <td className="px-2 sm:px-4 py-2" colSpan={2}>
+                      รวมหน้านี้ (อันดับ {offset + 1}–{offset + pageRows.length})
+                    </td>
+                    <td className="px-2 sm:px-4 py-2 text-right">{pageTotal.quantity.toLocaleString("th-TH")}</td>
+                    <td className="px-2 sm:px-4 py-2 text-right whitespace-nowrap">{money(pageTotal.net)}</td>
+                  </tr>
+                )}
+                <tr className="border-t-2 border-gray-300 font-semibold">
+                  <td className="px-2 sm:px-4 py-2" colSpan={2}>
+                    รวมทั้งหมด ({totalCount.toLocaleString("th-TH")} รายการ{totalPages > 1 ? " · ทุกหน้า" : ""})
+                  </td>
+                  <td className="px-2 sm:px-4 py-2 text-right">{grandTotal.quantity.toLocaleString("th-TH")}</td>
+                  <td className="px-2 sm:px-4 py-2 text-right whitespace-nowrap">{money(grandTotal.net)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
