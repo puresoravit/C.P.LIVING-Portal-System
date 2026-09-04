@@ -411,8 +411,15 @@ export type CustomerSalesBreakdown = {
 
 export async function getCustomerSalesBreakdown(filters: ReportFilters): Promise<CustomerSalesBreakdown> {
   const rows = await fetchProductRows(filters);
-  const typeNameByCode = new Map(
-    (await db.productType.findMany({ select: { code: true, name: true } })).map((t) => [t.code, t.name])
+  // Owner (2026-09-04) — ลำดับกลุ่มส่วนลดต้องตามที่ Owner จัดไว้ในหน้า Master "กลุ่มส่วนลด"
+  // (sortOrder) ไม่ใช่เรียงตามยอดขาย — Reuse แหล่งเดียวกับการ์ดกลุ่มส่วนลดบน Dashboard
+  // (activeTypes ... orderBy sortOrder) จึงเรียงเหมือนกันทั้งระบบและปรับได้เองจากหน้า Master
+  // โดยไม่ต้องแก้โค้ด (ห้าม Hardcode ชื่อกลุ่มตาม CLAUDE.md)
+  const typeMaster = new Map(
+    (await db.productType.findMany({ select: { code: true, name: true, sortOrder: true } })).map((t) => [
+      t.code,
+      { name: t.name, sortOrder: t.sortOrder },
+    ])
   );
 
   const groupMap = new Map<string, { typeLabel: string; products: Map<string, CustomerSalesProductLine> }>();
@@ -427,7 +434,7 @@ export async function getCustomerSalesBreakdown(filters: ReportFilters): Promise
     const typeLabel =
       row.productTypeCode === UNSPECIFIED_TYPE_CODE
         ? UNSPECIFIED_TYPE_LABEL
-        : (typeNameByCode.get(row.productTypeCode) ?? row.productTypeCode);
+        : (typeMaster.get(row.productTypeCode)?.name ?? row.productTypeCode);
     const group = groupMap.get(row.productTypeCode) ?? { typeLabel, products: new Map() };
     // รายการระดับ "รุ่น/ตระกูลสินค้า" ตัวเดียวกับ Top 10 สินค้าบน Dashboard (สินค้าที่ไม่มี
     // รุ่น/ตระกูล จะขึ้นเป็นรายชิ้นเองตาม resolveProductFamily — ไม่มีการเดาจากชื่อสินค้า)
@@ -445,7 +452,13 @@ export async function getCustomerSalesBreakdown(filters: ReportFilters): Promise
       const metrics = products.reduce((m, prod) => addMetrics(m, prod.metrics), emptyMetrics());
       return { typeCode, typeLabel: g.typeLabel, metrics, products };
     })
-    .sort((a, b) => b.metrics.net - a.metrics.net);
+    // เรียงตาม sortOrder ของ Master — กลุ่มที่ไม่มีใน Master (เช่น "ไม่ระบุกลุ่มส่วนลด"
+    // หรือกลุ่มที่ถูกลบไปแล้วแต่เอกสารเก่ายังอ้างอยู่) ไปท้ายสุด แล้วเรียงตามรหัสให้ลำดับนิ่ง
+    .sort((a, b) => {
+      const rank = (code: string) => typeMaster.get(code)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const diff = rank(a.typeCode) - rank(b.typeCode);
+      return diff !== 0 ? diff : a.typeCode.localeCompare(b.typeCode);
+    });
 
   const total = groups.reduce((m, g) => addMetrics(m, g.metrics), emptyMetrics());
   return { groups, total, byOrder };
