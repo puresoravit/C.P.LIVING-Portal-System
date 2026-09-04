@@ -315,9 +315,10 @@ export function OrderEditModal({
 
             <div className="p-4 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                การบันทึกการแก้ไขนี้จะ<b>แก้ยอดใน Invoice เดิม {activeInvoiceCount} ใบของ Order นี้โดยใช้เลขที่เดิม</b>
-                — เฉพาะกลุ่มส่วนลดที่ไม่เหลือรายการเลยเท่านั้นที่ใบจะถูกยกเลิก (เลขเดิมคงอยู่เป็นสถานะยกเลิกถาวร
-                ไม่นำกลับมาใช้ซ้ำ) และกลุ่มส่วนลดใหม่ที่เพิ่งเพิ่มเข้ามาจะได้ Invoice เลขใหม่เฉพาะใบนั้น
+                {/* Owner (2026-09-04) — กติกาใหม่ "ใบละไม่เกิน 14 รายการ" (ดู invoice-split.ts) */}
+                การบันทึกจะ<b>จัดรายการลง Invoice เดิม {activeInvoiceCount} ใบของ Order นี้ใหม่โดยใช้เลขที่เดิม</b>
+                (ใบละไม่เกิน 14 รายการ) — รายการที่เกินได้ Invoice เลขใหม่ · ใบที่ไม่เหลือรายการถูกยกเลิก
+                (เลขเดิมคงเป็นสถานะยกเลิกถาวร ไม่นำกลับมาใช้ซ้ำ)
               </div>
 
               <label className="flex items-center gap-2 text-sm bg-gray-50 border rounded-lg p-3">
@@ -328,9 +329,10 @@ export function OrderEditModal({
               {requiresPrintedAck && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 space-y-2">
                   <div>
-                    <b>คำเตือน:</b> เอกสาร Invoice บางใบของ Order นี้ถูก<b>พิมพ์ไปแล้ว</b> —
-                    ยอดในระบบของใบนั้นจะถูกแก้เป็นยอดใหม่ทันที (เลขที่และสถานะพิมพ์แล้วคงเดิม)
-                    กระดาษที่พิมพ์ไว้แล้วจะไม่ตรงกับระบบ ต้องแก้/พิมพ์ใหม่เอง
+                    <b>คำเตือน:</b> เอกสาร Invoice บางใบของ Order นี้ถูก<b>พิมพ์ไปแล้ว</b> — ใบที่พิมพ์แล้ว
+                    จะ<b>ไม่ถูกแก้</b> (รายการ/ยอด/เลขที่คงเดิมทั้งใบ) ถ้าการแก้ไขนี้กระทบรายการในใบนั้น ระบบจะ
+                    ไม่ให้บันทึกและบอกว่าใบไหน — ต้องยกเลิกใบนั้นแล้วออกใหม่ · รายการที่เพิ่มใหม่จะไปอยู่ใบที่ยัง
+                    ไม่พิมพ์หรือใบใหม่
                   </div>
                   <label className="flex items-center gap-2 font-medium">
                     <input
@@ -338,7 +340,7 @@ export function OrderEditModal({
                       checked={acknowledgePrinted}
                       onChange={(e) => setAcknowledgePrinted(e.target.checked)}
                     />
-                    ฉันรับทราบว่ายอดของใบที่เคยพิมพ์แล้วจะถูกแก้ไขโดยใช้เลขที่เดิม
+                    ฉันรับทราบว่าใบที่พิมพ์แล้วจะคงเดิม และรายการที่แก้/เพิ่มจะไปอยู่ใบที่ยังไม่พิมพ์หรือใบใหม่
                   </label>
                 </div>
               )}

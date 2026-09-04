@@ -19,7 +19,11 @@ import { paginateRows, DOC_CAPACITY_APPROVED, type PageCapacity } from "@/lib/pr
 export const INVOICE_SHEET_CAPACITY: PageCapacity = DOC_CAPACITY_APPROVED.INVOICE!;
 
 /** แผนแบ่งแผ่นจากรายการเรียงลำดับแล้ว — Pure Function (Reuse paginateRows + ความจุ
- * Owner-approved 17/14/14 ตัวเดียวกับหน้า Print เป๊ะ) */
+ * Owner-approved 17/14/9 ตัวเดียวกับหน้า Print เป๊ะ)
+ *
+ * Owner (2026-09-04) — ใบใหม่ทุกใบมีไม่เกิน 14 รายการเสมอ (ดู invoice-split.ts: 1 กลุ่มส่วนลด
+ * = N ใบ) จึงได้แผ่นเดียวเสมอจากกติกานี้ (14 ≤ finalAloneRows) — ความจุหลายแผ่นยังจำเป็นสำหรับ
+ * ใบเก่า (Backfill/Runtime Pagination ของใบก่อน Feature) ห้ามเปลี่ยนตัวเลข */
 export function planSheetSplit<T>(lines: T[]): T[][] {
   return paginateRows(lines, INVOICE_SHEET_CAPACITY);
 }

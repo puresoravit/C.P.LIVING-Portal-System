@@ -7,8 +7,7 @@ import { can } from "@/lib/permissions";
 import { getNextSeq, formatDocNumber, currentPeriod } from "@/lib/running-number";
 import { parseDocNumber, tryReleaseSeq } from "@/lib/running-number-reclaim";
 import { computeOrderPreview } from "@/lib/order-preview";
-import { roundMoney, allocateProportionally, getEffectivePrice } from "@/lib/pricing";
-import { Decimal } from "@prisma/client/runtime/library";
+import { getEffectivePrice } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -17,10 +16,9 @@ import type { ActionResult } from "@/lib/action-result";
 import { fetchOrderEditGuard } from "@/lib/order-edit-guard";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
-import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
-import { syncInvoiceSheets, releaseInvoiceNumbersOnCancel, PRINTED_SHEET_BLOCK } from "@/lib/invoice-sheets";
+import { releaseInvoiceNumbersOnCancel, PRINTED_SHEET_BLOCK } from "@/lib/invoice-sheets";
+import { applyInvoiceGroupPlan, cancelVanishedGroupInvoices, invoiceHeaderFromOrder, EXISTING_INVOICE_SELECT } from "@/lib/invoice-group-apply";
 import { deleteDraftOrderCore, DRAFT_DELETE_CHANGED, DRAFT_DELETE_BLOCKED } from "@/lib/draft-delete";
-import { computeRedeliveryLines } from "@/lib/invoice-pending-redelivery";
 import { lineNoteError, normalizeLineNote } from "@/lib/line-note";
 import { findLineNoteError } from "@/lib/line-note-server";
 
@@ -362,100 +360,18 @@ export async function confirmOrder(orderId: string): Promise<ActionResult> {
       },
     });
 
-    // ข้อ 22: แตก Invoice ตาม Type ที่มีสินค้าจริงเท่านั้น (preview.groups มาจาก
-    // รายการที่มีอยู่จริงเสมอ จึงไม่มีทางสร้าง Empty Invoice)
+    // Owner (2026-09-04) — 1 กลุ่มส่วนลด = N ใบ ใบละ ≤14 รายการ (ดู invoice-split.ts /
+    // invoice-group-apply.ts) — ข้อ 22 เดิมยังอยู่: กลุ่มมาจากรายการที่มีจริง ไม่มีใบว่าง
+    // แต่ละใบสรุปยอดจากรายการของตัวเอง (ไม่มียอดรวมทั้งออเดอร์บนกระดาษ — Owner ยืนยัน)
+    const header = invoiceHeaderFromOrder(order, order.customer, order.branch, period);
     for (const group of preview.groups) {
-      const docType = `INV-${group.productTypeCode}`;
-      const seq = await getNextSeq(docType, period, tx);
-      const invoiceNumber = formatDocNumber(docType, period, seq, 4);
-
-      const invoice = await tx.invoice.create({
-        data: {
-          invoiceNumber,
-          parentOrderId: order.id,
-          invoiceDate: order.orderDate,
-          customerId: order.customerId,
-          branchId: order.branchId,
-          productTypeCode: group.productTypeCode,
-          // ข้อ 27: Snapshot ข้อมูลลูกค้า/สาขา ณ ตอน Confirm — แก้ Master Data
-          // ภายหลังห้ามกระทบ Invoice ใบนี้
-          customerNameSnapshot: order.customer.companyName,
-          taxIdSnapshot: order.customer.taxId,
-          // Owner UAT Fix Batch 1 — ข้อ 3: Order ไม่มีสาขาได้แล้ว (order.branch เป็น
-          // null ได้) — Snapshot เป็น null ไปด้วยตามข้อเท็จจริง ไม่เดา/ไม่ fallback ข้อความ
-          branchNameSnapshot: order.branch?.name ?? null,
-          addressSnapshot: order.branch?.address ?? order.customer.address ?? null,
-          placeToDelivery: order.placeToDelivery,
-          grossAmount: group.grossAmount,
-          discountPct: group.discountPct,
-          discountAmount: group.discountAmount,
-          // R3 — Snapshot ค่า applyDiscount ของ Order ณ ตอน Confirm เพื่อแยกความหมาย
-          // "ไม่มี Discount Rule จริง" ออกจาก "มี Rule แต่ตั้งใจไม่ใช้" ตอน Audit ย้อนหลัง
-          applyDiscount: order.applyDiscount,
-          netBeforeVat: group.netAmount,
-          vatPct: new Decimal(0),
-          vatAmount: new Decimal(0),
-          grandTotal: group.netAmount,
-          status: "CONFIRMED",
-          createdById: user.id,
-        },
-      });
-
-      // ข้อ 26: จัดสรร discountAmount ของกลุ่มลงแต่ละ item ตามสัดส่วน
-      // gross ของแต่ละบรรทัด แล้วปรับบรรทัดสุดท้ายให้ดูดเศษที่เหลือ
-      // รับประกันว่า sum(item.discountAmount) === group.discountAmount
-      // เป๊ะเสมอ ไม่มี Rounding Drift ระหว่างยอดรวม Invoice กับ
-      // ผลรวมของ Invoice Item (จุดที่ข้อ 26 เตือนไว้โดยเฉพาะ)
-      const grossAmounts = group.items.map((item) => item.grossAmount);
-      const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
-      // R12 — จัดสรรส่วนลดเชิงสถิติ (Forced) ต่อบรรทัดด้วยกลไกเดียวกันเป๊ะ แล้ว Map
-      // กลับด้วย orderItemId (การจัดกลุ่ม/ลำดับของ 2 Preview เหมือนกันแต่ผูกด้วย id
-      // ชัดเจนกว่าพึ่ง Index)
-      const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
-      const forcedAlloc = forcedGroup
-        ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
-        : [];
-      const statByOrderItemId = new Map((forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]]));
-
-      const itemPayloads = group.items.map((item, idx) => {
-        const lineDiscount = allocatedDiscounts[idx];
-        const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
-        return {
-          productId: item.productId,
-          skuSnapshot: item.sku,
-          productNameSnapshot: item.productName,
-          productTypeSnapshot: item.productTypeName,
-          sizeSnapshot: item.size,
-          quantity: item.quantity,
-          unitSnapshot: item.unit,
-          unitPriceSnapshot: item.unitPrice,
-          grossAmount: item.grossAmount,
-          discountAmount: lineDiscount,
-          netAmount: lineNet,
-          vatAmount: new Decimal(0),
-          totalAmount: lineNet,
-          statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
-        };
-      });
-
-      // Owner Approve (2026-09-02) — Physical Sheet: Item ถูกสร้างผ่าน Sheet Engine แทน
-      // Nested Create เดิม (Payload/ตัวเลขเดิมทุกค่า แค่เพิ่ม sheetId/lineNo) — แผ่น 1 ใช้
-      // เลขใบหลักเอง แผ่นถัดไปกินเลขใหม่จาก Sequence เดิม (ดู src/lib/invoice-sheets.ts)
-      const sheetResult = await syncInvoiceSheets(tx, invoice, itemPayloads);
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          action: "CREATE",
-          module: "Invoice",
-          recordId: invoice.id,
-          newValue: {
-            invoiceNumber,
-            parentOrderId: order.id,
-            productTypeCode: group.productTypeCode,
-            sheetNumbers: sheetResult.sheetNumbers,
-          },
-        },
+      await applyInvoiceGroupPlan(tx, {
+        header,
+        group,
+        forcedGroup: forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId),
+        existing: [],
+        userId: user.id,
+        note: "Confirm ออเดอร์",
       });
     }
   });
@@ -693,8 +609,11 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
         throw new Error("สถานะ Order เปลี่ยนไประหว่างดำเนินการ (อาจถูกแก้ไข/อ้างอิงโดยผู้อื่นพร้อมกัน) กรุณาลองใหม่");
       }
 
-      const freshOrder = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
-      const activeInvoices = freshOrder.invoices.filter((i) => i.status !== "CANCELLED");
+      const freshOrder = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { invoices: { where: { status: { not: "CANCELLED" } }, select: EXISTING_INVOICE_SELECT } },
+      });
+      const activeInvoices = freshOrder.invoices;
       // R11 — ข้อ 5: ไม่ยกเลิกยกชุดอีกต่อไป — รอคำนวณ Preview ใหม่ก่อน แล้วค่อย Reconcile
       // เป็นรายกลุ่ม (คงเลขเดิม / ยกเลิกเฉพาะกลุ่มที่หาย / ออกเลขใหม่เฉพาะกลุ่มที่เพิ่งมี)
 
@@ -735,218 +654,27 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
       // R12 — Snapshot ส่วนลดเชิงสถิติ (เหมือน confirmOrder ทุกประการ) — อ่านจาก tx เดียวกัน
       const forcedPreview = applyDiscount ? preview : await computeOrderPreview(orderId, tx, { forceApplyDiscount: true });
 
-      // R11 — ข้อ 5 (Owner): "ถ้ามีการแก้ใช้เลขเดิม แต่ถ้ากลุ่มไหนลบออกหมด เลข INV ก็ลบไป"
-      // Reconcile รายกลุ่มส่วนลด: กลุ่มเดิมที่ยังอยู่ = แก้ยอดในใบเลขเดิม (สถานะ/printedAt
-      // คงเดิม — ใบที่พิมพ์แล้วยังนับยอดขายต่อด้วยยอดใหม่), กลุ่มที่หายไป = ยกเลิกใบ,
-      // กลุ่มใหม่ = ออกใบเลขใหม่เฉพาะใบนั้น
-      const plan = reconcileInvoiceGroups(
-        activeInvoices.map((i) => ({ id: i.id, productTypeCode: i.productTypeCode })),
-        preview.groups.map((g) => g.productTypeCode)
+      // Owner (2026-09-04) — Reconcile รายกลุ่ม แบบ "1 กลุ่ม = N ใบ ใบละ ≤14" (ดู invoice-split.ts):
+      // ใบพิมพ์แล้วแช่แข็ง / ใบยังไม่พิมพ์ใช้เลขเดิมตามลำดับ / เกินออกใบใหม่ / ว่างยกเลิก —
+      // กติกา R11 เดิม (คงเลขเดิม, กลุ่มที่หายหมดถูกยกเลิก, กลุ่มใหม่ได้เลขใหม่) ยังอยู่ครบ
+      const header = invoiceHeaderFromOrder({ ...order, applyDiscount }, order.customer, order.branch, period);
+      const previewCodes = new Set(preview.groups.map((g) => g.productTypeCode));
+      for (const group of preview.groups) {
+        await applyInvoiceGroupPlan(tx, {
+          header,
+          group,
+          forcedGroup: forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId),
+          existing: activeInvoices.filter((i) => i.productTypeCode === group.productTypeCode),
+          userId: user.id,
+          note: "แก้ไข Order ที่ Confirm แล้ว (E3/R11)",
+        });
+      }
+      await cancelVanishedGroupInvoices(
+        tx,
+        activeInvoices.filter((i) => !previewCodes.has(i.productTypeCode)),
+        user.id,
+        "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังแก้ไข Order (E3 Edit Confirmed Order)"
       );
-      const groupByCode = new Map(preview.groups.map((g) => [g.productTypeCode, g]));
-      const invoiceById = new Map(activeInvoices.map((i) => [i.id, i]));
-
-      // Payload รายการสินค้าใช้ร่วมกันทั้ง Branch แก้ใบเดิม/สร้างใบใหม่ (Logic เดิมจาก
-      // confirmOrder ทุกประการ รวม statDiscountAmount R12)
-      const buildItemsForGroup = (group: (typeof preview.groups)[number]) => {
-        const grossAmounts = group.items.map((item) => item.grossAmount);
-        const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
-        const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
-        const forcedAlloc = forcedGroup
-          ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
-          : [];
-        const statByOrderItemId = new Map((forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]]));
-
-        return group.items.map((item, idx) => {
-          const lineDiscount = allocatedDiscounts[idx];
-          const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
-          return {
-            productId: item.productId,
-            skuSnapshot: item.sku,
-            productNameSnapshot: item.productName,
-            productTypeSnapshot: item.productTypeName,
-            sizeSnapshot: item.size,
-            quantity: item.quantity,
-            unitSnapshot: item.unit,
-            unitPriceSnapshot: item.unitPrice,
-            grossAmount: item.grossAmount,
-            discountAmount: lineDiscount,
-            netAmount: lineNet,
-            vatAmount: new Decimal(0),
-            totalAmount: lineNet,
-            statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
-          };
-        });
-      };
-
-      for (const invoiceId of plan.cancels) {
-        const inv = invoiceById.get(invoiceId)!;
-        await tx.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "CANCEL",
-            module: "Invoice",
-            recordId: invoiceId,
-            oldValue: { status: inv.status },
-            newValue: {
-              status: "CANCELLED",
-              reason: "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังแก้ไข Order (E3 Edit Confirmed Order)",
-            },
-          },
-        });
-      }
-
-      for (const { productTypeCode, invoiceId } of plan.updates) {
-        const group = groupByCode.get(productTypeCode)!;
-        const inv = invoiceById.get(invoiceId)!;
-        const wasPrinted = inv.status === "PRINTED";
-        // Owner UAT (2026-08-29) — ต้องอ่านรายการเดิมไว้ก่อนลบ เพื่อคำนวณว่า "อะไรค้างส่ง"
-        // (ลดลงจากเดิมเท่าไร) ถ้าใบนี้เคยพิมพ์แล้ว — ดู src/lib/invoice-pending-redelivery.ts
-        const oldInvoiceItems = wasPrinted ? await tx.invoiceItem.findMany({ where: { invoiceId } }) : [];
-        // Owner Final Guard (2026-09-02) — ห้าม deleteMany ทั้งชุดอีกต่อไป: syncInvoiceSheets
-        // เป็นคนลบเองแบบเลือกลบ (แถวของแผ่นที่พิมพ์แล้วต้องคงเดิมทั้ง id/lineNo/เนื้อหา)
-        await tx.invoice.update({
-          where: { id: invoiceId },
-          data: {
-            // เลขใบ/วันที่/สถานะ/printedAt/Snapshot ลูกค้า คงเดิมทั้งหมด — แก้เฉพาะยอด+รายการ
-            grossAmount: group.grossAmount,
-            discountPct: group.discountPct,
-            discountAmount: group.discountAmount,
-            applyDiscount,
-            netBeforeVat: group.netAmount,
-            grandTotal: group.netAmount,
-            // Owner UAT (2026-08-29) — ใบนี้เคยพิมพ์แล้วแล้วเพิ่งถูกแก้ไขซ้ำ — Flag ถาวร
-            // ไว้เตือนบนหน้าเอกสาร (อัปเดตทุกครั้งที่แก้ซ้ำ ไม่ใช่ Write-once)
-            ...(wasPrinted ? { editedAfterPrintAt: new Date() } : {}),
-          },
-        });
-        // Owner Approve (2026-09-02) — Physical Sheet: Reshard รายการลงแผ่นตามกติกา Owner
-        // (รักษาเลขแผ่นเดิมตามลำดับ / แผ่นเกิน Void+Reclaim เฉพาะเข้าเงื่อนไข / มีแผ่น
-        // PRINTED = Freeze เลขทั้งชุด เพิ่มได้อย่างเดียว — ดู src/lib/invoice-sheets.ts)
-        const sheetSync = await syncInvoiceSheets(
-          tx,
-          { id: invoiceId, invoiceNumber: inv.invoiceNumber, productTypeCode },
-          buildItemsForGroup(group)
-        );
-        if (sheetSync.voidedNumbers.length > 0 || sheetSync.sheetNumbers.length > 1) {
-          await tx.auditLog.create({
-            data: {
-              userId: user.id,
-              action: "UPDATE",
-              module: "Invoice",
-              recordId: invoiceId,
-              newValue: {
-                note: "จัดแผ่น (Physical Sheet) ใหม่จากการแก้ไข Order",
-                sheetNumbers: sheetSync.sheetNumbers,
-                voidedSheetNumbers: sheetSync.voidedNumbers,
-                releasedSheetNumbers: sheetSync.releasedNumbers,
-              },
-            },
-          });
-        }
-        // Owner UAT (2026-08-29) — เข้าหมวด "ค้างส่ง" เฉพาะตอนยอดลดลงของใบที่เคยพิมพ์แล้ว
-        // เท่านั้น (Owner ยืนยันชัดเจน) — ไม่แตะเอกสารอื่นใดๆ เป็นแค่ Checklist ติดตามงาน
-        if (wasPrinted && group.netAmount.lt(inv.grandTotal)) {
-          const redeliveryLines = computeRedeliveryLines(
-            oldInvoiceItems.map((it) => ({
-              productId: it.productId,
-              productNameSnapshot: it.productNameSnapshot,
-              sizeSnapshot: it.sizeSnapshot,
-              unitSnapshot: it.unitSnapshot,
-              quantity: it.quantity,
-            })),
-            group.items.map((it) => ({
-              productId: it.productId,
-              productNameSnapshot: it.productName,
-              sizeSnapshot: it.size,
-              unitSnapshot: it.unit,
-              quantity: it.quantity,
-            }))
-          );
-          if (redeliveryLines.length > 0) {
-            await tx.invoicePendingRedelivery.create({
-              data: {
-                invoiceId,
-                reducedAmount: inv.grandTotal.sub(group.netAmount),
-                items: redeliveryLines,
-                createdById: user.id,
-              },
-            });
-          }
-        }
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "UPDATE",
-            module: "Invoice",
-            recordId: invoiceId,
-            oldValue: {
-              grossAmount: inv.grossAmount.toString(),
-              discountAmount: inv.discountAmount.toString(),
-              grandTotal: inv.grandTotal.toString(),
-            },
-            newValue: {
-              invoiceNumber: inv.invoiceNumber,
-              grossAmount: group.grossAmount.toString(),
-              discountAmount: group.discountAmount.toString(),
-              grandTotal: group.netAmount.toString(),
-              note: "แก้ยอดในใบเลขเดิมจากการแก้ไข Order ที่ Confirmed แล้ว (E3/R11)",
-            },
-          },
-        });
-      }
-
-      for (const productTypeCode of plan.creates) {
-        const group = groupByCode.get(productTypeCode)!;
-        const docType = `INV-${group.productTypeCode}`;
-        const seq = await getNextSeq(docType, period, tx);
-        const invoiceNumber = formatDocNumber(docType, period, seq, 4);
-
-        const invoice = await tx.invoice.create({
-          data: {
-            invoiceNumber,
-            parentOrderId: order.id,
-            invoiceDate: order.orderDate,
-            customerId: order.customerId,
-            branchId: order.branchId,
-            productTypeCode: group.productTypeCode,
-            customerNameSnapshot: order.customer.companyName,
-            taxIdSnapshot: order.customer.taxId,
-            branchNameSnapshot: order.branch?.name ?? null,
-            addressSnapshot: order.branch?.address ?? order.customer.address ?? null,
-            placeToDelivery: order.placeToDelivery,
-            grossAmount: group.grossAmount,
-            discountPct: group.discountPct,
-            discountAmount: group.discountAmount,
-            applyDiscount,
-            netBeforeVat: group.netAmount,
-            vatPct: new Decimal(0),
-            vatAmount: new Decimal(0),
-            grandTotal: group.netAmount,
-            status: "CONFIRMED",
-            createdById: user.id,
-          },
-        });
-        // Owner Approve (2026-09-02) — Physical Sheet Engine (ดู confirmOrder)
-        const newSheetSync = await syncInvoiceSheets(tx, invoice, buildItemsForGroup(group));
-
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "CREATE",
-            module: "Invoice",
-            recordId: invoice.id,
-            newValue: {
-              invoiceNumber,
-              parentOrderId: order.id,
-              productTypeCode: group.productTypeCode,
-              sheetNumbers: newSheetSync.sheetNumbers,
-              note: "กลุ่มส่วนลดใหม่จากการแก้ไข Order ที่ Confirmed แล้ว (E3/R11)",
-            },
-          },
-        });
-      }
     });
   } catch (err) {
     // Owner Final Guard (2026-09-02) — Block ที่ตั้งใจ (แก้กระทบแผ่นพิมพ์แล้ว) คืนเหตุผล
@@ -1071,160 +799,34 @@ export async function changeOrderCustomer(orderId: string, formData: FormData): 
       const preview = await computeOrderPreview(orderId, tx);
       const forcedPreview = order.applyDiscount ? preview : await computeOrderPreview(orderId, tx, { forceApplyDiscount: true });
 
-      const freshOrder = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { invoices: true } });
-      const activeInvoices = freshOrder.invoices.filter((i) => i.status !== "CANCELLED");
-      // กลุ่มส่วนลด (productTypeCode) ผูกกับ Product ไม่ใช่ลูกค้า — เปลี่ยนลูกค้าเฉยๆ ปกติ
-      // กลุ่มจะเหมือนเดิมทุกใบ (updates ล้วน) แต่ยังรัน Reconcile เผื่อ Edge Case เสมอ
-      const plan = reconcileInvoiceGroups(
-        activeInvoices.map((i) => ({ id: i.id, productTypeCode: i.productTypeCode })),
-        preview.groups.map((g) => g.productTypeCode)
+      const freshOrder = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { invoices: { where: { status: { not: "CANCELLED" } }, select: EXISTING_INVOICE_SELECT } },
+      });
+      const activeInvoices = freshOrder.invoices;
+      // Owner (2026-09-04) — Reconcile เดียวกับ editConfirmedOrder (1 กลุ่ม = N ใบ) — Header ลูกค้า
+      // ใหม่เขียนลง "ทุกใบ Active" รวมใบพิมพ์แล้ว (Owner 2026-08-31 — "เดี๋ยวทำลายกระดาษเก่าทิ้ง
+      // เอง") ส่วนรายการ/ยอดของใบพิมพ์แล้วแช่แข็ง — ราคาที่เปลี่ยนตามลูกค้าใหม่ทำให้เนื้อหาไม่ตรง
+      // = BLOCK พร้อมเหตุผล (กติกาเดียวกับแก้ไข Order)
+      const header = invoiceHeaderFromOrder(order, newCustomer, newBranch, period);
+      const previewCodes = new Set(preview.groups.map((g) => g.productTypeCode));
+      for (const group of preview.groups) {
+        await applyInvoiceGroupPlan(tx, {
+          header,
+          group,
+          forcedGroup: forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId),
+          existing: activeInvoices.filter((i) => i.productTypeCode === group.productTypeCode),
+          userId: user.id,
+          note: "เปลี่ยนบริษัท/สาขาหลัง Confirm",
+          patchCustomerOnFrozen: true,
+        });
+      }
+      await cancelVanishedGroupInvoices(
+        tx,
+        activeInvoices.filter((i) => !previewCodes.has(i.productTypeCode)),
+        user.id,
+        "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังเปลี่ยนบริษัท/สาขา"
       );
-      const groupByCode = new Map(preview.groups.map((g) => [g.productTypeCode, g]));
-      const invoiceById = new Map(activeInvoices.map((i) => [i.id, i]));
-
-      const buildItemsForGroup = (group: (typeof preview.groups)[number]) => {
-        const grossAmounts = group.items.map((item) => item.grossAmount);
-        const allocatedDiscounts = allocateProportionally(grossAmounts, group.discountAmount);
-        const forcedGroup = forcedPreview.groups.find((g) => g.productTypeId === group.productTypeId);
-        const forcedAlloc = forcedGroup
-          ? allocateProportionally(forcedGroup.items.map((i) => i.grossAmount), forcedGroup.discountAmount)
-          : [];
-        const statByOrderItemId = new Map((forcedGroup?.items ?? []).map((it, i) => [it.orderItemId, forcedAlloc[i]]));
-
-        return group.items.map((item, idx) => {
-          const lineDiscount = allocatedDiscounts[idx];
-          const lineNet = roundMoney(item.grossAmount.sub(lineDiscount));
-          return {
-            productId: item.productId,
-            skuSnapshot: item.sku,
-            productNameSnapshot: item.productName,
-            productTypeSnapshot: item.productTypeName,
-            sizeSnapshot: item.size,
-            quantity: item.quantity,
-            unitSnapshot: item.unit,
-            unitPriceSnapshot: item.unitPrice,
-            grossAmount: item.grossAmount,
-            discountAmount: lineDiscount,
-            netAmount: lineNet,
-            vatAmount: new Decimal(0),
-            totalAmount: lineNet,
-            statDiscountAmount: statByOrderItemId.get(item.orderItemId) ?? new Decimal(0),
-          };
-        });
-      };
-
-      for (const invoiceId of plan.cancels) {
-        const inv = invoiceById.get(invoiceId)!;
-        await tx.invoice.update({ where: { id: invoiceId }, data: { status: "CANCELLED" } });
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "CANCEL",
-            module: "Invoice",
-            recordId: invoiceId,
-            oldValue: { status: inv.status },
-            newValue: { status: "CANCELLED", reason: "กลุ่มส่วนลดนี้ไม่เหลือรายการหลังเปลี่ยนบริษัท/สาขา" },
-          },
-        });
-      }
-
-      for (const { productTypeCode, invoiceId } of plan.updates) {
-        const group = groupByCode.get(productTypeCode)!;
-        const inv = invoiceById.get(invoiceId)!;
-        const wasPrinted = inv.status === "PRINTED";
-        // Owner Final Guard (2026-09-02) — syncInvoiceSheets ลบแบบเลือกลบเอง (ดู editConfirmedOrder)
-        await tx.invoice.update({
-          where: { id: invoiceId },
-          data: {
-            // เลขใบ/วันที่/สถานะ/printedAt คงเดิม — เปลี่ยนแค่ข้อมูลลูกค้า+ยอด/รายการที่
-            // คำนวณใหม่ตามลูกค้าใหม่
-            customerId: newCustomerId,
-            branchId: newBranchId,
-            customerNameSnapshot: newCustomer.companyName,
-            taxIdSnapshot: newCustomer.taxId,
-            branchNameSnapshot: newBranch?.name ?? null,
-            addressSnapshot: newBranch?.address ?? newCustomer.address ?? null,
-            grossAmount: group.grossAmount,
-            discountPct: group.discountPct,
-            discountAmount: group.discountAmount,
-            netBeforeVat: group.netAmount,
-            grandTotal: group.netAmount,
-            ...(wasPrinted ? { editedAfterPrintAt: new Date() } : {}),
-          },
-        });
-        // Owner Approve (2026-09-02) — Physical Sheet: Reshard ตามกติกาเดียวกับ
-        // editConfirmedOrder ทุกประการ (ดู src/lib/invoice-sheets.ts)
-        await syncInvoiceSheets(
-          tx,
-          { id: invoiceId, invoiceNumber: inv.invoiceNumber, productTypeCode },
-          buildItemsForGroup(group)
-        );
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "UPDATE",
-            module: "Invoice",
-            recordId: invoiceId,
-            oldValue: { customerNameSnapshot: inv.customerNameSnapshot, grandTotal: inv.grandTotal.toString() },
-            newValue: {
-              invoiceNumber: inv.invoiceNumber,
-              customerNameSnapshot: newCustomer.companyName,
-              grandTotal: group.netAmount.toString(),
-              note: "เปลี่ยนบริษัท/สาขาในใบเลขเดิมหลัง Confirm",
-            },
-          },
-        });
-      }
-
-      for (const productTypeCode of plan.creates) {
-        const group = groupByCode.get(productTypeCode)!;
-        const docType = `INV-${group.productTypeCode}`;
-        const seq = await getNextSeq(docType, period, tx);
-        const invoiceNumber = formatDocNumber(docType, period, seq, 4);
-
-        const invoice = await tx.invoice.create({
-          data: {
-            invoiceNumber,
-            parentOrderId: order.id,
-            invoiceDate: order.orderDate,
-            customerId: newCustomerId,
-            branchId: newBranchId,
-            productTypeCode: group.productTypeCode,
-            customerNameSnapshot: newCustomer.companyName,
-            taxIdSnapshot: newCustomer.taxId,
-            branchNameSnapshot: newBranch?.name ?? null,
-            addressSnapshot: newBranch?.address ?? newCustomer.address ?? null,
-            placeToDelivery: order.placeToDelivery,
-            grossAmount: group.grossAmount,
-            discountPct: group.discountPct,
-            discountAmount: group.discountAmount,
-            applyDiscount: order.applyDiscount,
-            netBeforeVat: group.netAmount,
-            vatPct: new Decimal(0),
-            vatAmount: new Decimal(0),
-            grandTotal: group.netAmount,
-            status: "CONFIRMED",
-            createdById: user.id,
-          },
-        });
-        // Owner Approve (2026-09-02) — Physical Sheet Engine (ดู confirmOrder)
-        const createdSheetSync = await syncInvoiceSheets(tx, invoice, buildItemsForGroup(group));
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "CREATE",
-            module: "Invoice",
-            recordId: invoice.id,
-            newValue: {
-              invoiceNumber,
-              parentOrderId: order.id,
-              productTypeCode: group.productTypeCode,
-              sheetNumbers: createdSheetSync.sheetNumbers,
-              note: "กลุ่มส่วนลดใหม่จากการเปลี่ยนบริษัท/สาขา",
-            },
-          },
-        });
-      }
     });
   } catch (err) {
     // Owner Final Guard (2026-09-02) — เหมือน editConfirmedOrder

@@ -136,9 +136,10 @@ export function ChangeOrderCustomerModal({
               {requiresPrintedAck && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 space-y-2">
                   <div>
-                    <b>คำเตือน:</b> เอกสารบางใบของ Order นี้ถูก<b>พิมพ์ไปแล้ว</b> — ยอด/ข้อมูล
-                    ลูกค้าในระบบของใบนั้นจะถูกแก้เป็นข้อมูลใหม่ทันที (เลขที่และสถานะพิมพ์แล้ว
-                    คงเดิม) กระดาษที่พิมพ์ไว้แล้วจะไม่ตรงกับระบบ ต้องแก้/พิมพ์ใหม่เอง
+                    <b>คำเตือน:</b> เอกสารบางใบของ Order นี้ถูก<b>พิมพ์ไปแล้ว</b> — ข้อมูลลูกค้า/สาขา
+                    ในระบบของใบนั้นจะถูกแก้เป็นข้อมูลใหม่ทันที (เลขที่และสถานะพิมพ์แล้วคงเดิม) แต่
+                    รายการ/ยอดของใบพิมพ์แล้วจะ<b>คงเดิม</b> — ถ้าราคาตามลูกค้าใหม่ทำให้ยอดใบนั้นต้องเปลี่ยน
+                    ระบบจะไม่ให้บันทึก (ต้องยกเลิกใบนั้นแล้วออกใหม่) กระดาษที่พิมพ์ไว้ต้องแก้/พิมพ์ใหม่เอง
                   </div>
                   <label className="flex items-center gap-2 font-medium">
                     <input type="checkbox" checked={acknowledgePrinted} onChange={(e) => setAcknowledgePrinted(e.target.checked)} />
