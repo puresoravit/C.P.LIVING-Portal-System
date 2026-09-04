@@ -232,6 +232,13 @@ export default async function InvoicePrintPage(props: {
       bodyClassName="font-bold"
       bodyStyle={{
         ["--print-font-family" as string]: `"Tahoma", "Segoe UI", ui-sans-serif, sans-serif`,
+        // Owner (2026-09-04) — ใบละ 14 รายการ + สรุปเต็ม (invoice-split.ts) วัดด้วย Harness
+        // ที่ใช้เทมเพลต Production จริง: ช่องว่างในแถว 4px (ค่า "ปกติ" ของ Template) ทำให้ 14
+        // แถวสูง 263.2mm บนพื้นที่พิมพ์ 263.4mm ของกระดาษต่อเนื่อง LQ-310 = เหลือ 0.2mm →
+        // ลายเซ็นหลุดหน้า 2 (Owner เจอจริง INV-C-202609-0010) — Owner เลือก 3px (แถว 7.7→7.1mm,
+        // 14 แถวเหลือ 8.1mm) โดยไม่แตะฟอนต์/ความหนา/สี/ส่วนอื่นใดของ Layout เลย — ล็อกเฉพาะ
+        // ใบส่งของชั่วคราวเช่นเดียวกับ Tahoma ด้านบน (ใบเก่าหลายแผ่นแค่มีที่เหลือมากขึ้น ไม่มีทางล้น)
+        ["--print-row-padding" as string]: "3px",
       }}
     >
       <RememberPrintSession

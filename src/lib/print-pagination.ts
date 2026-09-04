@@ -96,9 +96,12 @@ export const DOC_PAGE_RESERVES_MM: Record<
 
 // Owner Approve (2026-09-02) — ความจุ Invoice ที่ Owner เคาะจาก Physical Print จริง +
 // Browser Harness (จำลองหน้า 263.4mm ด้วย headerLayout/เนื้อหา Production จริง):
-//   finalAloneRows = 14 — กฎธุรกิจตรงตัว "1–14 รายการ = Single-page Invoice" (วัดจริง 14
-//                    แถว + Full Footer เหลือ Gap 39.9mm — ปลอดภัยมาก เผื่อชื่อสินค้ายาว
-//                    Wrap ได้หลายแถวโดยไม่ล้น)
+//   finalAloneRows = 14 — กฎธุรกิจตรงตัว "1–14 รายการ = Single-page Invoice" (ตัวเลข "Gap
+//                    39.9mm" ที่เคยบันทึกไว้มาจาก Harness รอบแรกก่อน Calibrate — วัดใหม่
+//                    2026-09-04 ด้วยเทมเพลต Production จริง: 14 แถว + Full Footer ที่ช่องว่างใน
+//                    แถว 4px = 263.2mm บนพื้นที่ 263.4mm (เหลือ 0.2mm — ล้นจริงบนเครื่อง Owner)
+//                    → ใบส่งของชั่วคราวล็อกช่องว่างในแถว 3px ที่หน้า Print (แถว 7.1mm → 14 แถว
+//                    เหลือ 8.1mm) ดู invoices/[id]/print/page.tsx — ความจุ 14 คงเดิม)
 //   normalPageRows = 17 — Target ที่ Owner กำหนด (วัดจริง 17 แถว + รวมหน้านี้ + Signature
 //                    เหลือ Gap 39.5mm)
 //   finalOfMultiRows = 14 — คำนวณจากพื้นที่เหลือจริงเมื่อต้องมี รวมหน้านี้ + Full Footer
