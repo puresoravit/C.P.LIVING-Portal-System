@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { composeLineName, normalizeLineNote } from "@/lib/line-note";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, getEffectiveVatRate, extractVat, roundMoney } from "@/lib/pricing";
@@ -13,6 +14,8 @@ export type QuotationItemCalc = {
   productId: string;
   quantity: Decimal;
   descriptionOverride: string | null;
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ (เก็บลง QuotationItem.lineNote คู่กับ Snapshot)
+  lineNote: string | null;
   skuSnapshot: string;
   productNameSnapshot: string;
   productTypeSnapshot: string;
@@ -98,6 +101,7 @@ export async function computeQuotationCalc(
     productId: string;
     quantity: Decimal | number;
     descriptionOverride?: string | null;
+    lineNote?: string | null;
     sizeOverride?: string | null;
     unitPriceOverride?: Decimal | number | null;
   }[],
@@ -161,8 +165,10 @@ export async function computeQuotationCalc(
       productId: raw.productId,
       quantity,
       descriptionOverride: raw.descriptionOverride ?? null,
+      lineNote: normalizeLineNote(raw.lineNote) || null,
       skuSnapshot: product.sku,
-      productNameSnapshot: raw.descriptionOverride || product.name,
+      // Owner (2026-09-04) — ชื่อ + หมายเหตุในวงเล็บ (ดู line-note.ts)
+      productNameSnapshot: composeLineName(raw.descriptionOverride || product.name, raw.lineNote),
       productTypeSnapshot: product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
       sizeSnapshot: raw.sizeOverride || product.size,
       unitSnapshot: product.unit,

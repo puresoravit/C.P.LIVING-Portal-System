@@ -30,6 +30,7 @@ import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { BackLink } from "@/components/back-link";
 import { NumberReleasedBadge } from "@/components/number-released-badge";
 import { displayQuotationNumber } from "@/lib/running-number";
+import { composeLineName } from "@/lib/line-note";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "ร่าง", className: "bg-yellow-100 text-yellow-700" },
@@ -100,6 +101,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
             productId: i.productId,
             quantity: i.quantity,
             descriptionOverride: i.descriptionOverride,
+            lineNote: i.lineNote,
             sizeOverride: i.sizeOverride,
             unitPriceOverride: i.unitPriceOverride,
           })),
@@ -122,6 +124,8 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
     productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
+    // Owner (2026-09-04) — หมายเหตุต่อรายการ (แสดงในวงเล็บต่อท้ายชื่อ)
+    lineNote: item.lineNote ?? "",
     sizeOverride: item.sizeOverride ?? "",
     // Owner UAT (2026-09-02) — ข้อมูลสำหรับ Stable Ordering ใน Modal (ดู product-line-sort.ts)
     familyName: item.product.name,
@@ -280,7 +284,7 @@ export default async function QuotationDetailPage(props: { params: Promise<{ id:
               return (
                 <tr key={item.id} className="border-t">
                   <td className="px-4 py-2 font-mono">{item.product.sku}</td>
-                  <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
+                  <td className="px-4 py-2">{composeLineName(item.descriptionOverride || item.product.name, item.lineNote)}</td>
                   <td className="px-4 py-2">{size || "-"}</td>
                   <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
                   <td className="px-4 py-2 text-right">

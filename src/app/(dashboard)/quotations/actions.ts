@@ -16,6 +16,8 @@ import { logError } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 import { zodFieldErrors } from "@/lib/zod-field-errors";
 import { validateProductAllowedForCustomer } from "@/lib/product-company-access";
+import { lineNoteError, normalizeLineNote } from "@/lib/line-note";
+import { findLineNoteError } from "@/lib/line-note-server";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -173,6 +175,8 @@ const addItemSchema = z.object({
   productId: z.string().min(1, "กรุณาเลือกสินค้า"),
   quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
   descriptionOverride: z.string().optional(),
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ (เหมือน addOrderItem)
+  lineNote: z.string().optional(),
   sizeOverride: z.string().optional(),
   unitPriceOverride: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ").optional(),
 });
@@ -190,6 +194,7 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
+    lineNote: formData.get("lineNote") || undefined,
     sizeOverride: formData.get("sizeOverride") || undefined,
     unitPriceOverride: formData.get("unitPriceOverride") || undefined,
   });
@@ -197,6 +202,11 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
     return { success: false, error: "กรุณาตรวจสอบข้อมูลที่กรอก", fieldErrors: zodFieldErrors(rawParse.error) };
   }
   const parsed = rawParse.data;
+
+  // Owner (2026-09-04) — โควตา "ชื่อ + หมายเหตุ ≤ 1 บรรทัด" (เหมือน addOrderItem)
+  const noteProduct = await db.product.findUniqueOrThrow({ where: { id: parsed.productId }, select: { name: true } });
+  const noteError = lineNoteError(parsed.descriptionOverride || noteProduct.name, parsed.lineNote);
+  if (noteError) return { success: false, error: noteError };
 
   // R8 — Product Assignment ตามบริษัทลูกค้า: Defense-in-depth เหมือน addOrderItem —
   // ใบเสนอราคาแบบ Guest (customerId = null ลูกค้ากรอกเอง ไม่อยู่ในฐาน) ไม่มีบริษัทให้
@@ -212,6 +222,7 @@ export async function addQuotationItem(quotationId: string, formData: FormData):
       productId: parsed.productId,
       quantity: parsed.quantity,
       descriptionOverride: parsed.descriptionOverride,
+      lineNote: normalizeLineNote(parsed.lineNote) || null,
       sizeOverride: parsed.sizeOverride,
       unitPriceOverride: parsed.unitPriceOverride,
     },
@@ -318,6 +329,7 @@ export async function confirmQuotation(quotationId: string): Promise<ActionResul
       productId: i.productId,
       quantity: i.quantity,
       descriptionOverride: i.descriptionOverride,
+      lineNote: i.lineNote,
       sizeOverride: i.sizeOverride,
       unitPriceOverride: i.unitPriceOverride,
     })),
@@ -414,6 +426,7 @@ const editItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   descriptionOverride: z.string().optional(),
+  lineNote: z.string().optional(),
   sizeOverride: z.string().optional(),
   unitPriceOverride: z.coerce.number().min(0).optional(),
 });
@@ -432,6 +445,10 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
   // R3 — QuotationEditModal เป็น Client Component สร้าง FormData เอง ใช้ Convention "1"/"0"
   // เดียวกับ Order E3 (OrderEditModal)
   const applyDiscount = formData.get("applyDiscount") === "1";
+
+  // Owner (2026-09-04) — โควตาหมายเหตุต่อบรรทัดของทั้งชุด (Helper เดียวกับ editConfirmedOrder)
+  const lineNoteErr = await findLineNoteError(parsedItems);
+  if (lineNoteErr) return { success: false, error: lineNoteErr };
 
   const quotation = await db.quotation.findUniqueOrThrow({ where: { id: quotationId }, include: { items: true, customer: true, branch: true } });
   if (quotation.status === "CANCELLED") {
@@ -458,6 +475,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
       productId: i.productId,
       quantity: i.quantity,
       descriptionOverride: i.descriptionOverride,
+      lineNote: i.lineNote,
       sizeOverride: i.sizeOverride,
       unitPriceOverride: i.unitPriceOverride,
     })),
@@ -478,6 +496,7 @@ export async function editConfirmedQuotation(quotationId: string, formData: Form
           productId: item.productId,
           quantity: item.quantity,
           descriptionOverride: item.descriptionOverride,
+          lineNote: item.lineNote,
           skuSnapshot: item.skuSnapshot,
           productNameSnapshot: item.productNameSnapshot,
           productTypeSnapshot: item.productTypeSnapshot,

@@ -34,6 +34,7 @@ import { AutoSubmitCheckbox } from "@/components/auto-submit-checkbox";
 import { OrderInvoicePrintPanel } from "@/components/order-invoice-print-panel";
 import { BackLink } from "@/components/back-link";
 import { NumberReleasedBadge } from "@/components/number-released-badge";
+import { composeLineName } from "@/lib/line-note";
 
 const DOWNSTREAM_REFERENCE_LABEL: Record<"tax-invoice" | "billing-note", string> = {
   "tax-invoice": "ใบกำกับภาษี",
@@ -136,6 +137,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     productTypeName: item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL,
     quantity: Number(item.quantity),
     descriptionOverride: item.descriptionOverride ?? "",
+    // Owner (2026-09-04) — หมายเหตุต่อรายการ (แสดงในวงเล็บต่อท้ายชื่อ)
+    lineNote: item.lineNote ?? "",
     sizeOverride: item.sizeOverride ?? "",
     // Owner UAT (2026-09-02) — ข้อมูลสำหรับ Stable Ordering ใน Modal (ดู product-line-sort.ts)
     familyName: item.product.name,
@@ -246,7 +249,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               return (
                 <tr key={item.id} className="border-t">
                   <td className="px-4 py-2 font-mono">{item.product.sku}</td>
-                  <td className="px-4 py-2">{item.descriptionOverride || item.product.name}</td>
+                  <td className="px-4 py-2">{composeLineName(item.descriptionOverride || item.product.name, item.lineNote)}</td>
                   <td className="px-4 py-2">{item.sizeOverride || item.product.size || "-"}</td>
                   <td className="px-4 py-2">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
                   <td className="px-4 py-2 text-right">

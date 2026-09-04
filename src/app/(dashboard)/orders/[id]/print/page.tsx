@@ -12,6 +12,7 @@ import { PrintDocumentTitle } from "@/components/print/print-document-title";
 import { PrintCustomerInfo } from "@/components/print/print-customer-info";
 import { CopyDocumentNumber } from "@/components/copy-document-number";
 import { PrintPageLabel } from "@/components/print/print-pagination-parts";
+import { composeLineName } from "@/lib/line-note";
 import { estimatePageCapacity, paginateRows, CLASSIC_HEADER_ESTIMATE_MM, DOC_PAGE_RESERVES_MM } from "@/lib/print-pagination";
 
 function money(n: unknown) {
@@ -116,7 +117,7 @@ export default async function OrderPrintPage(props: { params: Promise<{ id: stri
                 {pageItems.map((item) => (
                   <tr key={item.id} className="border-b border-dashed">
                     <td className="py-1 font-mono">{item.product.sku}</td>
-                    <td className="py-1">{item.descriptionOverride || item.product.name}</td>
+                    <td className="py-1">{composeLineName(item.descriptionOverride || item.product.name, item.lineNote)}</td>
                     <td className="py-1">{item.product.productType?.name ?? UNSPECIFIED_TYPE_LABEL}</td>
                     {/* ดึง Size สดจาก Product Master ได้เลย (ไม่ snapshot) ตามที่อนุมัติใน Phase C
                         — Order เป็นเอกสารภายในพิมพ์วันเดียวกับที่ขาย ต่างจาก Invoice ที่ต้อง

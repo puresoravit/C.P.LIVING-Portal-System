@@ -21,6 +21,8 @@ import { reconcileInvoiceGroups } from "@/lib/invoice-reconcile";
 import { syncInvoiceSheets, releaseInvoiceNumbersOnCancel, PRINTED_SHEET_BLOCK } from "@/lib/invoice-sheets";
 import { deleteDraftOrderCore, DRAFT_DELETE_CHANGED, DRAFT_DELETE_BLOCKED } from "@/lib/draft-delete";
 import { computeRedeliveryLines } from "@/lib/invoice-pending-redelivery";
+import { lineNoteError, normalizeLineNote } from "@/lib/line-note";
+import { findLineNoteError } from "@/lib/line-note-server";
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -156,6 +158,7 @@ export async function duplicateOrder(sourceOrderId: string, formData: FormData):
             productId: item.productId,
             quantity: item.quantity,
             descriptionOverride: item.descriptionOverride,
+            lineNote: item.lineNote,
           })),
         },
       },
@@ -181,6 +184,8 @@ const addItemSchema = z.object({
   productId: z.string().min(1, "กรุณาเลือกสินค้า"),
   quantity: z.coerce.number().positive("จำนวนต้องมากกว่า 0"),
   descriptionOverride: z.string().optional(),
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ (โควตาความยาวตรวจด้านล่างหลังรู้ชื่อสินค้า)
+  lineNote: z.string().optional(),
   // R6 Phase B — "ขนาดพิเศษ/ระบุเอง": ทั้งคู่ต้องมาคู่กันเสมอถ้ามี (validate เพิ่มด้านล่าง)
   sizeOverride: z.string().optional(),
   unitPriceOverride: z.coerce.number().min(0, "ราคาต้องไม่ติดลบ").optional(),
@@ -199,6 +204,7 @@ export async function addOrderItem(orderId: string, formData: FormData): Promise
     productId: formData.get("productId"),
     quantity: formData.get("quantity"),
     descriptionOverride: formData.get("descriptionOverride") || undefined,
+    lineNote: formData.get("lineNote") || undefined,
     sizeOverride: formData.get("sizeOverride") || undefined,
     unitPriceOverride: formData.get("unitPriceOverride") || undefined,
   });
@@ -212,12 +218,18 @@ export async function addOrderItem(orderId: string, formData: FormData): Promise
   const accessError = await validateProductAllowedForCustomer(parsed.productId, order.customerId);
   if (accessError) return { success: false, error: accessError };
 
+  // Owner (2026-09-04) — โควตา "ชื่อ + หมายเหตุ ≤ 1 บรรทัด" ตรวจฝั่ง Server ด้วย (UI นับให้แล้วชั้นหนึ่ง)
+  const noteProduct = await db.product.findUniqueOrThrow({ where: { id: parsed.productId }, select: { name: true } });
+  const noteError = lineNoteError(parsed.descriptionOverride || noteProduct.name, parsed.lineNote);
+  if (noteError) return { success: false, error: noteError };
+
   await db.orderItem.create({
     data: {
       orderId,
       productId: parsed.productId,
       quantity: parsed.quantity,
       descriptionOverride: parsed.descriptionOverride,
+      lineNote: normalizeLineNote(parsed.lineNote) || null,
       sizeOverride: parsed.sizeOverride,
       unitPriceOverride: parsed.unitPriceOverride,
     },
@@ -624,6 +636,7 @@ const editItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   descriptionOverride: z.string().optional(),
+  lineNote: z.string().optional(),
   sizeOverride: z.string().optional(),
   unitPriceOverride: z.coerce.number().min(0).optional(),
 });
@@ -647,6 +660,9 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
   // R3 — OrderEditModal เป็น Client Component ที่สร้าง FormData เองผ่าน JS (ไม่ใช่ Native
   // Checkbox) จึงใช้ Convention เดียวกับ acknowledgePrinted ("1"/"0") ไม่ใช่ formData.has()
   const applyDiscount = formData.get("applyDiscount") === "1";
+
+  const lineNoteErr = await findLineNoteError(parsedItems);
+  if (lineNoteErr) return { success: false, error: lineNoteErr };
 
   const guard = await fetchOrderEditGuard(orderId);
   if (guard.kind === "not-applicable") {
@@ -690,6 +706,7 @@ export async function editConfirmedOrder(orderId: string, formData: FormData): P
           productId: i.productId,
           quantity: i.quantity,
           descriptionOverride: i.descriptionOverride,
+          lineNote: normalizeLineNote(i.lineNote) || null,
           sizeOverride: i.sizeOverride,
           unitPriceOverride: i.unitPriceOverride,
         })),

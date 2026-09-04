@@ -520,6 +520,10 @@ model OrderItem {
   // (ยังคงต้องมี productId จริงเป็น Anchor ของ Model เดิมเสมอ ตาม FK required ด้านบน)
   sizeOverride        String?
   unitPriceOverride   Decimal? @db.Decimal(12, 2)
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ แสดงในวงเล็บต่อท้ายชื่อบรรทัดเดียว (ดู
+  // src/lib/line-note.ts) — คนละความหมายกับ descriptionOverride ซึ่งเหลือเป็นกลไกภายใน
+  // ของไซส์พิเศษเท่านั้น
+  lineNote            String?
 
   @@map("order_items")
 }
@@ -1028,6 +1032,8 @@ model QuotationItem {
   // R6 Phase B — "ขนาดพิเศษ/ระบุเอง" เหมือน OrderItem ทุกประการ
   sizeOverride         String?
   unitPriceOverride    Decimal? @db.Decimal(12, 2)
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ เหมือน OrderItem.lineNote ทุกประการ
+  lineNote             String?
 
   // --- Snapshot fields — null ตอน DRAFT, เติมค่าตอน Confirm/Revision เท่านั้น ---
   skuSnapshot         String?

@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getEffectivePrice, getEffectiveDiscountPct, roundMoney } from "@/lib/pricing";
 import { sortProductLines } from "@/lib/product-line-sort";
+import { composeLineName } from "@/lib/line-note";
 
 // ==========================================================================
 // ORDER PREVIEW ENGINE (ข้อ 19-21)
@@ -110,7 +111,9 @@ export async function buildPreviewLineItems(
       orderItemId: item.id,
       productId: item.productId,
       sku: item.product.sku,
-      productName: item.descriptionOverride || item.product.name,
+      // Owner (2026-09-04) — ชื่อ + หมายเหตุในวงเล็บ (ดู line-note.ts) — descriptionOverride
+      // เหลือเป็นกลไกภายในของไซส์พิเศษ (= ชื่อรุ่น) ไม่ใช่ข้อความที่ผู้ใช้กรอกอีกต่อไป
+      productName: composeLineName(item.descriptionOverride || item.product.name, item.lineNote),
       // R4 — productTypeId=null (ไม่ระบุประเภท) → normalize เป็น Sentinel ตรงนี้จุดเดียว
       productTypeId: item.product.productTypeId ?? UNSPECIFIED_TYPE_CODE,
       productTypeCode: item.product.productType?.code ?? UNSPECIFIED_TYPE_CODE,

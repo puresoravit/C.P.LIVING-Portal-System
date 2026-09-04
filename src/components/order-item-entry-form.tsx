@@ -6,6 +6,7 @@ import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
+import { lineNoteRemaining, normalizeLineNote } from "@/lib/line-note";
 
 // Owner UAT Round 3 — ข้อ 3: เปลี่ยนฟอร์มนี้ให้เป็น Grid เดียวกับ Manual Tax Invoice
 // ทุกประการ (สินค้า/รุ่น | รายการ | ขนาด | จำนวน | หน่วย | ราคา/หน่วย | ปุ่มเพิ่ม) —
@@ -48,7 +49,8 @@ export function OrderItemEntryForm({
   // Owner UAT Round 3 — ข้อ 4: ขนาดพิมพ์เองสำหรับสินค้า Standalone (ไม่มีรุ่น) — ไม่บังคับ
   // กรอก ส่งเป็น sizeOverride เฉยๆ (ไม่ผูกกับราคา ไม่ต้องมี unitPriceOverride คู่กัน)
   const [standaloneSize, setStandaloneSize] = useState("");
-  const [descriptionOverride, setDescriptionOverride] = useState("");
+  // Owner (2026-09-04) — "หมายเหตุ (ถ้ามี)" ต่อท้ายชื่อในวงเล็บ (เดิมช่องนี้คือพิมพ์ทับชื่อ — ดู line-note.ts)
+  const [lineNote, setLineNote] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [priceTouched, setPriceTouched] = useState(false);
   const [suggestPending, startSuggestTransition] = useTransition();
@@ -114,7 +116,10 @@ export function OrderItemEntryForm({
   }
 
   const overrideReady = !!unresolvedInfo?.anchorProductId && overrideSize.trim() !== "" && Number(overridePrice) > 0;
-  const canAdd = !!selected || overrideReady;
+  // Owner (2026-09-04) — โควตา "ชื่อ + หมายเหตุ ≤ 1 บรรทัด" นับถอยหลังตามชื่อสินค้าที่เลือกอยู่
+  const noteBaseName = selected?.name ?? unresolvedInfo?.modelName ?? "";
+  const noteRemaining = lineNoteRemaining(noteBaseName, lineNote);
+  const canAdd = (!!selected || overrideReady) && noteRemaining >= 0;
   const effectiveProductId = selected?.id ?? unresolvedInfo?.anchorProductId ?? "";
   const effectiveUnit = selected?.unit ?? unresolvedInfo?.unit ?? "";
 
@@ -135,8 +140,11 @@ export function OrderItemEntryForm({
     // ทำให้คอลัมน์ "รายการ" กับ "ขนาด" ซ้ำข้อมูลกันบนหน้าพิมพ์/หน้าคีย์เอกสาร (ขนาดมีคอลัมน์
     // ของตัวเองอยู่แล้ว) — ใช้ modelName เดี่ยวๆ เหมือน Pattern เดียวกับ Manual Tax
     // Invoice/Repair Note Entry ที่ไม่เคยมีปัญหานี้
-    const desc = descriptionOverride.trim() || (unresolvedInfo ? unresolvedInfo.modelName : "");
-    if (desc) formData.set("descriptionOverride", desc);
+    // Owner (2026-09-04) — descriptionOverride เหลือเป็นกลไกภายในของไซส์พิเศษ (บังคับชื่อรุ่น
+    // ทับชื่อ Anchor Product) ส่วนข้อความที่ผู้ใช้กรอกไปช่อง lineNote แทน (ดู line-note.ts)
+    if (unresolvedInfo) formData.set("descriptionOverride", unresolvedInfo.modelName);
+    const note = normalizeLineNote(lineNote);
+    if (note) formData.set("lineNote", note);
     const sizeToSend = unresolvedInfo ? overrideSize.trim() : standaloneSize.trim();
     if (sizeToSend) formData.set("sizeOverride", sizeToSend);
     if (unresolvedInfo) {
@@ -177,12 +185,19 @@ export function OrderItemEntryForm({
           />
         </div>
         <div className="col-span-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">รายการ (ถ้ามี)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            หมายเหตุ (ถ้ามี)
+            {noteBaseName && (
+              <span className={`ml-1 ${noteRemaining < 0 ? "text-red-600 font-semibold" : "text-gray-400"}`}>
+                เหลือ {noteRemaining}
+              </span>
+            )}
+          </label>
           <input
-            value={descriptionOverride}
-            onChange={(e) => setDescriptionOverride(e.target.value)}
-            placeholder={selected?.name ?? "รายละเอียดเพิ่มเติม"}
-            className="w-full border rounded px-3 py-1.5 text-sm"
+            value={lineNote}
+            onChange={(e) => setLineNote(e.target.value)}
+            placeholder="เช่น สินค้าตัวอย่าง"
+            className={`w-full border rounded px-3 py-1.5 text-sm ${noteRemaining < 0 ? "border-red-500" : ""}`}
           />
         </div>
         <div className="col-span-1 sm:col-span-2">

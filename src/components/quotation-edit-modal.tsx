@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { useToast } from "@/components/toast/toast-provider";
 import type { ActionResult } from "@/lib/action-result";
 import { ProductSearchPicker, type PickedProduct, type UnresolvedSizeInfo, type ModelResult } from "@/components/product-search-picker";
 import { ModelSizeSelect, type ModelSizeResolution } from "@/components/model-size-select";
 import { sortProductLines } from "@/lib/product-line-sort";
+import { AddedLineNotice } from "@/components/added-line-notice";
+import { composeLineName, lineNoteRemaining, normalizeLineNote } from "@/lib/line-note";
 
 type EditItem = {
   key: string;
@@ -17,6 +19,8 @@ type EditItem = {
   productTypeName: string;
   quantity: number;
   descriptionOverride: string;
+  // Owner (2026-09-04) — หมายเหตุต่อรายการ แสดงในวงเล็บต่อท้ายชื่อ (ดู line-note.ts)
+  lineNote: string;
   // R6 Phase B — ขนาดพิเศษ/ระบุเอง ("" = Standard Size ปกติ ไม่ Override อะไรเลย) — ใช้
   // ตอน Submit เท่านั้น ห้ามใช้แสดงผลตรงๆ (ดู sizeDisplay ด้านล่าง)
   sizeOverride: string;
@@ -79,13 +83,18 @@ export function QuotationEditModal({
   const [overrideSize, setOverrideSize] = useState("");
   const [overridePrice, setOverridePrice] = useState("");
   const [standaloneSize, setStandaloneSize] = useState("");
-  const [descriptionOverride, setDescriptionOverride] = useState("");
+  const [lineNote, setLineNote] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [priceTouched, setPriceTouched] = useState(false);
   const [suggestPending, startSuggestTransition] = useTransition();
   // R4 — ตัว Modal นี้ไม่ remount ProductSearchPicker ระหว่างเพิ่มรายการหลายรายการ
   // (ต่างจากหน้า Draft ที่ remount ด้วย key) จึงต้องสั่งล้าง Search ภายในเองผ่าน resetToken
   const [pickerResetToken, setPickerResetToken] = useState(0);
+  // Owner UAT (2026-09-04) — แถวที่เพิ่งเพิ่มถูก Sort เข้ากลุ่มสินค้าของตัวเอง (ไม่ได้ต่อ
+  // ท้ายตารางแล้วตั้งแต่ 571dd6a) ตารางยาวๆ จะไปโผล่เหนือขอบจอโดยไม่มีสัญญาณอะไรเลย —
+  // เก็บแถวล่าสุดไว้เพื่อไฮไลต์ + แจ้งตำแหน่ง + ให้กดกระโดดไปดูได้ (ดู added-line-notice.tsx)
+  const [justAdded, setJustAdded] = useState<{ key: string; label: string } | null>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
   const { showSuccess, showError } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -95,6 +104,7 @@ export function QuotationEditModal({
     setItems(initialItems);
     setVatMode(initialVatMode);
     setApplyDiscount(initialApplyDiscount);
+    setJustAdded(null);
     resetEntryRow();
     setPickerResetToken((t) => t + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +117,7 @@ export function QuotationEditModal({
     setOverrideSize("");
     setOverridePrice("");
     setStandaloneSize("");
-    setDescriptionOverride("");
+    setLineNote("");
     setPriceInput("");
     setPriceTouched(false);
     setQty("1");
@@ -151,64 +161,78 @@ export function QuotationEditModal({
   }
 
   const overrideReady = !!unresolvedInfo?.anchorProductId && overrideSize.trim() !== "" && Number(overridePrice) > 0;
-  const canAddItem = !!selected || overrideReady;
+  // Owner (2026-09-04) — โควตา "ชื่อ + หมายเหตุ ≤ 1 บรรทัด" (ดู line-note.ts)
+  const noteBaseName = selected?.name ?? unresolvedInfo?.modelName ?? "";
+  const noteRemaining = lineNoteRemaining(noteBaseName, lineNote);
+  const canAddItem = (!!selected || overrideReady) && noteRemaining >= 0;
 
   function addItem() {
     const quantity = Number(qty);
     if (!(quantity > 0)) return;
+    // Owner UAT (2026-09-04) — เก็บ Object ที่จะเพิ่มไว้ก่อน (เดิม push ตรงๆ ใน setItems
+    // ทั้ง 2 Branch) เพื่อให้รู้ key/ชื่อของแถวใหม่ ไว้ยืนยันผลให้ผู้ใช้เห็นว่าเพิ่มติดแล้ว
+    let added: EditItem;
     if (selected) {
-      setItems((prev) => [
-        ...prev,
-        {
-          key: `${selected.id}-${Date.now()}`,
-          productId: selected.id,
-          sku: selected.sku,
-          name: descriptionOverride.trim() || selected.name,
-          unit: selected.unit,
-          productTypeName: selected.productTypeName,
-          quantity,
-          descriptionOverride: descriptionOverride.trim(),
-          sizeOverride: standaloneSize.trim(),
-          sizeDisplay: selected.size || standaloneSize.trim(),
-          unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
-          displayPrice: priceInput !== "" ? Number(priceInput) : null,
-          familyName: selected.name,
-          rawSize: selected.size || standaloneSize.trim() || null,
-          familySortOrder: null,
-        },
-      ]);
+      added = {
+        key: `${selected.id}-${Date.now()}`,
+        productId: selected.id,
+        sku: selected.sku,
+        name: selected.name,
+        unit: selected.unit,
+        productTypeName: selected.productTypeName,
+        quantity,
+        descriptionOverride: "",
+        lineNote: normalizeLineNote(lineNote),
+        sizeOverride: standaloneSize.trim(),
+        sizeDisplay: selected.size || standaloneSize.trim(),
+        unitPriceOverride: priceTouched && priceInput !== "" ? Number(priceInput) : null,
+        displayPrice: priceInput !== "" ? Number(priceInput) : null,
+        familyName: selected.name,
+        rawSize: selected.size || standaloneSize.trim() || null,
+        familySortOrder: null,
+      };
     } else if (overrideReady && unresolvedInfo) {
-      setItems((prev) => [
-        ...prev,
-        {
-          key: `${unresolvedInfo.anchorProductId}-${Date.now()}`,
-          productId: unresolvedInfo.anchorProductId!,
-          sku: "-",
-          // Owner UAT (2026-08-23) — ห้ามต่อท้ายขนาดใน name (คอลัมน์ "ขนาด" แยกแสดงอยู่แล้ว
-          // ใน items.map ด้านล่าง — ดู sizeDisplay) กันซ้ำซ้อนกับคอลัมน์ "รายการ"
-          name: descriptionOverride.trim() || unresolvedInfo.modelName,
-          unit: unresolvedInfo.unit,
-          productTypeName: unresolvedInfo.productTypeName,
-          quantity,
-          descriptionOverride: descriptionOverride.trim(),
-          sizeOverride: overrideSize.trim(),
-          sizeDisplay: overrideSize.trim(),
-          unitPriceOverride: Number(overridePrice),
-          displayPrice: Number(overridePrice),
-          familyName: unresolvedInfo.modelName,
-          rawSize: overrideSize.trim() || null,
-          familySortOrder: null,
-        },
-      ]);
+      added = {
+        key: `${unresolvedInfo.anchorProductId}-${Date.now()}`,
+        productId: unresolvedInfo.anchorProductId!,
+        sku: "-",
+        // Owner UAT (2026-08-23) — ห้ามต่อท้ายขนาดใน name (คอลัมน์ "ขนาด" แยกแสดงอยู่แล้ว
+        // ใน sortedItems.map ด้านล่าง — ดู sizeDisplay) กันซ้ำซ้อนกับคอลัมน์ "รายการ"
+        name: unresolvedInfo.modelName,
+        unit: unresolvedInfo.unit,
+        productTypeName: unresolvedInfo.productTypeName,
+        quantity,
+        // กลไกภายในไซส์พิเศษ: บังคับชื่อรุ่นทับชื่อ Anchor Product (ผู้ใช้ไม่เห็น/ไม่กรอก)
+        descriptionOverride: unresolvedInfo.modelName,
+        lineNote: normalizeLineNote(lineNote),
+        sizeOverride: overrideSize.trim(),
+        sizeDisplay: overrideSize.trim(),
+        unitPriceOverride: Number(overridePrice),
+        displayPrice: Number(overridePrice),
+        familyName: unresolvedInfo.modelName,
+        rawSize: overrideSize.trim() || null,
+        familySortOrder: null,
+      };
     } else {
       return;
     }
+    setItems((prev) => [...prev, added]);
+    setJustAdded({ key: added.key, label: [composeLineName(added.name, added.lineNote), added.sizeDisplay].filter(Boolean).join(" ") });
     resetEntryRow();
     setPickerResetToken((t) => t + 1);
   }
 
+  /** เลื่อนไปที่แถวที่เพิ่งเพิ่ม (แถวถูกจัดเข้ากลุ่มสินค้า จึงไม่ได้อยู่ท้ายตารางเสมอไป) */
+  function scrollToJustAdded() {
+    if (!justAdded) return;
+    tbodyRef.current
+      ?.querySelector(`[data-row-key="${justAdded.key}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   function removeItem(key: string) {
     setItems((prev) => prev.filter((i) => i.key !== key));
+    setJustAdded((prev) => (prev?.key === key ? null : prev));
   }
 
   // Owner UAT (2026-09-02) — แก้จำนวนใน Line เดิมของ Modal ได้ตรงๆ + Stable Product
@@ -236,6 +260,7 @@ export function QuotationEditModal({
           productId: i.productId,
           quantity: i.quantity,
           descriptionOverride: i.descriptionOverride || (i.sizeOverride ? i.name : undefined),
+          lineNote: i.lineNote || undefined,
           sizeOverride: i.sizeOverride || undefined,
           unitPriceOverride: i.unitPriceOverride ?? undefined,
         }))
@@ -312,11 +337,15 @@ export function QuotationEditModal({
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody ref={tbodyRef}>
                     {sortedItems.map((item) => (
-                      <tr key={item.key} className="border-t">
+                      <tr
+                        key={item.key}
+                        data-row-key={item.key}
+                        className={`border-t ${justAdded?.key === item.key ? "bg-emerald-50" : ""}`}
+                      >
                         <td className="px-3 py-2 font-mono">{item.sku}</td>
-                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">{composeLineName(item.name, item.lineNote)}</td>
                         <td className="px-3 py-2">{item.sizeDisplay || "-"}</td>
                         <td className="px-3 py-2 text-right">
                           {/* Owner UAT (2026-09-02) — แก้จำนวนตรงในแถวได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
@@ -366,12 +395,19 @@ export function QuotationEditModal({
                     />
                   </div>
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">รายการ (ถ้ามี)</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      หมายเหตุ (ถ้ามี)
+                      {noteBaseName && (
+                        <span className={`ml-1 ${noteRemaining < 0 ? "text-red-600 font-semibold" : "text-gray-400"}`}>
+                          เหลือ {noteRemaining}
+                        </span>
+                      )}
+                    </label>
                     <input
-                      value={descriptionOverride}
-                      onChange={(e) => setDescriptionOverride(e.target.value)}
-                      placeholder={selected?.name ?? "รายละเอียดเพิ่มเติม"}
-                      className="w-full border rounded px-3 py-1.5 text-sm"
+                      value={lineNote}
+                      onChange={(e) => setLineNote(e.target.value)}
+                      placeholder="เช่น สินค้าตัวอย่าง"
+                      className={`w-full border rounded px-3 py-1.5 text-sm ${noteRemaining < 0 ? "border-red-500" : ""}`}
                     />
                   </div>
                   <div className="col-span-1 sm:col-span-2">
@@ -438,6 +474,14 @@ export function QuotationEditModal({
                     </button>
                   </div>
                 </div>
+                {justAdded && (
+                  <AddedLineNotice
+                    label={justAdded.label}
+                    position={sortedItems.findIndex((i) => i.key === justAdded.key) + 1}
+                    total={sortedItems.length}
+                    onView={scrollToJustAdded}
+                  />
+                )}
                 {unresolvedInfo && !unresolvedInfo.anchorProductId && (
                   <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
                     รุ่น &quot;{unresolvedInfo.modelName}&quot; ยังไม่มีสินค้าในระบบเลย ต้องตั้งราคาต่อฟุตหรือเพิ่มไซส์ก่อนจึงจะคีย์เอกสารได้{" "}

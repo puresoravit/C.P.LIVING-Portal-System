@@ -88,7 +88,10 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
         productTypeCode: filters.productTypeCode,
       },
     },
-    include: { invoice: true },
+    // Owner (2026-09-04) — ชื่อสำหรับจัดกลุ่ม/ป้ายรายงานใช้ Product.name จริง ไม่ใช่
+    // productNameSnapshot ที่ตอนนี้มี "(หมายเหตุ)" ต่อท้ายได้ (ดู line-note.ts) — ไม่งั้น
+    // หมายเหตุที่พนักงานพิมพ์จะหลุดไปโผล่เป็นชื่อสินค้าในสถิติ
+    include: { invoice: true, product: { select: { name: true } } },
   });
 
   const rows: Row[] = items.map((item) => ({
@@ -109,7 +112,7 @@ async function fetchRows(filters: ReportFilters): Promise<Row[]> {
     branchName: item.invoice.branchNameSnapshot,
     productTypeCode: item.invoice.productTypeCode,
     sku: item.skuSnapshot,
-    productName: item.productNameSnapshot,
+    productName: item.product.name,
   }));
 
   // R11 (2026-08-27) — ถอดกลไก countAsSales ออกจากยอดขายฝั่งนี้ทั้งหมด (เดิม R13 ผสมใบ
@@ -339,7 +342,8 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
       modelName: p.model?.name ?? null,
       familyProductId,
       familyProductName,
-      productName: item.productNameSnapshot,
+      // Owner (2026-09-04) — ชื่อจริงจาก Master (ไม่เอา "(หมายเหตุ)" ใน Snapshot มาเป็นป้ายสถิติ)
+      productName: p.name,
       productTypeCode: item.invoice.productTypeCode,
       parentOrderId: item.invoice.parentOrderId,
       size: item.sizeSnapshot ?? p.size ?? null,
