@@ -3,8 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getSalesByGroup } from "@/lib/reports";
-import { UNSPECIFIED_TYPE_CODE, displayProductTypeCode } from "@/lib/order-preview";
+import { getCustomerSalesBreakdown } from "@/lib/reports";
+import { displayProductTypeCode } from "@/lib/order-preview";
 import { startOfMonth, endOfCurrentMonth, safeDateParam } from "@/lib/date-utils";
 import { deriveOrderPrintState } from "@/lib/order-doc-center";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,14 +31,6 @@ function toDisplayDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-// R6 Phase D — ข้อ H: Customer → กลุ่มส่วนลด Drill-down จากการ์ดลูกค้าบน Dashboard —
-// Reuse getSalesByGroup(..., "productType") เดิมเป๊ะ (กรอง customerId เพิ่ม) ไม่มี Query
-// ใหม่ ใช้ Sales SOT เดียวกับ Dashboard ทุกจุด (PRINTED เท่านั้น) — ผลรวมแต่ละกลุ่มบวก
-// กันได้เท่ากับยอดรวมลูกค้าบน Dashboard เสมอเพราะมาจาก Query เดียวกันตรงๆ ไม่ได้คำนวณซ้ำ
-// GEN (ไม่มีกลุ่มส่วนลด) แสดงเป็น "สินค้าทั่วไป" เฉพาะหน้านี้ตามคำที่ Owner ระบุ — ไม่แตะ
-// UNSPECIFIED_TYPE_LABEL ที่ใช้ที่อื่น (Invoice List/Order Preview ฯลฯ) เพื่อไม่เปลี่ยน
-// คำศัพท์จุดอื่นที่ไม่ได้ขอ
-const GENERAL_PRODUCT_LABEL = "สินค้าทั่วไป";
 
 export default async function CustomerSalesDrillDownPage(
   props: {
@@ -57,43 +49,16 @@ export default async function CustomerSalesDrillDownPage(
   const dateFrom = safeDateParam(searchParams.dateFrom, startOfMonth());
   const dateTo = safeDateParam(searchParams.dateTo, endOfCurrentMonth());
 
-  const groups = await getSalesByGroup(
-    { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo), customerId: customer.id },
-    "productType"
-  );
-  const total = groups.reduce(
-    (sum, g) => ({
-      quantity: sum.quantity + g.metrics.quantity,
-      net: sum.net + g.metrics.net,
-    }),
-    { quantity: 0, net: 0 }
-  );
-
-  // Owner UAT Fix Batch — ข้อ 4: Dashboard → Customer → ORDER → Child INV Trace — คำนวณ
-  // "ยอดที่ถูกนับใน Dashboard" ต่อ ORDER ด้วย Query เดียวกันเป๊ะกับที่ getSalesByGroup/
-  // getDashboard ใช้ภายใน (InvoiceItem.netAmount ของ Invoice ที่ status=PRINTED และ
-  // invoiceDate อยู่ในช่วงที่เลือก) แค่ Group ต่อด้วย parentOrderId เพิ่มเอง แทนที่จะ Group
-  // ด้วย productType เหมือน groups ด้านบน — ผลรวมของทุก Order ต้องเท่ากับ total.net เป๊ะ
-  // เพราะเป็น Partition ของ Invoice ชุดเดียวกัน (ทุก Invoice มี parentOrderId เดียวเสมอ)
-  // — Order เป็นแค่ Navigation/Grouping Layer เท่านั้น ไม่ได้เปลี่ยน Sales SOT ไปนับ Order
-  // Total โดยตรงแต่อย่างใด (ยังคำนวณจาก InvoiceItem.netAmount ของ Invoice PRINTED ทีละใบ
-  // เหมือนเดิมทุกประการ เพียงแต่ Group ผลรวมแสดงต่อ Order ให้ Trace ย้อนกลับได้ง่ายขึ้น)
-  const sotItems = await db.invoiceItem.findMany({
-    where: {
-      invoice: {
-        customerId: customer.id,
-        status: "PRINTED",
-        invoiceDate: { gte: new Date(dateFrom), lte: new Date(dateTo) },
-      },
-    },
-    select: { netAmount: true, invoice: { select: { parentOrderId: true } } },
+  // Owner (2026-09-03) — ยิงครั้งเดียวคุมทั้งตารางกลุ่มส่วนลด (แตกรายการสินค้า) และ Trace
+  // ต่อ Order — ยอดทุกมุมมองมาจากแถวชุดเดียวกัน จึงตรงกันทุกคอลัมน์โดยโครงสร้าง
+  // (แก้ปัญหาเดิมที่ตารางกับ Trace ใช้ฐานคนละตัวจนยอดไม่ตรงกัน)
+  const { groups, total, byOrder } = await getCustomerSalesBreakdown({
+    dateFrom: new Date(dateFrom),
+    dateTo: new Date(dateTo),
+    customerId: customer.id,
   });
-  const sotNetByOrder = new Map<string, number>();
-  for (const item of sotItems) {
-    const orderId = item.invoice.parentOrderId;
-    sotNetByOrder.set(orderId, (sotNetByOrder.get(orderId) ?? 0) + Number(item.netAmount));
-  }
-  const orderIds = [...sotNetByOrder.keys()];
+
+  const orderIds = [...byOrder.keys()];
 
   const traceOrders = orderIds.length
     ? await db.order.findMany({
@@ -103,7 +68,7 @@ export default async function CustomerSalesDrillDownPage(
     : [];
   // เรียงตามยอดที่นับใน Dashboard มาก→น้อย ให้ตรงกับสิ่งที่ Owner สนใจ Trace ก่อน (ยอดใหญ่
   // สุดต้องเจอเร็วที่สุด)
-  traceOrders.sort((a, b) => (sotNetByOrder.get(b.id) ?? 0) - (sotNetByOrder.get(a.id) ?? 0));
+  traceOrders.sort((a, b) => (byOrder.get(b.id)?.net ?? 0) - (byOrder.get(a.id)?.net ?? 0));
 
   return (
     <div className="max-w-2xl">
@@ -115,36 +80,90 @@ export default async function CustomerSalesDrillDownPage(
 
       <div className="bg-white border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
+        {/* Owner (2026-09-03) — Mobile-first: 360px ต้องอ่านง่ายไม่ต้องเลื่อนซ้ายขวา —
+            จอเล็กโชว์ 2 คอลัมน์ตัวเลข (จำนวน + Net) ส่วน "ก่อนส่วนลด/ส่วนลดกลุ่ม" ย้ายไป
+            เป็นบรรทัดย่อยใต้ชื่อ (sm:hidden) แล้วค่อยกางเป็นคอลัมน์เต็มบนจอ ≥640px */}
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600 text-left">
             <tr>
-              <th className="px-4 py-2 font-medium">กลุ่มส่วนลด</th>
-              <th className="px-4 py-2 font-medium text-right">จำนวนที่ขาย</th>
-              <th className="px-4 py-2 font-medium text-right">ยอดขาย (Net)</th>
+              <th className="px-3 sm:px-4 py-2 font-medium">กลุ่มส่วนลด / รายการ</th>
+              <th className="px-2 sm:px-4 py-2 font-medium text-right whitespace-nowrap">จำนวนขาย</th>
+              <th className="hidden sm:table-cell px-4 py-2 font-medium text-right whitespace-nowrap">ยอดก่อนส่วนลด</th>
+              <th className="hidden sm:table-cell px-4 py-2 font-medium text-right whitespace-nowrap">ส่วนลดกลุ่ม</th>
+              <th className="px-3 sm:px-4 py-2 font-medium text-right whitespace-nowrap">ยอดขาย (Net)</th>
             </tr>
           </thead>
-          <tbody>
-            {groups.map((g) => (
-              <tr key={g.key} className="border-t">
-                <td className="px-4 py-2">{g.key === UNSPECIFIED_TYPE_CODE ? GENERAL_PRODUCT_LABEL : g.label}</td>
-                <td className="px-4 py-2 text-right">{g.metrics.quantity.toLocaleString("th-TH")}</td>
-                <td className="px-4 py-2 text-right">{money(g.metrics.net)}</td>
+          {groups.map((g) => (
+            <tbody key={g.typeCode} className="border-t">
+              {/* หัวกลุ่มส่วนลด */}
+              <tr className="bg-gray-50/60">
+                <td className="px-3 sm:px-4 pt-2 pb-1 font-medium" colSpan={5}>
+                  {g.typeLabel}
+                </td>
               </tr>
-            ))}
-            {groups.length === 0 && (
+              {/* รายการสินค้าในกลุ่ม (ระดับรุ่น — ของแถมยอด 0 ไม่แสดง) */}
+              {g.products.map((prod) => (
+                <tr key={prod.key} className="align-top">
+                  <td className="px-3 sm:px-4 py-1.5 pl-6 sm:pl-8">
+                    <span className="text-gray-400 mr-1">•</span>
+                    {prod.kind !== "standalone" ? (
+                      <a
+                        href={`/products/model/${encodeURIComponent(prod.key)}?dateFrom=${dateFrom}&dateTo=${dateTo}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {prod.label}
+                      </a>
+                    ) : (
+                      prod.label
+                    )}
+                    {/* จอเล็ก: ยอดก่อนส่วนลด/ส่วนลด มาอยู่บรรทัดย่อยแทนคอลัมน์ */}
+                    <div className="sm:hidden text-xs text-gray-500 mt-0.5">
+                      ก่อนส่วนลด {money(prod.metrics.gross)} · ส่วนลด {money(prod.metrics.discount)}
+                    </div>
+                  </td>
+                  <td className="px-2 sm:px-4 py-1.5 text-right">{prod.metrics.quantity.toLocaleString("th-TH")}</td>
+                  <td className="hidden sm:table-cell px-4 py-1.5 text-right text-gray-600">{money(prod.metrics.gross)}</td>
+                  <td className="hidden sm:table-cell px-4 py-1.5 text-right text-gray-600">{money(prod.metrics.discount)}</td>
+                  <td className="px-3 sm:px-4 py-1.5 text-right">{money(prod.metrics.net)}</td>
+                </tr>
+              ))}
+              {/* รวมต่อกลุ่ม = ผลบวกของรายการด้านบนเป๊ะ */}
+              <tr className="border-t font-medium">
+                <td className="px-3 sm:px-4 py-1.5 pl-6 sm:pl-8">
+                  รวม {g.typeLabel}
+                  <div className="sm:hidden text-xs font-normal text-gray-500 mt-0.5">
+                    ก่อนส่วนลด {money(g.metrics.gross)} · ส่วนลด {money(g.metrics.discount)}
+                  </div>
+                </td>
+                <td className="px-2 sm:px-4 py-1.5 text-right">{g.metrics.quantity.toLocaleString("th-TH")}</td>
+                <td className="hidden sm:table-cell px-4 py-1.5 text-right">{money(g.metrics.gross)}</td>
+                <td className="hidden sm:table-cell px-4 py-1.5 text-right">{money(g.metrics.discount)}</td>
+                <td className="px-3 sm:px-4 py-1.5 text-right">{money(g.metrics.net)}</td>
+              </tr>
+            </tbody>
+          ))}
+          {groups.length === 0 && (
+            <tbody>
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                   ไม่มีข้อมูลการขายในช่วงวันที่นี้
                 </td>
               </tr>
-            )}
-          </tbody>
+            </tbody>
+          )}
           {groups.length > 0 && (
             <tfoot>
-              <tr className="border-t font-medium bg-gray-50">
-                <td className="px-4 py-2">รวม</td>
-                <td className="px-4 py-2 text-right">{total.quantity.toLocaleString("th-TH")}</td>
-                <td className="px-4 py-2 text-right">{money(total.net)}</td>
+              <tr className="border-t-2 border-gray-300 font-semibold bg-gray-50">
+                <td className="px-3 sm:px-4 py-2">
+                  รวมทั้งหมด
+                  <div className="sm:hidden text-xs font-normal text-gray-500 mt-0.5">
+                    ก่อนส่วนลด {money(total.gross)} · ส่วนลด {money(total.discount)}
+                  </div>
+                </td>
+                <td className="px-2 sm:px-4 py-2 text-right">{total.quantity.toLocaleString("th-TH")}</td>
+                <td className="hidden sm:table-cell px-4 py-2 text-right">{money(total.gross)}</td>
+                <td className="hidden sm:table-cell px-4 py-2 text-right">{money(total.discount)}</td>
+                <td className="px-3 sm:px-4 py-2 text-right">{money(total.net)}</td>
               </tr>
             </tfoot>
           )}
@@ -154,24 +173,24 @@ export default async function CustomerSalesDrillDownPage(
 
       {/* Owner UAT Fix Batch — ข้อ 4: Trace ยอดกลับไปถึง ORDER/INV ต้นทาง — Hierarchy
           Customer (หน้านี้อยู่แล้ว) → ORDER → Child INV — ยอด "ที่ถูกนับใน Dashboard" ต่อ
-          Order มาจาก Query เดียวกับ Sales SOT เป๊ะ (ดู sotNetByOrder ด้านบน) รวมกันได้เท่ากับ
+          Order มาจาก Query เดียวกับ Sales SOT เป๊ะ (ดู byOrder จาก getCustomerSalesBreakdown) รวมกันได้เท่ากับ
           total.net พอดี (Invariant เดียวกับตาราง กลุ่มส่วนลด ด้านบน — Partition เดียวกัน
           คนละมุมมอง Group) — Derived Status ใช้ deriveOrderPrintState เดิมจาก Document
           Center ทุกประการ ไม่มี Logic ใหม่ */}
       <h2 className="font-medium text-sm mt-6 mb-2">Trace ยอดขาย: Order → Invoice ต้นทาง</h2>
       <p className="text-xs text-gray-500 mb-2">
-        เฉพาะ Order ที่มี Invoice ผ่าน Sales SOT (สถานะพิมพ์แล้ว) ในช่วงวันที่นี้ — ยอดต่อ Order = SUM(Invoice ที่นับใน Dashboard เท่านั้น)
+        เฉพาะ Order ที่มี Invoice ผ่าน Sales SOT (สถานะพิมพ์แล้ว) ในช่วงวันที่นี้ — ยอดต่อ Order ใช้ฐานเดียวกับตารางด้านบนเป๊ะ (ก่อนส่วนลด → Net หลังหักส่วนลดกลุ่ม)
         ส่วน Derived Status สะท้อนสถานะ Invoice ลูกทั้งหมดของ Order ณ ปัจจุบัน (อาจมีใบอื่นที่ยังไม่พิมพ์/อยู่นอกช่วงวันที่นี้ปะปนอยู่)
       </p>
 
       <div className="bg-white border rounded-lg overflow-hidden divide-y mb-2">
         {traceOrders.map((order) => {
           const printState = deriveOrderPrintState(order.invoices);
-          const sotNet = sotNetByOrder.get(order.id) ?? 0;
+          const om = byOrder.get(order.id);
           return (
             <details key={order.id} className="group">
               <summary className="cursor-pointer list-none hover:bg-gray-50">
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 px-4 py-3">
                   <div>
                     <a href={`/orders/${order.id}`} className="font-mono text-blue-600 hover:underline text-sm">
                       {order.orderNumber}
@@ -180,8 +199,13 @@ export default async function CustomerSalesDrillDownPage(
                       {order.orderDate.toLocaleDateString("th-TH")} · {order.invoices.length} Invoice ลูก
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{money(sotNet)}</span>
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end">
+                    {/* Owner (2026-09-03) — โชว์ 2 ยอดเหมือนตารางด้านบน ฐานเดียวกันเป๊ะ:
+                        ก่อนส่วนลด → Net (จอเล็กซ้อน 2 บรรทัด กันล้นขอบ) */}
+                    <span className="text-left sm:text-right leading-tight mr-auto sm:mr-0">
+                      <span className="block text-xs text-gray-500">ก่อนส่วนลด {money(om?.gross ?? 0)}</span>
+                      <span className="block text-sm font-medium">Net {money(om?.net ?? 0)}</span>
+                    </span>
                     <StatusBadge status={order.status} config={ORDER_STATUS_LABEL} />
                     {printState === "ALL_PRINTED" && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">พิมพ์แล้ว</span>
@@ -221,7 +245,7 @@ export default async function CustomerSalesDrillDownPage(
       </div>
       {traceOrders.length > 0 && (
         <p className="text-xs text-gray-500">
-          รวม {money([...sotNetByOrder.values()].reduce((s, n) => s + n, 0))} — ต้องเท่ากับยอด &quot;รวม&quot; ในตารางด้านบนเป๊ะ (Partition เดียวกัน)
+          รวม ก่อนส่วนลด {money([...byOrder.values()].reduce((sum, m) => sum + m.gross, 0))} · Net {money([...byOrder.values()].reduce((sum, m) => sum + m.net, 0))} — เท่ากับยอด &quot;รวมทั้งหมด&quot; ในตารางด้านบนทั้งสองค่า (Partition เดียวกัน)
         </p>
       )}
     </div>

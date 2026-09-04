@@ -48,9 +48,18 @@ type Row = {
   productName: string;
 };
 
+// Owner (2026-09-03) — กฎ "จำนวนที่ขาย" ของทั้งระบบ: นับเฉพาะรายการที่มียอดขายจริง
+// (ของแถม/ไม่คิดเงิน เช่น ขาตั้ง/ล้อเบรค/ตะขอ ที่ราคา 0 ไม่ถูกนับ) — เกณฑ์ใช้ "ยอดของ
+// บรรทัดนั้น" ไม่ได้ดูจากชื่อสินค้า จึงครอบคลุมของแถมชนิดใหม่ในอนาคตเองโดยไม่ต้องแก้โค้ด
+// — จุดเดียวที่นี่คุมทุกหน้าที่โชว์จำนวน (Dashboard/การ์ดลูกค้า/Ranking/รายงาน) ให้ตรงกันเสมอ
+// เงิน (gross/discount/net) ไม่ถูกกระทบเลยเพราะรายการราคา 0 บวกเข้าไปก็เป็น 0 อยู่แล้ว
+function soldQuantity(row: { quantity: number; net: number }): number {
+  return row.net > 0 ? row.quantity : 0;
+}
+
 function addRow(m: Metrics, row: Row): Metrics {
   return {
-    quantity: m.quantity + row.quantity,
+    quantity: m.quantity + soldQuantity(row),
     gross: m.gross + row.gross,
     discount: m.discount + row.discount,
     net: m.net + row.net,
@@ -282,6 +291,10 @@ type ProductRow = {
   familyProductId: string | null;
   familyProductName: string | null;
   productName: string;
+  // Owner (2026-09-03) — ใช้จัดกลุ่มซ้อน (กลุ่มส่วนลด → รุ่นสินค้า) และ Trace ต่อ Order
+  // จาก "ชุดแถวเดียวกัน" กับที่คำนวณยอด — ยอดทุกมุมมองจึงมาจาก Partition เดียวกันเสมอ
+  productTypeCode: string;
+  parentOrderId: string;
   // Size ที่ใช้ report/drill-down: เอา sizeSnapshot (ค่า ณ วันที่ขาย) ก่อนเสมอถ้ามี
   // เอกสารเก่าก่อน Phase C ที่ snapshot เป็น null ถึงจะ fallback ไปใช้ Product.size
   // ปัจจุบันแทน (เป็นมุมมองสรุปรายงาน ไม่ใช่เอกสารที่ต้องคงสภาพย้อนหลัง)
@@ -300,7 +313,10 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
         productTypeCode: filters.productTypeCode,
       },
     },
-    include: { product: { include: { model: true, parentProduct: true } } },
+    include: {
+      product: { include: { model: true, parentProduct: true } },
+      invoice: { select: { productTypeCode: true, parentOrderId: true } },
+    },
   });
 
   return items.map((item) => {
@@ -324,6 +340,8 @@ async function fetchProductRows(filters: ReportFilters): Promise<ProductRow[]> {
       familyProductId,
       familyProductName,
       productName: item.productNameSnapshot,
+      productTypeCode: item.invoice.productTypeCode,
+      parentOrderId: item.invoice.parentOrderId,
       size: item.sizeSnapshot ?? p.size ?? null,
     };
   });
@@ -342,7 +360,7 @@ function addMetrics(
   row: { quantity: number; gross: number; discount: number; net: number; vat: number; total: number }
 ): Metrics {
   return {
-    quantity: m.quantity + row.quantity,
+    quantity: m.quantity + soldQuantity(row),
     gross: m.gross + row.gross,
     discount: m.discount + row.discount,
     net: m.net + row.net,
@@ -367,6 +385,70 @@ export async function getTopProductModels(filters: ReportFilters, limit = 10): P
   }
 
   return [...map.values()].sort((a, b) => b.metrics.net - a.metrics.net).slice(0, limit);
+}
+
+// ==========================================================================
+// Owner (2026-09-03) — หน้า "ดูรายละเอียดลูกค้า": ตารางกลุ่มส่วนลดแตกเป็นรายการสินค้า
+// (กลุ่มส่วนลด → รุ่นสินค้า → รวมต่อกลุ่ม) + Trace ต่อ Order ในฟังก์ชันเดียว
+//
+// ทำไมรวมเป็นฟังก์ชันเดียว: เดิมหน้านั้นยิง 2 Query แยกกัน (ตารางใช้ statDiscount / Trace
+// ใช้ netAmount จริงบนเอกสาร) ทำให้ยอด 2 ฝั่งไม่ตรงกันทั้งที่หน้าเขียนว่าต้องตรง — ตอนนี้
+// ทุกมุมมองบนหน้านั้นสรุปจาก "แถวชุดเดียวกัน" (fetchProductRows ครั้งเดียว) ผลรวมจึงตรงกัน
+// ทุกคอลัมน์โดยโครงสร้าง ไม่ใช่เพราะบังเอิญคำนวณเหมือนกัน
+//
+// รายการสินค้าที่ยอด 0 (ของแถม เช่น ขาตั้ง/ล้อเบรค) ไม่ถูกแสดงเป็นบรรทัด และไม่ถูกนับ
+// จำนวน (กฎ soldQuantity เดียวกับทั้งระบบ) — เงินไม่กระทบเพราะเป็น 0 อยู่แล้ว
+// ==========================================================================
+
+export type CustomerSalesProductLine = { key: string; label: string; kind: "model" | "family" | "standalone"; metrics: Metrics };
+export type CustomerSalesGroup = { typeCode: string; typeLabel: string; metrics: Metrics; products: CustomerSalesProductLine[] };
+export type CustomerSalesBreakdown = {
+  groups: CustomerSalesGroup[];
+  total: Metrics;
+  /** ยอดต่อ Order — Partition เดียวกับ groups เป๊ะ (ผลรวมเท่ากันทุกคอลัมน์) */
+  byOrder: Map<string, Metrics>;
+};
+
+export async function getCustomerSalesBreakdown(filters: ReportFilters): Promise<CustomerSalesBreakdown> {
+  const rows = await fetchProductRows(filters);
+  const typeNameByCode = new Map(
+    (await db.productType.findMany({ select: { code: true, name: true } })).map((t) => [t.code, t.name])
+  );
+
+  const groupMap = new Map<string, { typeLabel: string; products: Map<string, CustomerSalesProductLine> }>();
+  const byOrder = new Map<string, Metrics>();
+
+  for (const row of rows) {
+    // Trace รวมทุกแถว (แถวยอด 0 บวกเข้าไปก็เป็น 0 และไม่ถูกนับจำนวนอยู่แล้ว) — ผลรวม
+    // byOrder จึงเท่ากับ total ของตารางเสมอ
+    byOrder.set(row.parentOrderId, addMetrics(byOrder.get(row.parentOrderId) ?? emptyMetrics(), row));
+
+    if (row.net <= 0) continue; // ของแถม/ไม่คิดเงิน — ไม่แสดงเป็นรายการ
+    const typeLabel =
+      row.productTypeCode === UNSPECIFIED_TYPE_CODE
+        ? UNSPECIFIED_TYPE_LABEL
+        : (typeNameByCode.get(row.productTypeCode) ?? row.productTypeCode);
+    const group = groupMap.get(row.productTypeCode) ?? { typeLabel, products: new Map() };
+    // รายการระดับ "รุ่น/ตระกูลสินค้า" ตัวเดียวกับ Top 10 สินค้าบน Dashboard (สินค้าที่ไม่มี
+    // รุ่น/ตระกูล จะขึ้นเป็นรายชิ้นเองตาม resolveProductFamily — ไม่มีการเดาจากชื่อสินค้า)
+    const fam = resolveProductFamily(row);
+    const line = group.products.get(fam.key) ?? { key: fam.key, label: fam.label, kind: fam.kind, metrics: emptyMetrics() };
+    line.metrics = addMetrics(line.metrics, row);
+    group.products.set(fam.key, line);
+    groupMap.set(row.productTypeCode, group);
+  }
+
+  const groups: CustomerSalesGroup[] = [...groupMap.entries()]
+    .map(([typeCode, g]) => {
+      const products = [...g.products.values()].sort((a, b) => b.metrics.net - a.metrics.net);
+      // ยอดหัวกลุ่ม = ผลบวกของบรรทัดที่แสดงจริง → หัวกลุ่มกับรายการลูกตรงกันเสมอ
+      const metrics = products.reduce((m, prod) => addMetrics(m, prod.metrics), emptyMetrics());
+      return { typeCode, typeLabel: g.typeLabel, metrics, products };
+    })
+    .sort((a, b) => b.metrics.net - a.metrics.net);
+
+  const total = groups.reduce((m, g) => addMetrics(m, g.metrics), emptyMetrics());
+  return { groups, total, byOrder };
 }
 
 /** ข้อ 5: Drill-down ของ 1 Family (ProductModel หรือ Product Anchor) แยกยอดตาม Size —
